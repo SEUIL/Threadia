@@ -36,7 +36,8 @@ context: "Acorn 최종 프로젝트 기획주간 5일차 Sprint 1 작업 목록,
 |---|---|
 | PR 제출 기준 | Sprint 작업의 완료 조건을 정할 수 없음 |
 | CI 검증 명령 | merge 기준이 불명확함 |
-| AI 사용 규칙 | AI 사용 작업의 검증 책임이 불명확함 |
+| AGENTS.md / CLAUDE.md / CONTRIBUTING.md | 완료. commit message와 AI GitHub 표시 원칙은 이 기준을 사용 |
+| AI 사용 규칙 | 기본 원칙은 완료. PR Template의 AI 사용 범위 체크는 후속 작업 |
 | docs 구조 | 작업 결과를 어디에 남길지 모름 |
 | 승인 필요 작업 | DB/배포/인증 변경 충돌 가능성 증가 |
 | 화면-API 매핑표 | Frontend/Backend 작업 경계가 흐려짐 |
@@ -105,7 +106,8 @@ context: "Acorn 최종 프로젝트 기획주간 5일차 Sprint 1 작업 목록,
 | Frontend 프로젝트 구조 생성 | 정철진 중심, 1~2명 | 라우팅, 기본 layout 구성 | 브라우저 실행 | framework 결정 |
 | 로그인/프로젝트 홈 화면 초안 | 정철진 중심, 2명 | 로그인 화면과 프로젝트 홈 route 존재 | 브라우저 확인 | Frontend 구조 |
 | GitHub Actions CI 초안 | 1~2명 | PR에서 test 또는 build 실행 | CI 초록 체크 | Spring Boot 프로젝트 |
-| AGENTS.md/PR Template 반영 | 1명 | root 문서와 PR 양식 존재 | 첫 PR에서 확인 | 4일차 규칙 |
+| AGENTS.md/CLAUDE.md/CONTRIBUTING.md 반영 | 완료 | root 문서와 commit 규칙 존재 | 파일 존재와 링크 확인 | 4일차 규칙 |
+| PR Template 반영 | 1명 | PR 양식 존재 | 첫 PR에서 확인 | 4일차 규칙 |
 
 ### 작업 묶음 2. Definition of Done
 
@@ -185,5 +187,6 @@ Backlog 항목:
 - [ ] Spring Boot local 실행 기준
 - [ ] React + Next 기본 구조 기준
 - [ ] MySQL 8.4 local 실행 기준
+- [x] AGENTS.md / CLAUDE.md / CONTRIBUTING.md 기준
 - [ ] PR Template과 CI 기준
 - [ ] 제출 문서 5종 진행 상태
