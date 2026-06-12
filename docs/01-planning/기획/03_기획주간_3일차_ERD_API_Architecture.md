@@ -3,7 +3,7 @@ title: "기획주간 3일차 ERD API Architecture 초안"
 type: planning-note
 status: draft
 created: 2026-06-09
-updated: 2026-06-11
+updated: 2026-06-12
 tags:
   - project
   - team-project
@@ -25,182 +25,101 @@ context: "Acorn 최종 프로젝트 기획주간 3일차 ERD, API, Architecture 
 
 ## 목적
 
-3일차는 2일차 최종 산출물인 **사용자 시나리오, 기능 분해표, 화면 정의서**를 바탕으로 **ERD, API 목록, 권한 정책, AWS Architecture 초안**을 만든다. 4일차 협업 규칙과 문서 운영 기준에 반영할 위험 변경 영역도 함께 정리한다.
+3일차는 2일차 최종 산출물인 **사용자 시나리오, 기능 분해표, 화면 정의서**를 바탕으로 **ERD 초안, API 명세서 초안, 권한 정책 초안**을 만들고, 4일차 협업 하네스에 넘길 입력값을 정리하는 날이다.
 
-추가로 2일차에서 이월된 **기획서 초안, 보류 기능 최종표, repository 이름/owner와 GitHub repository 초기 세팅, README 한 줄 설명 초안**을 먼저 정리한다.
+2026-06-12 기준으로 ERD/API/권한 정책은 `v1.4` 초안까지 작성되었고, AWS 범위와 승인 필요 작업 목록은 4일차 협업 규칙 문서로 이월한다.
 
-## 전회차 입력값
+## 전회차 입력값 처리 결과
 
-| 입력값 | 없을 때 처리 |
+| 입력값 | 처리 결과 | 비고 |
+|---|---|---|
+| 필수 기능 목록 | 완료 | `사용자 시나리오 v2`, `기능 분해표 v2`, `화면 정의서 v2` 기준으로 설계 범위 반영 |
+| 화면 흐름 | 완료 | API 명세서 작성 기준으로 사용. 상세 화면-API 매핑표는 4일차 이월 |
+| 사용자 권한 범위 | 완료 | API 명세서 v1.4의 A/P/C 권한 정책으로 반영 |
+| entity/API 후보 | 완료 | ERD 초안 v1.4, API 명세서 초안 v1.4로 구체화 |
+| 기획서 초안 | 완료 | `03_기획주간_3일차_자료/최종 산출물/프로젝트 기획서(이미지 포함)/프로젝트 기획서.md` 생성 |
+| 보류 기능 최종표 | 이월 | 기능 분해표 v2 기준으로 별도 표 정리 필요 |
+| repository 이름/owner | 완료 | `Threadia`, `SEUIL/Threadia` |
+| GitHub repository 초기 세팅 | 부분 완료 | remote: `https://github.com/SEUIL/Threadia`; 팀원 clone 확인은 이월 |
+| README 한 줄 설명 초안 | 이월 | 현재 root README는 제목만 있음. 한 줄 설명 보강 필요 |
+
+## 해야될 목록 처리 결과
+
+| 번호 | 해야될 일 | 산출물 | 상태 | 후속 처리 |
+|---:|---|---|---|---|
+| 1 | 2일차 이월 항목 정리 | 기획서 초안, repo 결정값 | 부분 완료 | 보류 기능 최종표, README 한 줄 설명은 4일차 이월 |
+| 2 | GitHub repository 초기 세팅 | repository URL | 부분 완료 | 팀원 초대/clone 확인 결과는 4일차 이월 |
+| 3 | 핵심 entity 확정 | entity 목록 | 완료 | ERD 초안 v1.4에 반영 |
+| 4 | ERD 초안 작성 | ERD 초안 | 완료 | `ERD 초안_v1.4.md` |
+| 5 | API 목록 초안 작성 | API 명세서 초안 | 완료 | `API 명세서 초안_v1.4.md` |
+| 6 | 권한 정책 정리 | A/P/C 권한표 | 완료 | API 명세서 v1.4의 권한 정책 섹션에 반영 |
+| 7 | AWS 사용 범위 정리 | EC2/S3/RDS 판단표 | 이월 | 4일차 협업 하네스 문서에서 승인/운영 기준과 함께 정리 |
+| 8 | 위험 변경 항목 도출 | 승인 필요 작업 목록 | 이월 | DB, 배포, 인증/인가, 보안, 대규모 구조 변경 기준으로 4일차 작성 |
+
+## 확정된 산출물
+
+| 산출물 | 위치 | 확인 내용 |
+|---|---|---|
+| 사용자 시나리오 v2 | `03_기획주간_3일차_자료/최종 산출물/사용자 시나리오 v2.md` | 2일차 검토 반영본 |
+| 기능 분해표 v2 | `03_기획주간_3일차_자료/최종 산출물/기능 분해표 v2.md` | MVP/선택/보류 기준 반영본 |
+| 화면 정의서 v2 | `03_기획주간_3일차_자료/최종 산출물/화면 정의서 v2.md` | 주요 화면 흐름 반영본 |
+| 프로젝트 기획서 | `03_기획주간_3일차_자료/최종 산출물/프로젝트 기획서(이미지 포함)/프로젝트 기획서.md` | 기획서 초안 산출물 |
+| ERD 초안 v1.4 | `03_기획주간_3일차_자료/최종 산출물/ERD 초안_v1.4.md` | entity, 관계, 주요 column 정리 |
+| API 명세서 초안 v1.4 | `03_기획주간_3일차_자료/최종 산출물/API 명세서 초안_v1.4.md` | `/api/v1`, `{ data, meta }`, 권한 정책, endpoint 초안 정리 |
+
+## ERD 초안 v1.4 반영 내용
+
+| 항목 | 반영 내용 |
 |---|---|
-| 필수 기능 목록 | ERD 작성 전 MVP 범위 재확정 |
-| 화면 흐름 | API 요청/응답 기준 재정리 |
-| 사용자 권한 범위 | A 일반 사용자, P 프로젝트 관리자, C 회사 관리자 기준으로 정리. F/S15는 MVP 보류 |
-| entity/API 후보 | 2일차 최종 산출물의 Day 3 입력값을 기준으로 우선 후보 작성 |
-| 기획서 초안 | 2일차에서 이월. 최종 사용자 시나리오/기능 분해표/화면 정의서를 입력값으로 사용 |
-| 보류 기능 최종표 | 2일차에서 이월. 기능 분해표의 보류 항목을 기준으로 확정 |
-| repository 이름/owner | 2일차에서 이월. 값 확정 필요 |
-| GitHub repository 초기 세팅 | 2일차에서 이월. repo 생성, 팀원 초대, clone 확인 필요 |
-| README 한 줄 설명 초안 | 2일차에서 이월. repo 생성 시 임시 README에 반영 |
+| 사용자 표시명 | `display_name` 대신 `nickname` 사용 |
+| 초대 정책 | `Invitation` 테이블 제거, 즉시 등록 정책 반영 |
+| 회사/부서 | `companies`, `departments`, `company_members` 포함 |
+| 프로젝트 | `projects`, `project_members`, `sprints`, `issues` 포함 |
+| 문서/그래프 | `documents`, `document_issue_links` 포함 |
+| 채팅/DM | `messages`, `direct_message_rooms`, `direct_messages`, 읽음 상태 테이블 포함 |
+| 쓰레드 | `threads`, `thread_comments` 포함 |
+| 알림 | `notification_events`, `notification_recipients`, `notification_preferences` 포함 |
 
-## 해야될 목록
+## API 명세서 초안 v1.4 반영 내용
 
-| 번호 | 해야될 일 | 산출물 | 권장 담당 그룹 |
-|---:|---|---|---|
-| 1 | 2일차 이월 항목 정리 | 기획서 초안, 보류 기능 최종표, repo 결정값, README 한 줄 설명 | 황스일 주도, 전체 확인 |
-| 2 | GitHub repository 초기 세팅 | repository URL, 팀원 초대, clone 확인 | 황스일 주도, 1~2명 |
-| 3 | 핵심 entity 확정 | entity 목록 | 여도현 우선, 2~3명 |
-| 4 | ERD 초안 작성 | ERD 초안, ERD 제출본 초안 | 2~3명 |
-| 5 | API 목록 초안 작성 | endpoint 표, API 명세서 초안 | 3~4명 |
-| 6 | 권한 정책 정리 | A/P/C 권한표 | 2명 |
-| 7 | AWS 사용 범위 정리 | EC2/S3 중심 판단표 | 2명 |
-| 8 | 위험 변경 항목 도출 | 승인 필요 작업 목록 | 황스일 종합, 2명 검토 |
+| 항목 | 반영 내용 |
+|---|---|
+| Base URL | `/api/v1` prefix 통일 |
+| 공통 응답 | `{ data, meta }` 형식 확정 |
+| 인증 | JWT Bearer Token 기준 |
+| 권한 | A 일반 사용자, P 프로젝트 관리자, C 회사 관리자 기준 |
+| 사용자 DTO | `displayName` 대신 `nickname` 사용 |
+| 삭제 조회 | `includeTrashed` 기본값 `false` 명시 |
+| 메시지 수정 | 메시지 수정 API 미제공 기준으로 `messages.updated_at` 제거 |
+| Invitation | 즉시 등록 정책 확정으로 초대 테이블/API 제외 |
 
-## 회의에서 먼저 정해야 할 것
+## 4일차로 넘길 이월 항목
 
-| 결정 항목 | 기준 | 다음 작업에 미치는 영향 |
+| 이월 항목 | 넘기는 이유 | 4일차 처리 위치 |
 |---|---|---|
-| 2일차 이월 항목 | 기획서 초안, 보류 기능, repository, README 처리 순서 결정 | 오전 우선 작업 확정 |
-| repository 기준 | repo 이름, owner, 기본 branch, README 한 줄 설명 | GitHub repository 생성 기준 |
-| 핵심 entity | 필수 기능에 필요한 것만 포함 | ERD 범위 결정 |
-| MySQL 8.4 기준 | 수업 환경, local 실행, AWS 배포 가능성 | DB 설계와 배포 방식 결정 |
-| API URL 규칙 | REST API 기준으로 단순화 | Frontend/Backend 협업 기준 |
-| 권한 범위 | A/P/C 기준, F/S15는 MVP 보류 | 인증/인가 구현 범위 |
-| AWS 서비스 | EC2/RDS/S3 중심 | 발표와 배포 계획 |
+| 보류 기능 최종표 | 기능 분해표 v2는 있으나 별도 공유용 표가 필요 | 협업 하네스 입력값/팀 공유 문장 |
+| 화면-API 매핑 | API 명세서 초안은 있으나 화면 단위 연결표는 미작성 | docs 구조 또는 API 규칙 문서 |
+| AWS 사용 범위 | EC2/RDS/S3 판단 기준을 협업/승인 규칙과 함께 정해야 함 | 승인 필요 작업 목록, CI/배포 기준 |
+| 승인 필요 작업 목록 | DB, 배포, 인증/인가, 보안, 구조 변경 기준을 AGENTS/PR Template에 넣어야 함 | AGENTS.md, PR Template |
+| 팀원 clone 확인 결과 | repo remote는 확정됐지만 팀원별 clone 확인 기록 필요 | 4일차 오전 확인 |
+| README 한 줄 설명 | root README가 제목만 있어 설명 보강 필요 | repository 문서 구조 작업 |
+| MySQL 8.4 local/배포 확인 | ERD/API는 작성됐지만 local/배포 운영 기준은 미확정 | CI/배포 기준 작업 |
 
-## 분업 가이드라인
+## 3일차 마감 체크
 
-| 작업 | 권장 인원 | 우선 배치 | 검토자 |
-|---|---:|---|---|
-| ERD/entity 정리 | 2~3명 | 여도현 우선 | 황스일 |
-| API 목록 정리 | 3~4명 | 여도현 포함 가능 | 황스일, 정철진 |
-| API 명세서 초안 정리 | 2명 | 여도현 포함 가능 | 황스일 |
-| 화면-API 매핑 | 2~3명 | 정철진 우선 | 황스일 |
-| AWS 범위 조사 | 1~2명 | 기술 이해도 높은 인원 | 황스일 |
-| 위험 변경 목록 | 2명 | 미배정 | 황스일 |
-| 2일차 이월 항목 마감 | 1~2명 | 황스일 주도 | 전체 기준 확인 |
-
-## 오전 회의 운영안
-
-| 안건 | 결정할 내용 | 회의 결과 |
-|---|---|---|
-| 2일차 이월 항목 확인 | 기획서 초안, 보류 기능, repository, README 처리 순서 | 오전 우선 작업 확정 |
-| repository 기준 확정 | repo 이름, owner, 기본 branch, README 한 줄 설명 | GitHub repository 생성 기준 |
-| 기능 범위 확인 | 필수/선택/보류 기능 재확인 | 설계 대상 고정 |
-| entity 후보 검토 | User, Role, Project, Issue, Document, Notice 등 | ERD 작업 기준 |
-| API 규칙 합의 | `/api/...` 형태, REST 기준 | endpoint 작성 기준 |
-| 작업 묶음 배정 | ERD/API/AWS/권한 그룹 배정 | 담당 그룹 확정 |
-
-## 팀원 작업 시간 운영
-
-### 작업 묶음 0. 2일차 이월 항목 마감
-
-| 이월 항목 | 3일차 처리 기준 | 산출물 |
-|---|---|---|
-| 기획서 초안 | 최종 사용자 시나리오, 기능 분해표, 화면 정의서를 입력값으로 배경/목표/주요 사용자/MVP 범위/기대효과 작성 | 기획서 초안 |
-| 보류 기능 최종표 | 기능 분해표의 `선택/보류` 항목을 검토해 MVP 제외 사유 정리 | 보류 기능 최종표 |
-| repository 이름/owner | 팀장 기준으로 값 확정. 임의 값 생성 금지 | repo 생성 기준 |
-| GitHub repository 초기 세팅 | repo 생성, 팀원 초대, clone 확인 | repository URL, clone 확인 결과 |
-| README 한 줄 설명 초안 | 프로젝트 한 줄 설명만 우선 작성. 실행 방법은 4일차 이후 보강 | README 초안 |
-
-### 작업 묶음 1. 핵심 entity
-
-| Entity | 목적 | 비고 |
-|---|---|---|
-| User | 사용자 계정 | Role, Project, Issue와 연결 |
-| Role | 일반 사용자/관리자 권한 | 단순 권한 기준 |
-| Project | 프로젝트/팀 작업 공간 | User, Issue, Document와 연결 |
-| Issue | 업무/이슈 | 담당자, 상태, 마감일 관리 |
-| Document | 문서/회의록 | 프로젝트 결정사항과 지식 공유 |
-| Notice | 공지/알림 | 팀 공지와 알림성 메시지 |
-| Attachment | 파일 메타데이터 | S3 선택 기능 포함 시 사용 |
-| Comment | 댓글 | 선택 기능 |
-
-### 작업 묶음 2. API 목록
-
-| 영역 | Method | Endpoint 후보 | 목적 |
-|---|---|---|---|
-| 인증 | POST | `/api/auth/login` | 로그인 |
-| 사용자 | GET | `/api/users/me` | 현재 사용자 정보 조회 |
-| 업무/이슈 | GET | `/api/issues` | 업무/이슈 목록 |
-| 업무/이슈 | GET | `/api/issues/{id}` | 업무/이슈 상세 |
-| 업무/이슈 | POST | `/api/issues` | 업무/이슈 등록 |
-| 문서 | GET | `/api/documents` | 문서/회의록 목록 |
-| 문서 | POST | `/api/documents` | 문서/회의록 작성 |
-| 공지 | GET | `/api/notices` | 공지 목록 |
-| 공지 | POST | `/api/notices` | 공지 작성 |
-| 관리자 | GET | `/api/admin/users` | 사용자 관리 |
-| 파일 | POST | `/api/files` | 파일 업로드, 선택 기능 |
-
-### 작업 묶음 3. Architecture
-
-```text
-Frontend React + Next
-→ Spring Boot REST API
-→ MySQL 8.4
-→ AWS S3, 선택 기능 파일 저장
-→ AWS EC2, Backend 배포
-```
-
-### 작업 묶음 4. AWS 범위 판단
-
-| AWS 서비스 | 우선순위 | 판단 |
-|---|---:|---|
-| EC2 | 필수 | Spring Boot 배포 후보 |
-| S3 | 선택 | 파일 업로드 포함 시 사용 |
-| RDS 또는 DB 배포 방식 | 선택 후보 | MySQL 배포 필요 시 검토 |
-| Route 53 | 보류 | 도메인 필요 시 후순위 |
-| CloudFront | 보류 | MVP에서는 과할 수 있음 |
-
-## 결과 공유 양식
-
-```text
-작업 묶음:
-참여 인원:
-작성한 산출물:
-확정 가능한 내용:
-확인 필요/TBD:
-4일차 협업 규칙에 반영할 위험 항목:
-```
-
-## 황스일 종합 항목
-
-- ERD 초안
-- ERD 제출본 초안
-- API 목록 초안
-- API 명세서 초안
-- 권한 정책표
-- AWS 사용 범위 판단표
-- MySQL 8.4 local/배포 확인 필요 사항
-- 4일차 `AGENTS.md`와 PR Template에 넣을 승인 필요 작업
-- 기획서 초안
-- 보류 기능 최종표
-- GitHub repository URL과 clone 확인 결과
-- README 한 줄 설명 초안
-
-## 마무리 회의 운영안
-
-| 안건 | 확인할 내용 | 결과 |
-|---|---|---|
-| ERD 공유 | 필수 기능을 감당하는지 | entity 범위 확정 |
-| API 공유 | 화면 흐름과 연결되는지 | API 초안 확정 |
-| 2일차 이월 항목 공유 | 기획서 초안, 보류 기능표, repo, README가 정리됐는지 | 4일차 협업 하네스 입력값 확정 |
-| AWS 공유 | EC2/RDS/S3 범위가 현실적인지 | AWS 후보 확정 |
-| 위험 변경 공유 | DB, 배포, 인증/인가, 보안 기준 | 승인 필요 작업 확정 |
-| 다음날 브리핑 | 협업 규칙과 문서 운영 설계 안내 | 4일차 입력값 확정 |
-
-## 4일차로 넘길 입력값
-
-- [ ] ERD 초안
-- [ ] ERD 제출본 초안
-- [ ] API 목록 초안
-- [ ] API 명세서 초안
-- [ ] 권한 정책 초안
-- [ ] AWS 사용 범위
-- [ ] 승인 필요 작업 목록
-- [ ] MySQL 8.4 local/배포 확인 필요 사항
-- [ ] 기획서 초안
-- [ ] 보류 기능 최종표
-- [ ] GitHub repository URL
-- [ ] 팀원 clone 확인 결과
-- [ ] README 한 줄 설명 초안
+- [x] 2일차 최종 산출물 검토 결과 반영
+- [x] 사용자 시나리오 v2 작성
+- [x] 기능 분해표 v2 작성
+- [x] 화면 정의서 v2 작성
+- [x] 프로젝트 기획서 초안 작성
+- [x] repository 이름/owner 확정
+- [x] ERD/entity 정리
+- [x] ERD 초안 v1.4 작성
+- [x] API 명세서 초안 v1.4 작성
+- [x] 권한 정책 초안 작성
+- [ ] 보류 기능 최종표 별도 정리
+- [ ] 화면-API 매핑표 작성
+- [ ] AWS 사용 범위 정리
+- [ ] 승인 필요 작업 목록 작성
+- [ ] 팀원 clone 확인 결과 기록
+- [ ] README 한 줄 설명 보강
