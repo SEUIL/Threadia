@@ -3,7 +3,7 @@ title: "기획주간 5일차 Sprint 1 Backlog 검증 기준"
 type: planning-note
 status: draft
 created: 2026-06-09
-updated: 2026-06-12
+updated: 2026-06-14
 tags:
   - project
   - team-project
@@ -34,15 +34,16 @@ context: "Acorn 최종 프로젝트 기획주간 5일차 Sprint 1 작업 목록,
 
 | 입력값 | 없을 때 처리 |
 |---|---|
-| PR 제출 기준 | Sprint 작업의 완료 조건을 정할 수 없음 |
-| CI 검증 명령 | merge 기준이 불명확함 |
-| AGENTS.md / CLAUDE.md / CONTRIBUTING.md | 완료. commit message와 AI GitHub 표시 원칙은 이 기준을 사용 |
-| AI 사용 규칙 | 기본 원칙은 완료. PR Template의 AI 사용 범위 체크는 후속 작업 |
-| docs 구조 | 작업 결과를 어디에 남길지 모름 |
+| PR 제출 기준 | 4일차 [[PR_Template_체크항목_초안]] 리뷰 결과를 Sprint 작업 완료 조건에 반영 |
+| CI 검증 명령 | 4일차 [[CI_검증_기준_회의전_설명]] 리뷰 결과를 merge 기준 후보로 사용 |
+| AGENTS.md / CLAUDE.md / CONTRIBUTING.md | 4일차 [[협업_하네스_최소_규칙_초안]] 리뷰 결과를 기준으로 최소 규칙 확정 |
+| AI 사용 규칙 | 4일차 [[AI_사용_규칙_초안]] 리뷰 결과를 PR 작성 기준에 반영 |
+| docs 구조 | `docs/`와 `docs/README.md` 기준으로 작업 결과 위치를 정함. `docs/00_INDEX.md`는 후속 결정 |
 | 승인 필요 작업 | DB/배포/인증 변경 충돌 가능성 증가 |
-| 화면-API 매핑표 | Frontend/Backend 작업 경계가 흐려짐 |
-| AWS 사용 범위 판단표 | 배포/파일 저장 작업을 Sprint 1에 넣을지 판단하기 어려움 |
-| 보류 기능 최종표 | Sprint 1에 보류 기능이 섞일 수 있음 |
+| 화면 정의서 최종본 / 화면-API 매핑표 | Frontend/Backend 작업 경계가 흐려짐 |
+| AWS 사용 범위 판단표 | AWS 제공 방식 공지 수령 전까지 배포/파일 저장 작업의 Sprint 1 포함 여부를 확정하지 않음 |
+| 보류 기능 최종표 | Sprint 1에 선택/보류 기능이 섞일 수 있음 |
+| API/ERD 기술 검토 필요 사항 | 구현 방식과 정책 결정이 늦어져 Backlog 완료 조건이 흐려질 수 있음 |
 | GitHub repository와 clone 확인 | 작업 배정 전에 팀원 local 환경 확인 필요 |
 | README 한 줄 설명 | 프로젝트 설명/발표 초안의 기준 문장으로 사용 |
 
@@ -50,7 +51,7 @@ context: "Acorn 최종 프로젝트 기획주간 5일차 Sprint 1 작업 목록,
 
 | 번호 | 해야될 일 | 산출물 | 권장 담당 그룹 |
 |---:|---|---|---|
-| 1 | 확정 기술 스택 적용 항목 정리 | MySQL 8.4, React + Next, AWS EC2/S3 적용 계획 | 2~3명 |
+| 1 | 확정 기술 스택 적용 항목 정리 | MySQL 8.4, React + Next 적용 계획. AWS는 제공 방식 공지 확인 후 결정 | 2~3명 |
 | 2 | Sprint 1 목표 확정 | Sprint 1 목표 문장 | 황스일 종합, 전체 확인 |
 | 3 | Sprint 1 작업 후보 도출 | Backlog 후보 | 3~4명 |
 | 4 | 작업별 담당 그룹 크기 결정 | 1~4명 배정 기준 | 황스일 종합 |
@@ -77,7 +78,7 @@ context: "Acorn 최종 프로젝트 기획주간 5일차 Sprint 1 작업 목록,
 |---|---:|---|
 | 작음 | 1명 | 문서 초안, 자료 조사, 단일 화면 목록 정리 |
 | 보통 | 2명 | API 목록, 검증 기준, 간단한 Backlog 정리 |
-| 큼 | 3명 | Sprint 1 작업 도출, 기능-화면-API 매핑 |
+| 큼 | 3명 | Sprint 1 작업 도출, 화면 정의서 최종본, 기능-화면-API 매핑 |
 | 중요/복합 | 3~4명 | 기술 스택 결정, 통합 의존성, 개발 착수 blocker 정리 |
 
 정철진은 Frontend 구조 생성, 화면/라우팅, Frontend-API 연동 기준에 우선 배치한다. 여도현은 DB/API/검증 기준/의존성처럼 난도가 높은 작업에 우선 배치한다. 김민정, 김민경은 특정 업무에 고정하지 않고, 작업 크기에 따라 황스일이 배정한다.
@@ -87,7 +88,7 @@ context: "Acorn 최종 프로젝트 기획주간 5일차 Sprint 1 작업 목록,
 | 안건 | 결정할 내용 | 회의 결과 |
 |---|---|---|
 | 4일차 규칙 확인 | PR/CI/AI/docs 기준 | 완료 기준 입력값 확정 |
-| 기술 스택 적용 기준 확인 | MySQL 8.4, React + Next, AWS EC2/S3 | Sprint 1 기준 확정 |
+| 기술 스택 적용 기준 확인 | MySQL 8.4, React + Next. AWS는 제공 방식 공지 확인 후 판단 | Sprint 1 기준 확정 |
 | Sprint 1 목표 합의 | 기반 구축 중심으로 제한 | Sprint 목표 확정 |
 | 작업 묶음 배정 | 작업 크기와 인원수 결정 | 담당 그룹 확정 |
 | 6일차 입력값 확인 | 발표/리스크에 넘길 요약 항목 | 6일차 준비 범위 확정 |
@@ -105,9 +106,9 @@ context: "Acorn 최종 프로젝트 기획주간 5일차 Sprint 1 작업 목록,
 | 프로젝트/이슈 API 초안 | 2명 | 목록/상세/작성 기본 API | Postman 또는 curl | Project/Issue entity |
 | Frontend 프로젝트 구조 생성 | 정철진 중심, 1~2명 | 라우팅, 기본 layout 구성 | 브라우저 실행 | framework 결정 |
 | 로그인/프로젝트 홈 화면 초안 | 정철진 중심, 2명 | 로그인 화면과 프로젝트 홈 route 존재 | 브라우저 확인 | Frontend 구조 |
-| GitHub Actions CI 초안 | 1~2명 | PR에서 test 또는 build 실행 | CI 초록 체크 | Spring Boot 프로젝트 |
-| AGENTS.md/CLAUDE.md/CONTRIBUTING.md 반영 | 완료 | root 문서와 commit 규칙 존재 | 파일 존재와 링크 확인 | 4일차 규칙 |
-| PR Template 반영 | 1명 | PR 양식 존재 | 첫 PR에서 확인 | 4일차 규칙 |
+| GitHub Actions CI 도입 기준 초안 | 1~2명 | PR에서 test 또는 build 실행 기준 합의 | CI 초록 체크 | Spring Boot 프로젝트, 4일차 CI 설명 리뷰 |
+| AGENTS.md/CLAUDE.md/CONTRIBUTING.md 최소 규칙 확정 | 1~2명 | root 문서와 commit 규칙 검토 완료 | 파일 존재와 링크 확인 | 4일차 협업 하네스 초안 리뷰 |
+| PR Template 반영 여부 결정 | 1명 | PR 양식 초안 리뷰 완료 | 첫 PR에서 확인 | 4일차 PR Template 초안 리뷰 |
 
 ### 작업 묶음 2. Definition of Done
 
@@ -116,7 +117,7 @@ context: "Acorn 최종 프로젝트 기획주간 5일차 Sprint 1 작업 목록,
 | Backend | 관련 API가 실행되고 `./gradlew test` 또는 `./gradlew build`가 통과 |
 | Frontend | 브라우저에서 화면 또는 route 확인 가능 |
 | DB | table/entity 관계가 문서와 코드에 반영되고 연결 확인 |
-| Infra/AWS | 설정 값과 절차가 문서화되고 담당자가 재현 가능 |
+| Infra/AWS | AWS 제공 방식 공지 확인 후, 설정 값과 절차가 문서화되고 담당자가 재현 가능 |
 | 문서 | 팀원이 문서만 보고 다음 행동을 할 수 있음 |
 | PR | 작업 내용, 검증, AI 사용 여부, 보안 체크가 작성됨 |
 
@@ -139,8 +140,9 @@ context: "Acorn 최종 프로젝트 기획주간 5일차 Sprint 1 작업 목록,
 | Backend | Java/Gradle/Spring Boot 실행 가능 여부 | Sprint 1 시작 조건에 반영 |
 | DB | MySQL 8.4 local 실행 기준 | DB 담당자와 연결 test 진행 |
 | Frontend | React + Next 구조 생성 가능 여부 | routing/layout 선행 작업 배정 |
-| API | 화면-API 매핑과 endpoint 초안 충돌 여부 | Backlog에서 담당 그룹 조정 |
-| AWS | EC2/RDS/S3 중 Sprint 1 포함 여부 | 포함 시 승인 필요 작업으로 표시 |
+| API | 화면 정의서 최종본, 화면-API 매핑, endpoint 초안 충돌 여부 | Backlog에서 담당 그룹 조정 |
+| API/ERD 검토 | JWT 갱신, pagination, thread 자동 생성, unread count, activity/notification 통합 등 | Sprint 1 포함 전 담당 그룹과 결정 시점 지정 |
+| AWS | 제공 방식 공지 수령 여부와 Sprint 1 포함 가능성 | 세부 내용 확인 전에는 EC2/RDS/S3 범위를 확정하지 않음. 포함 시 승인 필요 작업으로 표시 |
 
 ## 결과 공유 양식
 
@@ -188,5 +190,5 @@ Backlog 항목:
 - [ ] React + Next 기본 구조 기준
 - [ ] MySQL 8.4 local 실행 기준
 - [x] AGENTS.md / CLAUDE.md / CONTRIBUTING.md 기준
-- [ ] PR Template과 CI 기준
+- [ ] PR Template과 CI 기준: 4일차 초안 리뷰 결과 반영
 - [ ] 제출 문서 5종 진행 상태
