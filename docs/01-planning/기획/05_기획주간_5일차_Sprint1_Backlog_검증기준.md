@@ -59,6 +59,20 @@ context: "Acorn 최종 프로젝트 기획주간 5일차 Sprint 1 작업 목록,
 | 6 | 의존성/blocker 정리 | dependency/blocker 표 | Week 2 시작 전 막히는 항목과 해결 담당이 보임 | 2명 |
 | 7 | 6일차 보고 입력값 요약 | PPT 제작에 넘길 개발 착수 요약 | 목표/Backlog/DoD/검증/blocker가 6일차 문서에 바로 옮겨질 수 있음 | 황스일 종합 |
 
+### Sprint 1 목표 문장 예시
+
+Sprint 1 목표 문장은 기능 목록을 길게 나열하지 않고, Week 2 개발 방향을 한 문장으로 고정하는 용도다.
+
+```text
+Sprint 1에서는 Spring Boot, React + Next, MySQL 기반을 구축하고 로그인, 프로젝트, 이슈의 기본 흐름을 local 환경에서 검증 가능한 상태로 만든다.
+```
+
+더 짧게 정리하면 아래처럼 쓸 수 있다.
+
+```text
+Sprint 1 목표는 개발 기반 구축과 핵심 흐름 착수다.
+```
+
 ## 5일차 완료 목표
 
 5일차 종료 시점에는 아래 6개 항목을 6일차 보고용 정리와 PPT 제작의 입력값으로 넘긴다.
@@ -94,6 +108,8 @@ context: "Acorn 최종 프로젝트 기획주간 5일차 Sprint 1 작업 목록,
 | 중요/복합 | 3~4명 | 기술 스택 결정, 통합 의존성, 개발 착수 blocker 정리 |
 
 정철진은 Frontend 구조 생성, 화면/라우팅, Frontend-API 연동 기준에 우선 배치한다. 여도현은 DB/API/검증 기준/의존성처럼 난도가 높은 작업에 우선 배치한다. 김민정, 김민경은 특정 업무에 고정하지 않고, 작업 크기에 따라 황스일이 배정한다.
+
+AI coding tool을 사용하는 상황에서의 분업 기준은 [AI-assisted 분업 기준](./05_기획주간_5일차_자료/회의%20전%20자료/ai-assisted-분업-기준.md)을 회의 전 자료로 먼저 검토한다.
 
 ## 오전 회의 운영안
 
@@ -146,6 +162,8 @@ context: "Acorn 최종 프로젝트 기획주간 5일차 Sprint 1 작업 목록,
 
 ### 작업 묶음 4. 의존성/blocker 정리
 
+아래 표는 최종 dependency/blocker 표가 아니라 **1차 확인 예시**다. 5일차 회의에서는 이 항목들을 확인한 뒤, 실제 Sprint 1 Backlog 기준으로 **영역별 blocker와 기능별 blocker**를 나눠 작성한다.
+
 | 구분 | 확인할 내용 | 후속 처리 |
 |---|---|---|
 | Repository | 모든 팀원이 clone 가능한지 | 안 되는 팀원은 6일차 전 해결 |
@@ -155,6 +173,29 @@ context: "Acorn 최종 프로젝트 기획주간 5일차 Sprint 1 작업 목록,
 | API | 화면 정의서 최종본, 화면-API 매핑, endpoint 초안 충돌 여부 | Backlog에서 담당 그룹 조정 |
 | API/ERD 검토 | JWT 갱신, pagination, thread 자동 생성, unread count, activity/notification 통합 등 | Sprint 1 포함 전 담당 그룹과 결정 시점 지정 |
 | AWS | EC2/RDS/S3 사용 범위와 배포 시점 | 계정은 직접 생성하고 비용은 본인 부담. 실제 배포와 S3 파일 저장 구현은 Sprint 1 이후로 배치하며, 배포/인프라 변경은 승인 필요 작업으로 표시 |
+
+최종 산출물은 아래처럼 해결 담당과 결정 시점까지 포함한다.
+
+| 작업/영역 | 의존성 | blocker | 영향 | 해결 담당 | 결정 시점 | 후속 처리 |
+|---|---|---|---|---|---|---|
+| Repository | GitHub repo, 팀원 초대 | clone 안 되는 팀원 발생 가능 | 개발 착수 지연 | 황스일 | 6일차 전 | 팀원별 clone 확인 |
+| Backend | Java, Gradle, Spring Boot | Java version 불일치 가능 | 서버 실행 실패 | 황스일 + Backend 담당 | Sprint 1 시작 전 | 기준 Java version 정리 |
+| DB | MySQL 8.4 local 실행 | 일부 팀원 DB 실행 불가 가능 | API 개발 지연 | 여도현 | 6일차 전 | local DB 실행 방식 통일 |
+| Frontend | React + Next 구조 | routing/layout 기준 미정 | 화면 작업 충돌 | 정철진 | Sprint 1 시작 전 | 기본 구조 먼저 확정 |
+| API | 화면-API 매핑 | 요청/응답 형식 충돌 가능 | Frontend/Backend 병렬 작업 지연 | API 담당 + Frontend 담당 | Backlog 확정 전 | endpoint 예시 공유 |
+| API/ERD | JWT, pagination, thread, unread count | Sprint 1 포함 여부 미정 | 범위 과확장 | 여도현 + 황스일 | 5일차 종료 전 | 포함/보류 결정 |
+| AWS | EC2/RDS/S3 사용 확정 | 실제 배포는 Sprint 1 이후 | Sprint 1 범위에서 제외 필요 | 황스일 | 확정됨 | 승인 필요 작업으로 표시 |
+
+기능별 blocker도 함께 적어야 한다. 예시는 아래와 같다.
+
+| 기능 | 의존성 | blocker 예시 | 해결 담당 |
+|---|---|---|---|
+| 로그인 API | User entity, JWT 기준 | access/refresh token 정책 미정 | 여도현 + 로그인 API 담당 |
+| 프로젝트 API | Project entity, 권한 정책 | 프로젝트 생성/수정 권한 기준 충돌 가능 | API 담당 + 여도현 |
+| 이슈 API | Issue entity, 칸반 상태값 | 담당자/우선순위/마감일 필드 기준 미정 | API 담당 + ERD 담당 |
+| Frontend 로그인 화면 | React + Next 구조, 로그인 API | 로그인 API 응답 형식 미정 | 정철진 + Backend 담당 |
+| 프로젝트 홈 화면 | 프로젝트 목록 API, 화면 정의서 | 화면에서 필요한 summary 데이터 범위 미정 | 정철진 + API 담당 |
+| CI 적용 | Spring Boot skeleton, Gradle 명령 | 프로젝트 구조 생성 전이라 workflow 작성 불가 | 황스일 |
 
 ## 결과 공유 양식
 
