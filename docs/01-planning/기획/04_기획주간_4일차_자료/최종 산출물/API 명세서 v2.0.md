@@ -171,7 +171,7 @@ POST /api/v1/auth/password-reset/confirm
 }
 ```
 
-프로필 사진은 파일 업로드 API가 아니라 `avatarUrl` 저장으로 시작한다. 범용 파일 업로드는 S3 제공 조건이 확정된 뒤 별도 검토한다.
+프로필 사진은 파일 업로드 API가 아니라 `avatarUrl` 저장으로 시작한다. S3 사용은 확정됐지만, 범용 파일 업로드와 presigned URL API는 Sprint 1 이후에 구현한다.
 
 ---
 
@@ -332,7 +332,7 @@ MVP는 `GLOBAL` scope만 허용한다. `PROJECT` scope 요청은 `PROJECT_NOTIFI
 | 보류 | 이슈/문서 영구 삭제 | `PERMANENT_DELETE_DEFERRED` | 참조 보존 정책 필요 |
 | 보류 | 프로젝트 복원 | `PROJECT_RESTORE_DEFERRED` | 복원 UI 미정 |
 | 보류 | 프로젝트별 알림 설정 | `PROJECT_NOTIFICATION_SCOPE_DEFERRED` | GLOBAL only MVP |
-| 선택 | 범용 파일 첨부 | `/api/v1/attachments` 미제공 | S3 범위 6일차 결정 |
+| 선택 | 범용 파일 첨부 | `/api/v1/attachments` 미제공 | S3 사용 확정, 구현은 Sprint 1 이후 |
 | 보류 | Typesense/Meilisearch | 미제공 | 검색 고도화 후보 |
 
 ---

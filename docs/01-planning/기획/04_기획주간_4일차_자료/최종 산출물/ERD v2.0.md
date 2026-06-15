@@ -212,6 +212,6 @@ summary table은 원본이 아니라 read model이다. 원본은 `issues`, `docu
 - `issues` 정렬용 position 필드 관리 방식.
 - `threads` 자동 생성 vs 수동 생성 정책.
 - `activity_events`와 `notification_events`의 운영상 분리/통합 기준.
-- 범용 attachments 테이블과 S3 presigned URL 정책.
+- 범용 attachments 테이블과 S3 presigned URL 상세 정책은 Sprint 1 이후 구현 단계에서 확정.
 - Thread→Issue 추가 연결 방식.
 - 범용 `issue_history` 도입 여부.
