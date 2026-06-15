@@ -58,6 +58,7 @@ context: "Acorn 최종 프로젝트 기획주간 5일차 Sprint 1 작업 목록,
 | 5 | 검증 방법 작성 | test/build/API/화면 확인 기준 | 각 작업 유형별 실행 명령 또는 확인 방법이 있음 | 여도현 우선, 2명 |
 | 6 | 의존성/blocker 정리 | dependency/blocker 표 | Week 2 시작 전 막히는 항목과 해결 담당이 보임 | 2명 |
 | 7 | 6일차 보고 입력값 요약 | PPT 제작에 넘길 개발 착수 요약 | 목표/Backlog/DoD/검증/blocker가 6일차 문서에 바로 옮겨질 수 있음 | 황스일 종합 |
+| 8 | 발표용 화면 설계서 최종본 작성 | 화면 설계서 최종본 또는 PPT 정리본 | `철진_화면설계서.pptx`를 기준으로 6일차 보고/PPT에 사용할 화면 흐름과 주요 화면이 정리됨 | 정철진 우선, 1~2명 |
 
 ### Sprint 1 목표 문장 예시
 
@@ -85,6 +86,7 @@ Sprint 1 목표는 개발 기반 구축과 핵심 흐름 착수다.
 | Definition of Done | Backend/Frontend/DB/문서/PR 완료 기준 | 품질 기준 요약 |
 | 검증 방법 | `./gradlew test`, API 요청, 브라우저 확인, 문서 검토 기준 | 검증 기준 요약 |
 | 의존성/blocker | repo clone, Spring Boot, React + Next, MySQL, AWS, API/ERD 기술 결정 | 리스크 메모와 Week 2 확인 항목 입력값 |
+| 발표용 화면 설계서 최종본 | `02_기획주간_2일차_자료/1차 분업 산출물/철진_화면설계서.pptx` 기준 주요 화면과 화면 흐름 | 6일차 보고/PPT의 화면 설명 입력값 |
 
 ## 회의에서 먼저 정해야 할 것
 
@@ -94,6 +96,7 @@ Sprint 1 목표는 개발 기반 구축과 핵심 흐름 착수다.
 | MySQL 8.4 실행 기준 | 설치 가능성, 수업 환경, 배포 가능성 | DB 작업 기준 |
 | Sprint 1 목표 | 기능 완성보다 기반 구축 중심 | Week 2 방향 |
 | Sprint 1 범위 | 1주 안에 구현/검증 가능한 작업만 포함 | Backlog 후보 필터 |
+| 발표용 화면 설계서 범위 | `철진_화면설계서.pptx`에서 6일차 보고/PPT에 넣을 주요 화면과 흐름 선정 | 화면 설계서 최종본 |
 | 작업 크기 기준 | 1~4명 배정 가능 | 담당 그룹 표 |
 | 검증 기준 | `./gradlew test` 우선, 화면/API는 직접 실행 | 완료 기준 |
 | 의존성 기준 | 먼저 해야 하는 작업과 병렬 가능한 작업 구분 | blocker 목록 |
@@ -240,6 +243,7 @@ Definition of Done:
 - [ ] 완료 조건: Definition of Done으로 정리
 - [ ] 검증 방법: Backend/Frontend/API/DB/문서 기준으로 정리
 - [ ] 의존성/blocker 목록: 해결 담당과 결정 시점 포함
+- [ ] 발표용 화면 설계서 최종본: `철진_화면설계서.pptx` 기준으로 6일차 보고/PPT에 사용할 주요 화면과 흐름 정리
 - [ ] GitHub repository와 clone 확인 결과
 - [ ] Spring Boot local 실행 기준
 - [ ] React + Next 기본 구조 기준
