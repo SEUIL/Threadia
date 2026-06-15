@@ -28,7 +28,7 @@ context: "CoWork 알림 기능을 MySQL 8.4 중심으로 구현할 때의 구조
 
 이유는 다음과 같다.
 
-- 현재 확정 stack이 `Spring Boot + MySQL 8.4 + React/Next + AWS EC2/S3`이다.
+- 현재 확정 stack이 `Spring Boot + MySQL 8.4 + React/Next + AWS EC2/RDS/S3`이다.
 - 알림은 `S11 알림` 화면, `S12 프로젝트 알림 설정`, `S13/S14 회사/권한 관리`와 연결된다.
 - 6주 MVP에서는 Redis, NoSQL, 분산 DB까지 넣으면 기능 구현보다 운영 복잡도가 커진다.
 - 읽음/안읽음, 사용자별 수신 여부, 역할별 on/off 설정은 관계형 DB의 `JOIN`, `UNIQUE`, `INDEX`로 충분히 관리할 수 있다.
