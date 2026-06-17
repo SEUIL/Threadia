@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-16  
 > **최종 수정**: 2026-06-17  
-> **버전**: 6일차 수정본 v1  
+> **버전**: 6일차 수정본 v2
 > **상태**: 6일차 수정본  
 > **수정 근거**: Threadia-기획문서-검수리포트.md
 
@@ -48,9 +48,9 @@ Sprint 1에서는 Spring Boot, React + Next.js, MySQL 8.4 기반을 구축하고
 | MySQL 8.4 연결 확인 | 2 | 여도현 | test DB 연결 성공 | 연결 test 또는 간단 query | DB 실행 방식 결정, Spring Boot 기반 |
 | Frontend 프로젝트 구조 생성 | 3 | 정철진 | 라우팅, 기본 layout 구성 | 브라우저 실행 | React + Next.js App Router vs Pages Router 결정 |
 | 인증 JPA Entity 구현 | 4 | 여도현 + 김태준 + 김민경 | ERD v2.0 기준 `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` JPA Entity 클래스 구현. `users.role` 필드 없이 구현, `users.password_hash`는 소셜 전용 계정 NULL 허용 | `./gradlew build` 통과 | ERD v2.0, MySQL 연결 확인 |
-| 이메일 회원가입/로그인 API 구현 | 5 | 여도현 + 김태준 + 김민경 | API 명세서 v2.0 기준 `POST /api/v1/auth/signup`, `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/me` 구현 | Postman 또는 curl | 인증 Entity, JWT 정책 결정 |
-| 소셜 로그인 API 구현 (Google OAuth) | 6 | 여도현 + 김태준 + 김민경 | API 명세서 v2.0 기준 `GET /oauth2/authorization/{provider}`, `GET /api/v1/auth/oauth2/callback/{provider}` 구현 | Postman 또는 브라우저 | 인증 Entity, Google OAuth Client ID/Secret 발급 완료 |
-| 비밀번호 재설정 API 구현 | 7 | 여도현 + 김태준 + 김민경 | API 명세서 v2.0 기준 `POST /api/v1/auth/password-reset/request`, `POST /api/v1/auth/password-reset/confirm` 구현. 이메일 발송은 Sprint 1에서 Google SMTP 실제 발송으로 검증하며, log/local console은 보조 debugging evidence로만 사용 | Postman 또는 curl | password_reset_tokens Entity |
+| 이메일 회원가입/로그인 API 구현 | 5 | 여도현 + 김태준 + 김민경 | API 명세서 v2.3 기준 `POST /api/v1/auth/signup`, `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/me` 구현. email `trim + lowercase`, `ACTIVE` 사용자 인증 기준 반영 | Postman 또는 curl | 인증 Entity, JWT 정책 결정 |
+| 소셜 로그인 API 구현 (Google OAuth) | 6 | 여도현 + 김태준 + 김민경 | API 명세서 v2.3 기준 `GET /oauth2/authorization/{provider}`, `GET /api/v1/auth/oauth2/callback/{provider}` 구현. 이메일만 같은 blind auto-link 금지 | Postman 또는 브라우저 | 인증 Entity, Google OAuth Client ID/Secret 발급 완료 |
+| 비밀번호 재설정 API 구현 | 7 | 여도현 + 김태준 + 김민경 | API 명세서 v2.3 기준 `POST /api/v1/auth/password-reset/request`, `POST /api/v1/auth/password-reset/confirm` 구현. confirm 성공 시 기존 `refresh_tokens` 전부 revoke. 이메일 발송은 Sprint 1에서 Google SMTP 실제 발송으로 검증하며, log/local console은 보조 debugging evidence로만 사용 | Postman 또는 curl | password_reset_tokens, refresh_tokens Entity |
 | 로그인/회원가입 화면 구현 | 8 | 정철진 | 로그인 화면, 회원가입 화면 route 존재, 로그인 API 연동 완료 | 브라우저 확인 | Frontend 구조, 로그인 API 응답 형식 |
 | GitHub Actions CI 도입 기준 확인 | 9 | 황스일 + 김민정 | `./gradlew test` 우선, skeleton 이후 workflow 생성 기준 합의 | CI 기준 문서 확인 | CI 기준 확정 v1.0, Spring Boot skeleton 생성 이후 |
 | AGENTS.md/CLAUDE.md/CONTRIBUTING.md 최소 규칙 확정 | 10 | 황스일 + 김민정 | root 문서와 docs 하위 규칙, commit 규칙 검토 완료 | 파일 존재와 링크 확인 | 4일차 협업 하네스 최신화 |
@@ -83,7 +83,7 @@ Sprint 1에서는 Spring Boot, React + Next.js, MySQL 8.4 기반을 구축하고
 | --- | --- | --- | --- |
 | (4) 인증 JPA Entity 구현 | 여도현 + 김태준 + 김민경 | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` 구현, `./gradlew build` 통과 | Day 1 MySQL 연결 확인 |
 | 로그인/회원가입 화면 레이아웃 작업 | 정철진 | 화면 UI만 우선 구현 (API 연동 전) | 화면정의서_v3, API 없이 진행 가능 |
-| JWT 정책 결정 회의 | 황스일 + 여도현 | access/refresh token 만료 시간, 갱신 전략, 저장 위치 결정 | Day 3 API 구현 전 확정 필요 |
+| JWT 정책 결정 회의 | 황스일 + 여도현 | access/refresh token 만료 시간, 갱신 전략, 저장 위치, password reset/status change refresh token revoke, UTC 시간 기준 결정 | Day 3 API 구현 전 확정 필요 |
 
 ### Day 3 — 이메일 로그인 API + 소셜 로그인 API
 
@@ -148,7 +148,7 @@ Sprint 1에서는 Spring Boot, React + Next.js, MySQL 8.4 기반을 구축하고
 | Backend | Java, Gradle, Spring Boot | Java 17 기준 통일 필요 | 서버 실행 실패 | 황스일 + 여도현 | Sprint 1 시작 전 | Java 17 기준 적용 |
 | DB | MySQL 8.4 local 실행 | 일부 팀원 DB 실행 불가 가능 (Mac/Windows OS별 방식 차이) | API 개발 지연 | 여도현 | 6일차 전 | local DB 실행 방식 통일 후 공유 |
 | Frontend | React + Next 구조 | App Router vs Pages Router 미결 | 화면 작업 충돌 | 정철진 | Sprint 1 시작 전 | 팀 전체 합의 후 기본 구조 먼저 확정 |
-| 인증 | JWT 정책 | access token 30분, refresh token 14일, hash 저장, rotation, logout invalidation, access token memory + refresh token HttpOnly SameSite=Lax cookie 권장 기준 확정 | API 구현 방향 충돌 방지 | 여도현 + 황스일 | Day 2까지 반영 | API/ERD/Backend DoD 기준과 동기화 |
+| 인증 | JWT/Auth 정책 | access token 30분, refresh token 14일, hash 저장, rotation, logout/password reset/status change invalidation, access token memory + refresh token HttpOnly SameSite=Lax cookie 권장, email `trim + lowercase`, ACTIVE 사용자 인증, OAuth blind auto-link 금지, UTC 시간 기준 확정 | API 구현 방향 충돌 방지 | 여도현 + 황스일 | Day 2까지 반영 | API/ERD/Backend DoD 기준과 동기화 |
 
 ### 기능별 blocker
 
@@ -156,7 +156,7 @@ Sprint 1에서는 Spring Boot, React + Next.js, MySQL 8.4 기반을 구축하고
 | --- | --- | --- | --- |
 | 소셜 로그인 API | oauth_accounts entity, Google OAuth 설정 | Google Cloud Console 앱 등록 + Client ID/Secret 발급 필요, callback URL 등록 필요 | 황스일 + 김민정 (Day 1) |
 | 비밀번호 재설정 API | password_reset_tokens entity | Sprint 1은 Google SMTP 실제 발송으로 검증한다. AWS SES는 Sprint 1 범위가 아니며 배포/운영 단계에서 도입 여부를 결정한다 | 여도현 + 황스일 |
-| 이메일 로그인 API | 인증 entity, JWT 기준 | access token 30분, refresh token 14일, hash 저장, rotation, logout invalidation, refresh cookie 기준 반영 | 여도현 + 황스일 |
+| 이메일 로그인 API | 인증 entity, JWT 기준 | access token 30분, refresh token 14일, hash 저장, rotation, logout/password reset/status change invalidation, email 정규화, ACTIVE 사용자 인증, refresh cookie 기준 반영 | 여도현 + 황스일 |
 | Frontend 로그인 화면 | React + Next 구조, 로그인 API | 로그인 API 응답 형식 확인 필요 | 정철진 + 여도현 |
 | CI 적용 | Spring Boot skeleton, Gradle 명령 | 프로젝트 구조 생성 전이라 workflow 작성 불가 | 황스일 |
 
@@ -225,19 +225,19 @@ Mac/Windows 혼재 시 설치 방법이 달라진다. Docker로 통일하는 게
 
 | 작업 | 권장 담당 | 완료 조건 | 검증 방법 | 의존성 |
 |---|---|---|---|---|
-| `invitations` DB/entity 구현 | 여도현 + 김태준 + 김민경 | ERD 기준 `invitations`와 users/companies/projects/member 관계 mapping 완료 | repository test 또는 migration 확인 | Sprint 1 Auth DB 완료, 회사/프로젝트 reference schema 확인 |
+| `invitations` DB/entity 구현 | 여도현 + 김태준 + 김민경 | ERD 기준 `invitations`와 users/companies/company_members 관계 mapping 완료 | repository test 또는 migration 확인 | Sprint 1 Auth DB 완료, 회사 seed와 company_members reference schema 확인 |
 | 등록 사용자 lookup API | 여도현 + 김민경 | exact email lookup으로 등록 사용자만 반환 | curl 또는 Postman | `users` 구현 |
 | 회사 invitation API | 김태준 + 김민경 | create/list, duplicate pending, already member, 7일 expiresAt 처리 | curl 또는 Postman | `invitations`, `company_members` |
-| 프로젝트 invitation API | 여도현 + 김태준 | create/list, 같은 회사 ACTIVE member 대상 제한, already project member, pending 중복 처리 | curl 또는 Postman | `projects`, `project_members` |
 | 내 invitation 목록과 accept/decline/cancel | 여도현 + 김태준 + 김민경 | 수락 시 membership 생성, decline/cancel/expired 실패 처리 | API 정상/실패 케이스 | invitation 상태 전이 기준 |
 | 화면 S14 연결 | 정철진 | pending/accepted/declined/canceled/expired 상태 표시 | 브라우저 확인 | API 응답 형식 확정 |
-| 문서와 DoD 동기화 | 황스일 + 김민정 | API, ERD, 화면, 추적표, DoD가 충돌하지 않음 | 문서 리뷰 | 검수리포트 이슈 1, 3, 4, 9 |
+| 문서와 DoD 동기화 | 황스일 + 김민정 | API, ERD, 화면, 추적표, DoD가 seed bootstrap, notification 분리, UTC, email 정규화, OAuth link, refresh token revoke, ACTIVE 인증 기준과 충돌하지 않음 | 문서 리뷰 | 검수리포트 이슈 1, 3, 4, 9 |
 
 ### Sprint 1.5 완료 기준
 
 - Sprint 1 Auth-only 산출물을 건드리지 않고 invitation 기능을 별도 범위로 검증한다.
-- `expiresAt`은 기본 7일 값으로 응답하며 null 예시를 쓰지 않는다.
+- `expiresAt`은 기본 7일 값으로 응답하며 null 예시를 쓰지 않는다. 서버 생성/만료 시각은 UTC 기준으로 생성·저장·비교하고 API 응답은 ISO-8601 UTC `Z` 형식을 사용한다.
 - membership은 invitation accept 시점에만 생성한다.
+- Sprint 1.5 검증용 최초 회사와 `COMPANY_ADMIN`은 local/dev/demo seed로 준비하고, `POST /api/v1/companies`는 Sprint 1.5 구현 범위에서 제외한다.
 - actual email sending, token link, 미가입 사용자 초대, signup auto-accept, resend, 필수 batch scheduler는 제외 범위로 남긴다.
 
 ---
@@ -252,14 +252,24 @@ Mac/Windows 혼재 시 설치 방법이 달라진다. Docker로 통일하는 게
 
 1. Phase B는 Sprint 1.5의 등록 사용자 대상 app-internal invitation 정책을 반영한다.
 2. Sprint 1은 Auth-only이며 invitation을 구현하지 않는다.
-3. Sprint 1.5부터 회사/프로젝트 멤버 추가는 즉시 membership 생성이 아니라 `invitations` 생성과 대상자 accept 후 membership 생성으로 처리한다.
-4. Sprint 2는 actual invitee email sending, token link acceptance, unregistered onboarding, resend, email template, delivery failure handling, batch cleanup/operations의 후보 시점이며 확정 구현 commitment는 아니다.
+3. Sprint 1.5부터 회사 멤버 추가는 즉시 membership 생성이 아니라 `invitations` 생성과 대상자 accept 후 membership 생성으로 처리한다. 프로젝트 멤버 추가와 project invitation은 Sprint 2로 분리한다.
+4. Sprint 2는 project invitation, project membership 생성, actual invitee email sending, token link acceptance, unregistered onboarding, resend, email template, delivery failure handling, batch cleanup/operations의 후보 시점이며 확정 구현 commitment는 아니다.
 
 ### invitation 공식 결정
 
-1. Sprint 1.5 포함 범위는 `invitations` table, `PENDING / ACCEPTED / DECLINED / CANCELED / EXPIRED`, company invitation, project invitation, exact email lookup for registered users, received invitation list, accept/decline/cancel, membership creation on accept, internal invitation-related `notification_events`다.
-2. Sprint 1.5 제외 범위는 actual email sending to invitees, invitation token link, unregistered-user invitation, signup/onboarding auto-accept, resend다.
-3. `notification_events`에는 필요 시 `INVITATION_CREATED`, `INVITATION_ACCEPTED`, `INVITATION_DECLINED`, `MEMBER_ADDED`를 내부 event 원장으로 추가한다. Push 알림, 별도 Invitation notification preference, S11 사용자 알림 UI 필수 구현은 Sprint 1.5 범위가 아니다.
+1. Sprint 1.5 포함 범위는 `invitations` table, `PENDING / ACCEPTED / DECLINED / CANCELED / EXPIRED`, company invitation, exact email lookup for registered users, received invitation list, accept/decline/cancel, company membership creation on accept다.
+2. Sprint 1.5 제외 범위는 project invitation, project membership creation, actual email sending to invitees, invitation token link, unregistered-user invitation, signup/onboarding auto-accept, resend다.
+3. `notification_events`에는 필요 시 `INVITATION_CREATED`, `INVITATION_ACCEPTED`, `INVITATION_DECLINED`, `MEMBER_ADDED`를 내부 event 원장으로 기록할 수 있으나 Sprint 1.5 완료 조건에는 포함하지 않는다. Push 알림, 별도 Invitation notification preference, S11 사용자 알림 UI 필수 구현은 Sprint 1.5 범위가 아니다.
 4. Sprint 1.5에서는 user-facing `notification_preferences`에 별도 Invitation category를 노출하지 않고 기존 global notification preference policy를 따른다.
 5. `EXPIRED`와 `expires_at`을 유지하고 기본 만료 기간은 7일로 둔다. read/accept/decline/cancel 시 lazy expiration을 확인하며, 만료된 `PENDING` invitation accept는 `409 INVITATION_EXPIRED`로 거절한다.
 6. Sprint 1.5에는 필수 batch scheduler를 추가하지 않는다. Batch cleanup/sweeper는 Sprint 2 이후 admin list hygiene, retention, metrics, operational cleanup 필요에 따라 검토한다.
+
+### Phase C 추가 동기화 결정
+
+1. Sprint 1.5 invitation 검증은 local/dev/demo seed 회사 1개와 `COMPANY_ADMIN` 1명을 사용한다. `POST /api/v1/companies`는 Sprint 1.5 구현 범위에 포함하지 않고 MVP/Sprint 2 reference로 유지하며 운영 데이터에는 seed를 포함하지 않는다.
+2. `activity_events`는 활동 원장, `notification_events`는 알림 사건 원본으로 별도 운영한다. 두 저장소를 통합하지 않고, 필요 시 activity 이벤트에서 notification 이벤트를 생성하는 연계만 허용한다.
+3. 서버 생성 시각과 만료 시각은 UTC 기준으로 생성, 저장, 비교한다. ERD의 `DATETIME` 타입은 유지하고 API 응답은 ISO-8601 UTC `Z` 형식으로 반환한다.
+4. 로그인 이메일은 모든 진입점에서 `trim + lowercase`로 정규화한 값을 저장, 조회, 비교한다. 이 기준은 signup, login, password reset, OAuth 계정 연결, invitation lookup에 동일하게 적용한다.
+5. OAuth 계정 연결은 이메일만 같다는 이유로 blind auto-link하지 않는다. 이미 로그인한 사용자이거나 provider 이메일 검증을 신뢰할 수 있는 경우에만 기존 `users` 계정과 연결한다.
+6. `password-reset/confirm` 성공 시 해당 사용자의 모든 기존 `refresh_tokens`를 revoke한다. 기존 access token은 별도 blacklist 없이 짧은 만료 시간에 따라 자연 만료시킨다.
+7. login, OAuth callback, token refresh, `/auth/me`는 `users.status = ACTIVE`인 사용자만 성공 처리한다. `SUSPENDED` 또는 `DELETED` 사용자는 인증을 거부하며, 상태 변경 시 기존 `refresh_tokens`를 revoke한다.
