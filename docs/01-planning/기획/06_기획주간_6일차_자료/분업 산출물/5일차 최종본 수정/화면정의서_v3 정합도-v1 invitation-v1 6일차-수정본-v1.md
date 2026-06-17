@@ -110,7 +110,7 @@ MVP 보류
 
 | Method | Endpoint | 설명 |
 |---|---|---|
-| POST | `/api/v1/auth/login` | 이메일/비밀번호 로그인, accessToken + user + companies 반환 |
+| POST | `/api/v1/auth/login` | 이메일/비밀번호 로그인, accessToken + user + companies 반환. Sprint 1은 `companies: []` 고정 |
 | GET | `/oauth2/authorization/{provider}` | 소셜 로그인 시작 |
 | GET | `/api/v1/auth/oauth2/callback/{provider}` | 소셜 로그인 callback 처리 |
 | POST | `/api/v1/auth/password-reset/request` | 비밀번호 재설정 요청 |
@@ -155,7 +155,7 @@ MVP 보류
 | 연결 화면 | S04, S05, S06, S07, S09, S11, S13 |
 
 **설계 메모**
-- 로그인 직후 `GET /api/v1/auth/me`의 `companyMemberships` 기준으로 분기한다.
+- Sprint 1 이후 후속 MVP reference에서는 `GET /api/v1/auth/me`의 `companyMemberships` 기준으로 분기한다.
   - `companyMemberships` 있음 → S03 정상 진입
   - `companyMemberships` 비어있음 (신규 C) → S13 생성 모드로 바로 리다이렉트
 - A/P에게는 회사관리 메뉴를 노출하지 않는다.
@@ -582,6 +582,7 @@ MVP 보류
 | 이미 회사 소속인 사용자 | `ALREADY_COMPANY_MEMBER` 메시지를 표시하고 초대를 만들지 않는다 |
 | 이미 프로젝트 소속인 사용자 | `ALREADY_PROJECT_MEMBER` 메시지를 표시하고 초대를 만들지 않는다 |
 | 동일 대상의 대기 중 초대 존재 | `INVITATION_ALREADY_PENDING` 메시지와 기존 초대 상태를 표시한다 |
+| 프로젝트 초대 대상자가 같은 회사 ACTIVE 구성원이 아님 | 프로젝트 초대를 만들지 않고 회사 소속 여부를 먼저 확인하라고 안내한다 |
 | 미가입 이메일 | Sprint 1.5 범위 밖으로 안내한다. 외부 email 초대와 signup 연동은 제공하지 않는다 |
 
 **Invitation 상태 표시**
@@ -595,9 +596,9 @@ MVP 보류
 | EXPIRED | 만료됨 | 기본 7일 만료, lazy expiration 후 수락 불가 |
 
 **설계 메모**
-- 역할은 A(MEMBER) / P(PROJECT_ADMIN) / C(COMPANY_ADMIN)로 제한한다.
+- 역할은 scope별로 제한한다. 회사 초대는 `COMPANY_ADMIN` 또는 `MEMBER`, 프로젝트 초대는 `PROJECT_ADMIN` 또는 `MEMBER`만 허용한다.
 - 플랫폼 관리자 F는 이 화면에서 다루지 않는다.
-- 초대 생성, 수락, 거절은 S11 알림과 연결할 수 있다.
+- 초대 생성, 수락, 거절은 내부 `notification_events`와 연결할 수 있다. Push 알림, 별도 Invitation notification preference, S11 사용자 알림 UI 필수 구현은 Sprint 1.5 범위가 아니다.
 - 구성원 목록에서 특정 구성원과 `S09 1:1 DM`을 시작할 수 있다.
 - 구성원은 invitation accept 시점에 생성한다. user-facing 즉시 등록 화면으로 처리하지 않는다.
 
@@ -609,7 +610,7 @@ MVP 보류
 | GET | `/api/v1/users/lookup?email={email}` | 등록 사용자 exact email lookup |
 | POST | `/api/v1/companies/{companyId}/invitations` | 회사 초대 생성 |
 | GET | `/api/v1/companies/{companyId}/invitations` | 회사 초대 목록 조회 |
-| POST | `/api/v1/projects/{projectId}/invitations` | 프로젝트 초대 생성 |
+| POST | `/api/v1/projects/{projectId}/invitations` | 프로젝트 초대 생성. 대상은 같은 회사 ACTIVE 구성원으로 제한 |
 | GET | `/api/v1/users/me/invitations` | 내가 받은 초대 목록 조회 |
 | POST | `/api/v1/invitations/{invitationId}/accept` | 초대 수락, membership 생성 |
 | POST | `/api/v1/invitations/{invitationId}/decline` | 초대 거절 |
@@ -715,9 +716,9 @@ S15는 MVP 화면 목록에 포함하지 않는다. 필요하면 발표에서 �
 
 ### invitation 공식 결정
 
-1. Sprint 1.5 포함 범위는 `invitations` table, `PENDING / ACCEPTED / DECLINED / CANCELED / EXPIRED`, company invitation, project invitation, exact email lookup for registered users, received invitation list, accept/decline/cancel, membership creation on accept, invitation-related notification events다.
+1. Sprint 1.5 포함 범위는 `invitations` table, `PENDING / ACCEPTED / DECLINED / CANCELED / EXPIRED`, company invitation, project invitation, exact email lookup for registered users, received invitation list, accept/decline/cancel, membership creation on accept, internal invitation-related `notification_events`다.
 2. Sprint 1.5 제외 범위는 actual email sending to invitees, invitation token link, unregistered-user invitation, signup/onboarding auto-accept, resend다.
-3. `notification_events`에는 필요 시 `INVITATION_CREATED`, `INVITATION_ACCEPTED`, `INVITATION_DECLINED`, `MEMBER_ADDED`를 추가한다.
+3. `notification_events`에는 필요 시 `INVITATION_CREATED`, `INVITATION_ACCEPTED`, `INVITATION_DECLINED`, `MEMBER_ADDED`를 내부 event 원장으로 추가한다. Push 알림, 별도 Invitation notification preference, S11 사용자 알림 UI 필수 구현은 Sprint 1.5 범위가 아니다.
 4. Sprint 1.5에서는 user-facing `notification_preferences`에 별도 Invitation category를 노출하지 않고 기존 global notification preference policy를 따른다.
 5. `EXPIRED`와 `expires_at`을 유지하고 기본 만료 기간은 7일로 둔다. read/accept/decline/cancel 시 lazy expiration을 확인하며, 만료된 `PENDING` invitation accept는 `409 INVITATION_EXPIRED`로 거절한다.
 6. Sprint 1.5에는 필수 batch scheduler를 추가하지 않는다. Batch cleanup/sweeper는 Sprint 2 이후 admin list hygiene, retention, metrics, operational cleanup 필요에 따라 검토한다.
