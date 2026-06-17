@@ -274,13 +274,13 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 
 | Method | Endpoint | 권한 | 설명 |
 |---|---|---|---|
-| GET | `/api/v1/users/lookup?email={email}` | C/P | 등록 사용자 exact email lookup. 초대 대상 확인용. 입력 email은 `trim + lowercase` 정규화 후 조회 |
+| GET | `/api/v1/users/lookup?email={email}` | C | 등록 사용자 exact email lookup. Sprint 1.5 company invitation 대상 확인용. 입력 email은 `trim + lowercase` 정규화 후 조회 |
 | POST | `/api/v1/companies/{companyId}/invitations` | C | 회사 invitation 생성 |
 | GET | `/api/v1/companies/{companyId}/invitations` | C | 회사 invitation 목록 조회 |
 | GET | `/api/v1/users/me/invitations` | A/P/C | 내가 받은 invitation 목록 조회 |
 | POST | `/api/v1/invitations/{invitationId}/accept` | A/P/C | invitation 수락, membership 생성 |
 | POST | `/api/v1/invitations/{invitationId}/decline` | A/P/C | invitation 거절 |
-| POST | `/api/v1/invitations/{invitationId}/cancel` | C/P | 보낸 invitation 취소 |
+| POST | `/api/v1/invitations/{invitationId}/cancel` | C | 보낸 company invitation 취소. Project invitation cancel은 Sprint 2에서 P/C 기준으로 처리 |
 
 ### Invitation 정책
 
@@ -647,7 +647,7 @@ Response 201:
       "description": "개발팀을 위한 협업 플랫폼",
       "industryCategory": "IT/소프트웨어",
       "logoUrl": null,
-      "createdAt": "2026-06-16T09:00:00"
+      "createdAt": "2026-06-16T09:00:00Z"
     },
     "companyMember": {
       "id": 100,
@@ -863,7 +863,7 @@ Request Body:
 Request Body:
 
 ```json
-{ "startedAt": "2026-06-17T09:00:00" }
+{ "startedAt": "2026-06-17T09:00:00Z" }
 ```
 
 #### POST `/api/v1/sprints/{sprintId}/complete`
@@ -872,7 +872,7 @@ Request Body:
 
 ```json
 {
-  "completedAt": "2026-06-30T18:00:00",
+  "completedAt": "2026-06-30T18:00:00Z",
   "summary": "Sprint 1 목표 기능 skeleton 완료"
 }
 ```
@@ -957,10 +957,10 @@ Response 201:
 {
   "data": {
     "invitation": {
-      "id": 501,
-      "scopeType": "COMPANY",
+      "id": 601,
+      "scopeType": "PROJECT",
       "companyId": 10,
-      "projectId": null,
+      "projectId": 20,
       "inviteeUserId": 2,
       "status": "PENDING",
       "expiresAt": "2026-06-24T10:00:00Z"
@@ -1261,7 +1261,7 @@ Request Body:
 ```json
 {
   "lastReadMessageId": 7000,
-  "readAt": "2026-06-16T10:00:00"
+  "readAt": "2026-06-16T10:00:00Z"
 }
 ```
 
@@ -1323,7 +1323,7 @@ Request Body:
 ```json
 {
   "lastReadDirectMessageId": 9100,
-  "readAt": "2026-06-16T10:00:00"
+  "readAt": "2026-06-16T10:00:00Z"
 }
 ```
 
@@ -1366,7 +1366,7 @@ Response 200:
         "type": "THREAD",
         "id": 6000
       },
-      "createdAt": "2026-06-16T10:00:00"
+      "createdAt": "2026-06-16T10:00:00Z"
     }
   ],
   "page": { "cursor": "next_cursor", "hasNext": true, "size": 20 },
@@ -1395,7 +1395,7 @@ Response 200:
 {
   "data": {
     "notificationRecipientId": 8000,
-    "readAt": "2026-06-16T10:05:00"
+    "readAt": "2026-06-16T10:05:00Z"
   },
   "meta": { "requestId": "req_..." }
 }
