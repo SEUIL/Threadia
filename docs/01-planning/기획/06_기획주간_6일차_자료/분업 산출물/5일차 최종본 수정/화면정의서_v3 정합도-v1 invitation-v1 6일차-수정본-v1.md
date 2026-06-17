@@ -481,16 +481,17 @@ MVP 보류
 | 항목 | 내용 |
 |---|---|
 | 접근 사용자 | P/C |
-| 화면 목적 | 프로젝트 기본 정보, 멤버, 권한, 알림 설정 관리 |
-| 주요 데이터 | 프로젝트 정보, 프로젝트 멤버, 프로젝트 역할, 프로젝트 알림 설정 |
-| 주요 액션 | 프로젝트 정보 수정, 멤버 추가, 역할 변경, 알림 설정 변경, 프로젝트 아카이빙 |
-| 연결 기능 | PROJECT-03, PROJECT-04, PROJECT-MEMBER-01, PROJECT-MEMBER-02, NOTI-02, NOTI-03 |
+| 화면 목적 | 프로젝트 기본 정보, 멤버, 권한 관리 |
+| 주요 데이터 | 프로젝트 정보, 프로젝트 멤버, 프로젝트 역할 |
+| 주요 액션 | 프로젝트 정보 수정, 멤버 추가, 역할 변경, 프로젝트 아카이빙 |
+| 연결 기능 | PROJECT-03, PROJECT-04, PROJECT-MEMBER-01, PROJECT-MEMBER-02 |
 | 연결 화면 | S05, S11 |
 
 **설계 메모**
 - 프로젝트 삭제는 물리 삭제가 아니라 아카이빙으로 처리한다 (`status = ARCHIVED`).
 - 프로젝트 복원은 MVP 보류 (`PROJECT_RESTORE_DEFERRED`).
 - 프로젝트 관리자(PROJECT_ADMIN)는 최소 1명을 유지해야 한다.
+- 프로젝트별 알림 설정(PROJECT scope)은 보류하고 S12에서 제공하지 않는다. 알림 설정은 S11의 GLOBAL preference 기준으로 처리한다.
 
 **API 매핑**
 
@@ -503,8 +504,6 @@ MVP 보류
 | POST | `/api/v1/projects/{projectId}/invitations` | 프로젝트 invitation 생성. 즉시 membership을 만들지 않고 대상자 accept 시 프로젝트 멤버를 생성 |
 | PATCH | `/api/v1/project-members/{projectMemberId}` | 멤버 역할/상태 변경 |
 | DELETE | `/api/v1/project-members/{projectMemberId}` | 멤버 제거 |
-| GET | `/api/v1/notification-preferences` | 알림 설정 조회 |
-| PUT | `/api/v1/notification-preferences` | 알림 설정 변경 |
 
 ---
 
@@ -646,7 +645,7 @@ S15는 MVP 화면 목록에 포함하지 않는다. 필요하면 발표에서 �
 | S10 | S09 DM | 쓰레드 작성자/멘션 사용자와 1:1 DM 시작 |
 | S13 | S14 | 회사 정보 관리에서 구성원/권한 관리로 이동 |
 | S14 | S09 DM | 구성원 목록에서 1:1 DM 시작 |
-| S12 | S11 | 프로젝트별 알림 설정 변경 |
+| S12 | S11 | 프로젝트 관련 알림 목록 확인. 프로젝트별 알림 설정 변경은 보류 |
 
 ---
 
