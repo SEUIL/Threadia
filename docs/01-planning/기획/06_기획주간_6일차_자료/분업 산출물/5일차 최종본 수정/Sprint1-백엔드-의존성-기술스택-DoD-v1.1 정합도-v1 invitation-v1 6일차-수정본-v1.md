@@ -339,7 +339,9 @@ Sprint 1 Backend 범위는 Auth-only와 인증 DB 4개 table로 유지한다. �
 | DB | `invitations`, `users`, `companies`, `projects`, `company_members`, `project_members` 관계 |
 | API | `GET /api/v1/users/lookup`, company/project invitation create/list, `GET /api/v1/users/me/invitations`, accept/decline/cancel |
 | 상태 | `PENDING`, `ACCEPTED`, `DECLINED`, `CANCELED`, `EXPIRED` |
+| 대상/Role | 프로젝트 invitation 대상은 같은 회사 ACTIVE member로 제한. 회사 role은 `COMPANY_ADMIN/MEMBER`, 프로젝트 role은 `PROJECT_ADMIN/MEMBER` |
 | 만료 | 기본 7일, lazy expiration, 필수 batch scheduler 없음 |
+| 알림 | 내부 `notification_events` 원장 기록만 포함. Push 알림, 별도 Invitation notification preference, S11 사용자 알림 UI 필수 구현 제외 |
 | 제외 | actual email sending, token link, unregistered-user invitation, signup auto-accept, resend |
 
 ### Sprint 1.5 Backend DoD
@@ -347,7 +349,7 @@ Sprint 1 Backend 범위는 Auth-only와 인증 DB 4개 table로 유지한다. �
 | 항목 | 완료 조건 | 최소 증빙 |
 |---|---|---|
 | Entity | `invitations` entity와 FK mapping이 동작한다 | repository test 또는 migration 확인 |
-| 생성 | 회사/프로젝트 invitation 생성 시 7일 `expiresAt`을 반환한다 | curl 또는 Postman 응답 |
+| 생성 | 회사/프로젝트 invitation 생성 시 7일 `expiresAt`을 반환하고 대상/role validation을 적용한다 | curl 또는 Postman 응답 |
 | 중복 방지 | 이미 멤버이거나 pending invitation이 있으면 지정 error code를 반환한다 | 실패 케이스 응답 |
 | 상태 전이 | accept/decline/cancel/expired 전이가 정책과 일치한다 | 상태별 API 응답과 DB 확인 |
 | Membership | accept 시점에만 company/project membership을 생성한다 | DB row 확인 |
@@ -370,9 +372,9 @@ Sprint 1 Backend 범위는 Auth-only와 인증 DB 4개 table로 유지한다. �
 
 ### invitation 공식 결정
 
-1. Sprint 1.5 포함 범위는 `invitations` table, `PENDING / ACCEPTED / DECLINED / CANCELED / EXPIRED`, company invitation, project invitation, exact email lookup for registered users, received invitation list, accept/decline/cancel, membership creation on accept, invitation-related notification events다.
+1. Sprint 1.5 포함 범위는 `invitations` table, `PENDING / ACCEPTED / DECLINED / CANCELED / EXPIRED`, company invitation, project invitation, exact email lookup for registered users, received invitation list, accept/decline/cancel, membership creation on accept, internal invitation-related `notification_events`다.
 2. Sprint 1.5 제외 범위는 actual email sending to invitees, invitation token link, unregistered-user invitation, signup/onboarding auto-accept, resend다.
-3. `notification_events`에는 필요 시 `INVITATION_CREATED`, `INVITATION_ACCEPTED`, `INVITATION_DECLINED`, `MEMBER_ADDED`를 추가한다.
+3. `notification_events`에는 필요 시 `INVITATION_CREATED`, `INVITATION_ACCEPTED`, `INVITATION_DECLINED`, `MEMBER_ADDED`를 내부 event 원장으로 추가한다. Push 알림, 별도 Invitation notification preference, S11 사용자 알림 UI 필수 구현은 Sprint 1.5 범위가 아니다.
 4. Sprint 1.5에서는 user-facing `notification_preferences`에 별도 Invitation category를 노출하지 않고 기존 global notification preference policy를 따른다.
 5. `EXPIRED`와 `expires_at`을 유지하고 기본 만료 기간은 7일로 둔다. read/accept/decline/cancel 시 lazy expiration을 확인하며, 만료된 `PENDING` invitation accept는 `409 INVITATION_EXPIRED`로 거절한다.
 6. Sprint 1.5에는 필수 batch scheduler를 추가하지 않는다. Batch cleanup/sweeper는 Sprint 2 이후 admin list hygiene, retention, metrics, operational cleanup 필요에 따라 검토한다.
