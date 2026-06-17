@@ -57,11 +57,11 @@
 | 인증 | AUTH-01, AUTH-02 | Sprint 1 확정 | SC-AUTH-01 | 회원가입, 로그인, 로그아웃, token refresh, 현재 사용자 컨텍스트 | `users`, `refresh_tokens` | 이메일 기반 진입과 refresh token rotation은 Sprint 1 인증 범위 |
 | 소셜 로그인 | AUTH-03 | Sprint 1 확정 | SC-AUTH-01, SC-C-01 | OAuth 시작/callback | `oauth_accounts`, `users` | Sprint 1 제외 후보에서 확정 기능으로 이동 |
 | 비밀번호 재설정 | AUTH-04 | Sprint 1 확정 | SC-AUTH-01 | reset 요청/확정 | `password_reset_tokens`, `users` | token 원문 저장 금지, hash/만료/사용 시각 관리 |
-| Invitation | INVITE-01~04 | Sprint 1.5 | SC-C-01, SC-P-01 | 사용자 lookup, 회사/프로젝트 초대 생성/목록, 내 초대 목록, accept/decline/cancel | `invitations`, `users`, `company_members`, `project_members` | 등록 사용자 app-internal invitation, 기본 7일 만료, lazy expiration |
+| Invitation | INVITE-01~04 | Sprint 1.5 | SC-C-01, SC-P-01 | 사용자 lookup, 회사/프로젝트 초대 생성/목록, 내 초대 목록, accept/decline/cancel | `invitations`, `users`, `company_members`, `project_members` | 등록 사용자 app-internal invitation, 기본 7일 만료, lazy expiration, 프로젝트 초대는 같은 회사 ACTIVE member 대상 |
 | 프로필 | USER-01 | MVP | SC-AUTH-01, SC-C-01 | 내 프로필 수정 | `users.avatar_url` | 파일 업로드가 아니라 URL 저장으로 시작 |
 | 권한 | RBAC-01 | MVP | 전체 시나리오 | 모든 인증 API 권한 검사 | `company_members.role`, `project_members.role` | 사용자 단일 role 필드 금지 |
 | 회사/부서 | COMPANY-01, COMPANY-02, COMPANY-04, DEPT-01~04 | MVP | SC-C-01, SC-C-02 | 회사 생성/조회/수정/로고/통계, 부서 CRUD | `companies`, `departments`, `company_members` | 부서 삭제 시 멤버 `department_id = NULL` |
-| 구성원/권한 | MEMBER-01~04, INVITE-01~04 | Sprint 1.5 | SC-C-01, SC-P-01 | 등록 사용자 lookup, 회사/프로젝트 invitation 생성/조회, 내 초대 조회, accept/decline/cancel, 역할 변경, PM 지정 | `users`, `company_members`, `project_members`, `invitations` | membership은 invitation accept 시 생성한다 |
+| 구성원/권한 | MEMBER-01~04, INVITE-01~04 | Sprint 1.5 | SC-C-01, SC-P-01 | 등록 사용자 lookup, 회사/프로젝트 invitation 생성/조회, 내 초대 조회, accept/decline/cancel, 역할 변경, PM 지정 | `users`, `company_members`, `project_members`, `invitations` | membership은 invitation accept 시 생성한다. 프로젝트 invitation은 같은 회사 ACTIVE member에게만 생성한다 |
 | 프로젝트 | PROJECT-01~04, PROJECT-MEMBER-01~02 | MVP | SC-C-02, SC-P-01 | 프로젝트 목록/생성/조회/수정/아카이빙, 멤버 관리 | `projects`, `project_members` | 삭제 대신 `ARCHIVED`, 복원은 보류 |
 | Sprint | SPRINT-01, SPRINT-02 | MVP | SC-P-01, SC-A-01 | Sprint 목록/생성/상세/수정/시작/종료/이슈 배정 | `sprints`, `issues`, `notification_events` | 시작 시 알림 발송 후보 |
 | 이슈/칸반 | ISSUE-01~04, KANBAN-01~02 | MVP | SC-P-01, SC-A-01, SC-LINK-01 | 이슈 목록/생성/상세/수정/상태 변경/휴지통/복원/from-message | `issues`, `issue_status_history`, `messages` | 5컬럼 고정, A는 `DONE` 이동 불가 |
@@ -150,9 +150,9 @@
 
 ### invitation 공식 결정
 
-1. Sprint 1.5 포함 범위는 `invitations` table, `PENDING / ACCEPTED / DECLINED / CANCELED / EXPIRED`, company invitation, project invitation, exact email lookup for registered users, received invitation list, accept/decline/cancel, membership creation on accept, invitation-related notification events다.
+1. Sprint 1.5 포함 범위는 `invitations` table, `PENDING / ACCEPTED / DECLINED / CANCELED / EXPIRED`, company invitation, project invitation, exact email lookup for registered users, received invitation list, accept/decline/cancel, membership creation on accept, internal invitation-related `notification_events`다.
 2. Sprint 1.5 제외 범위는 actual email sending to invitees, invitation token link, unregistered-user invitation, signup/onboarding auto-accept, resend다.
-3. `notification_events`에는 필요 시 `INVITATION_CREATED`, `INVITATION_ACCEPTED`, `INVITATION_DECLINED`, `MEMBER_ADDED`를 추가한다.
+3. `notification_events`에는 필요 시 `INVITATION_CREATED`, `INVITATION_ACCEPTED`, `INVITATION_DECLINED`, `MEMBER_ADDED`를 내부 event 원장으로 추가한다. Push 알림, 별도 Invitation notification preference, S11 사용자 알림 UI 필수 구현은 Sprint 1.5 범위가 아니다.
 4. Sprint 1.5에서는 user-facing `notification_preferences`에 별도 Invitation category를 노출하지 않고 기존 global notification preference policy를 따른다.
 5. `EXPIRED`와 `expires_at`을 유지하고 기본 만료 기간은 7일로 둔다. read/accept/decline/cancel 시 lazy expiration을 확인하며, 만료된 `PENDING` invitation accept는 `409 INVITATION_EXPIRED`로 거절한다.
 6. Sprint 1.5에는 필수 batch scheduler를 추가하지 않는다. Batch cleanup/sweeper는 Sprint 2 이후 admin list hygiene, retention, metrics, operational cleanup 필요에 따라 검토한다.

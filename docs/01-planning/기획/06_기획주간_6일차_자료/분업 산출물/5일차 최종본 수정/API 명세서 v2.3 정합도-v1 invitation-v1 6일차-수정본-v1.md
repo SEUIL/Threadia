@@ -91,6 +91,7 @@ documentType:          DOC | MEETING_NOTE
 notificationScopeType: GLOBAL
 invitationStatus:      PENDING | ACCEPTED | DECLINED | CANCELED | EXPIRED
 invitationScopeType:   COMPANY | PROJECT
+invitationRoleByScope: COMPANY -> COMPANY_ADMIN | MEMBER, PROJECT -> PROJECT_ADMIN | MEMBER
 ```
 
 Phase A Sprint 1 구현 provider는 Google OAuth로 한정한다. API와 ERD의 KAKAO, NAVER enum은 후속 확장 reference로만 유지한다.
@@ -237,7 +238,7 @@ Sprint 1.5부터 구성원 추가는 등록 사용자 exact email lookup 후 `in
 | PATCH | `/api/v1/projects/{projectId}` | P/C | 프로젝트 정보 수정 |
 | POST | `/api/v1/projects/{projectId}/archive` | P/C | 프로젝트 아카이빙 |
 | GET | `/api/v1/projects/{projectId}/project-members` | A/P/C | 프로젝트 멤버 목록 |
-| POST | `/api/v1/projects/{projectId}/invitations` | P/C | Sprint 1.5 프로젝트 초대 생성. 수락 전 membership 미생성 |
+| POST | `/api/v1/projects/{projectId}/invitations` | P/C | Sprint 1.5 프로젝트 초대 생성. 대상은 같은 회사 ACTIVE 구성원으로 제한하고 수락 전 membership 미생성 |
 | PATCH | `/api/v1/project-members/{projectMemberId}` | P/C | 프로젝트 멤버 역할/상태 변경 |
 | DELETE | `/api/v1/project-members/{projectMemberId}` | P/C | 프로젝트 멤버 제거 |
 | GET | `/api/v1/projects/{projectId}/sprints` | A/P/C | Sprint 목록 |
@@ -275,6 +276,9 @@ Sprint 1.5부터 구성원 추가는 등록 사용자 exact email lookup 후 `in
 - read/accept/decline/cancel 시 lazy expiration을 확인한다. 필수 batch scheduler는 Sprint 1.5 범위가 아니다.
 - 이미 회사 멤버면 `409 ALREADY_COMPANY_MEMBER`, 이미 프로젝트 멤버면 `409 ALREADY_PROJECT_MEMBER`를 반환한다.
 - 동일 scope와 대상 사용자에 대한 대기 중 초대가 있으면 `409 INVITATION_ALREADY_PENDING`을 반환한다.
+- 회사 invitation role은 `COMPANY_ADMIN` 또는 `MEMBER`, 프로젝트 invitation role은 `PROJECT_ADMIN` 또는 `MEMBER`만 허용한다.
+- 프로젝트 invitation 대상자는 해당 프로젝트가 속한 회사의 `ACTIVE` company member여야 한다. 조건을 만족하지 않으면 `400 VALIDATION_ERROR`로 거절한다.
+- Sprint 1.5의 invitation-related notification은 내부 `notification_events` 원장 기록까지만 포함한다. Push 알림, 별도 Invitation notification preference, S11 사용자 알림 UI 필수 구현은 Sprint 1.5 범위가 아니다.
 
 ---
 
@@ -504,6 +508,8 @@ Request Body:
 
 Response 200:
 
+> **Sprint 1 공식 결정**: login 응답의 `companies`는 Sprint 1에서 빈 배열이다. 회사/프로젝트 membership context는 Sprint 1.5 이후 invitation accept 또는 후속 MVP reference에서 채운다.
+
 ```json
 {
   "data": {
@@ -514,13 +520,7 @@ Response 200:
       "nickname": "김민정",
       "avatarUrl": null
     },
-    "companies": [
-      {
-        "companyId": 10,
-        "companyName": "Threadia Inc.",
-        "role": "COMPANY_ADMIN"
-      }
-    ]
+    "companies": []
   },
   "meta": { "requestId": "req_..." }
 }
@@ -551,26 +551,7 @@ Response 200:
       "email": "minjeong@threadia.com",
       "nickname": "김민정",
       "avatarUrl": null
-    },
-    "companyMemberships": [
-      {
-        "companyId": 10,
-        "companyName": "Threadia Inc.",
-        "role": "COMPANY_ADMIN",
-        "status": "ACTIVE"
-      }
-    ],
-    "projectMemberships": [
-      {
-        "projectId": 20,
-        "projectKey": "THD",
-        "projectName": "Threadia MVP",
-        "role": "PROJECT_ADMIN",
-        "status": "ACTIVE"
-      }
-    ],
-    "unreadNotificationCount": 3,
-    "dmUnreadCount": 2
+    }
   },
   "meta": { "requestId": "req_..." }
 }
@@ -1502,9 +1483,9 @@ Response 200:
 
 ### invitation 공식 결정
 
-1. Sprint 1.5 포함 범위는 `invitations` table, `PENDING / ACCEPTED / DECLINED / CANCELED / EXPIRED`, company invitation, project invitation, exact email lookup for registered users, received invitation list, accept/decline/cancel, membership creation on accept, invitation-related notification events다.
+1. Sprint 1.5 포함 범위는 `invitations` table, `PENDING / ACCEPTED / DECLINED / CANCELED / EXPIRED`, company invitation, project invitation, exact email lookup for registered users, received invitation list, accept/decline/cancel, membership creation on accept, internal invitation-related `notification_events`다.
 2. Sprint 1.5 제외 범위는 actual email sending to invitees, invitation token link, unregistered-user invitation, signup/onboarding auto-accept, resend다.
-3. `notification_events`에는 필요 시 `INVITATION_CREATED`, `INVITATION_ACCEPTED`, `INVITATION_DECLINED`, `MEMBER_ADDED`를 추가한다.
+3. `notification_events`에는 필요 시 `INVITATION_CREATED`, `INVITATION_ACCEPTED`, `INVITATION_DECLINED`, `MEMBER_ADDED`를 내부 event 원장으로 추가한다. Push 알림, 별도 Invitation notification preference, S11 사용자 알림 UI 필수 구현은 Sprint 1.5 범위가 아니다.
 4. Sprint 1.5에서는 user-facing `notification_preferences`에 별도 Invitation category를 노출하지 않고 기존 global notification preference policy를 따른다.
 5. `EXPIRED`와 `expires_at`을 유지하고 기본 만료 기간은 7일로 둔다. read/accept/decline/cancel 시 lazy expiration을 확인하며, 만료된 `PENDING` invitation accept는 `409 INVITATION_EXPIRED`로 거절한다.
 6. Sprint 1.5에는 필수 batch scheduler를 추가하지 않는다. Batch cleanup/sweeper는 Sprint 2 이후 admin list hygiene, retention, metrics, operational cleanup 필요에 따라 검토한다.
