@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-15  
 > **최종 수정**: 2026-06-17  
-> **버전**: 6일차 수정본 v1
+> **버전**: 6일차 수정본 v2
 > **상태**: 6일차 수정본
 > **수정 근거**: Threadia-기획문서-검수리포트.md
 > **기준 문서**: ERD 초안 v1.4, 기능 분해표 v3.0, API 명세서 v2.0, 보류 기능 최종표 v1.0
@@ -21,6 +21,7 @@
 | 비밀번호 찾기 | `password_reset_tokens` 추가 |
 | Refresh token | `refresh_tokens` 추가, hash 저장과 rotation/invalidation 기준 반영 |
 | Invitation | `invitations` 추가, Sprint 1.5 등록 사용자 app-internal invitation 정책 반영 |
+| Auth hardening | 이메일 정규화, UTC 시각 기준, OAuth 연결 제한, password reset 후 refresh token revoke, non-ACTIVE 인증 차단 기준 반영 |
 | 프로필 사진 | `users.avatar_url` MVP 유지 |
 | 활동 피드 | `activity_events`를 조건부 확장 원장으로 유지 |
 | 대시보드 | `project_dashboard_summaries`를 조건부 read model로 추가 |
@@ -40,7 +41,7 @@
 | 회사 | `companies` | 회사 workspace | MVP reference, Sprint 1 구현 제외 |
 | 회사 | `departments` | 회사 하위 부서 | MVP reference, Sprint 1 구현 제외 |
 | 회사 | `company_members` | User-Company 소속 및 권한 | MVP reference, Sprint 1 구현 제외 |
-| 초대 | `invitations` | 등록 사용자 대상 회사/프로젝트 초대 요청과 상태 | Sprint 1.5 |
+| 초대 | `invitations` | 등록 사용자 대상 회사 초대 요청과 상태. 프로젝트 초대는 Sprint 2 reference | Sprint 1.5(company), Sprint 2(project) |
 | 프로젝트 | `projects` | 회사 하위 프로젝트 | MVP reference, Sprint 1 구현 제외 |
 | 프로젝트 | `project_members` | User-Project 소속 및 권한 | MVP reference, Sprint 1 구현 제외 |
 | Sprint | `sprints` | Sprint 목표/기간/상태 | MVP |
@@ -100,7 +101,7 @@ erDiagram
     direct_message_rooms ||--o{ direct_messages : "보유"
     direct_message_rooms ||--o{ dm_room_user_states : "읽음추적"
 
-    activity_events ||--o{ notification_events : "생성"
+    activity_events ||--o{ notification_events : "필요시알림생성"
     notification_events ||--o{ notification_recipients : "수신"
     users ||--o{ notification_recipients : "수신"
     users ||--o{ notification_preferences : "설정"
@@ -120,7 +121,7 @@ erDiagram
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | BIGINT | PK | 사용자 ID |
-| email | VARCHAR(255) | UNIQUE, NOT NULL | 로그인 이메일 |
+| email | VARCHAR(255) | UNIQUE, NOT NULL | 로그인 이메일. 저장 전 `trim + lowercase`로 정규화 |
 | password_hash | VARCHAR(255) | NULL | 로컬 로그인 비밀번호 hash. 소셜 전용 계정은 NULL 가능 |
 | nickname | VARCHAR(100) | NOT NULL | 표시 이름 |
 | avatar_url | VARCHAR(500) | NULL | 프로필 사진 URL |
@@ -129,6 +130,10 @@ erDiagram
 | updated_at | DATETIME | NOT NULL | 수정 시각 |
 
 `User.role` 필드는 만들지 않는다. 권한은 `company_members.role`과 `project_members.role`로 판정한다.
+
+로그인 이메일은 모든 진입점에서 앞뒤 공백을 제거하고 lowercase로 정규화한 값을 기준으로 저장, 조회, 비교한다. 이 기준은 회원가입, 로그인, 비밀번호 재설정, OAuth 계정 연결, invitation 대상자 lookup에 동일하게 적용한다. `users.email`에는 정규화된 이메일만 저장한다.
+
+login, OAuth callback, token refresh, `/auth/me`는 `users.status = ACTIVE`인 사용자만 성공 처리한다. `SUSPENDED` 또는 `DELETED` 사용자는 인증을 거부한다. 사용자가 `SUSPENDED` 또는 `DELETED`로 변경될 때 해당 사용자의 기존 `refresh_tokens`를 revoke한다. 기존 access token은 별도 blacklist 없이 짧은 만료 시간에 따라 자연 만료시킨다.
 
 ### 4.2 oauth_accounts
 
@@ -143,7 +148,7 @@ erDiagram
 | updated_at | DATETIME | NOT NULL | 수정 시각 |
 
 - UNIQUE KEY (`provider`, `provider_user_id`).
-- 같은 이메일의 로컬 계정이 있으면 계정 연결 정책을 적용한다.
+- 이메일만 같다는 이유로 provider 계정을 기존 로컬 계정에 blind auto-link하지 않는다. 이미 로그인한 사용자가 명시적으로 연결하거나, provider의 이메일 검증을 신뢰할 수 있는 경우에만 같은 `users` 계정에 연결한다.
 
 ### 4.3 password_reset_tokens
 
@@ -158,6 +163,7 @@ erDiagram
 
 - token 원문은 저장하지 않는다.
 - 같은 사용자의 미사용 token은 새 요청 시 만료 처리할 수 있다.
+- `password-reset/confirm` 성공 시 해당 사용자의 모든 기존 `refresh_tokens`를 revoke한다. 기존 access token은 별도 blacklist 없이 짧은 만료 시간에 따라 자연 만료시킨다.
 
 ### 4.4 refresh_tokens
 
@@ -173,8 +179,10 @@ erDiagram
 | updated_at | DATETIME | NOT NULL | 수정 시각 |
 
 - refresh 성공 시 기존 row는 rotate 처리하고 새 refresh token hash를 저장한다.
-- logout 또는 보안상 무효화가 필요하면 `revoked_at`을 기록한다.
+- logout, password reset 성공, 사용자 `SUSPENDED`/`DELETED` 상태 변경처럼 보안상 무효화가 필요하면 `revoked_at`을 기록한다.
 - 만료, rotated, revoked token은 재사용할 수 없다.
+
+모든 서버 생성 시각과 만료 시각은 UTC 기준으로 생성, 저장, 비교한다. MySQL 컬럼 타입은 `DATETIME`을 유지하되 애플리케이션 계층에서 UTC 값을 저장하고, API 응답은 ISO-8601 UTC `Z` 형식으로 반환한다. 이 기준은 `password_reset_tokens`, `refresh_tokens`, `invitations`, 공통 `created_at`/`updated_at`에 적용한다.
 
 ### 4.5 invitations
 
@@ -197,9 +205,10 @@ erDiagram
 
 - Sprint 1.5 invitation은 등록 사용자 대상 app-internal invitation만 지원한다. 미가입 사용자 email 발송, token link, signup/onboarding auto-accept, resend는 Sprint 1.5 범위가 아니다.
 - 기본 만료 기간은 7일이며, read/accept/decline/cancel 시점에 lazy expiration을 확인한다. 필수 batch scheduler는 두지 않는다.
-- `PENDING` invitation 수락 시 `company_members` 또는 `project_members` membership을 생성한다. 이미 멤버인 경우 중복 membership을 만들지 않는다.
-- 프로젝트 invitation은 해당 프로젝트가 속한 회사의 `ACTIVE` company member에게만 생성한다.
-- invitation-related notification은 내부 `notification_events` 원장 기록까지만 Sprint 1.5 범위로 둔다. Push 알림, 별도 Invitation notification preference, S11 사용자 알림 UI 필수 구현은 포함하지 않는다.
+- Sprint 1.5에서는 `PENDING` company invitation 수락 시 `company_members` membership을 생성한다. 이미 회사 멤버인 경우 중복 membership을 만들지 않는다. Project invitation accept와 `project_members` 생성은 Sprint 2로 분리한다.
+- 프로젝트 invitation은 Sprint 2로 분리한다. 구현 시 해당 프로젝트가 속한 회사의 `ACTIVE` company member에게만 생성한다.
+- invitation-related notification은 필요 시 내부 `notification_events` 원장 기록을 남길 수 있으나 Sprint 1.5 완료 조건에는 포함하지 않는다. Push 알림, 별도 Invitation notification preference, S11 사용자 알림 UI 필수 구현은 포함하지 않는다.
+- Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local/dev/demo seed로 준비한다. `POST /api/v1/companies`는 Sprint 1.5 구현 범위에 포함하지 않고 MVP/Sprint 2 reference로 유지하며, 운영 데이터에는 seed를 포함하지 않는다.
 
 ### 4.6 activity_events
 
@@ -215,7 +224,7 @@ erDiagram
 | metadata_json | JSON | NULL | 추가 메타데이터 |
 | created_at | DATETIME | NOT NULL | 생성 시각 |
 
-조건부 확장 기준 원장이다. `notification_events`와 통합하지 않고 역할을 분리한다.
+조건부 확장 기준 활동 원장이다. `notification_events`와 통합하지 않고 역할을 분리한다. 필요 시 activity 이벤트에서 notification 이벤트를 생성하는 연계만 허용한다.
 
 ### 4.7 project_dashboard_summaries
 
@@ -243,7 +252,7 @@ summary table은 원본이 아니라 read model이다. 원본은 `issues`, `docu
 | `departments` | 단일 depth, 삭제 시 구성원 `department_id = NULL` |
 | `company_members` | Sprint 1.5부터 `invitations` 수락 시 생성. 기존 멤버의 역할/부서/상태 변경은 member API에서 처리 |
 | `projects` | 삭제 대신 `ARCHIVED` 상태 사용 |
-| `invitations` | 등록 사용자 대상 company/project invitation. 상태는 `PENDING`, `ACCEPTED`, `DECLINED`, `CANCELED`, `EXPIRED` |
+| `invitations` | Sprint 1.5 등록 사용자 대상 company invitation. Project invitation은 Sprint 2 reference. 상태는 `PENDING`, `ACCEPTED`, `DECLINED`, `CANCELED`, `EXPIRED` |
 | `project_members` | 같은 회사 active 구성원만 프로젝트 멤버 가능 |
 | `issues` | 5컬럼 상태, source message 연결, 휴지통/복원 |
 | `documents` | Markdown 저장, 휴지통/복원 |
@@ -270,7 +279,7 @@ summary table은 원본이 아니라 read model이다. 원본은 `issues`, `docu
 
 - `issues` 정렬용 position 필드 관리 방식.
 - `threads` 자동 생성 vs 수동 생성 정책.
-- `activity_events`와 `notification_events`의 운영상 분리/통합 기준.
+- `activity_events`와 `notification_events`는 분리 운영한다. activity 이벤트가 notification 이벤트를 생성하는 조건은 구현 단계에서 이벤트별로 제한한다.
 - 범용 attachments 테이블과 S3 presigned URL 상세 정책은 Sprint 1 이후 구현 단계에서 확정.
 - Thread→Issue 추가 연결 방식.
 - 범용 `issue_history` 도입 여부.
@@ -287,14 +296,24 @@ summary table은 원본이 아니라 read model이다. 원본은 `issues`, `docu
 
 1. Phase B는 Sprint 1.5의 등록 사용자 대상 app-internal invitation 정책을 반영한다.
 2. Sprint 1은 Auth-only이며 invitation을 구현하지 않는다.
-3. Sprint 1.5부터 회사/프로젝트 멤버 추가는 즉시 membership 생성이 아니라 `invitations` 생성과 대상자 accept 후 membership 생성으로 처리한다.
-4. Sprint 2는 actual invitee email sending, token link acceptance, unregistered onboarding, resend, email template, delivery failure handling, batch cleanup/operations의 후보 시점이며 확정 구현 commitment는 아니다.
+3. Sprint 1.5부터 회사 멤버 추가는 즉시 membership 생성이 아니라 `invitations` 생성과 대상자 accept 후 membership 생성으로 처리한다. 프로젝트 멤버 추가와 project invitation은 Sprint 2로 분리한다.
+4. Sprint 2는 project invitation, project membership 생성, actual invitee email sending, token link acceptance, unregistered onboarding, resend, email template, delivery failure handling, batch cleanup/operations의 후보 시점이며 확정 구현 commitment는 아니다.
 
 ### invitation 공식 결정
 
-1. Sprint 1.5 포함 범위는 `invitations` table, `PENDING / ACCEPTED / DECLINED / CANCELED / EXPIRED`, company invitation, project invitation, exact email lookup for registered users, received invitation list, accept/decline/cancel, membership creation on accept, internal invitation-related `notification_events`다.
-2. Sprint 1.5 제외 범위는 actual email sending to invitees, invitation token link, unregistered-user invitation, signup/onboarding auto-accept, resend다.
-3. `notification_events`에는 필요 시 `INVITATION_CREATED`, `INVITATION_ACCEPTED`, `INVITATION_DECLINED`, `MEMBER_ADDED`를 내부 event 원장으로 추가한다. Push 알림, 별도 Invitation notification preference, S11 사용자 알림 UI 필수 구현은 Sprint 1.5 범위가 아니다.
+1. Sprint 1.5 포함 범위는 `invitations` table, `PENDING / ACCEPTED / DECLINED / CANCELED / EXPIRED`, company invitation, exact email lookup for registered users, received invitation list, accept/decline/cancel, company membership creation on accept다.
+2. Sprint 1.5 제외 범위는 project invitation, project membership creation, actual email sending to invitees, invitation token link, unregistered-user invitation, signup/onboarding auto-accept, resend다.
+3. `notification_events`에는 필요 시 `INVITATION_CREATED`, `INVITATION_ACCEPTED`, `INVITATION_DECLINED`, `MEMBER_ADDED`를 내부 event 원장으로 기록할 수 있으나 Sprint 1.5 완료 조건에는 포함하지 않는다. Push 알림, 별도 Invitation notification preference, S11 사용자 알림 UI 필수 구현은 Sprint 1.5 범위가 아니다.
 4. Sprint 1.5에서는 user-facing `notification_preferences`에 별도 Invitation category를 노출하지 않고 기존 global notification preference policy를 따른다.
 5. `EXPIRED`와 `expires_at`을 유지하고 기본 만료 기간은 7일로 둔다. read/accept/decline/cancel 시 lazy expiration을 확인하며, 만료된 `PENDING` invitation accept는 `409 INVITATION_EXPIRED`로 거절한다.
 6. Sprint 1.5에는 필수 batch scheduler를 추가하지 않는다. Batch cleanup/sweeper는 Sprint 2 이후 admin list hygiene, retention, metrics, operational cleanup 필요에 따라 검토한다.
+
+### Phase C 추가 동기화 결정
+
+1. Sprint 1.5 invitation 검증은 local/dev/demo seed 회사 1개와 `COMPANY_ADMIN` 1명을 사용한다. `POST /api/v1/companies`는 Sprint 1.5 구현 범위에 포함하지 않고 MVP/Sprint 2 reference로 유지하며 운영 데이터에는 seed를 포함하지 않는다.
+2. `activity_events`는 활동 원장, `notification_events`는 알림 사건 원본으로 별도 운영한다. 두 저장소를 통합하지 않고, 필요 시 activity 이벤트에서 notification 이벤트를 생성하는 연계만 허용한다.
+3. 서버 생성 시각과 만료 시각은 UTC 기준으로 생성, 저장, 비교한다. ERD의 `DATETIME` 타입은 유지하고 API 응답은 ISO-8601 UTC `Z` 형식으로 반환한다.
+4. 로그인 이메일은 모든 진입점에서 `trim + lowercase`로 정규화한 값을 저장, 조회, 비교한다. 이 기준은 signup, login, password reset, OAuth 계정 연결, invitation lookup에 동일하게 적용한다.
+5. OAuth 계정 연결은 이메일만 같다는 이유로 blind auto-link하지 않는다. 이미 로그인한 사용자이거나 provider 이메일 검증을 신뢰할 수 있는 경우에만 기존 `users` 계정과 연결한다.
+6. `password-reset/confirm` 성공 시 해당 사용자의 모든 기존 `refresh_tokens`를 revoke한다. 기존 access token은 별도 blacklist 없이 짧은 만료 시간에 따라 자연 만료시킨다.
+7. login, OAuth callback, token refresh, `/auth/me`는 `users.status = ACTIVE`인 사용자만 성공 처리한다. `SUSPENDED` 또는 `DELETED` 사용자는 인증을 거부하며, 상태 변경 시 기존 `refresh_tokens`를 revoke한다.
