@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-06-17
-> **버전**: 6일차 수정본 v2
+> **최종 수정**: 2026-06-18
+> **버전**: v1.1
 > **상태**: 6일차 수정본
 > **수정 근거**: Threadia-기획문서-검수리포트.md
 > **기준 문서**: PR_Template_체크항목_초안, 4일차 회의 결정, CONTRIBUTING.md
@@ -80,11 +80,25 @@
 .github/PULL_REQUEST_TEMPLATE.md
 ```
 
-4일차 기준으로는 최종 문서만 확정하고, 실제 `.github/` 생성은 CI 도입 시점 또는 첫 PR 전 작업으로 처리한다.
+현재 실제 repository에는 `.github/PULL_REQUEST_TEMPLATE.md`가 생성되어 있다. 이 문서의 PR Template 본문과 실제 `.github/PULL_REQUEST_TEMPLATE.md`는 같은 체크 항목을 유지한다.
 
 ---
 
-## 4. 6일차 수정본 v2 공통 기준
+## 4. Branch ruleset 반영 기준
+
+개발단계부터 `main`과 `dev`에는 GitHub repository ruleset을 적용한다.
+
+| Branch | Ruleset 기준 |
+|---|---|
+| `main` | PR required, approval 1명, conversation resolution required, stale approval dismiss, last push approval, deletion 금지, non-fast-forward 금지 |
+| `dev` | PR required, approval 1명, conversation resolution required, stale approval dismiss, last push approval, deletion 금지, non-fast-forward 금지 |
+| `feature/*` | 별도 ruleset 없음. 담당자가 자유롭게 push 가능 |
+
+`required status checks`는 GitHub Actions workflow가 생성된 뒤 활성화한다.
+
+---
+
+## 5. 6일차 수정본 v2 공통 기준
 
 1. Sprint 1.5 invitation 검증은 local/dev/demo seed 회사 1개와 `COMPANY_ADMIN` 1명을 사용한다. `POST /api/v1/companies`는 Sprint 1.5 구현 범위에 포함하지 않는다.
 2. `activity_events`와 `notification_events`는 통합하지 않고 각각 활동 원장과 알림 사건 원본으로 별도 운영한다.
