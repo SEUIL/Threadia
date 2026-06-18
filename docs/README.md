@@ -1,22 +1,28 @@
 # Docs
 
-Threadia 프로젝트 문서 보관 위치입니다. 기획주간에는 문서 제약을 강하게 두지 않고, 아래 폴더 기준으로만 정리합니다.
+Threadia 프로젝트 문서 보관 위치다.
+
+문서 작성, 저장 위치, 파일명, 메타정보, AI 작업 규칙의 canonical 기준은 [문서-작성-규칙.md](./00-project/문서-작성-규칙.md)를 따른다.
+
+## 폴더 구조
 
 | Folder | Purpose |
 |---|---|
-| `00-project/` | 프로젝트 개요, README 초안, 팀 운영 메모 |
-| `01-planning/` | 기획주간 작업물, 일정, 회의 전 준비 자료 |
-| `02-requirements/` | 사용자 시나리오, 기능 분해표, 요구사항 |
-| `03-design/` | 화면 정의서, 화면 흐름, UI/UX 참고 |
-| `04-api/` | API 목록, API 명세 초안 |
-| `05-architecture/` | ERD, 권한 정책, AWS architecture, 기술 결정 |
-| `06-meetings/` | 회의록, 결정사항, 액션 아이템 |
-| `07-decisions/` | 확정된 결정사항, 보류 기능, 변경 이력 |
-| `assets/` | 문서에 첨부할 이미지, 다이어그램, 캡처 |
+| `00-project/` | 프로젝트 공통 규칙과 운영 기준 |
+| `00-project/sprint-운영/` | Sprint/주차 계획, TODO, 리스크, 회고 |
+| `01-planning/` | 기획주간 raw archive, 회의 전 자료, 분업 산출물, 검토 기록 |
+| `02-requirements/` | 사용자 시나리오, 기능 분해표, 요구사항, 추적표 |
+| `03-design/` | 화면정의서, 화면 흐름, ERD |
+| `04-api/` | API 명세서, error code, request/response 예시 |
+| `05-architecture/` | Architecture, 인증/인가 구조, 인프라, 기술 연구 |
+| `06-meetings/` | 실제 회의록과 회의 Action Item |
+| `07-decisions/` | ADR, 확정 결정, 보류 기능, 변경 이력 |
+| `08-members/` | 팀원별 개인 작업 기록 |
+| `assets/` | 공용 이미지, 다이어그램, PDF, PPTX 등 첨부 자료 |
 
 ## 운영 기준
 
-- 기획주간에는 문서 형식을 강제하지 않는다.
-- 확정된 내용과 초안은 파일명 또는 문서 상단에 구분한다.
-- repo 이름, 배포 설정, 권한 정책처럼 팀 합의가 필요한 값은 임의로 확정하지 않는다.
-- 개발주간부터는 API, ERD, branch, PR, issue 규칙을 별도 문서로 분리한다.
+- `01-planning/`은 기획주간 원본 archive로 보존한다.
+- 기획 종료 후 최종 산출물은 각 canonical 폴더로 복사·승격한다.
+- 개발주간 이후의 참조 기준은 `02-requirements/`, `03-design/`, `04-api/`, `00-project/`, `07-decisions/` 등에 있는 canonical copy다.
+- 회의록은 `06-meetings/`, Sprint 운영 문서는 `00-project/sprint-운영/`, 확정 결정은 `07-decisions/`로 분리한다.
