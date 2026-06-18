@@ -32,6 +32,7 @@
 - [ ] DB 변경이면 팀 승인 기준을 확인했다.
 - [ ] 배포/인프라 변경이면 팀 승인 기준을 확인했다.
 - [ ] 인증/인가/보안 변경이면 팀 승인 기준을 확인했다.
+- [ ] GitHub Actions, ruleset, repository 권한 변경이면 팀 승인 기준을 확인했다.
 - [ ] secret, OAuth client secret, SMTP credential, raw token이 PR 본문/로그/스크린샷에 노출되지 않았다.
 - [ ] 대규모 구조 변경이면 변경 이유와 검증 결과를 설명했다.
 

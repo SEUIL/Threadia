@@ -103,6 +103,18 @@ docs/branch-policy
 
 `required status checks`는 GitHub Actions workflow가 생성된 뒤 활성화한다.
 
+### Ruleset bypass 기준
+
+Ruleset bypass는 팀 운영상 필요한 최소 예외로만 사용한다.
+
+| 대상 | Bypass 범위 | 운영 기준 |
+|---|---|---|
+| Repository admin | `main`, `dev` ruleset bypass 가능 | 긴급 복구, repository 설정 정정, ruleset 오류 수정처럼 즉시 조치가 필요한 경우에만 사용한다. 일반 기능 개발은 PR 기준을 따른다. |
+| 부팀장 `cjfwls39` | `dev` PR의 review 조건 bypass 가능 | PR은 반드시 생성한다. 팀장 부재, 마감 직전 문서/설정 정정처럼 review 대기가 blocker일 때만 사용하고, PR 본문 또는 comment에 사유를 남긴다. |
+| 일반 write 권한 팀원 | bypass 없음 | `feature/*`, `fix/*`, `docs/*`에서 `dev`로 PR을 생성하고 다른 팀원 approval 1개 이상을 받는다. |
+
+부팀장 bypass는 `pull_request` mode로 운영한다. 따라서 `dev` 직접 push, branch 삭제, non-fast-forward push를 허용하는 예외가 아니다.
+
 ### 승인 필요 작업
 
 다음 변경은 PR에 승인 필요 항목으로 표시하고 팀 확인 후 merge한다.

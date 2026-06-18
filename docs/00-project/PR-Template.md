@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
 > **최종 수정**: 2026-06-18
-> **버전**: v1.1
+> **버전**: v1.2
 > **상태**: 6일차 수정본
 > **수정 근거**: Threadia-기획문서-검수리포트.md
 > **기준 문서**: PR_Template_체크항목_초안, 4일차 회의 결정, CONTRIBUTING.md
@@ -22,6 +22,7 @@
 | 검증 명령 | Backend는 `./gradlew test` 우선, 안정화 후 `./gradlew build` 확대 |
 | 승인 필요 작업 | DB, 배포, 인증/인가, 보안 변경은 팀 승인 필요 |
 | 구조 변경 | 선조치 후보고 가능하되 test/build 또는 직접 검증 필수 |
+| Ruleset bypass | admin은 긴급 상황에만 사용, 부팀장 `cjfwls39`는 `dev` PR review 조건만 bypass 가능 |
 
 ---
 
@@ -62,6 +63,7 @@
 - [ ] DB 변경이면 팀 승인 기준을 확인했다.
 - [ ] 배포/인프라 변경이면 팀 승인 기준을 확인했다.
 - [ ] 인증/인가/보안 변경이면 팀 승인 기준을 확인했다.
+- [ ] GitHub Actions, ruleset, repository 권한 변경이면 팀 승인 기준을 확인했다.
 - [ ] secret, OAuth client secret, SMTP credential, raw token이 PR 본문/로그/스크린샷에 노출되지 않았다.
 - [ ] 대규모 구조 변경이면 변경 이유와 검증 결과를 설명했다.
 
@@ -95,6 +97,18 @@
 | `feature/*` | 별도 ruleset 없음. 담당자가 자유롭게 push 가능 |
 
 `required status checks`는 GitHub Actions workflow가 생성된 뒤 활성화한다.
+
+### 4.1 Ruleset bypass 운영 기준
+
+Ruleset bypass는 팀 운영상 필요한 최소 예외로만 사용한다.
+
+| 대상 | Bypass 범위 | 운영 기준 |
+|---|---|---|
+| Repository admin | `main`, `dev` ruleset bypass 가능 | 긴급 복구, repository 설정 정정, ruleset 오류 수정처럼 즉시 조치가 필요한 경우에만 사용한다. 일반 기능 개발은 PR 기준을 따른다. |
+| 부팀장 `cjfwls39` | `dev` PR의 review 조건 bypass 가능 | PR은 반드시 생성한다. 팀장 부재, 마감 직전 문서/설정 정정처럼 review 대기가 blocker일 때만 사용하고, PR 본문 또는 comment에 사유를 남긴다. |
+| 일반 write 권한 팀원 | bypass 없음 | `feature/*`, `fix/*`, `docs/*`에서 `dev`로 PR을 생성하고 다른 팀원 approval 1개 이상을 받는다. |
+
+부팀장 bypass는 `pull_request` mode로 운영한다. 따라서 `dev` 직접 push, branch 삭제, non-fast-forward push를 허용하는 예외가 아니다.
 
 ---
 
