@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-06-17
-> **버전**: 6일차 수정본 v2
+> **최종 수정**: 2026-06-18
+> **버전**: v1.2
 > **상태**: 6일차 수정본
 > **수정 근거**: Threadia-기획문서-검수리포트.md
 > **기준 문서**: PR_Template_체크항목_초안, 4일차 회의 결정, CONTRIBUTING.md
@@ -22,6 +22,7 @@
 | 검증 명령 | Backend는 `./gradlew test` 우선, 안정화 후 `./gradlew build` 확대 |
 | 승인 필요 작업 | DB, 배포, 인증/인가, 보안 변경은 팀 승인 필요 |
 | 구조 변경 | 선조치 후보고 가능하되 test/build 또는 직접 검증 필수 |
+| Ruleset bypass | admin은 긴급 상황에만 사용, 부팀장 `cjfwls39`는 `dev` PR review 조건만 bypass 가능 |
 
 ---
 
@@ -62,6 +63,7 @@
 - [ ] DB 변경이면 팀 승인 기준을 확인했다.
 - [ ] 배포/인프라 변경이면 팀 승인 기준을 확인했다.
 - [ ] 인증/인가/보안 변경이면 팀 승인 기준을 확인했다.
+- [ ] GitHub Actions, ruleset, repository 권한 변경이면 팀 승인 기준을 확인했다.
 - [ ] secret, OAuth client secret, SMTP credential, raw token이 PR 본문/로그/스크린샷에 노출되지 않았다.
 - [ ] 대규모 구조 변경이면 변경 이유와 검증 결과를 설명했다.
 
@@ -80,11 +82,37 @@
 .github/PULL_REQUEST_TEMPLATE.md
 ```
 
-4일차 기준으로는 최종 문서만 확정하고, 실제 `.github/` 생성은 CI 도입 시점 또는 첫 PR 전 작업으로 처리한다.
+현재 실제 repository에는 `.github/PULL_REQUEST_TEMPLATE.md`가 생성되어 있다. 이 문서의 PR Template 본문과 실제 `.github/PULL_REQUEST_TEMPLATE.md`는 같은 체크 항목을 유지한다.
 
 ---
 
-## 4. 6일차 수정본 v2 공통 기준
+## 4. Branch ruleset 반영 기준
+
+개발단계부터 `main`과 `dev`에는 GitHub repository ruleset을 적용한다.
+
+| Branch | Ruleset 기준 |
+|---|---|
+| `main` | PR required, approval 1명, conversation resolution required, stale approval dismiss, last push approval, deletion 금지, non-fast-forward 금지 |
+| `dev` | PR required, approval 1명, conversation resolution required, stale approval dismiss, last push approval, deletion 금지, non-fast-forward 금지 |
+| `feature/*` | 별도 ruleset 없음. 담당자가 자유롭게 push 가능 |
+
+`required status checks`는 GitHub Actions workflow가 생성된 뒤 활성화한다.
+
+### 4.1 Ruleset bypass 운영 기준
+
+Ruleset bypass는 팀 운영상 필요한 최소 예외로만 사용한다.
+
+| 대상 | Bypass 범위 | 운영 기준 |
+|---|---|---|
+| Repository admin | `main`, `dev` ruleset bypass 가능 | 긴급 복구, repository 설정 정정, ruleset 오류 수정처럼 즉시 조치가 필요한 경우에만 사용한다. 일반 기능 개발은 PR 기준을 따른다. |
+| 부팀장 `cjfwls39` | `dev` PR의 review 조건 bypass 가능 | PR은 반드시 생성한다. 팀장 부재, 마감 직전 문서/설정 정정처럼 review 대기가 blocker일 때만 사용하고, PR 본문 또는 comment에 사유를 남긴다. |
+| 일반 write 권한 팀원 | bypass 없음 | `feature/*`, `fix/*`, `docs/*`에서 `dev`로 PR을 생성하고 다른 팀원 approval 1개 이상을 받는다. |
+
+부팀장 bypass는 `pull_request` mode로 운영한다. 따라서 `dev` 직접 push, branch 삭제, non-fast-forward push를 허용하는 예외가 아니다.
+
+---
+
+## 5. 6일차 수정본 v2 공통 기준
 
 1. Sprint 1.5 invitation 검증은 local/dev/demo seed 회사 1개와 `COMPANY_ADMIN` 1명을 사용한다. `POST /api/v1/companies`는 Sprint 1.5 구현 범위에 포함하지 않는다.
 2. `activity_events`와 `notification_events`는 통합하지 않고 각각 활동 원장과 알림 사건 원본으로 별도 운영한다.

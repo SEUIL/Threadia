@@ -48,4 +48,79 @@ feat(auth): 로그인 API 추가
 
 ## Branch and PR
 
-Branch naming, PR Template, CI 기준은 협업 규칙 확정 후 이 문서에 추가한다.
+Threadia는 개발단계부터 `feature/*` 작업 branch에서 개발하고, `dev`와 `main`에는 Pull Request로만 반영한다.
+
+### Branch 용도
+
+| Branch | 용도 | Push 기준 |
+|---|---|---|
+| `main` | 제출, 발표, 안정본 기준 branch | 직접 push 금지. PR merge만 허용 |
+| `dev` | Sprint 통합 개발 branch, 기본 branch | 직접 push 금지. PR merge만 허용 |
+| `feature/*` | 기능 단위 작업 branch | 담당자가 자유롭게 push 가능 |
+| `fix/*` | 버그 수정 작업 branch | 담당자가 자유롭게 push 가능 |
+| `docs/*` | 문서 수정 작업 branch | 담당자가 자유롭게 push 가능 |
+| `hotfix/*` | 긴급 수정 branch | 필요 시 생성하되 `dev` 또는 `main` 반영은 PR로 처리 |
+
+### Branch naming
+
+작업 branch는 아래 형식을 사용한다.
+
+```text
+type/short-topic
+```
+
+예시:
+
+```text
+feature/auth-login
+feature/password-reset
+fix/auth-token-refresh
+docs/branch-policy
+```
+
+### PR 기준
+
+- `feature/*`, `fix/*`, `docs/*`에서 `dev`로 PR을 생성한다.
+- `main` 반영은 `dev`에서 `main`으로 PR을 생성한다.
+- PR에는 작업 내용, 관련 문서/이슈, 검증 결과, 보안/승인 체크를 작성한다.
+- PR 작성자와 reviewer는 분리한다.
+- PR merge 전 approving review 1개 이상이 필요하다.
+- PR review conversation은 모두 resolve한 뒤 merge한다.
+- 승인 후 새 commit을 push하면 기존 approval은 다시 확인한다.
+- 마지막 push를 한 사람이 아닌 다른 사람이 최종 승인한다.
+- CI workflow가 생성되기 전에는 PR 본문의 수동 검증 기록을 기준으로 review한다.
+- CI workflow가 생성된 뒤에는 required status check 통과를 merge 기준에 추가한다.
+
+### Ruleset 기준
+
+`main`과 `dev`에는 GitHub repository ruleset을 적용한다.
+
+| Branch | Ruleset 기준 |
+|---|---|
+| `main` | PR required, approval 1명, conversation resolution required, stale approval dismiss, last push approval, deletion 금지, non-fast-forward 금지 |
+| `dev` | PR required, approval 1명, conversation resolution required, stale approval dismiss, last push approval, deletion 금지, non-fast-forward 금지 |
+| `feature/*` | 별도 ruleset 없음. 직접 push 가능 |
+
+`required status checks`는 GitHub Actions workflow가 생성된 뒤 활성화한다.
+
+### Ruleset bypass 기준
+
+Ruleset bypass는 팀 운영상 필요한 최소 예외로만 사용한다.
+
+| 대상 | Bypass 범위 | 운영 기준 |
+|---|---|---|
+| Repository admin | `main`, `dev` ruleset bypass 가능 | 긴급 복구, repository 설정 정정, ruleset 오류 수정처럼 즉시 조치가 필요한 경우에만 사용한다. 일반 기능 개발은 PR 기준을 따른다. |
+| 부팀장 `cjfwls39` | `dev` PR의 review 조건 bypass 가능 | PR은 반드시 생성한다. 팀장 부재, 마감 직전 문서/설정 정정처럼 review 대기가 blocker일 때만 사용하고, PR 본문 또는 comment에 사유를 남긴다. |
+| 일반 write 권한 팀원 | bypass 없음 | `feature/*`, `fix/*`, `docs/*`에서 `dev`로 PR을 생성하고 다른 팀원 approval 1개 이상을 받는다. |
+
+부팀장 bypass는 `pull_request` mode로 운영한다. 따라서 `dev` 직접 push, branch 삭제, non-fast-forward push를 허용하는 예외가 아니다.
+
+### 승인 필요 작업
+
+다음 변경은 PR에 승인 필요 항목으로 표시하고 팀 확인 후 merge한다.
+
+- DB schema, migration 변경.
+- 인증/인가, JWT, OAuth, password reset 정책 변경.
+- GitHub Actions, ruleset, repository 권한 변경.
+- AWS, 배포, domain, secret 변경.
+- 대규모 구조 변경.

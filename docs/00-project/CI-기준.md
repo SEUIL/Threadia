@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-06-17
-> **버전**: 6일차 수정본 v2
+> **최종 수정**: 2026-06-18
+> **버전**: v1.1
 > **상태**: 6일차 수정본
 > **수정 근거**: Threadia-기획문서-검수리포트.md
 > **기준 문서**: CI_검증_기준_회의전_설명, 4일차 회의 결정
@@ -22,7 +22,7 @@
 | 안정화 후 Backend 기준 | `./gradlew build` |
 | Frontend 기준 | 초기에는 브라우저 route 직접 확인, npm script 확정 후 CI에 추가 |
 | CI 실패 처리 | 실패하면 merge 전 원인 확인과 수정이 기본 |
-| 현재 작업 | workflow 파일 생성은 보류, 기준 문서만 확정 |
+| 현재 작업 | workflow 파일 생성은 보류, `main`/`dev` ruleset은 적용 |
 
 ---
 
@@ -65,7 +65,7 @@ name: backend-ci
 on:
   pull_request:
   push:
-    branches: [main, develop]
+    branches: [main, dev]
 
 jobs:
   test:
@@ -97,7 +97,7 @@ jobs:
 - Backend 프로젝트 구조와 Gradle wrapper 생성 시점.
 - Frontend package manager와 npm script 확정.
 - CI workflow 실제 생성 시점.
-- merge protection 적용 여부.
+- `main`/`dev` ruleset은 적용됨. required status check는 workflow 생성 뒤 활성화.
 
 ---
 
