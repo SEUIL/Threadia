@@ -1,0 +1,156 @@
+/* ==========================================================================
+   팔레트 색 조합 모음
+   --------------------------------------------------------------------------
+   - 조사한 색 조합을 CSS 변수로 관리합니다.
+   - 각 조합은 색 3개로 구성됩니다: --combo-x-1, --combo-x-2, --combo-x-3
+   - 색을 추가/수정할 때는 이 파일만 고치면 전체에 반영됩니다.
+   ========================================================================== */
+
+:root {
+  /* 조합 A */
+  --combo-a-1: #ea5c2a;
+  --combo-a-2: #1e1e1e;
+  --combo-a-3: #fcfaff;
+
+  /* 조합 B */
+  --combo-b-1: #f6042e;
+  --combo-b-2: #020005;
+  --combo-b-3: #ffae2e;
+
+  /* 조합 C */
+  --combo-c-1: #fe7902;
+  --combo-c-2: #292929;
+  --combo-c-3: #fffff5;
+
+  /* 조합 D */
+  --combo-d-1: #cc001e;
+  --combo-d-2: #0e0e0e;
+  --combo-d-3: #f0f4f5;
+
+  /* 조합 E */
+  --combo-e-1: #ff4628;
+  --combo-e-2: #202020;
+  --combo-e-3: #b8c8d7;
+
+  /* 조합 F */
+  --combo-f-1: #e8294a;
+  --combo-f-2: #f5ede4;
+  --combo-f-3: #2c1810;
+
+  /* 조합 G */
+  --combo-g-1: #00457f;
+  --combo-g-2: #edf5fa;
+  --combo-g-3: #ffa723;
+
+  /* 조합 H */
+  --combo-h-1: #51aeec;
+  --combo-h-2: #f8fbff;
+  --combo-h-3: #ffc0df;
+
+  /* 조합 I */
+  --combo-i-1: #294aff;
+  --combo-i-2: #ecfcff;
+  --combo-i-3: #37ffa9;
+
+  /* 조합 J */
+  --combo-j-1: #1f3a60;
+  --combo-j-2: #3582b8;
+  --combo-j-3: #f7cf59;
+
+  /* 조합 K */
+  --combo-k-1: #1f41b0;
+  --combo-k-2: #f4f4f4;
+  --combo-k-3: #e34054;
+
+  /* 조합 L */
+  --combo-l-1: #2aa6ff;
+  --combo-l-2: #b8e2ff;
+  --combo-l-3: #667391;
+
+  /* 조합 M (조합 H 기반 · 보라 오로라) */
+  --combo-m-1: #8a4fff;
+  --combo-m-2: #f5f1ff;
+  --combo-m-3: #ff9ad5;
+
+  /* 조합 N (커스텀 후보 · 라벤더 + 오키드 보라) */
+  --combo-n-1: #6d28d9;
+  --combo-n-2: #f7f0ff;
+  --combo-n-3: #eba4fe;
+
+  /* ----- 4색 버전 (최종후보 확장) ----- */
+
+  /* 조합 N4 (N + 오로라 민트, 4색) */
+  --combo-n4-1: #6d28d9;
+  --combo-n4-2: #f7f0ff;
+  --combo-n4-3: #eba4fe;
+  --combo-n4-4: #5eead4;
+
+  /* 조합 D4 (D + 골드, 4색) */
+  --combo-d4-1: #cc001e;
+  --combo-d4-2: #0e0e0e;
+  --combo-d4-3: #f0f4f5;
+  --combo-d4-4: #f2b705;
+
+  /* 조합 F4 (F + 오커, 4색) */
+  --combo-f4-1: #e8294a;
+  --combo-f4-2: #f5ede4;
+  --combo-f4-3: #2c1810;
+  --combo-f4-4: #d99a2b;
+
+  /* ===== 계열별 변형안 (레퍼런스 기반) ===== */
+
+  /* N 계열 — 보라/라벤더 */
+  --combo-n1-1: #6600ca; /* Plasma */
+  --combo-n1-2: #f3effb;
+  --combo-n1-3: #b23bee;
+  --combo-n2-1: #560591; /* Grape */
+  --combo-n2-2: #f5f0fa;
+  --combo-n2-3: #a400b8;
+  --combo-n3-1: #734f96; /* Soft Lilac */
+  --combo-n3-2: #f7f3ff;
+  --combo-n3-3: #b57edc;
+
+  /* D 계열 — 레드/블랙/화이트 */
+  --combo-d1-1: #e0474c; /* Signal Red */
+  --combo-d1-2: #111111;
+  --combo-d1-3: #ffffff;
+  --combo-d2-1: #b11a21; /* Crimson */
+  --combo-d2-2: #0a0a0a;
+  --combo-d2-3: #f2f2f2;
+  --combo-d3-1: #ff3b30; /* Scarlet */
+  --combo-d3-2: #1a1a1a;
+  --combo-d3-3: #f5f5f5;
+
+  /* F 계열 — 웜 에디토리얼 */
+  --combo-f1-1: #e2725b; /* Terracotta */
+  --combo-f1-2: #f7e6ca;
+  --combo-f1-3: #2c1810;
+  --combo-f2-1: #9b2948; /* Burgundy */
+  --combo-f2-2: #f5ede4;
+  --combo-f2-3: #2c1810;
+  --combo-f3-1: #d47e30; /* Cinnamon */
+  --combo-f3-2: #fffdd0;
+  --combo-f3-3: #3a2418;
+
+  /* ===== 시스템 팔레트 (2026 SaaS 트렌드 · 뉴트럴+accent) ===== */
+
+  /* 조합 O (Aurora Nightfall · 블루-그린 led 오로라) */
+  --combo-o-1: #0e1633; /* deep navy — 헤더/네비 */
+  --combo-o-2: #f4f7fb; /* elevated white — surface */
+  --combo-o-3: #0fb9b1; /* teal — primary action */
+  --combo-o-4: #5eead4; /* aqua — accent/그래프 엣지 */
+  --combo-o-5: #7c5cff; /* violet — 강조 pop */
+
+  /* 조합 P (Slate System · Linear식) */
+  --combo-p-1: #0f172a; /* slate-900 — 텍스트 */
+  --combo-p-2: #f1f5f9; /* slate-100 — surface */
+  --combo-p-3: #64748b; /* slate-500 — 보조 */
+  --combo-p-4: #7c3aed; /* violet — primary accent */
+  /* 상태색 참고: 초록 #10b981 / 앰버 #f59e0b / 레드 #ef4444 */
+
+  /* 조합 Q (Mono + Aurora · Vercel식) */
+  --combo-q-1: #0a0a0a; /* near-black */
+  --combo-q-2: #fafafa; /* near-white */
+  --combo-q-3: #18d6c8; /* aurora teal — 그라데이션 시작 */
+  --combo-q-4: #a855f7; /* aurora violet — 그라데이션 끝 */
+}
