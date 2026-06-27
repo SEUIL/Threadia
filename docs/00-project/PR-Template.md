@@ -2,15 +2,15 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-06-18
-> **버전**: v1.2
-> **상태**: 6일차 수정본
-> **수정 근거**: Threadia-기획문서-검수리포트.md
+> **최종 수정**: 2026-06-27
+> **버전**: 개발주간 DB정책 반영 v1
+> **상태**: 확정
+> **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
 > **기준 문서**: PR_Template_체크항목_초안, 4일차 회의 결정, CONTRIBUTING.md
 
 ---
 
-> **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows이며, Sprint 1 DB migration은 `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens`만 포함한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
+> **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows다. DB schema는 `docs/03-design/ERD.md`와 `db/schema.sql`을 기준으로 관리하고, Spring Boot/JPA는 schema 생성이 아니라 mapping 검증에 사용한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
 
 ## 1. 결정 사항
@@ -52,7 +52,7 @@
 - [ ] Backend 변경이면 `./gradlew test` 또는 `./gradlew build`를 실행했다.
 - [ ] Frontend 변경이면 브라우저에서 화면 또는 route를 확인했다.
 - [ ] API 변경이면 요청/응답 예시를 확인했다.
-- [ ] DB 변경이면 ERD/API 문서와 migration 영향을 확인했다.
+- [ ] DB 변경이면 ERD/API 문서와 `db/schema.sql` 영향을 확인했다.
 - [ ] Auth 변경이면 email 정규화, OAuth link, refresh token revoke, ACTIVE 사용자 기준을 확인했다.
 - [ ] Invitation 변경이면 seed 회사, accept 시 membership 생성, notification 분리, Sprint 1.5 제외 범위를 확인했다.
 - [ ] 실패한 test/build가 있으면 아래에 이유와 후속 처리를 적었다.
