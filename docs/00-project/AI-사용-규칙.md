@@ -2,15 +2,15 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-06-17
-> **버전**: 6일차 수정본 v2
-> **상태**: 6일차 수정본
-> **수정 근거**: Threadia-기획문서-검수리포트.md
+> **최종 수정**: 2026-06-27
+> **버전**: 개발주간 DB정책 반영 v1
+> **상태**: 확정
+> **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
 > **기준 문서**: AI_사용_규칙_초안, 협업_하네스_최소_규칙_초안, 4일차 회의 결정
 
 ---
 
-> **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows이며, Sprint 1 DB migration은 `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens`만 포함한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
+> **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows다. DB schema는 `docs/03-design/ERD.md`와 `db/schema.sql`을 기준으로 관리하고, Spring Boot/JPA는 schema 생성이 아니라 mapping 검증에 사용한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
 
 ## 1. 최종 규칙
@@ -56,7 +56,7 @@ AI 사용을 숨기지 않는다. 단, GitHub 계정 표시나 commit metadata�
 
 | 작업 | 기준 |
 |---|---|
-| DB 변경 | ERD/migration 영향 설명 후 팀 승인 |
+| DB 변경 | ERD/`db/schema.sql` 영향 설명 후 팀 승인 |
 | 배포/인프라 변경 | AWS, GitHub Actions, domain, secret 변경 전 팀 승인 |
 | 인증/인가 변경 | JWT, OAuth, 권한 정책 변경 전 팀 승인 |
 | 보안 변경 | 민감정보, 암호화, 권한 우회 가능성 검토 후 승인 |

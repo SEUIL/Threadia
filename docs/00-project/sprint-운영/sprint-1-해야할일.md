@@ -3,7 +3,7 @@ title: "Sprint 1 해야 할 일"
 type: planning-note
 status: 작성 중
 created: 2026-06-10
-updated: 2026-06-17
+updated: 2026-06-27
 tags:
   - project
   - team-project
@@ -50,7 +50,7 @@ Sprint 1은 Auth-only다. invitation은 Sprint 1.5, company/project/issue/docume
 | 3 | Backend Spring Boot skeleton 작성 | backend 기본 실행 | Backend 1~2명 | 미완료 |
 | 4 | Java 17 local 실행 기준 확인 | 실행 환경 기록 | Backend 1명 | 미완료 |
 | 5 | MySQL 8.4 local 연결 확인 | DB 연결 결과 | Backend/DB 2명 | 미완료 |
-| 6 | Sprint 1 Auth migration 작성 | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` | Backend/DB 2명 | 미완료 |
+| 6 | Sprint 1 Auth DDL 기준 확인 | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` | Backend/DB 2명 | 미완료 |
 | 7 | auth entity 작성 | user, oauth account, reset token, refresh token entity | Backend 2명 | 미완료 |
 | 8 | signup API 작성 | 회원가입 API | Backend 1~2명 | 미완료 |
 | 9 | login API 작성 | 로그인 API, JWT 발급 | Backend 1~2명 | 미완료 |
@@ -74,7 +74,7 @@ Sprint 1은 Auth-only다. invitation은 Sprint 1.5, company/project/issue/docume
 | 1 | repository clone, branch, PR 기준 확인 |
 | 2 | Backend/Frontend skeleton 작성 |
 | 3 | Java 17, MySQL 8.4 local 실행 확인 |
-| 4 | Auth migration과 entity 작성 |
+| 4 | Auth DDL 기준과 entity 작성 |
 | 5 | signup/login/logout/me API 작성 |
 | 6 | Google OAuth, Google SMTP password reset 작성 |
 | 7 | Auth 화면 routing과 API 연동 |
