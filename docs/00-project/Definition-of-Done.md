@@ -1,13 +1,13 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-16
-> **최종 수정**: 2026-06-17
-> **버전**: 6일차 수정본 v2
-> **상태**: 6일차 수정본
-> **수정 근거**: Threadia-기획문서-검수리포트.md
+> **최종 수정**: 2026-06-27
+> **버전**: 개발주간 DB정책 반영 v1
+> **상태**: 확정
+> **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
 
 # 작업 유형별 완료 조건 v2
 
-> **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows이며, Sprint 1 DB migration은 `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens`만 포함한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
+> **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows다. DB schema는 `docs/03-design/ERD.md`와 `db/schema.sql`을 기준으로 관리하고, Spring Boot/JPA는 schema 생성이 아니라 mapping 검증에 사용한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
 
 ## 1. 목적
@@ -62,7 +62,7 @@ flowchart TD
 |---|---|---|
 | Backend | API 또는 서버 로직이 요구사항대로 동작하고 `./gradlew test`가 통과한다 | test 결과, API 요청/응답 예시 |
 | Frontend | 대상 route나 화면에서 주요 사용자 흐름을 브라우저로 확인할 수 있다 | 화면 캡처 또는 확인 기록 |
-| DB | ERD, entity, table 관계가 일치하고 local DB 연결 또는 migration 적용 기준이 확인되었다 | 연결 결과, query 또는 migration 결과 |
+| DB | ERD, `db/schema.sql`, entity, table 관계가 일치하고 local DB 생성 기준이 확인되었다 | 연결 결과, query 또는 schema.sql 실행 결과 |
 | Infra/AWS | EC2/RDS/S3 사용 범위와 계정/비용/배포 시점, 설정값 관리 방식이 문서화되었다 | 문서 링크, 승인 필요 항목 표시 |
 | 문서 | 팀원이 문서만 보고 다음 행동을 할 수 있다 | 문서 링크, 검토 결과 |
 | PR | 변경 내용, 검증 결과, 영향 범위, 보안/승인 체크가 작성되었다 | PR 본문 또는 작업 기록 |
@@ -97,13 +97,13 @@ Frontend 작업은 화면, route, component, 상태 관리, API 연동 변경을
 
 ## 8. DB 완료 기준
 
-DB 작업은 ERD, entity, table, migration, query 변경을 포함한다.
+DB 작업은 ERD, `db/schema.sql`, entity, table, query 변경을 포함한다.
 
 | 항목 | 완료 조건 |
 |---|---|
 | ERD 정합성 | table, column, 관계가 ERD v2.0과 일치하거나 차이가 문서화되었다 |
 | 제약 조건 | id, unique, foreign key, null 허용 여부, 기본값, email `trim + lowercase`, UTC 시간 저장 기준이 요구사항과 맞다 |
-| local 확인 | MySQL 8.4 local 기준으로 연결 또는 migration 적용 가능 여부를 확인했다 |
+| local 확인 | MySQL 8.4 local 기준으로 연결 또는 `db/schema.sql` 기준 DB 생성 가능 여부를 확인했다 |
 | API 영향 | DB 변경이 API request/response, validation, 화면 표시 값에 미치는 영향을 확인했다 |
 | 데이터 변경 | 삭제나 대량 수정이 있으면 대상 범위와 실행 전후 확인 방법을 기록했다 |
 

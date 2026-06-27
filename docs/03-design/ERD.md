@@ -2,16 +2,24 @@
 
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-15  
-> **최종 수정**: 2026-06-17  
-> **버전**: 6일차 수정본 v2
-> **상태**: 6일차 수정본
-> **수정 근거**: Threadia-기획문서-검수리포트.md
+> **최종 수정**: 2026-06-27
+> **버전**: 개발주간 DB정책 반영 v1
+> **상태**: 확정
+> **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
 > **기준 문서**: ERD 초안 v1.4, 기능 분해표 v3.0, API 명세서 v2.0, 보류 기능 최종표 v1.0
 
 ---
 
-> **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows이며, Sprint 1 DB migration은 `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens`만 포함한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
+> **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows다. DB schema는 `docs/03-design/ERD.md`와 `db/schema.sql`을 기준으로 관리하고, Spring Boot/JPA는 schema 생성이 아니라 mapping 검증에 사용한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
+
+## 0. DB schema 관리 기준
+
+Threadia Sprint 1 개발 단계에서는 Flyway/Liquibase migration tool을 사용하지 않는다. `docs/03-design/ERD.md`는 schema 설계 기준이고, `db/schema.sql`은 MySQL 8.4 local DB 생성 기준이다.
+
+Spring Boot JPA Entity는 DB를 자동 생성하거나 수정하는 기준이 아니라, `db/schema.sql`로 생성된 schema와 mapping이 맞는지 검증하는 기준으로 사용한다. DB schema 변경 이력은 `docs/07-decisions/DB-schema-변경이력.md`에 기록한다.
+
+---
 
 ## 1. v2.0 변경 요약
 

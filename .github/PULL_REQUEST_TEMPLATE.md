@@ -21,7 +21,7 @@
 - [ ] Backend 변경이면 `./gradlew test` 또는 `./gradlew build`를 실행했다.
 - [ ] Frontend 변경이면 브라우저에서 화면 또는 route를 확인했다.
 - [ ] API 변경이면 요청/응답 예시를 확인했다.
-- [ ] DB 변경이면 ERD/API 문서와 migration 영향을 확인했다.
+- [ ] DB 변경이면 ERD/API 문서와 `db/schema.sql` 영향을 확인했다.
 - [ ] Auth 변경이면 email 정규화, OAuth link, refresh token revoke, ACTIVE 사용자 기준을 확인했다.
 - [ ] Invitation 변경이면 seed 회사, accept 시 membership 생성, notification 분리, Sprint 1.5 제외 범위를 확인했다.
 - [ ] 실패한 test/build가 있으면 아래에 이유와 후속 처리를 적었다.

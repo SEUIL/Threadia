@@ -2,10 +2,10 @@
 
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-16  
-> **최종 수정**: 2026-06-17  
-> **버전**: 6일차 수정본 v2
-> **상태**: 6일차 수정본  
-> **수정 근거**: Threadia-기획문서-검수리포트.md
+> **최종 수정**: 2026-06-27
+> **버전**: 개발주간 DB정책 반영 v1
+> **상태**: 확정
+> **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
 
 > 기준: `05_기획주간_5일차_Sprint1_Backlog_검증기준.md` + `5일차_오전회의.md`
 > ERD 반영: `ERD v2.0.md` + `기능-시나리오-API-ERD 추적표 v1.0.md` + `보류 기능 최종표 v1.0.md` + `API 명세서 v2.0.md`
@@ -13,7 +13,7 @@
 
 ---
 
-> **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows이며, Sprint 1 DB migration은 `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens`만 포함한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
+> **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows다. DB schema는 `docs/03-design/ERD.md`와 `db/schema.sql`을 기준으로 관리하고, Spring Boot/JPA는 schema 생성이 아니라 mapping 검증에 사용한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
 
 ## Sprint 1 목표
@@ -225,7 +225,7 @@ Mac/Windows 혼재 시 설치 방법이 달라진다. Docker로 통일하는 게
 
 | 작업 | 권장 담당 | 완료 조건 | 검증 방법 | 의존성 |
 |---|---|---|---|---|
-| `invitations` DB/entity 구현 | 여도현 + 김태준 + 김민경 | ERD 기준 `invitations`와 users/companies/company_members 관계 mapping 완료 | repository test 또는 migration 확인 | Sprint 1 Auth DB 완료, 회사 seed와 company_members reference schema 확인 |
+| `invitations` DB/entity 구현 | 여도현 + 김태준 + 김민경 | ERD 기준 `invitations`와 users/companies/company_members 관계 mapping 완료 | repository test 또는 `db/schema.sql` 기준 DB 확인 | Sprint 1 Auth DB 완료, 회사 seed와 company_members reference schema 확인 |
 | 등록 사용자 lookup API | 여도현 + 김민경 | exact email lookup으로 등록 사용자만 반환 | curl 또는 Postman | `users` 구현 |
 | 회사 invitation API | 김태준 + 김민경 | create/list, duplicate pending, already member, 7일 expiresAt 처리 | curl 또는 Postman | `invitations`, `company_members` |
 | 내 invitation 목록과 accept/decline/cancel | 여도현 + 김태준 + 김민경 | 수락 시 membership 생성, decline/cancel/expired 실패 처리 | API 정상/실패 케이스 | invitation 상태 전이 기준 |
@@ -245,7 +245,7 @@ Mac/Windows 혼재 시 설치 방법이 달라진다. Docker로 통일하는 게
 ## Phase B invitation 반영 메모
 
 > **생성일**: 2026-06-16
-> **상태**: 6일차 수정본
+> **상태**: 확정
 > **기준**: `.sisyphus/evidence/task-5-invitation-impact-matrix.md`의 affected row와 2026-06-16 공식 decision set을 사용한다.
 
 ### 반영 범위
