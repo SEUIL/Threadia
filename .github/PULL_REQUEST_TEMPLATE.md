@@ -24,6 +24,7 @@
 - [ ] DB 변경이면 ERD/API 문서와 `db/schema.sql` 영향을 확인했다.
 - [ ] Auth 변경이면 email 정규화, OAuth link, refresh token revoke, ACTIVE 사용자 기준을 확인했다.
 - [ ] Invitation 변경이면 seed 회사, accept 시 membership 생성, notification 분리, Sprint 1.5 제외 범위를 확인했다.
+- [ ] canonical 확정 문서의 의미를 수정했다면 `docs/07-decisions/기획문서-변경이력.md` 변경 묶음 링크를 관련 문서/이슈에 추가했다.
 - [ ] 실패한 test/build가 있으면 아래에 이유와 후속 처리를 적었다.
 
 ## 보안/승인 체크

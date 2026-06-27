@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
 > **최종 수정**: 2026-06-27
-> **버전**: 개발주간 DB정책 반영 v1
+> **버전**: canonical 문서 변경이력 반영 v1
 > **상태**: 확정
 > **태그**: pr, github, branch, ci
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
@@ -23,6 +23,7 @@
 | 검증 명령 | Backend는 `./gradlew test` 우선, 안정화 후 `./gradlew build` 확대 |
 | 승인 필요 작업 | DB, 배포, 인증/인가, 보안 변경은 팀 승인 필요 |
 | 구조 변경 | 선조치 후보고 가능하되 test/build 또는 직접 검증 필수 |
+| canonical 문서 변경 | `docs/01-planning/` 원본 archive에서 승격된 canonical 확정 문서의 의미를 수정하면 `기획문서-변경이력.md` 링크를 PR에 포함 |
 | Ruleset bypass | admin은 긴급 상황에만 사용, 부팀장 `cjfwls39`는 `dev` PR review 조건만 bypass 가능 |
 
 ---
@@ -56,6 +57,7 @@
 - [ ] DB 변경이면 ERD/API 문서와 `db/schema.sql` 영향을 확인했다.
 - [ ] Auth 변경이면 email 정규화, OAuth link, refresh token revoke, ACTIVE 사용자 기준을 확인했다.
 - [ ] Invitation 변경이면 seed 회사, accept 시 membership 생성, notification 분리, Sprint 1.5 제외 범위를 확인했다.
+- [ ] canonical 확정 문서의 의미를 수정했다면 `docs/07-decisions/기획문서-변경이력.md` 변경 묶음 링크를 관련 문서/이슈에 추가했다.
 - [ ] 실패한 test/build가 있으면 아래에 이유와 후속 처리를 적었다.
 
 ## 보안/승인 체크
