@@ -11,6 +11,9 @@ tags:
   - planning
   - sprint
   - development
+  - sprint-1
+  - auth
+  - setup
 aliases:
   - 개발주간 2주차 프로젝트 기반 구축
   - 개발 1주차 프로젝트 기반 구축
