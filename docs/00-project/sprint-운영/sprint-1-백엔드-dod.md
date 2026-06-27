@@ -1,13 +1,13 @@
 > **작성자**: Threadia Backend 분업
 > **작성일**: 2026-06-16
-> **최종 수정**: 2026-06-17
-> **버전**: 6일차 수정본 v2
-> **상태**: 6일차 수정본
-> **수정 근거**: Threadia-기획문서-검수리포트.md
+> **최종 수정**: 2026-06-27
+> **버전**: 개발주간 DB정책 반영 v1
+> **상태**: 확정
+> **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
 
 # Sprint 1 백엔드 의존성 / 기술 스택 / DoD v1.1
 
-> **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows이며, Sprint 1 DB migration은 `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens`만 포함한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
+> **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows다. DB schema는 `docs/03-design/ERD.md`와 `db/schema.sql`을 기준으로 관리하고, Spring Boot/JPA는 schema 생성이 아니라 mapping 검증에 사용한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
 
 이 문서는 Sprint 1 Backend 작업 착수 전 필요한 범위, 기술 스택, 의존성, blocker, 완료 기준을 정리한다.
@@ -365,7 +365,7 @@ Sprint 1 Backend 범위는 Auth-only와 인증 DB 4개 table로 유지한다. �
 
 | 항목 | 완료 조건 | 최소 증빙 |
 |---|---|---|
-| Entity | `invitations` entity와 FK mapping이 동작한다 | repository test 또는 migration 확인 |
+| Entity | `invitations` entity와 FK mapping이 동작한다 | repository test 또는 `db/schema.sql` 기준 DB 확인 |
 | 생성 | 회사 invitation 생성 시 7일 `expiresAt`을 반환하고 대상/role validation을 적용한다 | curl 또는 Postman 응답 |
 | 중복 방지 | 이미 멤버이거나 pending invitation이 있으면 지정 error code를 반환한다 | 실패 케이스 응답 |
 | 상태 전이 | accept/decline/cancel/expired 전이가 정책과 일치한다 | 상태별 API 응답과 DB 확인 |
