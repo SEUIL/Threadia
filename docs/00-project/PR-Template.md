@@ -5,6 +5,7 @@
 > **최종 수정**: 2026-06-27
 > **버전**: 개발주간 DB정책 반영 v1
 > **상태**: 확정
+> **태그**: pr, github, branch, ci
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
 > **기준 문서**: PR_Template_체크항목_초안, 4일차 회의 결정, CONTRIBUTING.md
 

@@ -10,6 +10,8 @@ tags:
   - acorn
   - todo
   - sprint
+  - sprint-1
+  - auth
 aliases:
   - 개발주간 2주차 해야 할 일
   - 개발 1주차 해야 할 일

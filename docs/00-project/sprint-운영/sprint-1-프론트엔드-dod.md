@@ -3,6 +3,7 @@
 > **최종 수정**: 2026-06-27
 > **버전**: 개발주간 DB정책 반영 v1
 > **상태**: 확정
+> **태그**: sprint-1, frontend, dod, auth
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
 
 # Sprint 1 프론트엔드 의존성 / 기술 스택 / DoD v1.1
