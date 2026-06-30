@@ -3,7 +3,7 @@ title: "Sprint 1 해야 할 일"
 type: planning-note
 status: 작성 중
 created: 2026-06-10
-updated: 2026-06-27
+updated: 2026-06-29
 tags:
   - project
   - team-project
@@ -39,7 +39,7 @@ Sprint 1은 Auth-only다. invitation은 Sprint 1.5, company/project/issue/docume
 | Sprint 1.5 범위 | registered-user app-internal company invitation | 착수 기준 확정 |
 | Sprint 2 이후 범위 | broader MVP domain work | 착수 기준 확정 |
 | Java 기준 | Java 17 | 착수 기준 확정 |
-| DB 기준 | MySQL 8.4 | 착수 기준 확정 |
+| DB 기준 | MySQL 8.4, `db/schema.sql` | 착수 기준 확정 |
 | Auth 외부 연동 | Google OAuth, Google SMTP | 설정 확인 필요 |
 | Token 정책 | JWT access/refresh, rotation, logout invalidation | 구현 전 확인 필요 |
 
@@ -53,21 +53,22 @@ Sprint 1은 Auth-only다. invitation은 Sprint 1.5, company/project/issue/docume
 | 4 | Java 17 local 실행 기준 확인 | 실행 환경 기록 | Backend 1명 | 미완료 |
 | 5 | MySQL 8.4 local 연결 확인 | DB 연결 결과 | Backend/DB 2명 | 미완료 |
 | 6 | Sprint 1 Auth DDL 기준 확인 | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` | Backend/DB 2명 | 미완료 |
-| 7 | auth entity 작성 | user, oauth account, reset token, refresh token entity | Backend 2명 | 미완료 |
-| 8 | signup API 작성 | 회원가입 API | Backend 1~2명 | 미완료 |
-| 9 | login API 작성 | 로그인 API, JWT 발급 | Backend 1~2명 | 미완료 |
-| 10 | logout API 작성 | refresh token invalidation | Backend 1명 | 미완료 |
-| 11 | me API 작성 | 현재 사용자 조회 API | Backend 1명 | 미완료 |
-| 12 | Google OAuth 설정과 흐름 작성 | OAuth login/callback 기준 | Backend 1~2명 | 미완료 |
-| 13 | password reset request/confirm 작성 | Google SMTP 기반 재설정 흐름 | Backend 1~2명 | 미완료 |
-| 14 | JWT 정책 적용 | access/refresh, rotation, hash 저장, logout invalidation | Backend 1~2명 | 미완료 |
-| 15 | Frontend React + Next skeleton 작성 | frontend 기본 실행 | Frontend 1~2명 | 미완료 |
-| 16 | Auth 화면 routing 작성 | 로그인, 회원가입, 비밀번호 재설정, OAuth 진입 화면 | Frontend 2명 | 미완료 |
-| 17 | Auth API 연동 기준 정리 | 요청/응답/error handling 기준 | Backend/Frontend | 미완료 |
-| 18 | test/build 검증 실행 | backend test, frontend build 또는 lint 기준 | 각 담당 | 미완료 |
-| 19 | GitHub Actions CI 초안 작성 | PR test/build check | 1~2명 | 미완료 |
-| 20 | README local 실행 방법 갱신 | backend/frontend/DB 실행 방법 | 1명 | 미완료 |
-| 21 | 문서와 코드 동기화 | 변경 문서, PR 검증 기록 | 황스일/여도현 중심 | 미완료 |
+| 7 | ERD.md 기준 db/schema.sql 생성 | `db/schema.sql` | Owner 김민정, 지원 김태준·김민경, Review 황스일 | 미완료 |
+| 8 | auth entity 작성 | user, oauth account, reset token, refresh token entity | Backend 2명 | 미완료 |
+| 9 | signup API 작성 | 회원가입 API | Backend 1~2명 | 미완료 |
+| 10 | login API 작성 | 로그인 API, JWT 발급 | Backend 1~2명 | 미완료 |
+| 11 | logout API 작성 | refresh token invalidation | Backend 1명 | 미완료 |
+| 12 | me API 작성 | 현재 사용자 조회 API | Backend 1명 | 미완료 |
+| 13 | Google OAuth 설정과 흐름 작성 | OAuth login/callback 기준 | Backend 1~2명 | 미완료 |
+| 14 | password reset request/confirm 작성 | Google SMTP 기반 재설정 흐름 | Backend 1~2명 | 미완료 |
+| 15 | JWT 정책 적용 | access/refresh, rotation, hash 저장, logout invalidation | Backend 1~2명 | 미완료 |
+| 16 | Frontend React + Next skeleton 작성 | frontend 기본 실행 | Frontend 1~2명 | 미완료 |
+| 17 | Auth 화면 routing 작성 | 로그인, 회원가입, 비밀번호 재설정, OAuth 진입 화면 | Frontend 2명 | 미완료 |
+| 18 | Auth API 연동 기준 정리 | 요청/응답/error handling 기준 | Backend/Frontend | 미완료 |
+| 19 | test/build 검증 실행 | backend test, frontend build 또는 lint 기준 | 각 담당 | 미완료 |
+| 20 | GitHub Actions CI 초안 작성 | PR test/build check | 1~2명 | 미완료 |
+| 21 | README local 실행 방법 갱신 | backend/frontend/DB 실행 방법 | 1명 | 미완료 |
+| 22 | 문서와 코드 동기화 | 변경 문서, PR 검증 기록 | 황스일/여도현 중심 | 미완료 |
 
 ## Sprint 1 우선순위
 
@@ -76,7 +77,7 @@ Sprint 1은 Auth-only다. invitation은 Sprint 1.5, company/project/issue/docume
 | 1 | repository clone, branch, PR 기준 확인 |
 | 2 | Backend/Frontend skeleton 작성 |
 | 3 | Java 17, MySQL 8.4 local 실행 확인 |
-| 4 | Auth DDL 기준과 entity 작성 |
+| 4 | Auth DDL 기준, `db/schema.sql`, entity 작성 |
 | 5 | signup/login/logout/me API 작성 |
 | 6 | Google OAuth, Google SMTP password reset 작성 |
 | 7 | Auth 화면 routing과 API 연동 |
@@ -90,6 +91,7 @@ Sprint 1은 Auth-only다. invitation은 Sprint 1.5, company/project/issue/docume
 - [ ] Sprint 2 이후 broader MVP 분리 기준 공유
 - [ ] Backend/Frontend skeleton 작업 branch 생성
 - [ ] Java 17과 MySQL 8.4 local 환경 확인
+- [ ] ERD.md 완료 후 db/schema.sql 생성 담당과 review 기준 공유
 - [ ] Google OAuth 설정 담당과 callback URL 확인
 - [ ] Google SMTP 설정 담당과 credential 관리 기준 확인
 - [ ] JWT 정책을 backend 작업 기준에 반영

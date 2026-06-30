@@ -1,10 +1,10 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-16
-> **최종 수정**: 2026-06-27
-> **버전**: 개발주간 DB정책 반영 v1
+> **최종 수정**: 2026-06-29
+> **버전**: 개발주간 schema.sql 작업 반영 v1
 > **상태**: 확정
 > **태그**: sprint-1, backlog, auth, invitation
-> **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
+> **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md, Sprint 1 schema.sql 작업 반영
 
 # Sprint 1 Backlog v0.2, 6일차 수정본
 
@@ -16,8 +16,9 @@
 | --- | --- | --- | --- | --- | --- |
 | Spring Boot 기본 프로젝트 생성 | 1 | 여도현 + 김태준 | local에서 서버 실행 가능 | `./gradlew bootRun` | repository clone, Java/Gradle 환경 |
 | MySQL 8.4 연결 확인 | 2 | 여도현 | test DB 연결 성공 | 연결 test 또는 간단 query | DB 실행 방식 결정, Spring Boot 기반 |
+| ERD.md 기준 db/schema.sql 생성 | 2-A | 김민정 + 김태준 + 김민경 | `docs/03-design/ERD.md` 완료 기준으로 MySQL 8.4용 `db/schema.sql` 생성. 전체 MVP DDL 기준을 준비하되 Sprint 1 검증은 `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` 중심 | schema.sql 실행 또는 검토, Auth 4개 table/column/constraint 정합성 확인 | ERD.md 상세 설계 완료, `db/.gitkeep`, MySQL 8.4 연결 확인 |
 | Frontend 프로젝트 구조 생성 | 3 | 정철진 | 라우팅, 기본 layout 구성 | 브라우저 실행 | React + Next.js App Router vs Pages Router 결정 |
-| 인증 JPA Entity 구현 | 4 | 여도현 + 김태준 + 김민경 | ERD v2.0 기준 `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` JPA Entity 클래스 구현. `users.role` 필드 없이 구현, `users.password_hash`는 소셜 전용 계정 NULL 허용 | `./gradlew build` 통과 | ERD v2.0, MySQL 연결 확인 |
+| 인증 JPA Entity 구현 | 4 | 여도현 + 김태준 + 김민경 | ERD v2.0 기준 `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` JPA Entity 클래스 구현. `users.role` 필드 없이 구현, `users.password_hash`는 소셜 전용 계정 NULL 허용 | `./gradlew build` 통과 | ERD v2.0, `db/schema.sql`, MySQL 연결 확인 |
 | 이메일 회원가입/로그인 API 구현 | 5 | 여도현 + 김태준 + 김민경 | API 명세서 v2.3 기준 `POST /api/v1/auth/signup`, `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/me` 구현. email `trim + lowercase`, `ACTIVE` 사용자 인증 기준 반영 | Postman 또는 curl | 인증 Entity, JWT 정책 결정 |
 | 소셜 로그인 API 구현 (Google OAuth) | 6 | 여도현 + 김태준 + 김민경 | API 명세서 v2.3 기준 `GET /oauth2/authorization/{provider}`, `GET /api/v1/auth/oauth2/callback/{provider}` 구현. 이메일만 같은 blind auto-link 금지 | Postman 또는 브라우저 | 인증 Entity, Google OAuth Client ID/Secret 발급 완료 |
 | 비밀번호 재설정 API 구현 | 7 | 여도현 + 김태준 + 김민경 | API 명세서 v2.3 기준 `POST /api/v1/auth/password-reset/request`, `POST /api/v1/auth/password-reset/confirm` 구현. confirm 성공 시 기존 `refresh_tokens` 전부 revoke. 이메일 발송은 Sprint 1에서 Google SMTP 실제 발송으로 검증하며, log/local console은 보조 debugging evidence로만 사용 | Postman 또는 curl | password_reset_tokens, refresh_tokens Entity |
@@ -34,7 +35,7 @@
 
 > 가정: Sprint 1 = Week 2, 5영업일 운영.
 > 인원: 황스일, 여도현, 정철진, 김민정, 김민경, 김태준 6명.
-> 배치 원칙: 범위가 인증으로 좁혀지면서 Backend 페어를 둘로 나눌 필요가 없어졌다. **인증 Backend**: 여도현 + 김태준 + 김민경이 entity부터 3개 API까지 순서대로 담당. **Frontend**: 정철진 단독. **협업/지원**: 황스일 + 김민정 — CI/문서/OAuth 설정/통합테스트 보조. 작업량이 줄어든 만큼 Day 4~5는 테스트와 버퍼에 더 쓴다.
+> 배치 원칙: 범위가 인증으로 좁혀지면서 Backend 페어를 둘로 나눌 필요가 없어졌다. **인증 Backend**: 여도현 + 김태준 + 김민경이 entity부터 3개 API까지 순서대로 담당. **Frontend**: 정철진 단독. **협업/지원**: 황스일 + 김민정 — CI/문서/OAuth 설정/통합테스트 보조. `db/schema.sql` 생성은 Day 1 기존 Owner를 제외해 김민정 Owner, 김태준·김민경 지원, 황스일 Review로 둔다. 작업량이 줄어든 만큼 Day 4~5는 테스트와 버퍼에 더 쓴다.
 
 ### Day 1 — 개발 기반 구축
 
@@ -42,6 +43,7 @@
 | --- | --- | --- | --- |
 | (1) Spring Boot 기본 프로젝트 생성 | 여도현 + 김태준 + 김민경 | `./gradlew bootRun` 성공 | repository clone, Java version 통일 |
 | (2) MySQL 8.4 연결 확인 | 여도현 | test DB 연결 성공 | Docker 등 실행 방식 통일 |
+| ERD.md 기준 db/schema.sql 생성 | 김민정 + 김태준 + 김민경 | 전체 MVP 기준 `db/schema.sql` 생성, Sprint 1 Auth 4개 table DDL 기준 확인 | ERD.md 상세 설계 완료 후 진행. Reviewer: 황스일 |
 | (3) Frontend 프로젝트 구조 생성 | 정철진 | 라우팅, 기본 layout 구성 | App Router vs Pages Router 결정 |
 | (9)(10) CI 기준 확인 + AGENTS.md 등 규칙 확정 | 황스일 + 김민정 | CI workflow 기준 합의, root/docs 규칙 검토 완료 | 4일차 협업 하네스 |
 | (11) PR Template 생성 확인 | 황스일 | `.github/PULL_REQUEST_TEMPLATE.md` 생성 완료 | PR Template v1.0 |
@@ -51,7 +53,7 @@
 
 | 작업 | 담당 | 완료 조건 | 의존성/비고 |
 | --- | --- | --- | --- |
-| (4) 인증 JPA Entity 구현 | 여도현 + 김태준 + 김민경 | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` 구현, `./gradlew build` 통과 | Day 1 MySQL 연결 확인 |
+| (4) 인증 JPA Entity 구현 | 여도현 + 김태준 + 김민경 | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` 구현, `./gradlew build` 통과 | Day 1 MySQL 연결 확인, `db/schema.sql` 생성 |
 | 로그인/회원가입 화면 레이아웃 작업 | 정철진 | 화면 UI만 우선 구현 (API 연동 전) | 화면정의서_v3, API 없이 진행 가능 |
 | JWT 정책 결정 회의 | 황스일 + 여도현 | access/refresh token 만료 시간, 갱신 전략, 저장 위치, password reset/status change refresh token revoke, UTC 시간 기준 결정 | Day 3 API 구현 전 확정 필요 |
 

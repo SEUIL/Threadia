@@ -1,10 +1,10 @@
 > **작성자**: Threadia Backend 분업
 > **작성일**: 2026-06-16
-> **최종 수정**: 2026-06-27
-> **버전**: 개발주간 DB정책 반영 v1
+> **최종 수정**: 2026-06-29
+> **버전**: 개발주간 schema.sql 작업 반영 v1
 > **상태**: 확정
 > **태그**: sprint-1, backend, dod, auth
-> **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
+> **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md, Sprint 1 schema.sql 작업 반영
 
 # Sprint 1 백엔드 의존성 / 기술 스택 / DoD v1.1
 
@@ -62,9 +62,10 @@ Sprint 1 Backend는 인증 중심 API와 인증에 필요한 최소 DB 모델을
 | 포함 기능 | 이메일 회원가입, 이메일 로그인, 로그아웃, `/auth/me`, Google OAuth, 비밀번호 재설정 |
 | 포함 API | Auth API와 OAuth callback, password reset request/confirm |
 | 포함 DB | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` |
+| DB 생성 기준 | ERD.md 완료 후 `db/schema.sql` 생성. 전체 MVP DDL 기준을 관리하되 Sprint 1 구현·검증은 인증 4개 table 중심 |
 | 포함 검증 | API 정상/실패 케이스, DB 저장 결과, token 관련 최소 동작 |
 | 제외 API | company/project/issue/document/chat/DM/thread/notification/profile edit API |
-| 제외 DB 구현 | 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정 전용 테이블 구현 |
+| 제외 DB 구현 | 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정 전용 Entity/API 구현. 단 `db/schema.sql`에는 ERD 완료 후 전체 MVP DDL 기준을 둘 수 있다 |
 
 Auth 연동 대상:
 - `POST /api/v1/auth/signup`
@@ -114,6 +115,7 @@ Auth 연동 대상:
 | cookie/security/CORS 정책 | access token memory, refresh token `HttpOnly`, `SameSite=Lax` cookie 권장. HTTPS는 `Secure`, local 예외 문서화 | Auth/Frontend 연동 기준 | JWT policy meeting Owner 황스일, Support 여도현, Reviewer 김태준 |
 | 서버 시각 기준 | 서버 생성/만료 시각은 UTC 기준 생성·저장·비교, API 응답은 ISO-8601 UTC `Z` | Auth/Invitation 구현 기준 | Backend Owner, Reviewer 황스일 |
 | email normalization | signup/login/password reset/OAuth/invitation lookup 모두 `trim + lowercase` 적용 | Auth/Invitation 구현 기준 | Backend Owner, Reviewer 황스일 |
+| db/schema.sql 생성 | ERD.md 완료 후 MySQL 8.4 기준 DDL 작성 | Auth Entity 구현 전 | Owner 김민정, Support 김태준·김민경, Reviewer 황스일 |
 | Google OAuth 앱 등록 | 예정 | OAuth 구현 직전 | Owner 황스일, Support 김민정, Reviewer 여도현 |
 | Google OAuth redirect URI | 예정 | OAuth 구현 직전 | Owner 황스일, Support 김민정, Reviewer 여도현 |
 | SMTP 설정 방식 | Google SMTP 실제 발송 기준 | password reset request 구현 전 | Password reset API Owner 김태준, Reviewer 황스일 |
@@ -131,12 +133,13 @@ Auth 연동 대상:
 |---|---|---|
 | 1 | Spring Boot 3.x skeleton 생성, Gradle wrapper 실행 확인 | `./gradlew bootRun`으로 애플리케이션 기동 확인 |
 | 2 | MySQL 8.4 연결 설정, local DB 연결 확인 | application log 또는 MySQL client로 연결 확인 |
-| 3 | Auth JPA Entity 작성 | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` entity와 기본 mapping 확인 |
-| 4 | 이메일 signup/login/logout, `/auth/me` 구현 | curl 또는 Postman으로 정상/실패 응답 확인 |
-| 5 | JWT policy 결정 반영 | access/refresh token 처리 기준을 코드와 문서에 반영 |
-| 6 | Google OAuth 앱 등록, redirect URI 반영, social login API 구현 | OAuth 시작과 callback 흐름 확인 |
-| 7 | password reset request/confirm 구현 | Google SMTP 발송, token hash 저장, expires/used 처리 확인 |
-| 8 | 테스트와 build 안정화 | `./gradlew test`, skeleton 안정화 후 `./gradlew build` 통과 |
+| 3 | ERD.md 기준 db/schema.sql 생성 | MySQL 8.4 기준 `db/schema.sql`이 존재하고 Auth 4개 table 생성 기준이 명확함 |
+| 4 | Auth JPA Entity 작성 | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` entity와 기본 mapping 확인 |
+| 5 | 이메일 signup/login/logout, `/auth/me` 구현 | curl 또는 Postman으로 정상/실패 응답 확인 |
+| 6 | JWT policy 결정 반영 | access/refresh token 처리 기준을 코드와 문서에 반영 |
+| 7 | Google OAuth 앱 등록, redirect URI 반영, social login API 구현 | OAuth 시작과 callback 흐름 확인 |
+| 8 | password reset request/confirm 구현 | Google SMTP 발송, token hash 저장, expires/used 처리 확인 |
+| 9 | 테스트와 build 안정화 | `./gradlew test`, skeleton 안정화 후 `./gradlew build` 통과 |
 
 역할 분담 기준:
 
@@ -144,6 +147,7 @@ Auth 연동 대상:
 |---|---|---|---|
 | Spring Boot skeleton | 여도현/김태준/김민경 | 여도현 | 황스일 |
 | MySQL 8.4 connection | 여도현 | 여도현 | 황스일 |
+| ERD.md 기준 db/schema.sql 생성 | 김태준/김민경 | 김민정 | 황스일 |
 | CI 기준 확인 + AGENTS.md | 황스일/김민정 | 황스일 | 김태준 |
 | Google OAuth app registration | 황스일/김민정 | 황스일 | 여도현 |
 | Auth JPA Entity | 여도현/김태준/김민경 | 김태준 | 황스일 |
@@ -176,12 +180,14 @@ Frontend JWT 저장 방향은 cookie 또는 memory다. cookie가 선택되면 Ba
 
 | Table / Entity | Sprint 1 사용 목적 | 주요 기준 |
 |---|---|---|
+| `db/schema.sql` | MySQL 8.4 local DB 생성 기준 | ERD.md 기준 전체 MVP DDL을 관리하되 Sprint 1 검증은 Auth 4개 table 중심 |
 | `users` | 이메일 사용자와 OAuth 연결 대상 사용자 | `users.role` 추가 안 함, email `trim + lowercase` 저장, `ACTIVE`만 인증 허용 |
 | `oauth_accounts` | Google OAuth provider 계정 연결 | provider, provider user id, user mapping 확인, blind auto-link 금지 |
 | `password_reset_tokens` | 비밀번호 재설정 token 검증 | `token_hash`만 저장, raw token 저장 금지, expires/used 처리, confirm 성공 시 refresh token 전부 revoke |
 | `refresh_tokens` | refresh token rotation과 logout/password reset/status change invalidation | `token_hash`만 저장, expires/rotated/revoked 처리 |
 
 DB 검증 방식:
+- `db/schema.sql`을 실행 또는 검토해 Auth 4개 table의 이름, column, null, unique, foreign key 기준이 ERD와 충돌하지 않는지 확인한다.
 - MySQL client로 row 생성과 변경 결과를 확인한다.
 - application log에서 connection, query, transaction 오류를 확인한다.
 - 관련 API 응답으로 signup/login/password reset 결과를 확인한다.
@@ -228,7 +234,7 @@ DB 검증 방식:
 | 테스트 | 관련 단위/통합 테스트가 통과한다 | `./gradlew test` 실행 결과 |
 | build | skeleton 안정화 후 build가 통과한다 | `./gradlew build` 실행 결과 |
 | API 일치 | API 명세서 v2.3 Auth request/response/error 형식과 일치한다 | curl 또는 Postman 요청/응답 예시 |
-| DB 일치 | Sprint 1 Auth table/entity 기준을 지킨다 | MySQL client, log, API 응답 확인 |
+| DB 일치 | `db/schema.sql`과 Sprint 1 Auth table/entity 기준을 지킨다 | schema.sql 실행 또는 검토, MySQL client, log, API 응답 확인 |
 | 보안 | secret, password, raw reset token, 개인정보가 코드/문서/log에 노출되지 않는다 | secret 비노출 확인 |
 | 시간 | 서버 생성/만료 시각은 UTC로 저장하고 API 응답은 ISO-8601 UTC `Z` 형식이다 | DB 값과 API 응답 확인 |
 | 후속 조치 | 미확정 항목은 owner 또는 조율 대상, 처리 시점을 기록한다 | TODO 또는 blocker 기록 |
@@ -239,6 +245,7 @@ DB 검증 방식:
 |---|---|---|
 | Spring Boot skeleton | Gradle wrapper 기준으로 실행 가능하다 | `./gradlew bootRun` |
 | MySQL connection | MySQL 8.4에 연결되고 Auth entity 저장을 확인한다 | MySQL client 또는 application log |
+| db/schema.sql | ERD.md 기준 MySQL 8.4 DDL이 작성되고 Auth 4개 table 생성 기준이 명확하다 | schema.sql 실행 또는 검토 결과 |
 | Auth JPA Entity | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` mapping이 동작한다 | repository test 또는 관련 API 결과 |
 | 회원가입 | 이메일 회원가입 성공, 중복, validation 실패, email `trim + lowercase` 저장을 처리한다 | curl 또는 Postman 응답, DB row 확인 |
 | 로그인 | 이메일 로그인 성공, credential 실패, non-ACTIVE 사용자 거부를 처리한다 | curl 또는 Postman 응답 |
@@ -297,6 +304,8 @@ DB 검증 방식:
 - [x] 포함 API: signup/login/logout/me/Google OAuth/password reset
 - [x] 제외 API: company/project/issue/document/chat/DM/thread/notification/profile edit
 - [x] Auth table/entity: `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens`
+- [ ] ERD.md 완료 후 `db/schema.sql` 생성
+- [ ] `db/schema.sql` 기준 Auth 4개 table 확인
 - [x] `users.role` 추가 안 함
 - [x] `password_reset_tokens.token_hash`에는 hash만 저장
 - [x] password reset expires/used 처리 필요

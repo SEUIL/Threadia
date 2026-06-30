@@ -2,11 +2,11 @@
 
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-16  
-> **최종 수정**: 2026-06-27
-> **버전**: 개발주간 DB정책 반영 v1
+> **최종 수정**: 2026-06-29
+> **버전**: 개발주간 schema.sql 작업 반영 v1
 > **상태**: 확정
 > **태그**: sprint-1, plan, auth
-> **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
+> **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md, Sprint 1 schema.sql 작업 반영
 
 > 기준: `05_기획주간_5일차_Sprint1_Backlog_검증기준.md` + `5일차_오전회의.md`
 > ERD 반영: `ERD v2.0.md` + `기능-시나리오-API-ERD 추적표 v1.0.md` + `보류 기능 최종표 v1.0.md` + `API 명세서 v2.0.md`
@@ -47,8 +47,9 @@ Sprint 1에서는 Spring Boot, React + Next.js, MySQL 8.4 기반을 구축하고
 | --- | --- | --- | --- | --- | --- |
 | Spring Boot 기본 프로젝트 생성 | 1 | 여도현 + 김태준 | local에서 서버 실행 가능 | `./gradlew bootRun` | repository clone, Java/Gradle 환경 |
 | MySQL 8.4 연결 확인 | 2 | 여도현 | test DB 연결 성공 | 연결 test 또는 간단 query | DB 실행 방식 결정, Spring Boot 기반 |
+| ERD.md 기준 db/schema.sql 생성 | 2-A | 김민정 + 김태준 + 김민경 | `docs/03-design/ERD.md` 완료 기준으로 MySQL 8.4용 `db/schema.sql` 생성. 전체 MVP DDL 기준을 준비하되 Sprint 1 검증은 `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` 중심 | schema.sql 실행 또는 검토, Auth 4개 table/column/constraint 정합성 확인 | ERD.md 상세 설계 완료, `db/.gitkeep`, MySQL 8.4 연결 확인 |
 | Frontend 프로젝트 구조 생성 | 3 | 정철진 | 라우팅, 기본 layout 구성 | 브라우저 실행 | React + Next.js App Router vs Pages Router 결정 |
-| 인증 JPA Entity 구현 | 4 | 여도현 + 김태준 + 김민경 | ERD v2.0 기준 `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` JPA Entity 클래스 구현. `users.role` 필드 없이 구현, `users.password_hash`는 소셜 전용 계정 NULL 허용 | `./gradlew build` 통과 | ERD v2.0, MySQL 연결 확인 |
+| 인증 JPA Entity 구현 | 4 | 여도현 + 김태준 + 김민경 | ERD v2.0 기준 `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` JPA Entity 클래스 구현. `users.role` 필드 없이 구현, `users.password_hash`는 소셜 전용 계정 NULL 허용 | `./gradlew build` 통과 | ERD v2.0, `db/schema.sql`, MySQL 연결 확인 |
 | 이메일 회원가입/로그인 API 구현 | 5 | 여도현 + 김태준 + 김민경 | API 명세서 v2.3 기준 `POST /api/v1/auth/signup`, `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/me` 구현. email `trim + lowercase`, `ACTIVE` 사용자 인증 기준 반영 | Postman 또는 curl | 인증 Entity, JWT 정책 결정 |
 | 소셜 로그인 API 구현 (Google OAuth) | 6 | 여도현 + 김태준 + 김민경 | API 명세서 v2.3 기준 `GET /oauth2/authorization/{provider}`, `GET /api/v1/auth/oauth2/callback/{provider}` 구현. 이메일만 같은 blind auto-link 금지 | Postman 또는 브라우저 | 인증 Entity, Google OAuth Client ID/Secret 발급 완료 |
 | 비밀번호 재설정 API 구현 | 7 | 여도현 + 김태준 + 김민경 | API 명세서 v2.3 기준 `POST /api/v1/auth/password-reset/request`, `POST /api/v1/auth/password-reset/confirm` 구현. confirm 성공 시 기존 `refresh_tokens` 전부 revoke. 이메일 발송은 Sprint 1에서 Google SMTP 실제 발송으로 검증하며, log/local console은 보조 debugging evidence로만 사용 | Postman 또는 curl | password_reset_tokens, refresh_tokens Entity |
@@ -73,6 +74,7 @@ Sprint 1에서는 Spring Boot, React + Next.js, MySQL 8.4 기반을 구축하고
 | --- | --- | --- | --- |
 | (1) Spring Boot 기본 프로젝트 생성 | 여도현 + 김태준 + 김민경 | `./gradlew bootRun` 성공 | repository clone, Java version 통일 |
 | (2) MySQL 8.4 연결 확인 | 여도현 | test DB 연결 성공 | Docker 등 실행 방식 통일 |
+| ERD.md 기준 db/schema.sql 생성 | 김민정 + 김태준 + 김민경 | 전체 MVP 기준 `db/schema.sql` 생성, Sprint 1 Auth 4개 table DDL 기준 확인 | ERD.md 상세 설계 완료 후 진행. Reviewer: 황스일 |
 | (3) Frontend 프로젝트 구조 생성 | 정철진 | 라우팅, 기본 layout 구성 | App Router vs Pages Router 결정 |
 | (9)(10) CI 기준 확인 + AGENTS.md 등 규칙 확정 | 황스일 + 김민정 | CI workflow 기준 합의, root/docs 규칙 검토 완료 | 4일차 협업 하네스 |
 | (11) PR Template 생성 확인 | 황스일 | `.github/PULL_REQUEST_TEMPLATE.md` 생성 완료 | PR Template v1.0 |
@@ -82,7 +84,7 @@ Sprint 1에서는 Spring Boot, React + Next.js, MySQL 8.4 기반을 구축하고
 
 | 작업 | 담당 | 완료 조건 | 의존성/비고 |
 | --- | --- | --- | --- |
-| (4) 인증 JPA Entity 구현 | 여도현 + 김태준 + 김민경 | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` 구현, `./gradlew build` 통과 | Day 1 MySQL 연결 확인 |
+| (4) 인증 JPA Entity 구현 | 여도현 + 김태준 + 김민경 | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` 구현, `./gradlew build` 통과 | Day 1 MySQL 연결 확인, `db/schema.sql` 생성 |
 | 로그인/회원가입 화면 레이아웃 작업 | 정철진 | 화면 UI만 우선 구현 (API 연동 전) | 화면정의서_v3, API 없이 진행 가능 |
 | JWT 정책 결정 회의 | 황스일 + 여도현 | access/refresh token 만료 시간, 갱신 전략, 저장 위치, password reset/status change refresh token revoke, UTC 시간 기준 결정 | Day 3 API 구현 전 확정 필요 |
 
@@ -120,7 +122,7 @@ Sprint 1에서는 Spring Boot, React + Next.js, MySQL 8.4 기반을 구축하고
 | --- | --- |
 | Backend | 관련 API가 실행되고 `./gradlew test` 또는 `./gradlew build`가 통과 |
 | Frontend | 브라우저에서 화면 또는 route 확인 가능 |
-| DB | table/entity 관계가 ERD v2.0과 코드에 반영되고 연결 확인 |
+| DB | `db/schema.sql`과 table/entity 관계가 ERD v2.0과 코드에 반영되고 연결 확인 |
 | 문서 | 팀원이 문서만 보고 다음 행동을 할 수 있음 |
 | PR | 작업 내용, 검증, 보안/승인 체크가 작성됨 |
 
@@ -148,6 +150,7 @@ Sprint 1에서는 Spring Boot, React + Next.js, MySQL 8.4 기반을 구축하고
 | Repository | GitHub repo, 팀원 초대 | clone 안 되는 팀원 발생 가능 | 개발 착수 지연 | 황스일 | 6일차 전 | 팀원별 clone 확인 |
 | Backend | Java, Gradle, Spring Boot | Java 17 기준 통일 필요 | 서버 실행 실패 | 황스일 + 여도현 | Sprint 1 시작 전 | Java 17 기준 적용 |
 | DB | MySQL 8.4 local 실행 | 일부 팀원 DB 실행 불가 가능 (Mac/Windows OS별 방식 차이) | API 개발 지연 | 여도현 | 6일차 전 | local DB 실행 방식 통일 후 공유 |
+| DB schema | ERD.md 상세 설계 완료, `db/schema.sql` 생성 | schema.sql 생성이 늦어지면 Auth Entity와 실제 table 기준이 어긋날 수 있음 | 인증 Entity 구현 지연 또는 재작업 | 김민정 + 김태준 + 김민경 | Day 1 | 황스일 review 후 Day 2 Entity 구현 기준으로 사용 |
 | Frontend | React + Next 구조 | App Router vs Pages Router 미결 | 화면 작업 충돌 | 정철진 | Sprint 1 시작 전 | 팀 전체 합의 후 기본 구조 먼저 확정 |
 | 인증 | JWT/Auth 정책 | access token 30분, refresh token 14일, hash 저장, rotation, logout/password reset/status change invalidation, access token memory + refresh token HttpOnly SameSite=Lax cookie 권장, email `trim + lowercase`, ACTIVE 사용자 인증, OAuth blind auto-link 금지, UTC 시간 기준 확정 | API 구현 방향 충돌 방지 | 여도현 + 황스일 | Day 2까지 반영 | API/ERD/Backend DoD 기준과 동기화 |
 
