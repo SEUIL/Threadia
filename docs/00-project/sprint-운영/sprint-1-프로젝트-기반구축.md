@@ -3,7 +3,7 @@ title: "Sprint 1 프로젝트 기반 구축"
 type: planning-note
 status: 작성 중
 created: 2026-06-10
-updated: 2026-06-27
+updated: 2026-06-29
 tags:
   - project
   - team-project
@@ -39,6 +39,7 @@ Sprint 1은 회원가입, 로그인, 로그아웃, me, Google OAuth, Google SMTP
 | repository 협업 기반 확인 | 현재 repository 기준으로 clone, branch, PR 흐름 착수 가능 |
 | Spring Boot 기본 구조 생성 | Java 17 기준 local 서버 실행 가능 |
 | MySQL 8.4 연결 확인 | Auth table DDL 기준과 local DB 연결 확인 |
+| db/schema.sql 생성 기준 확인 | ERD.md 완료 후 MySQL 8.4 기준 `db/schema.sql` 생성 |
 | React + Next 기본 구조 생성 | Auth 화면 routing과 기본 layout 확인 가능 |
 | Auth domain/API 기반 작성 | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` 중심 설계 반영 |
 | Google OAuth 준비 | client 설정, callback URL, secret 비노출 기준 확인 |
@@ -69,15 +70,16 @@ Sprint 1은 회원가입, 로그인, 로그아웃, me, Google OAuth, Google SMTP
 | 3 | Java 17 기준 확인 | local 실행 기준 | Backend 1명 |
 | 4 | MySQL 8.4 local 연결 확인 | DB 연결 결과, 설정 문서 | Backend/DB 2명 |
 | 5 | Auth DDL 기준 확인 | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` | Backend/DB 2명 |
-| 6 | Auth API 기본 흐름 작성 | signup, login, logout, me | Backend 2명 |
-| 7 | Google OAuth 흐름 작성 | OAuth login callback 기준 | Backend 1~2명 |
-| 8 | Google SMTP password reset 흐름 작성 | reset request, reset confirm 기준 | Backend 1~2명 |
-| 9 | JWT 정책 반영 | access/refresh 발급, rotation, invalidation 기준 | Backend 1~2명 |
-| 10 | React + Next skeleton 작성 | frontend 기본 실행 | Frontend 1~2명 |
-| 11 | Auth 화면 routing 작성 | 로그인, 회원가입, 비밀번호 재설정, OAuth 진입 화면 | Frontend 2명 |
-| 12 | README와 local 실행 문서 정리 | backend/frontend/DB 실행 방법 | 1명 |
-| 13 | CI 초안 적용 | PR test/build check | 1~2명 |
-| 14 | 개발 문서 동기화 | 최종 산출물과 코드 변경 기준 정렬 | 황스일/여도현 중심, 2명 |
+| 6 | ERD.md 기준 db/schema.sql 생성 | `db/schema.sql` | 김민정 Owner, 김태준·김민경 지원, 황스일 Review |
+| 7 | Auth API 기본 흐름 작성 | signup, login, logout, me | Backend 2명 |
+| 8 | Google OAuth 흐름 작성 | OAuth login callback 기준 | Backend 1~2명 |
+| 9 | Google SMTP password reset 흐름 작성 | reset request, reset confirm 기준 | Backend 1~2명 |
+| 10 | JWT 정책 반영 | access/refresh 발급, rotation, invalidation 기준 | Backend 1~2명 |
+| 11 | React + Next skeleton 작성 | frontend 기본 실행 | Frontend 1~2명 |
+| 12 | Auth 화면 routing 작성 | 로그인, 회원가입, 비밀번호 재설정, OAuth 진입 화면 | Frontend 2명 |
+| 13 | README와 local 실행 문서 정리 | backend/frontend/DB 실행 방법 | 1명 |
+| 14 | CI 초안 적용 | PR test/build check | 1~2명 |
+| 15 | 개발 문서 동기화 | 최종 산출물과 코드 변경 기준 정렬 | 황스일/여도현 중심, 2명 |
 
 ## Sprint 1에 하지 않을 것
 
@@ -122,6 +124,7 @@ Sprint 1.5는 Sprint 1 Auth 기반 위에서 등록 사용자 대상 app-interna
 | Spring Boot skeleton | 서버 local 실행 | `./gradlew bootRun` 또는 test 실행 | Java 17 |
 | MySQL 연결 | Auth DB 연결 성공 | 연결 test 또는 query | MySQL 8.4 실행 환경 |
 | Auth DDL 기준 | Sprint 1 Auth table 생성 기준 존재 | ERD/schema.sql review, DB 확인 | ERD Auth 기준 |
+| db/schema.sql 생성 | ERD.md 기준 MySQL 8.4 DDL 존재 | schema.sql 실행 또는 검토, Auth 4개 table 정합성 확인 | ERD.md 상세 설계 완료 |
 | Auth API | signup/login/logout/me 흐름 존재 | API test, backend test | JWT 정책 |
 | Google OAuth | OAuth login 흐름 존재 | callback 동작 확인 | Google OAuth 설정 |
 | Password reset | reset request/confirm 흐름 존재 | SMTP 수신 또는 mock 검증 | Google SMTP 설정 |
@@ -139,6 +142,7 @@ Sprint 1.5는 Sprint 1 Auth 기반 위에서 등록 사용자 대상 app-interna
 - [ ] React + Next 기본 화면이 브라우저에서 열린다.
 - [ ] MySQL 8.4 연결 기준이 확인되었다.
 - [ ] Sprint 1 Auth table DDL 기준이 있다.
+- [ ] ERD.md 기준 `db/schema.sql`이 생성되었다.
 - [ ] signup/login/logout/me API 기준이 구현 또는 검증 가능한 상태다.
 - [ ] Google OAuth 설정과 callback 기준이 확인되었다.
 - [ ] Google SMTP password reset 검증 기준이 확인되었다.
