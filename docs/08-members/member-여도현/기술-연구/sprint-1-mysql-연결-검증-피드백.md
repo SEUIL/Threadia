@@ -1,7 +1,7 @@
 > **작성자**: 여도현
 > **작성일**: 2026-07-01
-> **최종 수정**: 2026-07-01
-> **버전**: v1.0
+> **최종 수정**: 2026-07-02
+> **버전**: v1.1
 > **상태**: 작성 중
 > **태그**: backend, mysql, spring-boot, sprint-1, validation, security
 
@@ -211,11 +211,151 @@ Sprint 1.1.2 `MySQL 8.4 연결 확인`의 적정 완료 기준은 다음과 같�
 
 ---
 
-## 5. 후속 작업 체크리스트
+## 5. schema.sql 적용 검증 테스트 방법
+
+`db/schema.sql`에는 `DROP TABLE` 구문이 포함되어 있으므로 기존 `threadia_test` DB가 아니라 임시 DB `threadia_schema_validation`을 만들어 검증한다. 이 임시 DB는 schema 적용 검증 후 삭제한다.
+
+### 5.1 MySQL 8.4 container 확인
+
+repo root에서 MySQL 8.4 container를 실행한다.
+
+```bash
+docker compose --env-file .env -f compose.mysql.yml up -d mysql
+```
+
+container 상태는 `threadia-mysql84`가 `healthy`인지 확인한다.
+
+```bash
+docker ps --filter name=threadia-mysql84
+```
+
+### 5.2 임시 검증 DB 생성
+
+repo root에서 `.env`를 로드한 뒤 임시 DB를 생성한다. 실제 password 값은 명령 기록이나 문서에 남기지 않는다.
+
+```bash
+set -a
+source .env
+set +a
+
+docker exec -e MYSQL_PWD="$THREADIA_DB_ROOT_PASSWORD" threadia-mysql84 \
+  mysql -uroot \
+  -e "DROP DATABASE IF EXISTS threadia_schema_validation; CREATE DATABASE threadia_schema_validation CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON threadia_schema_validation.* TO '$THREADIA_DB_USERNAME'@'%'; FLUSH PRIVILEGES;"
+```
+
+### 5.3 Spring Boot 연결 테스트
+
+먼저 Spring Boot가 임시 DB에 연결되는지 확인한다. 이 단계는 `MysqlConnectionTests`로 `SELECT 1`, `SELECT VERSION()`을 실행한다.
+
+```bash
+cd backend
+
+set -a
+source ../.env
+set +a
+
+THREADIA_DB_URL="jdbc:mysql://localhost:3307/threadia_schema_validation" \
+./gradlew test --tests '*MysqlConnectionTests' --rerun-tasks
+```
+
+성공 기준은 다음과 같다.
+
+```text
+JdbcTemplate으로 SELECT 1 성공
+JdbcTemplate으로 SELECT VERSION() 성공
+VERSION() 결과가 8.4.x
+BUILD SUCCESSFUL
+```
+
+### 5.4 schema.sql 적용 검증 테스트
+
+`MysqlSchemaValidationTests`는 Spring Boot test context에서 `db/schema.sql`을 적용하고, Sprint 1 Auth 4개 table이 생성됐는지 확인한다. `schema.sql`이 destructive DDL을 포함하므로 `THREADIA_DB_SCHEMA_VALIDATION=true`를 명시한 경우에만 실행한다.
+
+```bash
+THREADIA_DB_URL="jdbc:mysql://localhost:3307/threadia_schema_validation" \
+THREADIA_DB_SCHEMA_VALIDATION=true \
+./gradlew test --tests '*MysqlSchemaValidationTests' --rerun-tasks
+```
+
+성공 기준은 다음과 같다.
+
+```text
+db/schema.sql 적용 성공
+users table 생성 확인
+oauth_accounts table 생성 확인
+password_reset_tokens table 생성 확인
+refresh_tokens table 생성 확인
+BUILD SUCCESSFUL
+```
+
+### 5.5 Auth 4개 table 직접 확인
+
+repo root로 돌아와서 MySQL client로 Auth 4개 table을 직접 확인할 수 있다.
+
+```bash
+cd ..
+
+set -a
+source .env
+set +a
+
+docker exec -e MYSQL_PWD="$THREADIA_DB_PASSWORD" threadia-mysql84 \
+  mysql -u"$THREADIA_DB_USERNAME" threadia_schema_validation -N \
+  -e "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ('users', 'oauth_accounts', 'password_reset_tokens', 'refresh_tokens') ORDER BY table_name;"
+```
+
+예상 결과는 다음과 같다.
+
+```text
+oauth_accounts
+password_reset_tokens
+refresh_tokens
+users
+```
+
+### 5.6 전체 build 확인
+
+```bash
+cd backend
+./gradlew build --rerun-tasks
+```
+
+성공 기준은 다음과 같다.
+
+```text
+BUILD SUCCESSFUL
+```
+
+### 5.7 임시 DB 정리
+
+검증이 끝나면 repo root에서 임시 DB를 삭제한다.
+
+```bash
+cd ..
+
+set -a
+source .env
+set +a
+
+docker exec -e MYSQL_PWD="$THREADIA_DB_ROOT_PASSWORD" threadia-mysql84 \
+  mysql -uroot \
+  -e "DROP DATABASE IF EXISTS threadia_schema_validation;"
+```
+
+주의할 점은 다음과 같다.
+
+- `threadia_schema_validation`은 검증 전용 임시 DB다.
+- 기존 `threadia_test`에 직접 `db/schema.sql`을 적용하지 않는다.
+- `THREADIA_DB_SCHEMA_VALIDATION=true` 없이 실행하면 schema validation test는 skip된다.
+- 실제 password, root password, token 값은 문서와 PR 본문에 기록하지 않는다.
+
+---
+
+## 6. 후속 작업 체크리스트
 
 | 후속 작업 | 확인할 내용 |
 |---|---|
-| `db/schema.sql` 추가 | Auth 4개 table 생성 기준 명시 |
+| `db/schema.sql` 적용 검증 | Auth 4개 table 생성 확인 기준 유지 |
 | JPA starter 도입 | `ddl-auto` 정책 확정 |
 | Entity 작성 | `db/schema.sql`과 mapping 일치 확인 |
 | Auth token 구현 | UTC 저장·만료 기준 확정 |
@@ -224,7 +364,7 @@ Sprint 1.1.2 `MySQL 8.4 연결 확인`의 적정 완료 기준은 다음과 같�
 
 ---
 
-## 6. 관련 문서와 PR
+## 7. 관련 문서와 PR
 
 - `docs/05-architecture/백엔드-구조.md`
 - `docs/00-project/sprint-운영/sprint-1-backlog.md`
@@ -234,8 +374,9 @@ Sprint 1.1.2 `MySQL 8.4 연결 확인`의 적정 완료 기준은 다음과 같�
 
 ---
 
-## 7. 변경 이력
+## 8. 변경 이력
 
 | 버전 | 날짜 | 내용 |
 |---|---|---|
 | v1.0 | 2026-07-01 | 최초 작성 |
+| v1.1 | 2026-07-02 | schema.sql 적용 검증 테스트 방법 추가 |
