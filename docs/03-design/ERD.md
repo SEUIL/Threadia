@@ -2,9 +2,9 @@
 
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-15  
-> **최종 수정**: 2026-06-27
-> **버전**: 개발주간 DB정책 반영 v1
-> **상태**: 확정
+> **최종 수정**: 2026-07-01
+> **버전**: 개발주간 ERD 상세화 v1.2
+> **상태**: 검토 중
 > **태그**: erd, db, schema, auth, invitation
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
 > **기준 문서**: ERD 초안 v1.4, 기능 분해표 v3.0, API 명세서 v2.0, 보류 기능 최종표 v1.0
@@ -97,6 +97,8 @@ erDiagram
     projects ||--o{ activity_events : "기록"
     projects ||--o| project_dashboard_summaries : "요약"
 
+    threads |o--o{ messages : "연결"
+
     sprints ||--o{ issues : "포함"
     issues ||--o{ issue_status_history : "이력"
     messages ||--o{ issues : "원본"
@@ -157,6 +159,7 @@ login, OAuth callback, token refresh, `/auth/me`는 `users.status = ACTIVE`인 �
 | updated_at | DATETIME | NOT NULL | 수정 시각 |
 
 - UNIQUE KEY (`provider`, `provider_user_id`).
+- UNIQUE KEY (`user_id`, `provider`). 한 사용자는 provider별 OAuth 계정을 하나만 연결할 수 있다.
 - 이메일만 같다는 이유로 provider 계정을 기존 로컬 계정에 blind auto-link하지 않는다. 이미 로그인한 사용자가 명시적으로 연결하거나, provider의 이메일 검증을 신뢰할 수 있는 경우에만 같은 `users` 계정에 연결한다.
 
 ### 4.3 password_reset_tokens
@@ -214,6 +217,7 @@ login, OAuth callback, token refresh, `/auth/me`는 `users.status = ACTIVE`인 �
 
 - Sprint 1.5 invitation은 등록 사용자 대상 app-internal invitation만 지원한다. 미가입 사용자 email 발송, token link, signup/onboarding auto-accept, resend는 Sprint 1.5 범위가 아니다.
 - 기본 만료 기간은 7일이며, read/accept/decline/cancel 시점에 lazy expiration을 확인한다. 필수 batch scheduler는 두지 않는다.
+- CHECK: `expires_at > created_at`.
 - Sprint 1.5에서는 `PENDING` company invitation 수락 시 `company_members` membership을 생성한다. 이미 회사 멤버인 경우 중복 membership을 만들지 않는다. Project invitation accept와 `project_members` 생성은 Sprint 2로 분리한다.
 - 프로젝트 invitation은 Sprint 2로 분리한다. 구현 시 해당 프로젝트가 속한 회사의 `ACTIVE` company member에게만 생성한다.
 - invitation-related notification은 필요 시 내부 `notification_events` 원장 기록을 남길 수 있으나 Sprint 1.5 완료 조건에는 포함하지 않는다. Push 알림, 별도 Invitation notification preference, S11 사용자 알림 UI 필수 구현은 포함하지 않는다.
@@ -233,7 +237,7 @@ login, OAuth callback, token refresh, `/auth/me`는 `users.status = ACTIVE`인 �
 | metadata_json | JSON | NULL | 추가 메타데이터 |
 | created_at | DATETIME | NOT NULL | 생성 시각 |
 
-조건부 확장 기준 활동 원장이다. `notification_events`와 통합하지 않고 역할을 분리한다. 필요 시 activity 이벤트에서 notification 이벤트를 생성하는 연계만 허용한다.
+조건부 확장 기준 활동 원장이다. `notification_events`와 통합하지 않고 역할을 분리한다. 필요 시 activity 이벤트에서 notification 이벤트를 생성하는 연계만 허용한다. 전체 MVP DDL 스켈레톤에는 포함할 수 있으나, Sprint 1 구현·검증과 핵심 MVP 활성화 조건은 별도로 분리한다.
 
 ### 4.7 project_dashboard_summaries
 
@@ -249,27 +253,386 @@ login, OAuth callback, token refresh, `/auth/me`는 `users.status = ACTIVE`인 �
 | sprint_progress_rate | DECIMAL(5,2) | NULL | Sprint 진행률 |
 | refreshed_at | DATETIME | NOT NULL | 갱신 시각 |
 
-summary table은 원본이 아니라 read model이다. 원본은 `issues`, `documents`, `activity_events`, `sprints`다.
+summary table은 원본이 아니라 read model이다. 원본은 `issues`, `documents`, `activity_events`, `sprints`다. 전체 MVP DDL 스켈레톤에는 포함할 수 있으나, 실제 사용은 aggregate query 성능 문제가 확인된 뒤 조건부로 활성화한다.
 
 ---
 
-## 5. 기존 핵심 테이블 유지 기준
+## 5. MVP reference table 상세
 
-| 테이블 | v2.0 기준 |
+이 섹션은 Sprint 1 구현 대상이 아니라 후속 MVP reference table의 schema 상세화 기준이다. `db/schema.sql` 작성 시 전체 MVP DDL에는 반영할 수 있으나, Sprint 1 구현·검증은 Auth 4개 table 중심으로 둔다.
+
+### 5.1 companies
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | 회사 ID |
+| name | VARCHAR(150) | NOT NULL | 회사명 |
+| representative_name | VARCHAR(100) | NULL | 대표자 이름 |
+| description | TEXT | NULL | 회사 설명 |
+| industry_category | VARCHAR(100) | NULL | 업종 |
+| logo_url | VARCHAR(500) | NULL | 회사 로고 URL |
+| status | VARCHAR(50) | NOT NULL | 회사 사용 상태. enum 값은 `schema.sql` 작성 전 최종 확정 |
+| created_by_user_id | BIGINT | FK -> users.id, NOT NULL | 회사 생성자. 최초 `COMPANY_ADMIN` 기준 |
+| created_at | DATETIME | NOT NULL | 생성 시각 |
+| updated_at | DATETIME | NOT NULL | 수정 시각 |
+
+- 회사 생성 API는 생성자를 `COMPANY_ADMIN`으로 만드는 정책을 갖고, `created_by_user_id`로 최초 생성자를 기록한다.
+- 회사 통계 API는 `company_members`, `departments`, `projects` aggregate로 계산한다.
+
+### 5.2 departments
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | 부서 ID |
+| company_id | BIGINT | FK -> companies.id, NOT NULL | 소속 회사 |
+| name | VARCHAR(100) | NOT NULL | 부서명 |
+| created_at | DATETIME | NOT NULL | 생성 시각 |
+| updated_at | DATETIME | NOT NULL | 수정 시각 |
+
+- 단일 depth 부서만 지원한다.
+- UNIQUE KEY (`company_id`, `name`).
+- 부서 삭제 시 `company_members.department_id`는 NULL로 변경한다.
+
+### 5.3 company_members
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | 회사 membership ID |
+| company_id | BIGINT | FK -> companies.id, NOT NULL | 소속 회사 |
+| user_id | BIGINT | FK -> users.id, NOT NULL | 소속 사용자 |
+| department_id | BIGINT | FK -> departments.id, NULL | 소속 부서. 부서 삭제 시 NULL |
+| role | ENUM('COMPANY_ADMIN','MEMBER') | NOT NULL | 회사 권한 |
+| status | ENUM('ACTIVE','SUSPENDED','LEFT') | NOT NULL | 회사 membership 상태 |
+| joined_at | DATETIME | NULL | 가입 또는 invitation accept 시각 |
+| created_at | DATETIME | NOT NULL | 생성 시각 |
+| updated_at | DATETIME | NOT NULL | 수정 시각 |
+
+- UNIQUE KEY (`company_id`, `user_id`).
+- Sprint 1.5에서는 company invitation accept 시 생성한다.
+- 기존 membership의 role, department, status 변경은 `PATCH /api/v1/company-members/{companyMemberId}`에서 처리한다.
+
+### 5.4 projects
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | 프로젝트 ID |
+| company_id | BIGINT | FK -> companies.id, NOT NULL | 소속 회사 |
+| name | VARCHAR(150) | NOT NULL | 프로젝트명 |
+| project_key | VARCHAR(20) | NOT NULL | 프로젝트 key |
+| description | TEXT | NULL | 프로젝트 설명 |
+| status | ENUM('PLANNING','ACTIVE','PAUSED','COMPLETED','ARCHIVED') | NOT NULL | 프로젝트 상태 |
+| start_date | DATE | NULL | 시작일 |
+| end_date | DATE | NULL | 종료일 |
+| created_by_user_id | BIGINT | FK -> users.id, NOT NULL | 프로젝트 생성자. 최초 `PROJECT_ADMIN` 기준 |
+| archived_at | DATETIME | NULL | archive 처리 시각 |
+| archived_by_user_id | BIGINT | FK -> users.id, NULL | archive 처리 사용자 |
+| archive_reason | TEXT | NULL | archive 요청 사유 |
+| created_at | DATETIME | NOT NULL | 생성 시각 |
+| updated_at | DATETIME | NOT NULL | 수정 시각 |
+
+- UNIQUE KEY (`company_id`, `project_key`).
+- 프로젝트는 물리 삭제하지 않고 `ARCHIVED` 상태로 전환한다.
+- CHECK: `end_date IS NULL OR start_date IS NULL OR start_date <= end_date`.
+- CHECK: `status = 'ARCHIVED'`이면 `archived_at`과 `archived_by_user_id`를 함께 기록하고, archive가 아니면 둘 다 NULL로 둔다.
+
+### 5.5 project_members
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | 프로젝트 membership ID |
+| project_id | BIGINT | FK -> projects.id, NOT NULL | 소속 프로젝트 |
+| user_id | BIGINT | FK -> users.id, NOT NULL | 참여 사용자 |
+| role | ENUM('PROJECT_ADMIN','MEMBER') | NOT NULL | 프로젝트 권한 |
+| status | ENUM('ACTIVE','REMOVED') | NOT NULL | 프로젝트 membership 상태 |
+| joined_at | DATETIME | NULL | 참여 또는 invitation accept 시각 |
+| created_at | DATETIME | NOT NULL | 생성 시각 |
+| updated_at | DATETIME | NOT NULL | 수정 시각 |
+
+- UNIQUE KEY (`project_id`, `user_id`).
+- 프로젝트 멤버는 같은 회사의 active company member만 가능하다. 이 검증은 service policy로 처리한다.
+- `PROJECT_ADMIN` 최소 1명 유지 조건은 DB 단일 제약으로 강제하지 않고 service policy로 처리한다.
+
+### 5.6 sprints
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | Sprint ID |
+| project_id | BIGINT | FK -> projects.id, NOT NULL | 소속 프로젝트 |
+| name | VARCHAR(150) | NOT NULL | Sprint 이름 |
+| goal | TEXT | NULL | Sprint 목표 |
+| status | ENUM('PLANNED','ACTIVE','COMPLETED') | NOT NULL | Sprint 상태 |
+| start_date | DATE | NULL | 계획 시작일 |
+| end_date | DATE | NULL | 계획 종료일 |
+| started_at | DATETIME | NULL | 실제 시작 시각 |
+| completed_at | DATETIME | NULL | 실제 종료 시각 |
+| summary | TEXT | NULL | 종료 요약 |
+| created_at | DATETIME | NOT NULL | 생성 시각 |
+| updated_at | DATETIME | NOT NULL | 수정 시각 |
+
+- INDEX (`project_id`, `status`).
+- CHECK: `end_date IS NULL OR start_date IS NULL OR start_date <= end_date`.
+- Sprint 종료 시 미완료 이슈 처리 기준은 service policy에서 확정한다.
+
+### 5.7 issues
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | 이슈 ID |
+| project_id | BIGINT | FK -> projects.id, NOT NULL | 소속 프로젝트 |
+| sprint_id | BIGINT | FK -> sprints.id, NULL | 배정 Sprint. 미배정 backlog는 NULL |
+| issue_key | VARCHAR(40) | NOT NULL | 사람용 이슈 키. `project_key` 접두어 + 프로젝트별 순번 |
+| reporter_user_id | BIGINT | FK -> users.id, NOT NULL | 등록자 |
+| assignee_user_id | BIGINT | FK -> users.id, NULL | 담당자 |
+| source_type | ENUM('MANUAL','MESSAGE') | NOT NULL | 이슈 생성 원본 유형 |
+| source_message_id | BIGINT | FK -> messages.id, NULL | from-message 생성 원본 |
+| title | VARCHAR(200) | NOT NULL | 이슈 제목 |
+| description | TEXT | NULL | 이슈 설명 |
+| status | ENUM('BACKLOG','TODO','IN_PROGRESS','IN_REVIEW','DONE') | NOT NULL | 5컬럼 칸반 상태 |
+| priority | ENUM('LOW','MEDIUM','HIGH','URGENT') | NOT NULL | 우선순위 |
+| due_date | DATE | NULL | 마감일 |
+| trashed_at | DATETIME | NULL | 휴지통 이동 시각 |
+| trashed_by_user_id | BIGINT | FK -> users.id, NULL | 휴지통 이동 사용자 |
+| restored_at | DATETIME | NULL | 마지막 복원 시각 |
+| created_at | DATETIME | NOT NULL | 생성 시각 |
+| updated_at | DATETIME | NOT NULL | 수정 시각 |
+
+- INDEX (`project_id`, `status`).
+- INDEX (`project_id`, `sprint_id`).
+- INDEX (`assignee_user_id`, `status`).
+- UNIQUE KEY (`project_id`, `issue_key`).
+- CHECK: `source_type = 'MANUAL'`이면 `source_message_id IS NULL`, `source_type = 'MESSAGE'`이면 `source_message_id IS NOT NULL`.
+- CHECK: `trashed_at`과 `trashed_by_user_id`는 둘 다 NULL이거나 둘 다 NOT NULL이어야 한다.
+- Kanban column 내 정렬용 `position` column은 6일차 이월 검토 사항으로 남긴다.
+- reporter, assignee, sprint, source message가 같은 project 범위에 속하는지는 service policy로 검증한다.
+- 일반 사용자(A)의 `DONE` 이동 제한은 `issue_status_history`가 아니라 service policy로 처리한다.
+
+### 5.8 issue_status_history
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | 상태 변경 이력 ID |
+| issue_id | BIGINT | FK -> issues.id, NOT NULL | 대상 이슈 |
+| changed_by_user_id | BIGINT | FK -> users.id, NOT NULL | 변경자 |
+| from_status | ENUM('BACKLOG','TODO','IN_PROGRESS','IN_REVIEW','DONE') | NULL | 이전 상태. 최초 생성 이력은 NULL |
+| to_status | ENUM('BACKLOG','TODO','IN_PROGRESS','IN_REVIEW','DONE') | NOT NULL | 변경 상태 |
+| changed_at | DATETIME | NOT NULL | 변경 시각 |
+
+- INDEX (`issue_id`, `changed_at`).
+- 권한 차이와 상태 전이 허용 여부는 service policy로 처리한다.
+
+### 5.9 documents
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | 문서 ID |
+| project_id | BIGINT | FK -> projects.id, NOT NULL | 소속 프로젝트 |
+| author_user_id | BIGINT | FK -> users.id, NOT NULL | 작성자 |
+| title | VARCHAR(200) | NOT NULL | 문서 제목 |
+| document_type | ENUM('DOC','MEETING_NOTE') | NOT NULL | 문서 유형 |
+| content | LONGTEXT | NOT NULL | Markdown 본문 |
+| trashed_at | DATETIME | NULL | 휴지통 이동 시각 |
+| trashed_by_user_id | BIGINT | FK -> users.id, NULL | 휴지통 이동 사용자 |
+| restored_at | DATETIME | NULL | 마지막 복원 시각 |
+| created_at | DATETIME | NOT NULL | 생성 시각 |
+| updated_at | DATETIME | NOT NULL | 수정 시각 |
+
+- INDEX (`project_id`, `document_type`).
+- CHECK: `trashed_at`과 `trashed_by_user_id`는 둘 다 NULL이거나 둘 다 NOT NULL이어야 한다.
+- 문서 영구 삭제는 보류하고 휴지통/복원까지만 제공한다.
+- 문서 수정 event는 `notification_events`에서 판단한다.
+
+### 5.10 document_issue_links
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | 문서-이슈 연결 ID |
+| project_id | BIGINT | FK -> projects.id, NOT NULL | 조회와 project 범위 검증용 project ID |
+| document_id | BIGINT | FK -> documents.id, NOT NULL | 문서 |
+| issue_id | BIGINT | FK -> issues.id, NOT NULL | 이슈 |
+| created_by_user_id | BIGINT | FK -> users.id, NOT NULL | 연결 생성자 |
+| link_type | ENUM('RELATED') | NOT NULL | 연결 유형. 현재 API는 `RELATED`만 사용 |
+| created_at | DATETIME | NOT NULL | 생성 시각 |
+
+- UNIQUE KEY (`document_id`, `issue_id`).
+- 문서와 이슈가 같은 프로젝트에 속하는지는 service policy로 검증한다.
+- `project_id`는 조회 편의와 tenant 범위 검증을 위한 중복 저장값이며, document와 issue의 project와 반드시 같아야 한다.
+- 그래프 API에서는 이 table을 edge 원본으로 사용한다.
+
+### 5.11 messages
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | 프로젝트 메시지 ID |
+| project_id | BIGINT | FK -> projects.id, NOT NULL | 소속 프로젝트 |
+| author_user_id | BIGINT | FK -> users.id, NOT NULL | 작성자 |
+| thread_id | BIGINT | FK -> threads.id, NULL | 연결된 쓰레드 |
+| content | TEXT | NOT NULL | 메시지 본문 |
+| created_at | DATETIME | NOT NULL | 생성 시각 |
+
+- INDEX (`project_id`, `created_at`, `id`).
+- 메시지 수정/삭제 API는 제공하지 않는다.
+- `updated_at`은 두지 않는다. MVP에서 메시지는 불변이며 수정 API를 제공하지 않기 때문이다.
+- `POST /api/v1/projects/{projectId}/messages` request가 `threadId`를 받으므로 최종 DDL에는 `thread_id` FK/index가 필요하다. 오후 schema 초안처럼 `thread_id`가 빠지면 API와 충돌한다.
+- API request field는 `content`다. DDL에서 `body` 계열 column명을 쓰는 경우 Entity/API mapping을 명시해야 하며, canonical ERD는 `content`를 기준으로 둔다.
+- 프로젝트 메시지만 이슈 전환 원본이 될 수 있고, DM 메시지는 이슈 전환을 금지한다.
+
+### 5.12 project_chat_member_states
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| project_id | BIGINT | PK, FK -> projects.id | 프로젝트 |
+| user_id | BIGINT | PK, FK -> users.id | 사용자 |
+| last_read_message_id | BIGINT | FK -> messages.id, NULL | 마지막으로 읽은 프로젝트 메시지 |
+| last_read_at | DATETIME | NULL | 읽음 처리 시각 |
+| updated_at | DATETIME | NOT NULL | 수정 시각 |
+
+- unread count는 저장값이 아니라 `last_read_message_id` 이후 메시지를 기준으로 계산한다.
+- 프로젝트 멤버만 mark-read할 수 있다.
+
+### 5.13 direct_message_rooms
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | DM 방 ID |
+| company_id | BIGINT | FK -> companies.id, NOT NULL | 회사 범위 |
+| user1_id | BIGINT | FK -> users.id, NOT NULL | 정렬된 사용자 ID 중 작은 값 |
+| user2_id | BIGINT | FK -> users.id, NOT NULL | 정렬된 사용자 ID 중 큰 값 |
+| created_at | DATETIME | NOT NULL | 생성 시각 |
+
+- CHECK (`user1_id` < `user2_id`).
+- UNIQUE KEY (`company_id`, `user1_id`, `user2_id`).
+- 같은 회사 구성원 간 1:1 DM만 허용한다. 다자간 DM은 Sprint 2로 보류한다.
+
+### 5.14 direct_messages
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | DM 메시지 ID |
+| room_id | BIGINT | FK -> direct_message_rooms.id, NOT NULL | DM 방 |
+| sender_user_id | BIGINT | FK -> users.id, NOT NULL | 발신자 |
+| content | TEXT | NOT NULL | 메시지 본문 |
+| created_at | DATETIME | NOT NULL | 생성 시각 |
+
+- INDEX (`room_id`, `created_at`, `id`).
+- API request field는 `content`다. DDL에서 `body` 계열 column명을 쓰는 경우 Entity/API mapping을 명시해야 한다.
+- DM 메시지 삭제, 상대 read receipt, DM 메시지 이슈 전환은 보류한다.
+
+### 5.15 dm_room_user_states
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| room_id | BIGINT | PK, FK -> direct_message_rooms.id | DM 방 |
+| user_id | BIGINT | PK, FK -> users.id | 사용자 |
+| last_read_direct_message_id | BIGINT | FK -> direct_messages.id, NULL | 마지막으로 읽은 DM 메시지 |
+| last_read_at | DATETIME | NULL | 읽음 처리 시각 |
+| updated_at | DATETIME | NOT NULL | 수정 시각 |
+
+- unread count는 저장값이 아니라 `last_read_direct_message_id` 이후 메시지를 기준으로 계산한다.
+- DM 방 참여자만 mark-read할 수 있다.
+
+### 5.16 threads
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | 쓰레드 ID |
+| project_id | BIGINT | FK -> projects.id, NOT NULL | 소속 프로젝트 |
+| target_type | ENUM('ISSUE','DOCUMENT','MESSAGE') | NOT NULL | 대표 쓰레드 대상 유형 |
+| target_id | BIGINT | NOT NULL | 대상 ID |
+| topic | VARCHAR(200) | NULL | 쓰레드 주제 |
+| created_by_user_id | BIGINT | FK -> users.id, NOT NULL | 생성자 |
+| created_at | DATETIME | NOT NULL | 생성 시각 |
+| updated_at | DATETIME | NOT NULL | 수정 시각 |
+
+- UNIQUE KEY (`target_type`, `target_id`).
+- 생성 정책은 get-or-create를 기준으로 하되, 자동 생성 시점은 6일차 이월 검토 사항으로 남긴다.
+
+### 5.17 thread_comments
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | 쓰레드 댓글 ID |
+| thread_id | BIGINT | FK -> threads.id, NOT NULL | 대상 쓰레드 |
+| author_user_id | BIGINT | FK -> users.id, NOT NULL | 작성자 |
+| content | TEXT | NOT NULL | 댓글 본문 |
+| created_at | DATETIME | NOT NULL | 생성 시각 |
+| updated_at | DATETIME | NOT NULL | 수정 시각 |
+
+- INDEX (`thread_id`, `id`).
+- `mentionedUserIds`는 댓글 작성 요청에서 받아 `notification_events` 생성 기준으로 사용한다.
+- 결정 표시 column은 근거 부족으로 TBD로 남긴다.
+
+### 5.18 notification_events
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | 알림 사건 ID |
+| activity_event_id | BIGINT | FK -> activity_events.id, NULL | 활동 원장에서 파생된 알림인 경우의 선택적 연계 |
+| company_id | BIGINT | FK -> companies.id, NULL | 회사 범위 |
+| project_id | BIGINT | FK -> projects.id, NULL | 프로젝트 범위 |
+| actor_user_id | BIGINT | FK -> users.id, NULL | 알림 유발 사용자 |
+| type | VARCHAR(50) | NOT NULL | 알림 유형. 예: `ISSUE_ASSIGNED`, `MENTIONED` |
+| target_type | VARCHAR(50) | NOT NULL | 알림 대상 유형 |
+| target_id | BIGINT | NOT NULL | 알림 대상 ID |
+| title | VARCHAR(200) | NOT NULL | 알림 제목 |
+| body | TEXT | NULL | 알림 본문 |
+| metadata_json | JSON | NULL | 추가 메타데이터 |
+| created_at | DATETIME | NOT NULL | 생성 시각 |
+
+- INDEX (`company_id`, `project_id`, `type`).
+- `activity_events`와 통합하지 않는다. 필요 시 activity 이벤트에서 notification 이벤트를 생성하는 연계만 허용한다.
+- `GET /api/v1/notifications` 응답 예시는 `title`, `body`, `target`, `readAt`을 포함한다. 따라서 표시용 `title`/`body`를 “응답 스키마 없음”을 이유로 제거하지 않는다. 다만 `route`, `payload_json` 같은 추가 스냅샷 column은 API 계약 확정 전까지 보류한다.
+- invitation 관련 event는 내부 원장 기록 후보이며 Sprint 1.5 완료 조건은 아니다.
+
+### 5.19 notification_recipients
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | 사용자별 수신 알림 ID |
+| notification_event_id | BIGINT | FK -> notification_events.id, NOT NULL | 알림 사건 |
+| recipient_user_id | BIGINT | FK -> users.id, NOT NULL | 수신 사용자 |
+| read_at | DATETIME | NULL | 읽음 시각 |
+| created_at | DATETIME | NOT NULL | 생성 시각 |
+
+- UNIQUE KEY (`notification_event_id`, `recipient_user_id`).
+- INDEX (`recipient_user_id`, `read_at`, `created_at`, `id`).
+- API는 로그인 사용자 소유의 수신 알림만 읽음 처리한다.
+
+### 5.20 notification_preferences
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | 알림 설정 ID |
+| user_id | BIGINT | FK -> users.id, NOT NULL | 설정 사용자 |
+| scope_type | ENUM('GLOBAL') | NOT NULL | MVP는 GLOBAL scope만 허용 |
+| notification_type | VARCHAR(50) | NOT NULL | 알림 유형. 예: `ISSUE_ASSIGNED`, `MENTIONED` |
+| enabled | BOOLEAN | NOT NULL | 수신 여부 |
+| created_at | DATETIME | NOT NULL | 생성 시각 |
+| updated_at | DATETIME | NOT NULL | 수정 시각 |
+
+- UNIQUE KEY (`user_id`, `scope_type`, `notification_type`).
+- 전체 알림 on/off는 외부 API의 `notificationType=ALL`이 아니라 별도 요청 형식으로 처리한다.
+- `scope_type=PROJECT`는 `PROJECT_NOTIFICATION_SCOPE_DEFERRED`로 처리하고 ERD에는 포함하지 않는다.
+
+### 5.21 service policy 검증 항목
+
+DB FK와 CHECK만으로 표현하기 어려운 tenant/project/다형성 정합성은 service policy와 테스트로 막는다.
+
+| 검증 항목 | 이유 |
 |---|---|
-| `companies` | 회사명, 대표자, 설명, 업종, 로고 URL 유지 |
-| `departments` | 단일 depth, 삭제 시 구성원 `department_id = NULL` |
-| `company_members` | Sprint 1.5부터 `invitations` 수락 시 생성. 기존 멤버의 역할/부서/상태 변경은 member API에서 처리 |
-| `projects` | 삭제 대신 `ARCHIVED` 상태 사용 |
-| `invitations` | Sprint 1.5 등록 사용자 대상 company invitation. Project invitation은 Sprint 2 reference. 상태는 `PENDING`, `ACCEPTED`, `DECLINED`, `CANCELED`, `EXPIRED` |
-| `project_members` | 같은 회사 active 구성원만 프로젝트 멤버 가능 |
-| `issues` | 5컬럼 상태, source message 연결, 휴지통/복원 |
-| `documents` | Markdown 저장, 휴지통/복원 |
-| `document_issue_links` | 문서-이슈 그래프 edge 역할 |
-| `threads` | `target_type + target_id` 대표 쓰레드 unique |
-| `messages` | 수정/삭제 API 미제공 |
-| `direct_message_rooms` | 1:1 방만 허용, `user1_id < user2_id` unique |
-| `notification_preferences` | Sprint 1은 GLOBAL scope만 허용 |
+| `company_members.department_id`가 같은 회사의 부서인지 | FK는 부서 존재만 보장하고 회사 일치는 보장하지 못한다. |
+| `project_members.user_id`가 해당 프로젝트 회사의 active company member인지 | 프로젝트 멤버십은 회사 멤버십을 전제로 한다. |
+| 프로젝트별 `PROJECT_ADMIN` 최소 1명 유지 | DB 단일 row 제약으로 표현하기 어렵다. |
+| `issues.sprint_id`가 같은 프로젝트의 sprint인지 | FK는 sprint 존재만 보장한다. |
+| `issues.reporter_user_id`, `assignee_user_id`가 active project member인지 | FK는 user 존재만 보장한다. |
+| `issues.source_message_id`가 같은 프로젝트의 message인지 | FK는 message 존재만 보장한다. |
+| `document_issue_links`의 document/issue/project 3자 정합성 | 문서와 이슈가 같은 project에 속해야 한다. |
+| `direct_message_rooms`의 두 참여자가 같은 회사 구성원인지 | FK와 `user1_id < user2_id`만으로는 회사 소속을 보장하지 못한다. |
+| `direct_messages.sender_user_id`가 해당 DM room 참여자인지 | FK는 sender 존재만 보장한다. |
+| `project_chat_member_states.user_id`가 해당 project member인지 | 읽음 위치는 project member만 가질 수 있다. |
+| `dm_room_user_states.user_id`가 해당 DM room 참여자인지 | DM 읽음 위치는 room 참여자만 가질 수 있다. |
+| `last_read_message_id`가 같은 project/room의 메시지인지 | FK는 메시지 존재만 보장한다. |
+| `threads`, `activity_events`, `notification_events`의 `target_type/target_id`가 실제 대상과 같은 project를 가리키는지 | 다형성 target은 FK로 직접 강제할 수 없다. |
+| `invitations`의 pending 중복 초대 방지와 project-company 소속 정합성 | 상태 조건부 unique와 cross-table 소속 검증은 service policy가 담당한다. |
 
 ---
 
