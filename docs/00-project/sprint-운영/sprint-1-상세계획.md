@@ -2,11 +2,11 @@
 
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-16  
-> **최종 수정**: 2026-06-29
-> **버전**: 개발주간 schema.sql 작업 반영 v1
+> **최종 수정**: 2026-07-02
+> **버전**: Auth cookie 계약 보강 v1
 > **상태**: 확정
 > **태그**: sprint-1, plan, auth
-> **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md, Sprint 1 schema.sql 작업 반영
+> **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md, Sprint 1 schema.sql 작업 반영, PR #17 Auth API 계약 보강
 
 > 기준: `05_기획주간_5일차_Sprint1_Backlog_검증기준.md` + `5일차_오전회의.md`
 > ERD 반영: `ERD v2.0.md` + `기능-시나리오-API-ERD 추적표 v1.0.md` + `보류 기능 최종표 v1.0.md` + `API 명세서 v2.0.md`
@@ -152,7 +152,7 @@ Sprint 1에서는 Spring Boot, React + Next.js, MySQL 8.4 기반을 구축하고
 | DB | MySQL 8.4 local 실행 | 일부 팀원 DB 실행 불가 가능 (Mac/Windows OS별 방식 차이) | API 개발 지연 | 여도현 | 6일차 전 | local DB 실행 방식 통일 후 공유 |
 | DB schema | ERD.md 상세 설계 완료, `db/schema.sql` 생성 | schema.sql 생성이 늦어지면 Auth Entity와 실제 table 기준이 어긋날 수 있음 | 인증 Entity 구현 지연 또는 재작업 | 김민정 + 김태준 + 김민경 | Day 1 | 황스일 review 후 Day 2 Entity 구현 기준으로 사용 |
 | Frontend | React + Next 구조 | App Router vs Pages Router 미결 | 화면 작업 충돌 | 정철진 | Sprint 1 시작 전 | 팀 전체 합의 후 기본 구조 먼저 확정 |
-| 인증 | JWT/Auth 정책 | access token 30분, refresh token 14일, hash 저장, rotation, logout/password reset/status change invalidation, access token memory + refresh token HttpOnly SameSite=Lax cookie 권장, email `trim + lowercase`, ACTIVE 사용자 인증, OAuth blind auto-link 금지, UTC 시간 기준 확정 | API 구현 방향 충돌 방지 | 여도현 + 황스일 | Day 2까지 반영 | API/ERD/Backend DoD 기준과 동기화 |
+| 인증 | JWT/Auth 정책 | access token 30분, refresh token 14일, hash 저장, rotation, logout/password reset/status change invalidation, access token memory + refresh token `HttpOnly`, `SameSite=Lax`, `Path=/`, `Max-Age=1209600` cookie, email `trim + lowercase`, ACTIVE 사용자 인증, OAuth blind auto-link 금지, UTC 시간 기준 확정 | API 구현 방향 충돌 방지 | 여도현 + 황스일 | Day 2까지 반영 | API/ERD/Backend DoD 기준과 동기화 |
 
 ### 기능별 blocker
 
@@ -194,7 +194,7 @@ ERD v2.0 불변식: `users`에 `role` 필드를 만들지 않는다. 권한 판�
 
 ### 5. JWT 만료/갱신 방식 — 6일차 수정본 기준 확정
 
-JWT 정책은 access token 30분, refresh token 14일, refresh token hash 저장, refresh 성공 시 rotation, logout 시 invalidation으로 확정한다. Browser 저장 기준은 access token memory, refresh token `HttpOnly`, `SameSite=Lax` cookie 권장안으로 두며 HTTPS 환경에서는 `Secure`를 사용한다. Day 2에는 이 기준을 인증 API 구현과 Frontend 연동에 반영한다.
+JWT 정책은 access token 30분, refresh token 14일, refresh token hash 저장, refresh 성공 시 rotation, logout 시 invalidation으로 확정한다. Browser 저장 기준은 access token memory, refresh token `HttpOnly`, `SameSite=Lax`, `Path=/`, `Max-Age=1209600` cookie로 두며 HTTPS 환경에서는 `Secure`를 사용한다. Day 2에는 이 기준을 인증 API 구현과 Frontend 연동에 반영한다.
 
 ---
 
