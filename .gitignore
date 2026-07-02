@@ -27,6 +27,7 @@ temp/
 # AI agent local state, logs, and sessions
 .opencode/
 .sisyphus/
+.omo/
 .codex/
 .claude/settings.local.json
 .claude/local/
