@@ -2,9 +2,9 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-06-17
-> **버전**: 6일차 수정본 v2
-> **상태**: 6일차 수정본
+> **최종 수정**: 2026-07-02
+> **버전**: Auth cookie 계약 보강 v1
+> **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
 > **기준 문서**: API 명세서 초안 v1.4, 기능 분해표 v3.0, ERD v2.0, 보류 기능 최종표 v1.0
@@ -153,7 +153,7 @@ GET /api/v1/auth/oauth2/callback/{provider}
 - 이메일만 같다는 이유로 provider 계정을 기존 로컬 계정에 blind auto-link하지 않는다. 이미 로그인한 사용자가 명시적으로 연결하거나, provider의 이메일 검증을 신뢰할 수 있는 경우에만 같은 `users` 계정에 연결한다.
 - OAuth 계정 연결 판단에도 정규화된 이메일을 사용한다.
 - provider 식별자는 `oauth_accounts`에 저장한다.
-- callback 성공 시 `oauth_accounts`를 통해 `users`를 매핑하거나 생성한 뒤 이메일 로그인과 동일한 Threadia JWT access token과 refresh token pair를 발급한다.
+- callback 성공 시 `oauth_accounts`를 통해 `users`를 매핑하거나 생성한 뒤 이메일 로그인과 동일한 Threadia JWT access token과 refresh token pair를 발급한다. 다만 OAuth callback endpoint의 직접 HTTP 응답 shape는 이메일 login JSON 응답과 동일하다고 확정하지 않으며, browser redirect 후 access token 전달 방식은 `docs/05-architecture/프론트엔드-구조.md`에서 별도로 결정한다.
 
 ### 3.3 비밀번호 재설정
 
@@ -191,7 +191,7 @@ POST /api/v1/auth/refresh
 - 성공 시 refresh token을 rotate하고 새 access token을 발급한다.
 - 실패 또는 logout 시 해당 refresh token을 invalidation한다.
 - token refresh는 `users.status = ACTIVE`인 사용자에게만 허용한다.
-- Browser 저장 권장안은 access token memory, refresh token `HttpOnly`, `SameSite=Lax` cookie다. HTTPS 환경에서는 `Secure`를 사용하며 local development 예외는 별도 명시한다.
+- Browser 저장 기준은 access token memory, refresh token `HttpOnly`, `SameSite=Lax`, `Path=/` cookie다. refresh token은 JSON response body에 노출하지 않고 `Set-Cookie`로만 전달한다. Login/refresh 성공 시 refresh token cookie `Max-Age=1209600`(14일)을 사용하고, HTTPS 운영 환경에서는 `Secure`를 사용하며 local development에서는 `Secure=false`를 허용한다. Logout은 대상 refresh token을 revoke하고 `Set-Cookie: refreshToken=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`으로 browser cookie를 만료시킨다.
 
 ---
 
@@ -525,10 +525,16 @@ Response 200:
 
 > **Sprint 1 공식 결정**: login 응답의 `companies`는 Sprint 1에서 빈 배열이다. 회사/프로젝트 membership context는 Sprint 1.5 이후 invitation accept 또는 후속 MVP reference에서 채운다.
 
+```http
+Set-Cookie: refreshToken=<refreshToken>; HttpOnly; SameSite=Lax; Path=/; Max-Age=1209600
+```
+
 ```json
 {
   "data": {
     "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "tokenType": "Bearer",
+    "expiresIn": 1800,
     "user": {
       "id": 1,
       "email": "minjeong@threadia.com",
@@ -544,6 +550,10 @@ Response 200:
 #### POST `/api/v1/auth/logout`
 
 Response 200:
+
+```http
+Set-Cookie: refreshToken=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
+```
 
 ```json
 {
