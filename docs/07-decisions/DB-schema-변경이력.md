@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-27
-> **최종 수정**: 2026-07-01
-> **버전**: v1.1
+> **최종 수정**: 2026-07-02
+> **버전**: v1.2
 > **상태**: 확정
 > **태그**: decision, db, schema, changelog
 
@@ -33,6 +33,16 @@ DB schema가 바뀌면 아래 항목을 기록한다.
 ---
 
 ## 3. 변경 이력
+
+### 2026-07-02 ERD/schema drift 보정
+
+| 항목 | 내용 |
+|---|---|
+| 변경 대상 | `db/schema.sql`의 `company_members`, `project_members` |
+| 변경 내용 | `company_members.joined_at`을 ERD와 동일하게 `DATETIME NULL`로 변경하고, ERD 상세 정의에 없는 `company_members.added_by_user_id`, `project_members.added_by_user_id` 및 관련 index/FK를 제거했다. |
+| 변경 이유 | PR #15 review에서 지적된 ERD/schema drift를 해소하기 위해서다. Membership 생성 감사 정보는 `invitations.inviter_user_id`를 기준으로 남기고, membership table은 ERD에 정의된 실제 소속 상태만 보관한다. |
+| 영향 범위 | DB DDL과 후속 JPA Entity mapping 기준에 영향을 준다. ERD의 column 정의는 이미 기준과 일치하므로 변경하지 않는다. |
+| 관련 문서 | `db/schema.sql`, `docs/03-design/ERD.md`, `docs/07-decisions/DB-schema-관리-정책.md` |
 
 ### 2026-07-01 전체 MVP DDL 스켈레톤 최초 생성
 

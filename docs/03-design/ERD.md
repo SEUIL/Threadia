@@ -97,6 +97,8 @@ erDiagram
     projects ||--o{ activity_events : "기록"
     projects ||--o| project_dashboard_summaries : "요약"
 
+    threads |o--o{ messages : "연결"
+
     sprints ||--o{ issues : "포함"
     issues ||--o{ issue_status_history : "이력"
     messages ||--o{ issues : "원본"

@@ -120,23 +120,19 @@ CREATE TABLE company_members (
     department_id    BIGINT   NULL,
     role             ENUM('COMPANY_ADMIN','MEMBER')    NOT NULL,
     status           ENUM('ACTIVE','SUSPENDED','LEFT') NOT NULL DEFAULT 'ACTIVE',
-    added_by_user_id BIGINT   NULL,
-    joined_at        DATETIME NOT NULL,
+    joined_at        DATETIME NULL,
     created_at       DATETIME NOT NULL,
     updated_at       DATETIME NOT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uq_cm_company_user (company_id, user_id),
     KEY idx_cm_user (user_id),
     KEY idx_cm_department (department_id),
-    KEY idx_cm_added_by (added_by_user_id),
     CONSTRAINT fk_cm_company FOREIGN KEY (company_id) REFERENCES companies (id)
         ON DELETE RESTRICT ON UPDATE RESTRICT,
     CONSTRAINT fk_cm_user FOREIGN KEY (user_id) REFERENCES users (id)
         ON DELETE RESTRICT ON UPDATE RESTRICT,
     CONSTRAINT fk_cm_department FOREIGN KEY (department_id) REFERENCES departments (id)
-        ON DELETE SET NULL ON UPDATE RESTRICT,
-    CONSTRAINT fk_cm_added_by FOREIGN KEY (added_by_user_id) REFERENCES users (id)
-        ON DELETE RESTRICT ON UPDATE RESTRICT
+        ON DELETE SET NULL ON UPDATE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE projects (
@@ -179,19 +175,15 @@ CREATE TABLE project_members (
     user_id          BIGINT   NOT NULL,
     role             ENUM('PROJECT_ADMIN','MEMBER') NOT NULL,
     status           ENUM('ACTIVE','REMOVED')       NOT NULL DEFAULT 'ACTIVE',
-    added_by_user_id BIGINT   NULL,
     joined_at        DATETIME NULL,
     created_at       DATETIME NOT NULL,
     updated_at       DATETIME NOT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uq_pm_project_user (project_id, user_id),
     KEY idx_pm_user (user_id),
-    KEY idx_pm_added_by (added_by_user_id),
     CONSTRAINT fk_pm_project FOREIGN KEY (project_id) REFERENCES projects (id)
         ON DELETE RESTRICT ON UPDATE RESTRICT,
     CONSTRAINT fk_pm_user FOREIGN KEY (user_id) REFERENCES users (id)
-        ON DELETE RESTRICT ON UPDATE RESTRICT,
-    CONSTRAINT fk_pm_added_by FOREIGN KEY (added_by_user_id) REFERENCES users (id)
         ON DELETE RESTRICT ON UPDATE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
