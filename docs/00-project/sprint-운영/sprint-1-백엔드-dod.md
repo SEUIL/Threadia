@@ -1,7 +1,7 @@
 > **작성자**: Threadia Backend 분업
 > **작성일**: 2026-06-16
-> **최종 수정**: 2026-06-29
-> **버전**: 개발주간 schema.sql 작업 반영 v1
+> **최종 수정**: 2026-07-02
+> **버전**: Auth cookie 계약 보강 v1
 > **상태**: 확정
 > **태그**: sprint-1, backend, dod, auth
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md, Sprint 1 schema.sql 작업 반영
@@ -48,7 +48,7 @@ Sprint 1 Backend는 인증 기능만 구현한다. 핵심 목표는 이메일 �
 | 포함 | 이메일 signup/login/logout, `/auth/me`, Google OAuth, password reset |
 | DB 대상 | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` |
 | 인증 방식 | JWT Bearer Token, refresh token 사용 |
-| 공식 결정 | Java 17 기준, access token 30분, refresh token 14일, refresh token hash 저장/rotation/logout/password reset/status change invalidation, access token memory + refresh token HttpOnly SameSite=Lax cookie 권장, UTC 시각 기준, email `trim + lowercase` 정규화 |
+| 공식 결정 | Java 17 기준, access token 30분, refresh token 14일, refresh token hash 저장/rotation/logout/password reset/status change invalidation, access token memory + refresh token `HttpOnly`, `SameSite=Lax`, `Path=/`, `Max-Age=1209600` cookie, UTC 시각 기준, email `trim + lowercase` 정규화 |
 | 검증 방식 | Gradle wrapper, curl 또는 Postman, MySQL client, application log, 관련 API 응답 |
 
 ---
@@ -112,7 +112,7 @@ Auth 연동 대상:
 | refresh token rotation | refresh 성공 시 rotate | Auth 구현 기준 | JWT policy meeting Owner 황스일, Support 여도현, Reviewer 김태준 |
 | refresh token invalidation | logout 시 invalidation | logout 구현 기준 | JWT policy meeting Owner 황스일, Support 여도현, Reviewer 김태준 |
 | refresh token security revoke | password reset 성공, SUSPENDED/DELETED 상태 변경 시 해당 user의 기존 refresh token 전부 revoke | Auth 구현 기준 | JWT policy meeting Owner 황스일, Support 여도현, Reviewer 김태준 |
-| cookie/security/CORS 정책 | access token memory, refresh token `HttpOnly`, `SameSite=Lax` cookie 권장. HTTPS는 `Secure`, local 예외 문서화 | Auth/Frontend 연동 기준 | JWT policy meeting Owner 황스일, Support 여도현, Reviewer 김태준 |
+| cookie/security/CORS 정책 | access token memory, refresh token `HttpOnly`, `SameSite=Lax`, `Path=/`, `Max-Age=1209600` cookie. HTTPS는 `Secure`, local 예외 문서화 | Auth/Frontend 연동 기준 | JWT policy meeting Owner 황스일, Support 여도현, Reviewer 김태준 |
 | 서버 시각 기준 | 서버 생성/만료 시각은 UTC 기준 생성·저장·비교, API 응답은 ISO-8601 UTC `Z` | Auth/Invitation 구현 기준 | Backend Owner, Reviewer 황스일 |
 | email normalization | signup/login/password reset/OAuth/invitation lookup 모두 `trim + lowercase` 적용 | Auth/Invitation 구현 기준 | Backend Owner, Reviewer 황스일 |
 | db/schema.sql 생성 | ERD.md 완료 후 MySQL 8.4 기준 DDL 작성 | Auth Entity 구현 전 | Owner 김민정, Support 김태준·김민경, Reviewer 황스일 |
@@ -174,7 +174,7 @@ Auth 연동 대상:
 | API 검증 | curl 또는 Postman | 필수 |
 | 실패 케이스 | validation, 인증 실패, token 없음/만료, reset token 만료/사용 완료, non-ACTIVE 사용자 인증 거부 | 필수 |
 
-Frontend JWT 저장 방향은 cookie 또는 memory다. cookie가 선택되면 Backend는 `Set-Cookie`, `HttpOnly`, `Secure`, `SameSite`, CORS credential 정책을 함께 확정해야 한다. memory가 선택되면 API 응답과 refresh 흐름 기준을 Frontend와 맞춘다.
+Frontend JWT 저장 방향은 access token memory, refresh token `HttpOnly` cookie다. Backend는 login/refresh 성공 시 refresh token을 JSON body에 노출하지 않고 `Set-Cookie`로만 전달한다. Cookie 속성은 `HttpOnly`, `SameSite=Lax`, `Path=/`, `Max-Age=1209600`이며 운영 HTTPS 환경에서는 `Secure`를 사용한다. Logout 시 대상 refresh token을 revoke하고 같은 `Path=/` cookie를 `Max-Age=0`으로 만료시킨다.
 
 ### 7.2 DB 기준
 
@@ -204,7 +204,7 @@ DB 검증 방식:
 | Spring Boot skeleton | Spring Boot 3.x, Gradle wrapper, Java 17 기준 | Java 17 기준 적용 | CI와 local 실행 환경 통일 | local/CI 모두 Java 17 확인 | 확정 |
 | MySQL 연결 | MySQL 8.4, application datasource 설정 | local DB 계정과 schema 준비 필요 | API 구현 전 저장소 검증 지연 가능 | connection log와 MySQL client 확인 | 확인 필요 |
 | JWT 정책 | JWT Bearer access token + refresh token | access 30분, refresh 14일, hash 저장, rotation, logout/password reset/status change invalidation | login/logout/refresh/me 기준 확정 | Auth 구현 시 반영 | 확정 |
-| cookie/security/CORS | access token memory, refresh token `HttpOnly`, `SameSite=Lax` cookie 권장 | HTTPS는 `Secure`, local 예외 문서화 | FE-BE 인증 연동 기준 확정 | Auth/FE 구현 시 반영 | 확정 |
+| cookie/security/CORS | access token memory, refresh token `HttpOnly`, `SameSite=Lax`, `Path=/`, `Max-Age=1209600` cookie | refresh token body 미노출, `Set-Cookie` 전용 전달, logout 시 `Max-Age=0` clear cookie | FE-BE 인증 연동 기준 확정 | Auth/FE 구현 시 반영 | 확정 |
 | Google OAuth | Google app registration, redirect URI | 앱 등록을 구현 직전에 진행 | OAuth API 구현 전 준비 필요 | 등록 정보와 redirect URI 확인 | 예정 |
 | Password reset email | Google SMTP + `EmailSender` boundary | secret 비노출과 실제 수신 email 확인 | reset request E2E 검증 기준 확정 | Google SMTP delivery, token hash, expiration, used-state 확인 | 확정 |
 | 메일 provider 정책 | Sprint 1은 Google SMTP 실제 발송 | AWS SES는 Sprint 1 범위 아님 | 운영 메일 정책은 배포/운영 단계에서 결정 | provider boundary 유지 | 확정 |
@@ -215,8 +215,8 @@ DB 검증 방식:
 | 기능 | 의존성 | Blocker | 완료 기준 | 상태 |
 |---|---|---|---|---|
 | 회원가입 | `users`, password hashing, validation | 이메일 중복과 validation error 형식 확인 | signup 정상/실패 API 확인 | 확인 필요 |
-| 로그인 | `users`, JWT access/refresh token 발급 | access 30분, refresh 14일, refresh hash 저장, email 정규화, `ACTIVE` status 확인 | login 성공/실패, token pair 발급, non-ACTIVE 거부 확인 | 확정 |
-| 로그아웃 | refresh token invalidation 기준 | logout 시 refresh token invalidation | logout 후 인증 상태 제거 확인 | 확정 |
+| 로그인 | `users`, JWT access/refresh token 발급 | access 30분, refresh 14일, refresh hash 저장, email 정규화, `ACTIVE` status 확인 | login 성공/실패, `accessToken`/`tokenType`/`expiresIn`/`user`/`companies: []` 응답, refresh cookie `Set-Cookie`, non-ACTIVE 거부 확인 | 확정 |
+| 로그아웃 | refresh token invalidation 기준 | logout 시 refresh token invalidation과 cookie 만료 | logout 후 `Set-Cookie: refreshToken=; ... Path=/; Max-Age=0` 및 후속 인증 실패 확인 | 확정 |
 | `/auth/me` | JWT 검증, minimal user context DTO | `data.user.id/email/nickname/avatarUrl`만 포함 | token 있음/없음/만료 응답 확인 | 확정 |
 | Google OAuth | Google OAuth app, redirect URI, `oauth_accounts` | 앱 등록과 callback URI 준비 필요, blind auto-link 금지 | OAuth 시작/callback/user mapping, provider email 검증 신뢰 조건 확인 | 예정 |
 | 비밀번호 재설정 | Google SMTP, `EmailSender`, `password_reset_tokens`, `refresh_tokens` | 실제 수신 email, token hash, expiration, used-state 검증, confirm 성공 시 refresh token revoke | request/confirm 성공/실패, `PasswordResetService` provider 비의존 확인, 기존 refresh token revoke 확인 | 확정 |
@@ -248,8 +248,8 @@ DB 검증 방식:
 | db/schema.sql | ERD.md 기준 MySQL 8.4 DDL이 작성되고 Auth 4개 table 생성 기준이 명확하다 | schema.sql 실행 또는 검토 결과 |
 | Auth JPA Entity | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` mapping이 동작한다 | repository test 또는 관련 API 결과 |
 | 회원가입 | 이메일 회원가입 성공, 중복, validation 실패, email `trim + lowercase` 저장을 처리한다 | curl 또는 Postman 응답, DB row 확인 |
-| 로그인 | 이메일 로그인 성공, credential 실패, non-ACTIVE 사용자 거부를 처리한다 | curl 또는 Postman 응답 |
-| 로그아웃 | refresh token 또는 session invalidation 기준에 따라 인증 상태를 정리한다 | logout API 응답과 후속 인증 확인 |
+| 로그인 | 이메일 로그인 성공, credential 실패, non-ACTIVE 사용자 거부를 처리하고 refresh token을 body 없이 cookie로만 내려준다 | curl 또는 Postman 응답, `Set-Cookie` header |
+| 로그아웃 | refresh token invalidation 기준에 따라 인증 상태를 정리하고 cookie를 만료시킨다 | logout API 응답, `Set-Cookie` 만료 header, 후속 인증 확인 |
 | `/auth/me` | token 있음, token 없음, token 만료, non-ACTIVE 사용자 케이스를 구분한다 | `/auth/me` 요청/응답 예시 |
 | Google OAuth | Google OAuth 시작, callback, user mapping이 동작하고 blind auto-link를 하지 않는다 | redirect/callback 확인 기록 |
 | 비밀번호 재설정 | 실제 이메일 발송, provider 분리, hash 저장, 만료/사용 완료, refresh token revoke 처리가 동작한다 | SMTP 발송 확인, `EmailSender` 의존 확인, DB 확인, API 응답 |
@@ -267,7 +267,7 @@ DB 검증 방식:
 | password reset 성공 후 기존 refresh token을 유지한다 | 탈취된 장기 세션이 계속 살아남을 수 있다 |
 | `SUSPENDED` 또는 `DELETED` 사용자의 login/OAuth callback/token refresh/`auth/me`를 허용한다 | 계정 상태 정책이 인증에 반영되지 않는다 |
 | 이메일을 정규화하지 않고 저장·조회한다 | 대소문자/공백 차이로 중복 가입, 로그인 실패, invitation lookup 실패가 발생할 수 있다 |
-| cookie 선택 시 CORS/security 정책을 확인하지 않았다 | Frontend 인증 연동이 깨질 수 있다 |
+| refresh token cookie의 `HttpOnly`, `SameSite=Lax`, `Path=/`, `Max-Age`, logout clear cookie, CORS credential 정책을 확인하지 않았다 | Frontend 인증 연동이 깨질 수 있다 |
 | Google SMTP 또는 OAuth secret이 코드/문서/log에 노출되었다 | 보안 사고 가능성이 있다 |
 | `PasswordResetService`가 Google SMTP 또는 AWS SES 구현체를 직접 안다 | 이메일 provider 교체와 테스트가 어려워진다 |
 
@@ -318,7 +318,7 @@ DB 검증 방식:
 - [x] 서버 생성/만료 시각 UTC 저장과 ISO-8601 UTC `Z` 응답 확정
 - [x] email `trim + lowercase` 정규화 확정
 - [x] OAuth blind auto-link 금지 확정
-- [x] access token memory, refresh token `HttpOnly`, `SameSite=Lax` cookie 권장 확정
+- [x] access token memory, refresh token `HttpOnly`, `SameSite=Lax`, `Path=/`, `Max-Age=1209600` cookie 확정
 - [ ] Google OAuth 앱 등록
 - [ ] Google OAuth redirect URI 확정
 - [ ] Google SMTP 설정과 secret 관리 방식 확인
@@ -342,7 +342,7 @@ DB 검증 방식:
 | JWT access/refresh expiration | access token 30분, refresh token 14일 | Sprint 1 Auth 기준 |
 | refresh token rotation | refresh 성공 시 rotate | Sprint 1 Auth 기준 |
 | refresh token invalidation | logout, password reset 성공, SUSPENDED/DELETED 상태 변경 시 invalidation | Sprint 1 Auth 기준 |
-| cookie/security/CORS | access token memory, refresh token `HttpOnly`, `SameSite=Lax` cookie 권장. HTTPS는 `Secure` | Sprint 1 Auth/FE 연동 기준 |
+| cookie/security/CORS | access token memory, refresh token `HttpOnly`, `SameSite=Lax`, `Path=/`, `Max-Age=1209600` cookie. HTTPS는 `Secure` | Sprint 1 Auth/FE 연동 기준 |
 | Google OAuth app registration | 구현 직전 실제 redirect URI 기준으로 등록하는 것이 안전함 | OAuth API 구현 전 |
 | Google OAuth redirect URI | local/dev 환경 값 확정 필요 | OAuth API 구현 전 |
 | SMTP credential 관리 | secret 노출 없이 개발 환경에서 실제 발송해야 함 | password reset 구현 전 |
