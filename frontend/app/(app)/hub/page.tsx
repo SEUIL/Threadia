@@ -249,6 +249,53 @@ function LoungeArea() {
   );
 }
 
+// 탕비실 — 키친/로비존(x[-1,2] z[-4,1], 3m x 5m)을 채운다.
+// 도어 2곳(라운지 쪽 x[0,1] z=-4, 책상존 쪽 x=2 z[0,1])을 막지 않도록
+// 서쪽 벽(x=-1)에 조리대를 붙이고 중앙에 테이블+의자를 둔다.
+// 자판기/복사기는 Kenney Furniture Kit에 없어 커피머신+냉장고로 대체한다.
+function BreakRoomArea() {
+  const { scene: fridge } = useGLTF(`${MODEL_BASE}/kitchenFridgeSmall.glb`);
+  const { scene: sink } = useGLTF(`${MODEL_BASE}/kitchenSink.glb`);
+  const { scene: cabinet } = useGLTF(`${MODEL_BASE}/kitchenCabinet.glb`);
+  const { scene: coffeeMachine } = useGLTF(`${MODEL_BASE}/kitchenCoffeeMachine.glb`);
+  const { scene: table } = useGLTF(`${MODEL_BASE}/table.glb`);
+  const { scene: chair } = useGLTF(`${MODEL_BASE}/chairCushion.glb`);
+  const { scene: trash } = useGLTF(`${MODEL_BASE}/trashcan.glb`);
+  const { scene: plant } = useGLTF(`${MODEL_BASE}/plantSmall1.glb`);
+
+  return (
+    <group>
+      {/*
+       * 실측 기반 재배치 (2026-07-02). preview_eval로 각 모델의 world bbox를 재보니
+       * pivot이 모델마다 다르고(냉장고/싱크대/조리대/커피머신은 "앞쪽 모서리",
+       * 쓰레기통/화분은 "중심") 폭도 제각각(싱크대·조리대 0.45m, 커피머신 0.19m)이라
+       * 균등 1m 간격으로는 벽을 뚫거나 간격이 벌어졌다. 아래 좌표는 그 실측값으로
+       * 서로 맞닿게 다시 계산한 값이다.
+       */}
+      {/* 서쪽 벽(x=-1, 내벽면 x=-1.0)을 따라 조리대 — 냉장고는 벽에 맞닿게 뒤로 밀고,
+          싱크대·조리대는 앞면(x=-0.53)을 맞춰 나란히 배치. 커피머신은 싱크대 위로 올림 */}
+      <primitive name="br-fridge" object={fridge.clone()} position={[-0.72, 0.05, -3.3]} rotation={[0, Math.PI / 2, 0]} />
+      <primitive name="br-sink" object={sink.clone()} position={[-0.53, 0.05, -2.87]} rotation={[0, Math.PI / 2, 0]} />
+      <primitive name="br-cabinet" object={cabinet.clone()} position={[-0.53, 0.05, -2.44]} rotation={[0, Math.PI / 2, 0]} />
+      {/* 커피머신 — 조리대(cabinet) 상판 위, 사용자가 수동으로 미세조정한 위치 */}
+      <primitive name="br-coffee" object={coffeeMachine.clone()} position={[-0.59, 0.47, -2.49]} rotation={[0, Math.PI / 2, 0]} />
+
+      {/* 중앙 테이블 + 의자 2개 — 의자를 테이블 남/북 변에 맞닿게 배치 */}
+      <primitive name="br-table" object={table.clone()} position={[-0.07, 0.05, -0.78]} rotation={[0, 0, 0]} />
+      <primitive name="br-chair1" object={chair.clone()} position={[0.25, 0.05, -1.227]} rotation={[0, 0, 0]} />
+      <primitive name="br-chair2" object={chair.clone()} position={[0.45, 0.05, -0.78]} rotation={[0, Math.PI, 0]} />
+
+      {/* 화분 — 테이블 위(상판 실측 y=0.377) 모서리에 배치 */}
+      <primitive name="br-plant" object={plant.clone()} position={[0.6, 0.377, -1.15]} rotation={[0, 0, 0]} />
+
+      {/* 쓰레기통 — 실측 결과 페달이 로컬 +z(회전 전 기준)로 튀어나와 있음.
+          책상존 도어(x=2, z[0,1])가 더 가까운 문이라 그쪽(+x)을 향하도록
+          rotation.y=+90도 적용(로컬 +z → 월드 +x) */}
+      <primitive name="br-trash" object={trash.clone()} position={[-0.7, 0.05, 0.25]} rotation={[0, Math.PI / 2, 0]} />
+    </group>
+  );
+}
+
 export default function HubPage() {
   const camRef = useRef<HTMLSpanElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -269,6 +316,7 @@ export default function HubPage() {
           <RoomWalls />
           <DeskGrid />
           <LoungeArea />
+          <BreakRoomArea />
         </Suspense>
 
         {/* ⚠️ DEV DEBUG — 제거 예정 */}
