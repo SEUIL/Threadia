@@ -1,7 +1,7 @@
 > **작성자**: 김민정
 > **작성일**: 2026-07-02
 > **최종 수정**: 2026-07-02
-> **버전**: v1.0
+> **버전**: v1.1
 > **상태**: 검토 중
 > **태그**: auth, api, review, wbs-1.3.1
 
@@ -50,7 +50,7 @@
 
 | 후속 작업 | 담당(예정) | 지켜야 할 점 |
 |---|---|---|
-| 소셜 로그인(OAuth callback, 1.3.2) | 여도현 | API 명세서에 "callback 성공 시 이메일 로그인과 동일한 토큰 pair 발급"이라고 명시돼있음. login과 **동일한 응답 모양**(`accessToken` + `user` 4필드 + `companies: []`)과 **동일한 refresh cookie(`Path=/` 등)**로 내려줘야 함 |
+| 소셜 로그인(OAuth callback, 1.3.2) | 여도현 | OAuth callback은 이메일 로그인과 동일한 Threadia access/refresh token pair를 발급한다. 단, callback endpoint의 직접 HTTP 응답 shape는 login JSON 응답과 동일하다고 확정하지 않으며, browser redirect 후 accessToken 전달 방식은 별도 결정한다 (`docs/05-architecture/프론트엔드-구조.md` 5.6절 — "OAuth callback 후 accessToken 전달 방식은 백엔드와 추가 협의가 필요하다") |
 | 비밀번호 재설정(3.3) | 여도현/김태준/김민경 | confirm 성공 시 해당 사용자의 **모든 기존 refresh_tokens를 revoke**해야 함 (logout은 쿠키 1개만 revoke하면 되지만, 이건 "사용자 기준 전체 revoke" 별도 기능 필요) |
 | Token refresh(3.7) | 여도현/김태준/김민경 | 같은 쿠키(`Path=/`, `HttpOnly`, `SameSite=Lax`)를 읽어서 rotate 처리. `Path=/`로 확정해둔 덕분에 refresh 엔드포인트가 어디에 있든 쿠키 전송 문제 없음 |
 | `PATCH /users/me/profile` | - | 이미 같은 `user` 4필드 구조로 응답하게 스펙에 있어서 별도 조정 불필요 |
