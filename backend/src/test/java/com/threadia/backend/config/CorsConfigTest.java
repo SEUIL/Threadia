@@ -33,8 +33,7 @@ import com.threadia.backend.common.auth.UserResponse;
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(AuthController.class)
 @TestPropertySource(properties = "threadia.cors.allowed-origin=http://localhost:3000")
-class 
-CorsConfigTest {
+class CorsConfigTest {
 
 	@Autowired
 	private MockMvc mockMvc;

@@ -7,13 +7,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 		"spring.jpa.hibernate.ddl-auto=none",
 		"threadia.jwt.secret=01234567890123456789012345678901"
 })
-class
-BackendApplicationTests {
+class BackendApplicationTests {
 
 	@Test
 	void contextLoads() {
 	}
 
 }
-
-
