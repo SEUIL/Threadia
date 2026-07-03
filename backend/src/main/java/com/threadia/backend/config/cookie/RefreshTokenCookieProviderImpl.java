@@ -2,6 +2,7 @@ package com.threadia.backend.config.cookie;
 
 import java.time.Duration;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
@@ -18,11 +19,20 @@ public class RefreshTokenCookieProviderImpl implements RefreshTokenCookieProvide
 	// getMaxAge()로 이 값을 그대로 가져다 써서 쿠키/DB 만료가 서로 어긋나지 않게 한다.
 	private final Duration maxAge;
 
+	@Autowired
 	public RefreshTokenCookieProviderImpl(
 			@Value("${threadia.cookie.secure:false}") boolean secure,
-			@Value("${threadia.refresh-token.expiration-days:14}") long expirationDays) {
+			@Value("${threadia.refresh-token.expiration-days:14}") long expirationDays,
+			@Value("${spring.profiles.active:}") String activeProfiles) {
+		if (activeProfiles != null && activeProfiles.contains("prod") && !secure) {
+			throw new IllegalStateException("prod profile에서는 refresh token cookie Secure=true가 필요합니다.");
+		}
 		this.secure = secure;
 		this.maxAge = Duration.ofDays(expirationDays);
+	}
+
+	public RefreshTokenCookieProviderImpl(boolean secure, long expirationDays) {
+		this(secure, expirationDays, "");
 	}
 
 	// 프론트엔드-구조.md 5.4절 확정값(Path=/) 그대로 적용.
