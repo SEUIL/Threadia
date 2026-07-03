@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.sql.SQLException;
 
+import jakarta.servlet.http.Cookie;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -20,8 +22,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.threadia.backend.auth.dto.LoginData;
+import com.threadia.backend.auth.dto.LogoutData;
 import com.threadia.backend.auth.service.AuthService;
 import com.threadia.backend.auth.service.LoginResult;
+import com.threadia.backend.auth.service.LogoutResult;
 import com.threadia.backend.common.auth.UserResponse;
 import com.threadia.backend.common.exception.AuthenticationFailedException;
 import com.threadia.backend.common.exception.EmailAlreadyExistsException;
@@ -178,5 +182,34 @@ class AuthControllerTest {
 				.andExpect(status().isUnauthorized())
 				.andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"))
 				.andExpect(header().doesNotExist("Set-Cookie"));
+	}
+	@Test
+	void logout_success_returns_success_data_and_clear_cookie() throws Exception {
+		ResponseCookie clearCookie = ResponseCookie.from("refreshToken", "")
+				.httpOnly(true)
+				.sameSite("Lax")
+				.path("/")
+				.maxAge(0)
+				.build();
+		when(authService.logout("access-token", "raw-refresh-token"))
+				.thenReturn(new LogoutResult(LogoutData.ofSuccess(), clearCookie));
+
+		mockMvc.perform(post("/api/v1/auth/logout")
+						.header("Authorization", "Bearer access-token")
+						.cookie(new Cookie("refreshToken", "raw-refresh-token")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.success").value(true))
+				.andExpect(jsonPath("$.meta.requestId").exists())
+				.andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("refreshToken=")))
+				.andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("Max-Age=0")))
+				.andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("Path=/")));
+	}
+
+	@Test
+	void logout_without_authorization_header_returns_401() throws Exception {
+		mockMvc.perform(post("/api/v1/auth/logout")
+						.cookie(new Cookie("refreshToken", "raw-refresh-token")))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"));
 	}
 }

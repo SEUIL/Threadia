@@ -14,6 +14,7 @@ import com.threadia.backend.auth.domain.User;
 import com.threadia.backend.auth.domain.UserStatus;
 import com.threadia.backend.auth.dto.LoginData;
 import com.threadia.backend.auth.dto.LoginRequest;
+import com.threadia.backend.auth.dto.LogoutData;
 import com.threadia.backend.auth.dto.SignupData;
 import com.threadia.backend.auth.dto.SignupRequest;
 import com.threadia.backend.auth.repository.RefreshTokenRepository;
@@ -23,6 +24,7 @@ import com.threadia.backend.common.auth.UserResponse;
 import com.threadia.backend.common.exception.AuthenticationFailedException;
 import com.threadia.backend.common.exception.EmailAlreadyExistsException;
 import com.threadia.backend.config.cookie.RefreshTokenCookieProvider;
+import com.threadia.backend.config.jwt.AuthenticatedUser;
 import com.threadia.backend.config.jwt.JwtTokenService;
 import com.threadia.backend.config.token.RefreshTokenGenerator;
 
@@ -114,6 +116,24 @@ public class AuthService {
 		LoginData data = LoginData.of(accessToken, expiresIn, UserResponse.from(user));
 
 		return new LoginResult(data, cookie);
+	}
+
+	@Transactional
+	public LogoutResult logout(String accessToken, String rawRefreshToken) {
+		AuthenticatedUser authUser = jwtTokenService.parseAccessToken(accessToken);
+		if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
+			throw new AuthenticationFailedException("refresh token cookie is missing.");
+		}
+
+		String tokenHash = refreshTokenGenerator.hash(rawRefreshToken);
+		RefreshToken refreshToken = refreshTokenRepository.findByTokenHash(tokenHash)
+				.filter(token -> token.getUser().getId().equals(authUser.userId()))
+				.orElseThrow(() -> new AuthenticationFailedException("refresh token is invalid."));
+
+		refreshToken.revoke(nowUtc());
+		refreshTokenRepository.save(refreshToken);
+
+		return new LogoutResult(LogoutData.ofSuccess(), refreshTokenCookieProvider.clear());
 	}
 
 	// 모든 시각은 UTC 기준으로 생성/저장한다(DB DEFAULT CURRENT_TIMESTAMP 사용 금지 정책).

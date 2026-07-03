@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import com.threadia.backend.auth.domain.RefreshToken;
 import com.threadia.backend.auth.domain.User;
 import com.threadia.backend.auth.domain.UserStatus;
 import com.threadia.backend.auth.dto.LoginRequest;
@@ -196,6 +197,62 @@ class AuthServiceTest {
 				.isInstanceOf(AuthenticationFailedException.class);
 
 		verify(passwordEncoder, never()).matches(any(), any());
+	}
+
+	@Test
+	void logout_success_revokes_refresh_token_and_returns_clear_cookie() {
+		User user = userWithStatus("hashed", UserStatus.ACTIVE);
+		String accessToken = jwtTokenService.issueAccessToken(user.getId(), user.getEmail());
+		LocalDateTime now = LocalDateTime.now();
+		RefreshToken refreshToken = new RefreshToken(
+				user,
+				"hashed-refresh-token",
+				now.plusDays(14),
+				now,
+				now);
+		when(refreshTokenGenerator.hash("raw-refresh-token")).thenReturn("hashed-refresh-token");
+		when(refreshTokenRepository.findByTokenHash("hashed-refresh-token")).thenReturn(Optional.of(refreshToken));
+
+		LogoutResult result = authService.logout(accessToken, "raw-refresh-token");
+
+		assertThat(result.data().success()).isTrue();
+		assertThat(result.clearCookie().getName()).isEqualTo("refreshToken");
+		assertThat(result.clearCookie().getValue()).isEmpty();
+		assertThat(result.clearCookie().getMaxAge()).isEqualTo(Duration.ZERO);
+		assertThat(refreshToken.getRevokedAt()).isNotNull();
+		assertThat(refreshToken.getUpdatedAt()).isEqualTo(refreshToken.getRevokedAt());
+		verify(refreshTokenRepository).save(refreshToken);
+	}
+
+	@Test
+	void logout_missing_refresh_cookie_throws_AuthenticationFailedException() {
+		User user = userWithStatus("hashed", UserStatus.ACTIVE);
+		String accessToken = jwtTokenService.issueAccessToken(user.getId(), user.getEmail());
+
+		assertThatThrownBy(() -> authService.logout(accessToken, null))
+				.isInstanceOf(AuthenticationFailedException.class);
+
+		verify(refreshTokenRepository, never()).findByTokenHash(any());
+	}
+
+	@Test
+	void logout_refresh_token_for_different_user_throws_AuthenticationFailedException() {
+		User loginUser = userWithStatus("hashed", UserStatus.ACTIVE);
+		String accessToken = jwtTokenService.issueAccessToken(loginUser.getId(), loginUser.getEmail());
+		User otherUser = new User("other@example.com", "hashed", "other", null, UserStatus.ACTIVE,
+				LocalDateTime.now(), LocalDateTime.now());
+		setId(otherUser, 2L);
+		RefreshToken refreshToken = new RefreshToken(
+				otherUser,
+				"hashed-refresh-token",
+				LocalDateTime.now().plusDays(14),
+				LocalDateTime.now(),
+				LocalDateTime.now());
+		when(refreshTokenGenerator.hash("raw-refresh-token")).thenReturn("hashed-refresh-token");
+		when(refreshTokenRepository.findByTokenHash("hashed-refresh-token")).thenReturn(Optional.of(refreshToken));
+
+		assertThatThrownBy(() -> authService.logout(accessToken, "raw-refresh-token"))
+				.isInstanceOf(AuthenticationFailedException.class);
 	}
 
 	private static User userWithStatus(String passwordHash, UserStatus status) {
