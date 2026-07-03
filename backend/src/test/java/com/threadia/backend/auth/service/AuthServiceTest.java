@@ -236,6 +236,30 @@ class AuthServiceTest {
 	}
 
 	@Test
+	void logout_이미_revoke된_refreshToken이면_AuthenticationFailedException을_던지고_다시_revoke하지_않는다() {
+		User user = userWithStatus("hashed", UserStatus.ACTIVE);
+		String accessToken = jwtTokenService.issueAccessToken(user.getId(), user.getEmail());
+		LocalDateTime now = LocalDateTime.now();
+		RefreshToken refreshToken = new RefreshToken(
+				user,
+				"hashed-refresh-token",
+				now.plusDays(14),
+				now,
+				now);
+		LocalDateTime alreadyRevokedAt = now.minusMinutes(5);
+		refreshToken.revoke(alreadyRevokedAt);
+		when(refreshTokenGenerator.hash("raw-refresh-token")).thenReturn("hashed-refresh-token");
+		when(refreshTokenRepository.findByTokenHash("hashed-refresh-token")).thenReturn(Optional.of(refreshToken));
+
+		assertThatThrownBy(() -> authService.logout(accessToken, "raw-refresh-token"))
+				.isInstanceOf(AuthenticationFailedException.class);
+
+		// revoked_at이 재요청 시각으로 덮어써지지 않아야 감사 로그가 "최초 로그아웃 시각" 그대로 보존된다.
+		assertThat(refreshToken.getRevokedAt()).isEqualTo(alreadyRevokedAt);
+		verify(refreshTokenRepository, never()).save(any());
+	}
+
+	@Test
 	void logout_refresh_token_for_different_user_throws_AuthenticationFailedException() {
 		User loginUser = userWithStatus("hashed", UserStatus.ACTIVE);
 		String accessToken = jwtTokenService.issueAccessToken(loginUser.getId(), loginUser.getEmail());
@@ -253,6 +277,19 @@ class AuthServiceTest {
 
 		assertThatThrownBy(() -> authService.logout(accessToken, "raw-refresh-token"))
 				.isInstanceOf(AuthenticationFailedException.class);
+	}
+
+	@Test
+	void logout_DB에_없는_refreshToken이면_AuthenticationFailedException을_던진다() {
+		User user = userWithStatus("hashed", UserStatus.ACTIVE);
+		String accessToken = jwtTokenService.issueAccessToken(user.getId(), user.getEmail());
+		when(refreshTokenGenerator.hash("unknown-refresh-token")).thenReturn("hashed-unknown");
+		when(refreshTokenRepository.findByTokenHash("hashed-unknown")).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> authService.logout(accessToken, "unknown-refresh-token"))
+				.isInstanceOf(AuthenticationFailedException.class);
+
+		verify(refreshTokenRepository, never()).save(any());
 	}
 
 	private static User userWithStatus(String passwordHash, UserStatus status) {

@@ -128,6 +128,11 @@ public class AuthService {
 		String tokenHash = refreshTokenGenerator.hash(rawRefreshToken);
 		RefreshToken refreshToken = refreshTokenRepository.findByTokenHash(tokenHash)
 				.filter(token -> token.getUser().getId().equals(authUser.userId()))
+				// 이미 revoke된(로그아웃 처리된) refresh token은 무효로 취급한다. 이 필터가 없으면
+				// 탈취된 refresh token으로 재요청 시 revoked_at이 재요청 시각으로 계속 덮어써져
+				// 감사 로그가 오염되고, 나중에 refresh 엔드포인트가 같은 조회 패턴을 재사용하면
+				// revoke된 토큰으로 새 accessToken을 계속 발급받는 취약점으로 이어질 수 있다.
+				.filter(token -> token.getRevokedAt() == null)
 				.orElseThrow(() -> new AuthenticationFailedException("refresh token is invalid."));
 
 		refreshToken.revoke(nowUtc());
