@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -197,6 +198,145 @@ class AuthServiceTest {
 				.isInstanceOf(AuthenticationFailedException.class);
 
 		verify(passwordEncoder, never()).matches(any(), any());
+	}
+
+	@Test
+	void refresh_성공시_기존_refreshToken을_rotate하고_새_accessToken과_refresh_cookie를_발급한다() {
+		User user = userWithStatus("hashed", UserStatus.ACTIVE);
+		LocalDateTime now = LocalDateTime.now();
+		RefreshToken oldRefreshToken = new RefreshToken(
+				user,
+				"hashed-old-refresh-token",
+				now.plusDays(14),
+				now,
+				now);
+		when(refreshTokenGenerator.hash("old-raw-refresh-token")).thenReturn("hashed-old-refresh-token");
+		when(refreshTokenRepository.findByTokenHash("hashed-old-refresh-token")).thenReturn(Optional.of(oldRefreshToken));
+		when(refreshTokenGenerator.generateRawToken()).thenReturn("new-raw-refresh-token");
+		when(refreshTokenGenerator.hash("new-raw-refresh-token")).thenReturn("hashed-new-refresh-token");
+
+		LoginResult result = authService.refresh("old-raw-refresh-token");
+
+		AuthenticatedUser parsed = jwtTokenService.parseAccessToken(result.data().accessToken());
+		assertThat(parsed.userId()).isEqualTo(user.getId());
+		assertThat(parsed.email()).isEqualTo("user@example.com");
+		assertThat(result.data().expiresIn()).isEqualTo(ACCESS_TOKEN_EXPIRATION_SECONDS);
+		assertThat(result.data().companies()).isEmpty();
+
+		ResponseCookie cookie = result.refreshCookie();
+		assertThat(cookie.getName()).isEqualTo("refreshToken");
+		assertThat(cookie.getValue()).isEqualTo("new-raw-refresh-token");
+		assertThat(cookie.isHttpOnly()).isTrue();
+		assertThat(cookie.getSameSite()).isEqualTo("Lax");
+		assertThat(cookie.getPath()).isEqualTo("/");
+		assertThat(cookie.getMaxAge()).isEqualTo(REFRESH_TOKEN_MAX_AGE);
+
+		assertThat(oldRefreshToken.getRotatedAt()).isNotNull();
+		assertThat(oldRefreshToken.getRevokedAt()).isEqualTo(oldRefreshToken.getRotatedAt());
+		assertThat(oldRefreshToken.getUpdatedAt()).isEqualTo(oldRefreshToken.getRotatedAt());
+
+		ArgumentCaptor<RefreshToken> captor = ArgumentCaptor.forClass(RefreshToken.class);
+		verify(refreshTokenRepository, times(2)).save(captor.capture());
+		assertThat(captor.getAllValues().get(0)).isSameAs(oldRefreshToken);
+		RefreshToken newRefreshToken = captor.getAllValues().get(1);
+		assertThat(newRefreshToken).isNotSameAs(oldRefreshToken);
+		assertThat(newRefreshToken.getUser()).isSameAs(user);
+		assertThat(newRefreshToken.getTokenHash()).isEqualTo("hashed-new-refresh-token");
+		assertThat(newRefreshToken.getRevokedAt()).isNull();
+		assertThat(newRefreshToken.getRotatedAt()).isNull();
+		Duration actualLifetime = Duration.between(newRefreshToken.getCreatedAt(), newRefreshToken.getExpiresAt());
+		assertThat(actualLifetime).isCloseTo(REFRESH_TOKEN_MAX_AGE, Duration.ofSeconds(1));
+	}
+
+	@Test
+	void refresh_missing_cookie_throws_AuthenticationFailedException_without_hash_lookup_or_save() {
+		assertThatThrownBy(() -> authService.refresh(null))
+				.isInstanceOf(AuthenticationFailedException.class);
+
+		verify(refreshTokenGenerator, never()).hash(any());
+		verify(refreshTokenRepository, never()).findByTokenHash(any());
+		verify(refreshTokenGenerator, never()).generateRawToken();
+		verify(refreshTokenRepository, never()).save(any());
+	}
+
+	@Test
+	void refresh_DB에_없는_refreshToken이면_AuthenticationFailedException을_던지고_새_토큰을_발급하지_않는다() {
+		when(refreshTokenGenerator.hash("unknown-raw-refresh-token")).thenReturn("hashed-unknown-refresh-token");
+		when(refreshTokenRepository.findByTokenHash("hashed-unknown-refresh-token")).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> authService.refresh("unknown-raw-refresh-token"))
+				.isInstanceOf(AuthenticationFailedException.class);
+
+		verify(refreshTokenGenerator, never()).generateRawToken();
+		verify(refreshTokenRepository, never()).save(any());
+	}
+
+	@Test
+	void refresh_이미_revoke된_refreshToken이면_AuthenticationFailedException을_던지고_새_토큰을_발급하지_않는다() {
+		User user = userWithStatus("hashed", UserStatus.ACTIVE);
+		LocalDateTime now = LocalDateTime.now();
+		RefreshToken refreshToken = new RefreshToken(
+				user,
+				"hashed-refresh-token",
+				now.plusDays(14),
+				now,
+				now);
+		LocalDateTime alreadyRevokedAt = now.minusMinutes(5);
+		refreshToken.revoke(alreadyRevokedAt);
+		when(refreshTokenGenerator.hash("raw-refresh-token")).thenReturn("hashed-refresh-token");
+		when(refreshTokenRepository.findByTokenHash("hashed-refresh-token")).thenReturn(Optional.of(refreshToken));
+
+		assertThatThrownBy(() -> authService.refresh("raw-refresh-token"))
+				.isInstanceOf(AuthenticationFailedException.class);
+
+		assertThat(refreshToken.getRevokedAt()).isEqualTo(alreadyRevokedAt);
+		assertThat(refreshToken.getRotatedAt()).isNull();
+		verify(refreshTokenGenerator, never()).generateRawToken();
+		verify(refreshTokenRepository, never()).save(any());
+	}
+
+	@Test
+	void refresh_만료된_refreshToken이면_AuthenticationFailedException을_던지고_새_토큰을_발급하지_않는다() {
+		User user = userWithStatus("hashed", UserStatus.ACTIVE);
+		LocalDateTime now = LocalDateTime.now();
+		RefreshToken refreshToken = new RefreshToken(
+				user,
+				"hashed-refresh-token",
+				now.minusSeconds(1),
+				now.minusDays(14),
+				now.minusDays(14));
+		when(refreshTokenGenerator.hash("raw-refresh-token")).thenReturn("hashed-refresh-token");
+		when(refreshTokenRepository.findByTokenHash("hashed-refresh-token")).thenReturn(Optional.of(refreshToken));
+
+		assertThatThrownBy(() -> authService.refresh("raw-refresh-token"))
+				.isInstanceOf(AuthenticationFailedException.class);
+
+		assertThat(refreshToken.getRevokedAt()).isNull();
+		assertThat(refreshToken.getRotatedAt()).isNull();
+		verify(refreshTokenGenerator, never()).generateRawToken();
+		verify(refreshTokenRepository, never()).save(any());
+	}
+
+	@Test
+	void refresh_비활성_사용자의_refreshToken이면_AuthenticationFailedException을_던지고_새_토큰을_발급하지_않는다() {
+		User user = userWithStatus("hashed", UserStatus.SUSPENDED);
+		LocalDateTime now = LocalDateTime.now();
+		RefreshToken refreshToken = new RefreshToken(
+				user,
+				"hashed-refresh-token",
+				now.plusDays(14),
+				now,
+				now);
+		when(refreshTokenGenerator.hash("raw-refresh-token")).thenReturn("hashed-refresh-token");
+		when(refreshTokenRepository.findByTokenHash("hashed-refresh-token")).thenReturn(Optional.of(refreshToken));
+
+		assertThatThrownBy(() -> authService.refresh("raw-refresh-token"))
+				.isInstanceOf(AuthenticationFailedException.class);
+
+		assertThat(refreshToken.getRevokedAt()).isNull();
+		assertThat(refreshToken.getRotatedAt()).isNull();
+		verify(refreshTokenGenerator, never()).generateRawToken();
+		verify(refreshTokenRepository, never()).save(any());
 	}
 
 	@Test

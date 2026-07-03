@@ -99,6 +99,30 @@ public class AuthService {
 				.filter(u -> u.getStatus() == UserStatus.ACTIVE)
 				.orElseThrow(() -> new AuthenticationFailedException("이메일 또는 비밀번호가 올바르지 않습니다."));
 
+		return issueLoginResult(user);
+	}
+
+	@Transactional
+	public LoginResult refresh(String rawRefreshToken) {
+		if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
+			throw new AuthenticationFailedException("refresh token cookie is missing.");
+		}
+
+		LocalDateTime now = nowUtc();
+		String tokenHash = refreshTokenGenerator.hash(rawRefreshToken);
+		RefreshToken refreshToken = refreshTokenRepository.findByTokenHash(tokenHash)
+				.filter(token -> token.getRevokedAt() == null)
+				.filter(token -> token.getExpiresAt().isAfter(now))
+				.filter(token -> token.getUser().getStatus() == UserStatus.ACTIVE)
+				.orElseThrow(() -> new AuthenticationFailedException("refresh token is invalid."));
+
+		refreshToken.rotate(now);
+		refreshTokenRepository.save(refreshToken);
+
+		return issueLoginResult(refreshToken.getUser());
+	}
+
+	private LoginResult issueLoginResult(User user) {
 		// access token: JWT, DB에 저장하지 않는 stateless 토큰. expiresIn은 실제 발급 만료초를 그대로 응답에 반영한다.
 		String accessToken = jwtTokenService.issueAccessToken(user.getId(), user.getEmail());
 		long expiresIn = jwtTokenService.getAccessTokenExpirationSeconds();
