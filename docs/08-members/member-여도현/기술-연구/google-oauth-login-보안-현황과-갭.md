@@ -32,6 +32,10 @@
 | refresh cookie 속성 | 완료 | `HttpOnly`, `SameSite=Lax`, `Path=/`, 14일 |
 | prod cookie Secure | 완료 | `prod` profile에서 `THREADIA_COOKIE_SECURE=true`가 아니면 startup 실패 |
 | access token URL 노출 방지 | 완료 | OAuth callback 후 access token을 query/string에 싣지 않음 |
+| logout revoke + clear cookie | 완료 | `POST /api/v1/auth/logout`에서 refresh token revoke 후 `Max-Age=0` clear cookie 응답 |
+| revoke된 refresh token 재사용 차단 | 완료 | 이미 revoke된 refresh token으로 재로그아웃하면 401 처리하고 `revoked_at` 보존 |
+| frontend CORS | 완료 | `/api/**`에 credential 포함 CORS 설정과 회귀 테스트 추가 |
+| OAuth failure log sanitize | 완료 | OAuth callback/failure handler가 provider exception message를 log에 직접 남기지 않음 |
 | secret 비노출 | 완료 | `.env`를 사용하고 문서/코드에는 실제 secret 값 미기록 |
 
 ## 3. 정책은 확정됐지만 구현이 남은 항목
@@ -39,11 +43,11 @@
 | 항목 | 현재 상태 | 왜 남은 gap인가 |
 |---|---|---|
 | `/api/v1/auth/refresh` | 미구현 | OAuth redirect 후 refresh cookie만 있는 상태에서 access token 복구 경로가 필요함 |
-| `/api/v1/auth/logout` | 미구현 | refresh token revoke와 cookie clear가 아직 endpoint로 연결되지 않음 |
 | refresh token rotation | 미구현 | `refresh_tokens.rotated_at` 필드는 있으나 refresh 성공 시 rotate 로직이 없음 |
 | refresh token reuse detection | 미구현 | 탈취된 refresh token 재사용 탐지/전체 revoke 정책이 없음 |
 | status 변경 시 revoke | 미구현 | `SUSPENDED`, `DELETED`, password reset 성공 시 기존 refresh token 전체 revoke 필요 |
 | password reset 연동 | 미구현 | reset 성공 후 refresh revoke 정책은 문서상 확정이지만 API 구현 전 |
+| logout 만료 access token 정책 | 미정 | 현재 logout은 valid access token과 refresh cookie를 모두 요구하므로 access token 만료 후 cookie clear UX 정책 결정 필요 |
 
 ## 4. 보안상 아쉬운 점
 
@@ -60,7 +64,7 @@
 
 ### 4.2 CSRF 전략 부재
 
-현재 `SecurityConfig`는 OAuth login을 위해 `csrf.disable()`과 `permitAll`을 사용한다. 지금 구현된 login/OAuth callback만 놓고 보면 즉시 치명적이지 않지만, refresh/logout이 cookie 기반 state-changing endpoint로 추가되면 CSRF 방어가 필요하다.
+현재 `SecurityConfig`는 OAuth login을 위해 `csrf.disable()`과 `permitAll`을 사용한다. CORS 설정은 추가됐지만 CORS는 browser origin 허용 정책이지 CSRF 방어 자체가 아니다. refresh/logout처럼 cookie 기반 state-changing endpoint에는 CSRF 또는 Origin 검증 정책이 필요하다.
 
 후속 설계 선택지:
 
@@ -93,21 +97,15 @@
 | OAuth callback | provider error 반복과 state mismatch 반복 감시 |
 | password reset request | email enumeration 방지와 요청 횟수 제한 |
 
-### 4.5 OAuth 실패 log 정제 필요
-
-현재 OAuth failure/callback 실패 log는 exception message를 남긴다. 실제 secret은 찍지 않지만, 외부 provider error나 사용자 입력이 섞일 가능성을 줄이려면 운영에서는 sanitized reason code 중심으로 축소하는 것이 안전하다.
-
 ## 5. 우선순위
 
 | 우선순위 | 항목 | 이유 |
 |---|---|---|
 | P0 | `/api/v1/auth/refresh` + refresh rotation | OAuth redirect 후 access token 복구 경로와 refresh lifecycle 핵심 |
-| P0 | logout revoke + cookie clear | 로그인 세션 종료 보안의 최소 조건 |
-| P0 | CSRF/Origin 방어 | cookie 기반 refresh/logout 추가 전 필요 |
+| P0 | CSRF/Origin 방어 | cookie 기반 refresh/logout endpoint 보호 정책 필요 |
 | P1 | endpoint별 security policy 축소 | API 증가 전 `permitAll` 위험 축소 |
 | P1 | status/password reset 시 refresh revoke | 계정 상태 변경 후 기존 세션 차단 |
 | P1 | rate limiting | brute force, abuse 방어 |
-| P2 | OAuth log sanitization | 운영 관측성 유지와 정보 노출 최소화 |
 
 ## 6. 후속 작업 체크리스트
 
@@ -115,17 +113,18 @@
 - [ ] refresh token 만료/revoke 검증
 - [ ] refresh 성공 시 token rotation
 - [ ] refresh token reuse detection 기준 결정
-- [ ] `POST /api/v1/auth/logout` 구현
-- [ ] logout 시 refresh token revoke + cookie clear
+- [x] `POST /api/v1/auth/logout` 구현
+- [x] logout 시 refresh token revoke + cookie clear
+- [ ] logout 시 expired access token 허용 여부 결정
 - [ ] `SUSPENDED`, `DELETED`, password reset 성공 시 기존 refresh token 전체 revoke
 - [ ] cookie 기반 endpoint CSRF/Origin 방어 설계
 - [ ] SecurityFilterChain endpoint별 정책 분리
 - [ ] login/OAuth/password reset rate limiting 설계
-- [ ] OAuth failure log sanitize
+- [x] OAuth failure log sanitize
 - [ ] 실제 browser OAuth flow와 DB 저장 결과 검증 기록 남기기
 
 ## 7. 결론
 
-현재 구현은 Sprint 1 Google OAuth 최소 보안 기준은 충족한다. 특히 Google `sub`, `email_verified=true`, blind auto-link 금지, ACTIVE-only, refresh token hash 저장, HttpOnly cookie, prod Secure guardrail은 코드와 테스트로 확인된다.
+현재 구현은 Sprint 1 Google OAuth 최소 보안 기준은 충족한다. 특히 Google `sub`, `email_verified=true`, blind auto-link 금지, ACTIVE-only, refresh token hash 저장, HttpOnly cookie, prod Secure guardrail, logout revoke와 clear cookie는 코드와 테스트로 확인된다.
 
-다만 production-ready 인증으로 보기에는 아직 부족하다. 핵심 후속 과제는 refresh/logout, CSRF, token rotation/revoke/reuse detection, endpoint별 security policy, rate limiting이다.
+다만 production-ready 인증으로 보기에는 아직 부족하다. 핵심 후속 과제는 refresh, CSRF, token rotation/reuse detection, endpoint별 security policy, rate limiting이다.
