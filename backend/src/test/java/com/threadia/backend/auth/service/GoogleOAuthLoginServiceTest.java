@@ -146,6 +146,41 @@ class GoogleOAuthLoginServiceTest {
 		verify(refreshTokenRepository, never()).save(any());
 	}
 
+	@Test
+	void Google_sub가_없으면_거부한다() {
+		assertThatThrownBy(() -> service.login(googleUserWithout("sub")))
+				.isInstanceOf(OAuthLoginException.class);
+
+		verify(oauthAccountRepository, never()).findByProviderAndProviderUserId(any(), any());
+		verify(refreshTokenRepository, never()).save(any());
+	}
+
+	@Test
+	void Google_sub가_비어있으면_거부한다() {
+		assertThatThrownBy(() -> service.login(googleUser("", "user@example.com", "name", null)))
+				.isInstanceOf(OAuthLoginException.class);
+
+		verify(oauthAccountRepository, never()).findByProviderAndProviderUserId(any(), any());
+		verify(refreshTokenRepository, never()).save(any());
+	}
+
+	@Test
+	void Google_email이_없으면_거부한다() {
+		assertThatThrownBy(() -> service.login(googleUserWithout("email")))
+				.isInstanceOf(OAuthLoginException.class);
+
+		verify(oauthAccountRepository, never()).findByProviderAndProviderUserId(any(), any());
+		verify(refreshTokenRepository, never()).save(any());
+	}
+
+	@Test
+	void Google_email이_비어있으면_거부한다() {
+		assertThatThrownBy(() -> service.login(googleUser("google-sub", " ", "name", null)))
+				.isInstanceOf(OAuthLoginException.class);
+
+		verify(oauthAccountRepository, never()).findByProviderAndProviderUserId(any(), any());
+		verify(refreshTokenRepository, never()).save(any());
+	}
 
 	@Test
 	void Google_email_verified가_false이면_거부한다() {
@@ -208,6 +243,19 @@ class GoogleOAuthLoginServiceTest {
 		attributes.put("name", "name");
 		attributes.put("picture", "");
 		return new DefaultOAuth2User(java.util.List.of(), attributes, "sub");
+	}
+
+	private static OAuth2User googleUserWithout(String omittedAttribute) {
+		Map<String, Object> attributes = new HashMap<>();
+		attributes.put("sub", "google-sub");
+		attributes.put("email", "user@example.com");
+		attributes.put("name", "name");
+		attributes.put("picture", "");
+		attributes.put("email_verified", true);
+		attributes.remove(omittedAttribute);
+		OAuth2User user = org.mockito.Mockito.mock(OAuth2User.class);
+		when(user.getAttributes()).thenReturn(attributes);
+		return user;
 	}
 
 	private static User user(String email, UserStatus status) {

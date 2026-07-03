@@ -42,7 +42,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 			response.addHeader(HttpHeaders.SET_COOKIE, result.refreshCookie().toString());
 			response.sendRedirect(properties.getSuccessRedirectUrl());
 		} catch (RuntimeException e) {
-			log.warn("Google OAuth callback failed: {}", e.getMessage());
+			log.warn("Google OAuth callback failed");
 			response.sendRedirect(properties.getFailureRedirectUrl());
 		}
 	}
