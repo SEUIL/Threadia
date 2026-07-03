@@ -108,7 +108,13 @@ export default function DocsPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
-      <div className="flex items-center justify-between">
+      <Link
+        href={`/${companyId}/projects`}
+        className="text-sm text-muted transition-colors duration-fast hover:text-primary"
+      >
+        ← 프로젝트 목록
+      </Link>
+      <div className="mt-3 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">문서·회의록</h1>
           <p className="mt-1 text-sm text-muted">프로젝트 {projectId}</p>

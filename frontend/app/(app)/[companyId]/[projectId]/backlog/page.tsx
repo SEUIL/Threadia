@@ -21,6 +21,7 @@
  * 실제로 나타나지는 않는다(연동은 Sprint 2 백엔드 이후).
  */
 import { useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 
 type Role = "A" | "P" | "C";
@@ -118,7 +119,13 @@ export default function BacklogPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
-      <div className="flex items-center justify-between">
+      <Link
+        href={`/${params.companyId}/projects`}
+        className="text-sm text-muted transition-colors duration-fast hover:text-primary"
+      >
+        ← 프로젝트 목록
+      </Link>
+      <div className="mt-3 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">백로그 / 스프린트</h1>
           <p className="mt-1 text-sm text-muted">프로젝트 {params.projectId}</p>

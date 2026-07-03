@@ -21,6 +21,7 @@
  * 화면 하단에 배지로만 role을 표시해 접근 제약을 시각적으로 남겨둔다.
  */
 import { useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 
 type ProjectStatus = "PLANNING" | "ACTIVE" | "PAUSED" | "COMPLETED" | "ARCHIVED";
@@ -132,7 +133,13 @@ export default function ProjectSettingsPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
-      <div className="flex items-center justify-between">
+      <Link
+        href={`/${params.companyId}/projects`}
+        className="text-sm text-muted transition-colors duration-fast hover:text-primary"
+      >
+        ← 프로젝트 목록
+      </Link>
+      <div className="mt-3 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">프로젝트 설정</h1>
           <p className="mt-1 text-sm text-muted">{project.projectKey} · {project.name}</p>

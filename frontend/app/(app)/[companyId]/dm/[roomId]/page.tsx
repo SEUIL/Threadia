@@ -15,6 +15,7 @@
  * 구성원 목록과 매칭(같은 id 체계: u1~u4).
  */
 import { useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 
 type Message = {
@@ -67,11 +68,19 @@ export default function DmRoomPage() {
 
   return (
     <div className="mx-auto flex h-screen max-w-2xl flex-col px-6 py-6">
-      <div className="flex items-center gap-3 border-b border-border pb-4">
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-on-primary">
-          {peerName.slice(0, 1)}
-        </span>
-        <h1 className="text-lg font-bold text-foreground">{peerName}</h1>
+      <div className="border-b border-border pb-4">
+        <Link
+          href={`/${params.companyId}/dm`}
+          className="text-sm text-muted transition-colors duration-fast hover:text-primary"
+        >
+          ← 채팅·DM 목록
+        </Link>
+        <div className="mt-2 flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-on-primary">
+            {peerName.slice(0, 1)}
+          </span>
+          <h1 className="text-lg font-bold text-foreground">{peerName}</h1>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto py-4">

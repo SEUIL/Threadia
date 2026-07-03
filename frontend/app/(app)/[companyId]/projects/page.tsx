@@ -99,7 +99,10 @@ export default function ProjectsPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
-      <div className="flex items-center justify-between">
+      <Link href="/hub" className="text-sm text-muted transition-colors duration-fast hover:text-primary">
+        ← 허브로
+      </Link>
+      <div className="mt-3 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">프로젝트</h1>
           <p className="mt-1 text-sm text-muted">

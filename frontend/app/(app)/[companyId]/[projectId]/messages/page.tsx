@@ -15,6 +15,7 @@
  * 보드에 실제로 나타나지는 않는다(연동은 Sprint 2 백엔드 이후).
  */
 import { useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 
 type Message = {
@@ -66,7 +67,13 @@ export default function ProjectMessagesPage() {
   return (
     <div className="mx-auto flex h-screen max-w-2xl flex-col px-6 py-6">
       <div className="border-b border-border pb-4">
-        <h1 className="text-lg font-bold text-foreground">프로젝트 채팅</h1>
+        <Link
+          href={`/${params.companyId}/projects`}
+          className="text-sm text-muted transition-colors duration-fast hover:text-primary"
+        >
+          ← 프로젝트 목록
+        </Link>
+        <h1 className="mt-2 text-lg font-bold text-foreground">프로젝트 채팅</h1>
         <p className="mt-0.5 text-sm text-muted">프로젝트 {params.projectId}</p>
       </div>
 

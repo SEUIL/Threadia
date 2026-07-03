@@ -100,7 +100,10 @@ export default function NotificationsPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-10">
-      <div className="flex items-center justify-between">
+      <Link href="/hub" className="text-sm text-muted transition-colors duration-fast hover:text-primary">
+        ← 허브로
+      </Link>
+      <div className="mt-3 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">알림</h1>
           <p className="mt-1 text-sm text-muted">읽지 않은 알림 {unreadCount}개</p>

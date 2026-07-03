@@ -134,7 +134,7 @@ export default function DocEditorPage() {
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
       <div className="flex items-center justify-between">
-        <Link href={`/${companyId}/${projectId}/docs`} className="text-sm text-muted hover:text-primary">
+        <Link href={`/${companyId}/${projectId}/docs`} className="text-sm text-muted transition-colors duration-fast hover:text-primary">
           ← 문서 목록
         </Link>
         <div className="flex items-center gap-2">
