@@ -1,6 +1,7 @@
 package com.threadia.backend.auth.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -183,6 +184,45 @@ class AuthControllerTest {
 				.andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"))
 				.andExpect(header().doesNotExist("Set-Cookie"));
 	}
+
+	@Test
+	void refresh_성공시_cookie만으로_accessToken과_회전된_refresh_cookie를_내려준다() throws Exception {
+		UserResponse user = new UserResponse(1L, "user@example.com", "nick", null);
+		LoginData data = LoginData.of("new-jwt-token", 1800L, user);
+		ResponseCookie cookie = ResponseCookie.from("refreshToken", "new-raw-refresh-token")
+				.httpOnly(true)
+				.sameSite("Lax")
+				.path("/")
+				.build();
+		when(authService.refresh("raw-refresh-token")).thenReturn(new LoginResult(data, cookie));
+
+		mockMvc.perform(post("/api/v1/auth/refresh")
+						.cookie(new Cookie("refreshToken", "raw-refresh-token")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.accessToken").value("new-jwt-token"))
+				.andExpect(jsonPath("$.data.tokenType").value("Bearer"))
+				.andExpect(jsonPath("$.data.expiresIn").value(1800))
+				.andExpect(jsonPath("$.data.companies").isArray())
+				.andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("refreshToken=new-raw-refresh-token")))
+				.andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("HttpOnly")))
+				.andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("SameSite=Lax")));
+
+		verify(authService).refresh("raw-refresh-token");
+	}
+
+	@Test
+	void refresh_cookie가_없으면_401_UNAUTHORIZED_envelope으로_응답한다() throws Exception {
+		when(authService.refresh(null))
+				.thenThrow(new AuthenticationFailedException("refresh token cookie is missing."));
+
+		mockMvc.perform(post("/api/v1/auth/refresh"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"))
+				.andExpect(header().doesNotExist("Set-Cookie"));
+
+		verify(authService).refresh(null);
+	}
+
 	@Test
 	void logout_success_returns_success_data_and_clear_cookie() throws Exception {
 		ResponseCookie clearCookie = ResponseCookie.from("refreshToken", "")

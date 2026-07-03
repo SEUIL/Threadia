@@ -35,6 +35,7 @@ import jakarta.validation.Valid;
  *   -> 성공 시 ApiResponse로 감싼 JSON(+login/logout은 Set-Cookie 헤더)을 응답
  * </pre>
  *
+ * refresh는 refreshToken cookie만 검증해 access token과 회전된 refresh cookie를 응답한다.
  * logout은 access token과 refreshToken cookie를 함께 검증한 뒤 refresh token을 revoke하고 clear cookie를 응답한다.
  */
 @RestController
@@ -60,6 +61,15 @@ public class AuthController {
 	@PostMapping("/login")
 	public ResponseEntity<ApiResponse<LoginData>> login(@Valid @RequestBody LoginRequest request) {
 		LoginResult result = authService.login(request);
+		return ResponseEntity.ok()
+				.header(HttpHeaders.SET_COOKIE, result.refreshCookie().toString())
+				.body(ApiResponse.of(result.data()));
+	}
+
+	@PostMapping("/refresh")
+	public ResponseEntity<ApiResponse<LoginData>> refresh(
+			@CookieValue(value = "refreshToken", required = false) String refreshToken) {
+		LoginResult result = authService.refresh(refreshToken);
 		return ResponseEntity.ok()
 				.header(HttpHeaders.SET_COOKIE, result.refreshCookie().toString())
 				.body(ApiResponse.of(result.data()));
