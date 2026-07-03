@@ -11,6 +11,7 @@ import java.sql.SQLException;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
@@ -26,6 +27,7 @@ import com.threadia.backend.common.exception.AuthenticationFailedException;
 import com.threadia.backend.common.exception.EmailAlreadyExistsException;
 
 // signup/login이 API 명세서 13.2의 status code, 응답 envelope, Set-Cookie header와 실제로 일치하는지 HTTP 계층에서 검증한다.
+@AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(AuthController.class)
 class AuthControllerTest {
 

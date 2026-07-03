@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -18,6 +19,7 @@ import com.threadia.backend.common.exception.AuthenticationFailedException;
 import com.threadia.backend.config.jwt.JwtAuthenticationException;
 
 // GET /auth/me가 API 명세서 13.2의 minimal Auth context(id/email/nickname/avatarUrl)와 token 없음/만료 401 계약을 지키는지 HTTP 계층에서 검증한다.
+@AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(MeController.class)
 class MeControllerTest {
 
