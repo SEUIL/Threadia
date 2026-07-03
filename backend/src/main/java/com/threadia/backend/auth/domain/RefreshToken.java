@@ -121,4 +121,14 @@ public class RefreshToken {
 	public void setUpdatedAt(LocalDateTime updatedAt) {
 		this.updatedAt = updatedAt;
 	}
+
+	public void revoke(LocalDateTime revokedAt) {
+		this.revokedAt = revokedAt;
+		this.updatedAt = revokedAt;
+	}
+
+	public void rotate(LocalDateTime rotatedAt) {
+		this.rotatedAt = rotatedAt;
+		revoke(rotatedAt);
+	}
 }

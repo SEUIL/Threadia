@@ -68,3 +68,4 @@ coverage-*.json
 *.sqlite
 *.sqlite3
 *.pid
+db/seed.sql
