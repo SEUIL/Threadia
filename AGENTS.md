@@ -10,6 +10,7 @@
 - [문서-작성-규칙.md](./docs/00-project/문서-작성-규칙.md)
 - [docs/AGENTS.md](./docs/AGENTS.md)
 - [docs/CLAUDE.md](./docs/CLAUDE.md)
+- WBS : https://docs.google.com/spreadsheets/d/1HozmyrN9NUEyGt6TulB7Yf-8v7cIia5aGyx8-dmhOuE/edit?gid=0#gid=0
 
 ## 역할 분리
 
