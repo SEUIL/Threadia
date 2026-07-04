@@ -28,9 +28,8 @@ export function Button({
       disabled={loading || disabled}
       aria-busy={loading}
       className={
-        "inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-3 " +
-        "text-sm font-semibold text-primary-foreground transition-colors duration-normal " +
-        "hover:bg-primary-hover active:bg-primary-active " +
+        "inline-flex w-full items-center justify-center gap-2 rounded-lg btn-gradient py-3 " +
+        "text-sm font-semibold transition-colors duration-normal " +
         "disabled:cursor-not-allowed disabled:opacity-70 " +
         className
       }

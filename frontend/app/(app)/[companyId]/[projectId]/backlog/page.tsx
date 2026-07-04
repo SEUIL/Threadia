@@ -133,7 +133,7 @@ export default function BacklogPage() {
         {canManageSprint && (
           <button
             onClick={() => setCreatingSprint((v) => !v)}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast hover:bg-primary-hover"
+            className="rounded-lg btn-gradient px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast"
           >
             + 새 스프린트
           </button>
@@ -141,7 +141,7 @@ export default function BacklogPage() {
       </div>
 
       {creatingSprint && (
-        <section className="mt-4 rounded-xl border border-border bg-surface p-5 shadow-sm">
+        <section className="mt-4 rounded-xl border border-border bg-surface p-5">
           <div className="flex flex-col gap-2">
             <input
               aria-label="스프린트 이름"
@@ -166,7 +166,7 @@ export default function BacklogPage() {
               </button>
               <button
                 onClick={createSprint}
-                className="rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
+                className="rounded-md btn-gradient px-3 py-1.5 text-sm font-semibold text-primary-foreground"
               >
                 생성
               </button>
@@ -180,7 +180,7 @@ export default function BacklogPage() {
         {sprints.map((sprint) => {
           const sprintIssues = issues.filter((i) => i.sprintId === sprint.id);
           return (
-            <section key={sprint.id} className="rounded-xl border border-border bg-surface p-5 shadow-sm">
+            <section key={sprint.id} className="rounded-xl border border-border bg-surface p-5">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-2">
@@ -194,7 +194,7 @@ export default function BacklogPage() {
                 {canManageSprint && sprint.status === "PLANNED" && (
                   <button
                     onClick={() => startSprint(sprint.id)}
-                    className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary-hover"
+                    className="rounded-md btn-gradient px-3 py-1.5 text-xs font-semibold text-primary-foreground"
                   >
                     시작
                   </button>
@@ -209,11 +209,11 @@ export default function BacklogPage() {
                 )}
               </div>
 
-              <ul className="mt-3 flex flex-col gap-1.5">
+              <ul className="mt-3 divide-y divide-border">
                 {sprintIssues.map((issue) => (
                   <li
                     key={issue.id}
-                    className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
+                    className="flex items-center justify-between px-1 py-2.5 text-sm"
                   >
                     <span>
                       <span className="mr-2 font-mono text-xs text-muted">{issue.issueKey}</span>
@@ -239,13 +239,13 @@ export default function BacklogPage() {
       </div>
 
       {/* 백로그 */}
-      <section className="mt-6 rounded-xl border border-border bg-surface p-5 shadow-sm">
+      <section className="mt-6 rounded-xl border border-border bg-surface p-5">
         <h2 className="text-sm font-semibold text-foreground">백로그 ({backlogIssues.length})</h2>
-        <ul className="mt-3 flex flex-col gap-1.5">
+        <ul className="mt-3 divide-y divide-border">
           {backlogIssues.map((issue) => (
             <li
               key={issue.id}
-              className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
+              className="flex items-center justify-between px-1 py-2.5 text-sm"
             >
               <span>
                 <span className="mr-2 font-mono text-xs text-muted">{issue.issueKey}</span>

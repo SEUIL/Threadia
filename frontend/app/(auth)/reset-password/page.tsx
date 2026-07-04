@@ -39,7 +39,7 @@ export default function ResetPasswordPage() {
         </p>
         <Link
           href="/login"
-          className="mt-8 block w-full rounded-lg bg-primary py-3 text-sm font-semibold text-primary-foreground text-center transition-colors duration-normal hover:bg-primary-hover"
+          className="mt-8 block w-full rounded-lg btn-gradient py-3 text-sm font-semibold text-primary-foreground text-center transition-colors duration-normal"
         >
           로그인하러 가기
         </Link>
