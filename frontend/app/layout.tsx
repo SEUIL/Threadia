@@ -19,6 +19,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -49,7 +50,10 @@ export default function RootLayout({
        * html에 h-full 을 두지 않는다 — (auth) layout 의 min-h-screen 이
        * 뷰포트 기준으로 높이를 잡기 때문에 height 체인 불필요.
        */}
-      <body className="flex flex-col">{children}</body>
+      {/* AuthProvider: 앱 로드 시 refresh 쿠키로 세션을 복원하고 전역 인증 상태를 제공한다. */}
+      <body className="flex flex-col">
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

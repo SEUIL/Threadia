@@ -110,7 +110,10 @@ export default function CompanySettingsPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
-      <h1 className="text-xl font-bold text-foreground">회사 관리</h1>
+      <Link href="/hub" className="text-sm text-muted transition-colors duration-fast hover:text-primary">
+        ← 허브로
+      </Link>
+      <h1 className="mt-3 text-xl font-bold text-foreground">회사 관리</h1>
       <p className="mt-1 text-sm text-muted">{company.name} · 회사 정보, 부서, 프로젝트 현황을 관리합니다.</p>
 
       {/* 회사 정보 카드 */}
