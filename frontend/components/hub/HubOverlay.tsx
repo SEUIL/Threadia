@@ -10,17 +10,19 @@
  *
  * 오브젝트 클릭으로 진입하는 방식은 이번 범위가 아니다 — 이번엔 오버레이 UI만.
  *
- * ⚠️ MOCK: 회사 컨텍스트(companyId)와 로그인 사용자 role/이름/뱃지 수는
- *    아직 `/api/v1/auth/me` 연동 전이라 아래 상수로 임시 고정했다. Sprint 2에서
- *    Company/Auth 컨텍스트가 붙으면 이 부분을 실제 값으로 교체해야 한다.
+ * ⚠️ MOCK: 회사 컨텍스트(companyId)와 로그인 사용자 role/뱃지 수는 아직
+ *    회사 API 연동 전이라 아래 상수로 임시 고정했다. Sprint 2에서 Company
+ *    컨텍스트가 붙으면 이 부분을 실제 값으로 교체해야 한다. 사용자 이름은
+ *    useAuth()의 실제 로그인 사용자 정보로 교체 완료.
  */
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Role = "A" | "P" | "C";
 
-// TODO(Sprint 2): /api/v1/auth/me 연동 후 실제 로그인 사용자 정보로 교체
+// TODO(Sprint 2): 회사 API 연동 후 실제 회사/역할 정보로 교체
 const MOCK_COMPANY_ID = "demo-company";
-const MOCK_USER_NAME = "정철진";
 const MOCK_ROLE: Role = "C";
 const MOCK_NOTIFICATION_COUNT = 3;
 const MOCK_DM_UNREAD_COUNT = 1;
@@ -120,6 +122,15 @@ function IconButton({
 }
 
 function TopBar() {
+  const { user, logout } = useAuth();
+  const router = useRouter();
+  const nickname = user?.nickname ?? "";
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/login");
+  };
+
   return (
     <header className="pointer-events-auto absolute inset-x-0 top-0 z-sticky flex h-14 items-center justify-between border-b border-border bg-surface/90 px-4 shadow-sm backdrop-blur">
       <div className="flex items-center gap-3">
@@ -139,14 +150,20 @@ function TopBar() {
 
         <div className="flex items-center gap-2 pl-1">
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-on-primary">
-            {MOCK_USER_NAME.slice(0, 1)}
+            {nickname.slice(0, 1)}
           </span>
-          <span className="text-sm font-medium text-foreground">{MOCK_USER_NAME}</span>
+          <span className="text-sm font-medium text-foreground">{nickname}</span>
         </div>
 
-        <IconButton href="/login" label="로그아웃">
+        <button
+          type="button"
+          onClick={handleLogout}
+          aria-label="로그아웃"
+          title="로그아웃"
+          className="relative flex h-9 w-9 items-center justify-center rounded-full text-foreground transition-colors duration-fast hover:bg-primary-subtle hover:text-primary"
+        >
           <LogoutIcon />
-        </IconButton>
+        </button>
       </div>
     </header>
   );
