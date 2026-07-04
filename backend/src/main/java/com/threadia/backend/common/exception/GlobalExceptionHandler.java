@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -102,6 +103,14 @@ public class GlobalExceptionHandler {
 			}
 		}
 		return false;
+	}
+
+	// Content-Type이 컨트롤러가 소비 가능한 타입(application/json)이 아닌 경우 -> 415. 이 예외를 별도 처리하지
+	// 않으면 catch-all(Exception)로 흘러가 클라이언트 요청 오류(잘못된 Content-Type)가 500(서버 오류)로 응답된다.
+	@ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+	public ResponseEntity<ErrorResponse> handleUnsupportedMediaType(HttpMediaTypeNotSupportedException ex) {
+		ErrorBody body = ErrorBody.of("UNSUPPORTED_MEDIA_TYPE", "지원하지 않는 Content-Type입니다.");
+		return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(ErrorResponse.of(body));
 	}
 
 	// 위에서 처리하지 못한 나머지 예외는 500으로 통일하고, 원인은 log에만 남기고 응답에는 노출하지 않는다.
