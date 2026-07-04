@@ -53,7 +53,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             <span className="grid h-9 w-9 place-items-center rounded-lg text-base font-extrabold bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-sm">
               T
             </span>
-            <span className="text-xl font-bold text-foreground">
+            <span className="text-xl font-bold text-gradient-brand">
               Threadia
             </span>
           </div>

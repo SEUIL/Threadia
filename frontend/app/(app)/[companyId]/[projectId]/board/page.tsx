@@ -387,7 +387,7 @@ export default function BoardPage() {
                     <div className="flex gap-1.5">
                       <button
                         onClick={() => createIssue(col.status)}
-                        className="rounded-md bg-primary px-2 py-1 text-xs font-semibold text-primary-foreground hover:bg-primary-hover"
+                        className="rounded-md btn-gradient px-2 py-1 text-xs font-semibold text-primary-foreground"
                       >
                         추가
                       </button>

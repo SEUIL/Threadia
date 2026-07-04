@@ -134,7 +134,10 @@ function TopBar() {
   return (
     <header className="pointer-events-auto absolute inset-x-0 top-0 z-sticky flex h-14 items-center justify-between border-b border-border bg-surface/90 px-4 shadow-sm backdrop-blur">
       <div className="flex items-center gap-3">
-        <span className="text-base font-bold text-primary">Threadia</span>
+        <span className="grid h-7 w-7 place-items-center rounded-md text-sm font-extrabold bg-gradient-to-br from-primary to-accent text-primary-foreground">
+          T
+        </span>
+        <span className="text-base font-bold text-gradient-brand">Threadia</span>
         <span className="text-sm text-muted">Acorn Labs 사무실</span>
       </div>
 

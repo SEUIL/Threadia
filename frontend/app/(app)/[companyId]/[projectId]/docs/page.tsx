@@ -121,7 +121,7 @@ export default function DocsPage() {
         </div>
         <Link
           href={`/${companyId}/${projectId}/docs/new`}
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast hover:bg-primary-hover"
+          className="rounded-lg btn-gradient px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast"
         >
           + 새 문서
         </Link>

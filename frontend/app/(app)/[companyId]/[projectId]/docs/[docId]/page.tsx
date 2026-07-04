@@ -149,7 +149,7 @@ export default function DocEditorPage() {
           )}
           <button
             onClick={save}
-            className="rounded-md bg-primary px-4 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
+            className="rounded-md btn-gradient px-4 py-1.5 text-sm font-semibold text-primary-foreground"
           >
             {isNew ? "생성" : "저장"}
           </button>

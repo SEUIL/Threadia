@@ -113,7 +113,7 @@ export default function ProjectsPage() {
         {MOCK_ROLE !== "A" && (
           <button
             onClick={() => setCreating((v) => !v)}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast hover:bg-primary-hover"
+            className="rounded-lg btn-gradient px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast"
           >
             + 새 프로젝트
           </button>
@@ -141,7 +141,7 @@ export default function ProjectsPage() {
             />
             <button
               onClick={createProject}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast hover:bg-primary-hover"
+              className="rounded-lg btn-gradient px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast"
             >
               생성
             </button>

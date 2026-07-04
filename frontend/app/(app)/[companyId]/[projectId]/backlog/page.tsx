@@ -133,7 +133,7 @@ export default function BacklogPage() {
         {canManageSprint && (
           <button
             onClick={() => setCreatingSprint((v) => !v)}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast hover:bg-primary-hover"
+            className="rounded-lg btn-gradient px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast"
           >
             + 새 스프린트
           </button>
@@ -166,7 +166,7 @@ export default function BacklogPage() {
               </button>
               <button
                 onClick={createSprint}
-                className="rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
+                className="rounded-md btn-gradient px-3 py-1.5 text-sm font-semibold text-primary-foreground"
               >
                 생성
               </button>
@@ -194,7 +194,7 @@ export default function BacklogPage() {
                 {canManageSprint && sprint.status === "PLANNED" && (
                   <button
                     onClick={() => startSprint(sprint.id)}
-                    className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary-hover"
+                    className="rounded-md btn-gradient px-3 py-1.5 text-xs font-semibold text-primary-foreground"
                   >
                     시작
                   </button>

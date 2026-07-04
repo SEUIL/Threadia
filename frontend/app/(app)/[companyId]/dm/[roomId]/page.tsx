@@ -117,7 +117,7 @@ export default function DmRoomPage() {
         />
         <button
           onClick={send}
-          className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast hover:bg-primary-hover"
+          className="rounded-full btn-gradient px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast"
         >
           전송
         </button>
