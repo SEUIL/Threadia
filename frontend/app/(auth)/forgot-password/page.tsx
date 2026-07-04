@@ -5,19 +5,48 @@
  *
  * 화면 상태: idle(폼) → success(발송 완료)
  *
- * TODO (Day 4):
- *   - authService.passwordResetRequest() 호출
- *   - 성공 시 setSent(true) 로 성공 화면 전환
  */
 
 import { useState } from "react";
 import Link from "next/link";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { isAxiosError } from "axios";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { TextField } from "@/components/ui/TextField";
 import { Button } from "@/components/ui/Button";
+import { authService } from "@/services/auth.service";
+import type { ApiError } from "@/types/auth.types";
+
+const forgotPasswordSchema = z.object({
+  email: z.string().min(1, "이메일을 입력하세요").email("이메일 형식이 올바르지 않습니다"),
+});
+
+type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
 
 export default function ForgotPasswordPage() {
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<ForgotPasswordFormValues>({ resolver: zodResolver(forgotPasswordSchema) });
+
+  const onSubmit = async (values: ForgotPasswordFormValues) => {
+    setError(null);
+    try {
+      await authService.passwordResetRequest({ email: values.email });
+      setSent(true);
+    } catch (err) {
+      if (isAxiosError<ApiError>(err) && err.response) {
+        setError(err.response.data.error.message);
+      } else {
+        setError("재설정 링크 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      }
+    }
+  };
 
   if (sent) {
     return (
@@ -51,18 +80,20 @@ export default function ForgotPasswordPage() {
         </p>
       </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); setSent(true); }} className="flex flex-col gap-5" noValidate>
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5" noValidate>
         <TextField
           id="email"
           label="이메일"
           type="email"
           autoComplete="email"
           placeholder="가입한 이메일을 입력하세요"
+          hint={errors.email?.message}
+          {...register("email")}
         />
 
-        {/* {error && <p className="text-sm text-destructive">{error}</p>} */}
+        {error && <p className="text-sm text-destructive">{error}</p>}
 
-        <Button type="submit">재설정 링크 받기</Button>
+        <Button type="submit" loading={isSubmitting}>재설정 링크 받기</Button>
       </form>
 
       <p className="mt-6 text-center text-sm">

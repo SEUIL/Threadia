@@ -8,21 +8,68 @@
  *
  * 보안: 재설정 성공 시 해당 사용자의 모든 refresh_tokens revoke (백엔드 처리)
  *
- * TODO (Day 4):
- *   - useSearchParams() 로 token 읽기
- *   - react-hook-form + zod (비밀번호 확인 일치 검사 포함)
- *   - authService.passwordResetConfirm({ token, newPassword }) 호출
- *   - 토큰 만료/무효 에러 처리
  */
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { isAxiosError } from "axios";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { PasswordField } from "@/components/ui/PasswordField";
 import { Button } from "@/components/ui/Button";
+import { authService } from "@/services/auth.service";
+import type { ApiError } from "@/types/auth.types";
+
+const resetPasswordSchema = z
+  .object({
+    newPassword: z
+      .string()
+      .min(8, "비밀번호는 8자 이상이어야 합니다")
+      .max(72)
+      .regex(/[A-Za-z]/, "영문을 포함해야 합니다")
+      .regex(/[0-9]/, "숫자를 포함해야 합니다"),
+    confirmPassword: z.string().min(1, "비밀번호 확인을 입력하세요"),
+  })
+  .refine((values) => values.newPassword === values.confirmPassword, {
+    message: "비밀번호가 일치하지 않습니다",
+    path: ["confirmPassword"],
+  });
+
+type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
 
 export default function ResetPasswordPage() {
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token") ?? "";
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<ResetPasswordFormValues>({ resolver: zodResolver(resetPasswordSchema) });
+
+  const onSubmit = async (values: ResetPasswordFormValues) => {
+    setError(null);
+
+    if (!token) {
+      setError("재설정 링크가 올바르지 않습니다.");
+      return;
+    }
+
+    try {
+      await authService.passwordResetConfirm({ token, newPassword: values.newPassword });
+      setDone(true);
+    } catch (err) {
+      if (isAxiosError<ApiError>(err) && err.response) {
+        setError(err.response.data.error.message);
+      } else {
+        setError("비밀번호 변경에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      }
+    }
+  };
 
   if (done) {
     return (
@@ -54,7 +101,7 @@ export default function ResetPasswordPage() {
         <p className="mt-2 text-sm text-muted">사용할 새 비밀번호를 입력해주세요</p>
       </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); setDone(true); }} className="flex flex-col gap-5" noValidate>
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5" noValidate>
 
         {/* 새 비밀번호 — 강도 미터 표시 */}
         <PasswordField
@@ -63,7 +110,8 @@ export default function ResetPasswordPage() {
           autoComplete="new-password"
           placeholder="새 비밀번호를 입력하세요"
           showStrength
-          hint="영문, 숫자를 포함하여 8자 이상 입력하세요"
+          hint={errors.newPassword?.message ?? "영문, 숫자를 포함하여 8자 이상 입력하세요"}
+          {...register("newPassword")}
         />
 
         {/* 비밀번호 확인 */}
@@ -72,11 +120,13 @@ export default function ResetPasswordPage() {
           label="새 비밀번호 확인"
           autoComplete="new-password"
           placeholder="비밀번호를 한 번 더 입력하세요"
+          hint={errors.confirmPassword?.message}
+          {...register("confirmPassword")}
         />
 
-        {/* {error && <p className="text-sm text-destructive">{error}</p>} */}
+        {error && <p className="text-sm text-destructive">{error}</p>}
 
-        <Button type="submit">비밀번호 변경하기</Button>
+        <Button type="submit" loading={isSubmitting}>비밀번호 변경하기</Button>
       </form>
     </AuthCard>
   );
