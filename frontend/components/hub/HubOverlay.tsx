@@ -152,7 +152,7 @@ function TopBar() {
         <span className="mx-2 h-5 w-px bg-border" aria-hidden="true" />
 
         <div className="flex items-center gap-2 pl-1">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-on-primary">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full avatar-ring text-xs font-semibold">
             {nickname.slice(0, 1)}
           </span>
           <span className="text-sm font-medium text-foreground">{nickname}</span>

@@ -76,7 +76,7 @@ export default function DmRoomPage() {
           ← 채팅·DM 목록
         </Link>
         <div className="mt-2 flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-on-primary">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full avatar-ring text-sm font-semibold">
             {peerName.slice(0, 1)}
           </span>
           <h1 className="text-lg font-bold text-foreground">{peerName}</h1>

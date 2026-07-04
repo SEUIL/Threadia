@@ -38,7 +38,7 @@ export default function DmListPage() {
               href={`/${companyId}/dm/${room.roomId}`}
               className="flex items-center gap-3 rounded-lg bg-surface px-4 py-3 shadow-sm transition-shadow duration-fast hover:shadow-md"
             >
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-on-primary">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full avatar-ring text-sm font-semibold">
                 {room.name.slice(0, 1)}
               </span>
               <span className="text-sm font-medium text-foreground">{room.name}</span>

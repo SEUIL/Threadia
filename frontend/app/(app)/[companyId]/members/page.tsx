@@ -258,7 +258,7 @@ export default function MembersPage() {
               className="flex flex-wrap items-center justify-between gap-3 px-1 py-3"
             >
               <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-on-primary">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full avatar-ring text-sm font-semibold">
                   {member.name.slice(0, 1)}
                 </span>
                 <div>
