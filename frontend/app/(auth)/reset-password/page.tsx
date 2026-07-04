@@ -3,16 +3,16 @@
 /*
  * 비밀번호 재설정 — app/(auth)/reset-password/page.tsx
  *
- * URL 파라미터: ?token=... (이메일 링크에서 전달)
+ * URL 파라미터: ?token=... (이메일 링크에서 전달, 백엔드
+ * threadia.password-reset.url-prefix 기본값이 이 경로를 가리킨다)
  * 화면 상태: idle(폼) → done(변경 완료)
  *
  * 보안: 재설정 성공 시 해당 사용자의 모든 refresh_tokens revoke (백엔드 처리)
- *
  */
 
-import { useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -31,7 +31,7 @@ const resetPasswordSchema = z
       .max(72)
       .regex(/[A-Za-z]/, "영문을 포함해야 합니다")
       .regex(/[0-9]/, "숫자를 포함해야 합니다"),
-    confirmPassword: z.string().min(1, "비밀번호 확인을 입력하세요"),
+    confirmPassword: z.string().min(1, "비밀번호를 한 번 더 입력하세요"),
   })
   .refine((values) => values.newPassword === values.confirmPassword, {
     message: "비밀번호가 일치하지 않습니다",
@@ -40,9 +40,8 @@ const resetPasswordSchema = z
 
 type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
 
-export default function ResetPasswordPage() {
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token") ?? "";
+function ResetPasswordForm() {
+  const token = useSearchParams().get("token");
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const {
@@ -52,13 +51,8 @@ export default function ResetPasswordPage() {
   } = useForm<ResetPasswordFormValues>({ resolver: zodResolver(resetPasswordSchema) });
 
   const onSubmit = async (values: ResetPasswordFormValues) => {
+    if (!token) return;
     setError(null);
-
-    if (!token) {
-      setError("재설정 링크가 올바르지 않습니다.");
-      return;
-    }
-
     try {
       await authService.passwordResetConfirm({ token, newPassword: values.newPassword });
       setDone(true);
@@ -94,6 +88,24 @@ export default function ResetPasswordPage() {
     );
   }
 
+  if (!token) {
+    return (
+      <AuthCard className="text-center">
+        <h1 className="text-xl font-bold text-foreground">유효하지 않은 링크입니다</h1>
+        <p className="mt-3 text-sm text-muted leading-relaxed">
+          비밀번호 재설정 링크가 올바르지 않거나 만료되었습니다.<br />
+          다시 요청해주세요.
+        </p>
+        <Link
+          href="/forgot-password"
+          className="mt-8 block w-full rounded-lg btn-gradient py-3 text-sm font-semibold text-primary-foreground text-center transition-colors duration-normal"
+        >
+          재설정 다시 요청하기
+        </Link>
+      </AuthCard>
+    );
+  }
+
   return (
     <AuthCard>
       <div className="mb-8 text-center">
@@ -102,8 +114,6 @@ export default function ResetPasswordPage() {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5" noValidate>
-
-        {/* 새 비밀번호 — 강도 미터 표시 */}
         <PasswordField
           id="newPassword"
           label="새 비밀번호"
@@ -114,7 +124,6 @@ export default function ResetPasswordPage() {
           {...register("newPassword")}
         />
 
-        {/* 비밀번호 확인 */}
         <PasswordField
           id="confirmPassword"
           label="새 비밀번호 확인"
@@ -129,5 +138,13 @@ export default function ResetPasswordPage() {
         <Button type="submit" loading={isSubmitting}>비밀번호 변경하기</Button>
       </form>
     </AuthCard>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResetPasswordForm />
+    </Suspense>
   );
 }

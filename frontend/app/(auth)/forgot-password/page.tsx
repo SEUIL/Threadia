@@ -5,6 +5,11 @@
  *
  * 화면 상태: idle(폼) → success(발송 완료)
  *
+ * ⚠️ 백엔드(PasswordResetService.request)는 이메일 존재 여부와 무관하게
+ *    항상 200 + { success: true }를 반환한다(사용자 존재 여부 노출 방지).
+ *    그래서 프론트도 요청이 성공(200)하면 무조건 success 화면으로 전환하고,
+ *    "가입 안 된 이메일입니다" 같은 에러는 표시하지 않는다. 네트워크 오류 등
+ *    요청 자체가 실패한 경우만 에러 메시지를 보여준다.
  */
 
 import { useState } from "react";
@@ -43,7 +48,7 @@ export default function ForgotPasswordPage() {
       if (isAxiosError<ApiError>(err) && err.response) {
         setError(err.response.data.error.message);
       } else {
-        setError("재설정 링크 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
+        setError("요청에 실패했습니다. 잠시 후 다시 시도해주세요.");
       }
     }
   };
@@ -58,7 +63,7 @@ export default function ForgotPasswordPage() {
         </div>
         <h1 className="text-xl font-bold text-foreground">이메일을 확인해주세요</h1>
         <p className="mt-3 text-sm text-muted leading-relaxed">
-          비밀번호 재설정 링크를 이메일로 전송했습니다.<br />
+          가입된 이메일이라면 비밀번호 재설정 링크를 보내드렸습니다.<br />
           메일이 오지 않으면 스팸함을 확인해주세요.
         </p>
         <Link
