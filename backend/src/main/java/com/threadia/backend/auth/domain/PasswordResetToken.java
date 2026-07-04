@@ -86,6 +86,10 @@ public class PasswordResetToken {
 		this.usedAt = usedAt;
 	}
 
+	public void markUsed(LocalDateTime usedAt) {
+		this.usedAt = usedAt;
+	}
+
 	public LocalDateTime getCreatedAt() {
 		return createdAt;
 	}
