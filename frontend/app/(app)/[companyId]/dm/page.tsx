@@ -25,7 +25,10 @@ export default function DmListPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-10">
-      <h1 className="text-xl font-bold text-foreground">채팅·DM</h1>
+      <Link href="/hub" className="text-sm text-muted transition-colors duration-fast hover:text-primary">
+        ← 허브로
+      </Link>
+      <h1 className="mt-3 text-xl font-bold text-foreground">채팅·DM</h1>
       <p className="mt-1 text-sm text-muted">최근 대화 목록입니다.</p>
 
       <ul className="mt-6 flex flex-col gap-2">

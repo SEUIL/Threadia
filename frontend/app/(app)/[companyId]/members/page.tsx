@@ -153,17 +153,17 @@ export default function MembersPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
-      <div className="flex items-center justify-between">
+      <Link
+        href={`/${companyId}/settings`}
+        className="text-sm text-muted transition-colors duration-fast hover:text-primary"
+      >
+        ← 회사 관리
+      </Link>
+      <div className="mt-3 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">구성원·권한 관리</h1>
           <p className="mt-1 text-sm text-muted">회사 구성원을 초대하고 역할·부서를 관리합니다.</p>
         </div>
-        <Link
-          href={`/${companyId}/settings`}
-          className="rounded-md px-3 py-1.5 text-sm font-medium text-primary transition-colors duration-fast hover:bg-primary-subtle"
-        >
-          회사 관리로
-        </Link>
       </div>
 
       {/* 구성원 추가 */}
