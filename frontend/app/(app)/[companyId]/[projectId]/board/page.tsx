@@ -126,7 +126,7 @@ function DraggableIssueCard({ id, children }: { id: string; children: React.Reac
       {...attributes}
       style={{ transform: transform ? CSS.Translate.toString(transform) : undefined }}
       className={
-        "rounded-lg border border-border bg-surface p-3 shadow-sm cursor-grab active:cursor-grabbing " +
+        "rounded-lg bg-surface p-3 shadow-sm cursor-grab active:cursor-grabbing " +
         (isDragging ? "opacity-50 z-raised" : "")
       }
     >
@@ -231,13 +231,13 @@ export default function BoardPage() {
       </div>
 
       {showTrash && (
-        <section className="mt-4 rounded-xl border border-border bg-surface p-5 shadow-sm">
+        <section className="mt-4 rounded-xl border border-border bg-surface p-5">
           <h2 className="text-sm font-semibold text-foreground">휴지통</h2>
-          <ul className="mt-3 flex flex-col gap-2">
+          <ul className="mt-3 divide-y divide-border">
             {trashedIssues.map((issue) => (
               <li
                 key={issue.id}
-                className="flex items-center justify-between rounded-lg border border-border px-3 py-2"
+                className="flex items-center justify-between px-1 py-2.5"
               >
                 <span className="text-sm text-foreground">
                   <span className="mr-2 font-mono text-xs text-muted">{issue.issueKey}</span>

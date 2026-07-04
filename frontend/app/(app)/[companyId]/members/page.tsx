@@ -167,7 +167,7 @@ export default function MembersPage() {
       </div>
 
       {/* 구성원 추가 */}
-      <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+      <section className="mt-6 rounded-xl border border-border bg-surface p-6">
         <h2 className="text-sm font-semibold text-foreground">구성원 추가</h2>
         <div className="mt-3 flex gap-2">
           <input
@@ -212,11 +212,11 @@ export default function MembersPage() {
         )}
 
         {invitations.length > 0 && (
-          <ul className="mt-4 flex flex-col gap-2">
+          <ul className="mt-4 divide-y divide-border">
             {invitations.map((inv) => (
               <li
                 key={inv.id}
-                className="flex items-center justify-between rounded-lg border border-border px-3 py-2"
+                className="flex items-center justify-between px-1 py-2.5"
               >
                 <span className="text-sm text-foreground">{inv.email}</span>
                 <div className="flex items-center gap-2">
@@ -239,7 +239,7 @@ export default function MembersPage() {
       </section>
 
       {/* 구성원 목록 */}
-      <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+      <section className="mt-6 rounded-xl border border-border bg-surface p-6">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-foreground">구성원 ({members.length})</h2>
           <input
@@ -251,11 +251,11 @@ export default function MembersPage() {
           />
         </div>
 
-        <ul className="mt-4 flex flex-col gap-2">
+        <ul className="mt-4 divide-y divide-border">
           {filteredMembers.map((member) => (
             <li
               key={member.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5"
+              className="flex flex-wrap items-center justify-between gap-3 px-1 py-3"
             >
               <div className="flex items-center gap-3">
                 <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-on-primary">

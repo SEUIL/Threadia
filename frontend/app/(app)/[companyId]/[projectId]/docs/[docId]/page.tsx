@@ -198,7 +198,7 @@ export default function DocEditorPage() {
       </div>
 
       {showPreview ? (
-        <div className="mt-3 min-h-64 rounded-xl border border-border bg-surface p-4 shadow-sm">
+        <div className="mt-3 min-h-64 rounded-xl border border-border bg-surface p-4">
           {content ? preview : <p className="text-sm text-placeholder">내용이 없습니다.</p>}
         </div>
       ) : (
@@ -213,7 +213,7 @@ export default function DocEditorPage() {
       )}
 
       {/* 관련 이슈 연결 */}
-      <section className="mt-6 rounded-xl border border-border bg-surface p-5 shadow-sm">
+      <section className="mt-6 rounded-xl border border-border bg-surface p-5">
         <h2 className="text-sm font-semibold text-foreground">관련 이슈</h2>
         <div className="mt-2 flex flex-wrap gap-2">
           {linkedIssues.map((key) => (

@@ -133,8 +133,8 @@ export default function NotificationsPage() {
               href={n.href}
               onClick={() => markRead(n.id)}
               className={
-                "flex items-start gap-3 rounded-xl border px-4 py-3 shadow-sm transition-colors duration-fast hover:bg-primary-subtle " +
-                (n.read ? "border-border bg-surface" : "border-primary/40 bg-primary-subtle")
+                "flex items-start gap-3 rounded-xl px-4 py-3 shadow-sm transition-shadow duration-fast hover:shadow-md " +
+                (n.read ? "bg-surface" : "bg-primary-subtle")
               }
             >
               {!n.read && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" aria-hidden="true" />}
@@ -159,7 +159,7 @@ export default function NotificationsPage() {
       </ul>
 
       {/* 알림 설정 */}
-      <section className="mt-8 rounded-xl border border-border bg-surface p-5 shadow-sm">
+      <section className="mt-8 rounded-xl border border-border bg-surface p-5">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-foreground">알림 설정</h2>
           <label className="flex items-center gap-2 text-sm text-foreground">

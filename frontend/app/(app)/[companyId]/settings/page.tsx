@@ -64,7 +64,7 @@ const MOCK_DEPARTMENTS: Department[] = [
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
+    <div className="rounded-lg border border-border bg-surface p-4">
       <p className="text-xs text-muted">{label}</p>
       <p className="mt-1 text-2xl font-bold text-foreground">{value}</p>
     </div>
@@ -117,7 +117,7 @@ export default function CompanySettingsPage() {
       <p className="mt-1 text-sm text-muted">{company.name} · 회사 정보, 부서, 프로젝트 현황을 관리합니다.</p>
 
       {/* 회사 정보 카드 */}
-      <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+      <section className="mt-6 rounded-xl border border-border bg-surface p-6">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-foreground">회사 정보</h2>
           {!editing && (
@@ -215,13 +215,13 @@ export default function CompanySettingsPage() {
       </section>
 
       {/* 부서 목록 */}
-      <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+      <section className="mt-6 rounded-xl border border-border bg-surface p-6">
         <h2 className="text-sm font-semibold text-foreground">부서</h2>
-        <ul className="mt-3 flex flex-col gap-2">
+        <ul className="mt-3 divide-y divide-border">
           {departments.map((dept) => (
             <li
               key={dept.id}
-              className="flex items-center justify-between rounded-lg border border-border px-3 py-2"
+              className="flex items-center justify-between px-1 py-2.5"
             >
               <span className="text-sm font-medium text-foreground">{dept.name}</span>
               <div className="flex items-center gap-3">

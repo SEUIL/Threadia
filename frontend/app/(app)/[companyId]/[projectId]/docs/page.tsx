@@ -149,7 +149,7 @@ export default function DocsPage() {
           {activeDocs.map((doc) => (
             <li
               key={doc.id}
-              className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3 shadow-sm"
+              className="flex items-center justify-between rounded-xl bg-surface px-4 py-3 shadow-sm transition-shadow duration-fast hover:shadow-md"
             >
               <Link href={`/${companyId}/${projectId}/docs/${doc.id}`} className="flex-1">
                 <div className="flex items-center gap-2">
@@ -184,11 +184,11 @@ export default function DocsPage() {
           휴지통 ({trashedDocs.length})
         </button>
         {showTrash && (
-          <ul className="mt-2 flex flex-col gap-2">
+          <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
             {trashedDocs.map((doc) => (
               <li
                 key={doc.id}
-                className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
+                className="flex items-center justify-between px-3 py-2 text-sm"
               >
                 <span>{doc.title}</span>
                 <button
@@ -210,7 +210,7 @@ export default function DocsPage() {
       <div className={tab === "graph" ? "mt-4 flex gap-4" : "hidden"}>
         <svg
           viewBox="0 0 520 320"
-          className="h-80 flex-1 rounded-xl border border-border bg-surface shadow-sm"
+          className="h-80 flex-1 rounded-xl border border-border bg-surface"
         >
           {edges.map((edge, i) => {
             const from = findNode(edge.from);
@@ -261,7 +261,7 @@ export default function DocsPage() {
         </svg>
 
         {/* 우측 서랍 패널 — 화면 이동 없이 미리보기 */}
-        <div className="w-56 shrink-0 rounded-xl border border-border bg-surface p-4 shadow-sm">
+        <div className="w-56 shrink-0 rounded-xl border border-border bg-surface p-4">
           {selectedNode ? (
             selectedNode.kind === "doc" ? (
               (() => {

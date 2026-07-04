@@ -156,7 +156,7 @@ export default function ProjectSettingsPage() {
       )}
 
       {/* 프로젝트 정보 */}
-      <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+      <section className="mt-6 rounded-xl border border-border bg-surface p-6">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-foreground">프로젝트 정보</h2>
           {!editing && !isArchived && (
@@ -234,16 +234,16 @@ export default function ProjectSettingsPage() {
       </section>
 
       {/* 멤버 관리 */}
-      <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+      <section className="mt-6 rounded-xl border border-border bg-surface p-6">
         <h2 className="text-sm font-semibold text-foreground">프로젝트 멤버 ({members.length})</h2>
 
         {memberError && <p className="mt-2 text-xs text-destructive">{memberError}</p>}
 
-        <ul className="mt-3 flex flex-col gap-2">
+        <ul className="mt-3 divide-y divide-border">
           {members.map((member) => (
             <li
               key={member.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
+              className="flex flex-wrap items-center justify-between gap-2 px-1 py-2.5"
             >
               <div>
                 <p className="text-sm font-medium text-foreground">{member.name}</p>
@@ -306,7 +306,7 @@ export default function ProjectSettingsPage() {
 
       {/* 아카이빙 */}
       {!isArchived && (
-        <section className="mt-6 rounded-xl border border-destructive/30 bg-surface p-6 shadow-sm">
+        <section className="mt-6 rounded-xl border border-destructive/30 bg-surface p-6">
           <h2 className="text-sm font-semibold text-destructive">프로젝트 아카이빙</h2>
           <p className="mt-1 text-xs text-muted">
             아카이빙된 프로젝트는 복원할 수 없습니다. 신중하게 진행해 주세요.

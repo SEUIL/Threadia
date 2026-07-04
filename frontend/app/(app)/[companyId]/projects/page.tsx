@@ -121,7 +121,7 @@ export default function ProjectsPage() {
       </div>
 
       {creating && (
-        <section className="mt-4 rounded-xl border border-border bg-surface p-5 shadow-sm">
+        <section className="mt-4 rounded-xl border border-border bg-surface p-5">
           <h2 className="text-sm font-semibold text-foreground">새 프로젝트</h2>
           <div className="mt-3 flex flex-wrap gap-2">
             <input
@@ -179,7 +179,7 @@ export default function ProjectsPage() {
           <Link
             key={project.id}
             href={`/${companyId}/${project.id}/board`}
-            className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-5 shadow-sm transition-colors duration-fast hover:border-primary hover:bg-primary-subtle"
+            className="flex flex-col gap-3 rounded-xl bg-surface p-5 shadow-sm transition-all duration-fast hover:-translate-y-0.5 hover:bg-primary-subtle hover:shadow-md"
           >
             <div className="flex items-start justify-between">
               <div>

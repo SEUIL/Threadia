@@ -36,7 +36,7 @@ export default function DmListPage() {
           <li key={room.roomId}>
             <Link
               href={`/${companyId}/dm/${room.roomId}`}
-              className="flex items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3 shadow-sm transition-colors duration-fast hover:bg-primary-subtle"
+              className="flex items-center gap-3 rounded-lg bg-surface px-4 py-3 shadow-sm transition-shadow duration-fast hover:shadow-md"
             >
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-on-primary">
                 {room.name.slice(0, 1)}
