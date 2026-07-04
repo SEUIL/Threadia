@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -59,6 +60,18 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(HttpMessageNotReadableException.class)
 	public ResponseEntity<ErrorResponse> handleMessageNotReadable(HttpMessageNotReadableException ex) {
 		ErrorBody body = ErrorBody.of("VALIDATION_ERROR", "요청 형식이 올바르지 않습니다.");
+		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(body));
+	}
+
+	@ExceptionHandler(UserNotFoundException.class)
+	public ResponseEntity<ErrorResponse> handleUserNotFound(UserNotFoundException ex) {
+		ErrorBody body = ErrorBody.of("NOT_FOUND", ex.getMessage());
+		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of(body));
+	}
+
+	@ExceptionHandler(MissingServletRequestParameterException.class)
+	public ResponseEntity<ErrorResponse> handleMissingRequestParameter(MissingServletRequestParameterException ex) {
+		ErrorBody body = ErrorBody.of("VALIDATION_ERROR", "요청 파라미터가 누락되었습니다.");
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(body));
 	}
 
