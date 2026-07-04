@@ -56,6 +56,12 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ErrorResponse.of(body));
 	}
 
+	@ExceptionHandler(ForbiddenException.class)
+	public ResponseEntity<ErrorResponse> handleForbidden(ForbiddenException ex) {
+		ErrorBody body = ErrorBody.of("FORBIDDEN", ex.getMessage());
+		return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ErrorResponse.of(body));
+	}
+
 	// 요청 body가 비어있거나 JSON 형식이 깨진 경우(정의되지 않은 필드 포함) -> 400. 원인 메시지는 details에 담지 않는다(내부 파싱 정보 노출 금지).
 	@ExceptionHandler(HttpMessageNotReadableException.class)
 	public ResponseEntity<ErrorResponse> handleMessageNotReadable(HttpMessageNotReadableException ex) {
