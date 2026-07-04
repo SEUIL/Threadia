@@ -224,11 +224,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const companyId = params.companyId;
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       <Sidebar companyId={companyId} />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <Topbar companyId={companyId} />
-        <main className="flex-1">{children}</main>
+        <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>
   );
