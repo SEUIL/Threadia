@@ -1,39 +1,39 @@
-> **작성자**: Threadia 팀  
-> **작성일**: 2026-07-02  
-> **최종 수정**: 2026-07-02  
-> **버전**: v0.1  
-> **상태**: 작성 중  
+> **작성자**: Threadia 팀
+> **작성일**: 2026-07-02
+> **최종 수정**: 2026-07-04
+> **버전**: v0.2 WBS 기준 계획 정렬
+> **상태**: 작성 중
 > **태그**: sprint-2, backlog, company, project, rbac
 
 # Sprint 2 Backlog
 
 ## 1. 문서 목적
 
-이 문서는 Sprint 2 review 전 backlog 초안이다. WBS row concept 3.1, 3.2, 3.3, 3.4, 3.6은 confirmed backlog로 정리하고, WBS row concept 3.5는 candidate backlog로 분리한다.
+이 문서는 Sprint 2 review 전 backlog 초안이다. Google Sheets `WBS` 본시트 3.x row를 최신 계획 기준으로 삼아 3.1, 3.2, 3.3, 3.4, 3.6은 WBS 기준 계획 backlog로 정리하고, 3.5는 capacity candidate backlog로 분리한다.
 
-이 단계에서는 WBS와 Google Sheets를 수정하지 않는다. canonical 확정 문서인 요구사항, ERD, 화면정의서, API 명세서, DoD, 검증 방법, 보류 기능 최종표는 reference only로 사용하며 수정하지 않는다.
+이 문서는 WBS 본시트와 요구사항추적표를 최신 기준으로 참조한다. Sprint 2 문서 자체는 아직 `작성 중` 상태이며, canonical 요구사항, ERD, 화면정의서, API 명세서, DoD, 검증 방법, 보류 기능 최종표는 현재 개발 기준으로 사용한다.
 
 ## 2. Backlog 작성 원칙
 
-1. Sprint 2 confirmed scope는 company, department, company-members, RBAC and project foundation이다.
-2. Minimum Issue/Kanban은 capacity candidate only이며 committed Sprint 2 scope가 아니다.
+1. Sprint 2 WBS 기준 계획 범위는 company, department, company-members, RBAC and project foundation이다.
+2. Minimum Issue/Kanban은 capacity candidate only이며 WBS 기준 계획 backlog가 아니다.
 3. 현재 backend는 skeleton, JDBC, MySQL connection test only 상태이고, Sprint 2 domain API와 DB feature behavior는 구현되어 있지 않다.
 4. 현재 frontend는 후속 화면을 위한 route skeleton을 가지고 있지만, Sprint 2 domain API behavior는 구현되어 있지 않다.
 5. 완료 조건은 새 DoD 문서를 만들지 않고 `docs/00-project/Definition-of-Done.md`를 따른다.
 6. 검증 방법은 새 검증 문서를 만들지 않고 `docs/00-project/검증-방법.md`를 따른다.
 7. secret, credential, password, token, private data는 backlog와 evidence에 기록하지 않는다.
 
-## 3. Confirmed backlog
+## 3. WBS 기준 계획 backlog
 
 ### 3.1 Company/RBAC Backend
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | confirmed |
+| 상태 | WBS 기준 계획 |
 | Owner | 여도현 |
 | Reviewer | 황스일 |
-| Support | 여도현, 김민정, 김민경 |
-| 기준 WBS 개념 | 3.1 Company/RBAC Backend |
+| Support | WBS 상위 row 미기재, 세부 row 기준 |
+| 기준 WBS | 3.1 Company/RBAC Backend |
 | 기준 문서 | `기능-분해표.md`, `기능-시나리오-API-ERD-추적표.md`, `ERD.md`, `API-명세서.md`, `Definition-of-Done.md`, `검증-방법.md` |
 
 **작업 범위**
@@ -69,11 +69,11 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | confirmed |
+| 상태 | WBS 기준 계획 |
 | Owner | 정철진 |
 | Reviewer | 김민정 |
-| Support | TBD |
-| 기준 WBS 개념 | 3.2 Company Frontend/Entry |
+| Support | 정철진 |
+| 기준 WBS | 3.2 Company Frontend/Entry |
 | 기준 문서 | `화면정의서.md`, `API-명세서.md`, `Definition-of-Done.md`, `검증-방법.md` |
 
 **작업 범위**
@@ -108,11 +108,11 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | confirmed |
+| 상태 | WBS 기준 계획 |
 | Owner | 김태준 |
 | Reviewer | 여도현 |
-| Support | 김태준, 김민경 |
-| 기준 WBS 개념 | 3.3 Project Backend |
+| Support | WBS 상위 row 미기재, 세부 row 기준 |
+| 기준 WBS | 3.3 Project Backend |
 | 기준 문서 | `기능-분해표.md`, `기능-시나리오-API-ERD-추적표.md`, `ERD.md`, `API-명세서.md`, `Definition-of-Done.md`, `검증-방법.md` |
 
 **작업 범위**
@@ -130,7 +130,7 @@
 - 프로젝트는 반드시 회사에 속한다.
 - 프로젝트 삭제는 hard delete가 아니라 archive 기준을 따른다.
 - project member와 company member 관계가 ERD 기준과 충돌하지 않는다.
-- project invitation은 필요한 경우 Sprint 2 reference로만 다루며, 완료 조건에 넣을지는 별도 review에서 결정한다.
+- project invitation은 Backlog 4.2 reference로 다루며, Sprint 2 완료 조건에 넣을지는 별도 review에서 결정한다.
 
 **검증 방법**
 
@@ -148,11 +148,11 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | confirmed |
+| 상태 | WBS 기준 계획 |
 | Owner | 정철진 |
 | Reviewer | 김민정 |
-| Support | TBD |
-| 기준 WBS 개념 | 3.4 Project Frontend |
+| Support | 정철진 |
+| 기준 WBS | 3.4 Project Frontend |
 | 기준 문서 | `화면정의서.md`, `API-명세서.md`, `Definition-of-Done.md`, `검증-방법.md` |
 
 **작업 범위**
@@ -170,7 +170,7 @@
 - S04와 S12 기준 흐름이 브라우저에서 확인된다.
 - route skeleton만 있는 상태를 완료로 보지 않는다.
 - 프로젝트 API가 미완료이면 mock 범위와 실제 API 전환 조건을 기록한다.
-- 프로젝트 홈 또는 대시보드는 조건부 확장 reference이며 이번 confirmed scope의 필수 완료 조건이 아니다.
+- 프로젝트 홈 또는 대시보드는 조건부 확장 reference이며 이번 WBS 기준 계획 범위의 필수 완료 조건이 아니다.
 
 **검증 방법**
 
@@ -187,11 +187,11 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | confirmed |
+| 상태 | WBS 기준 계획 |
 | Owner | 황스일 |
 | Reviewer | 김민정 |
-| Support | TBD |
-| 기준 WBS 개념 | 3.6 CI/Deploy/QA |
+| Support | WBS 상위 row 미기재, 세부 row 기준 |
+| 기준 WBS | 3.6 CI/Deploy/QA |
 | 기준 문서 | `Definition-of-Done.md`, `검증-방법.md`, `CONTRIBUTING.md` |
 
 **작업 범위**
@@ -206,10 +206,10 @@
 
 **완료 조건**
 
-- 각 confirmed backlog item별 owner가 실행한 검증 결과를 reviewer가 재확인할 수 있다.
+- 각 WBS 기준 backlog item별 owner가 실행한 검증 결과를 reviewer가 재확인할 수 있다.
 - test 또는 build 미실행 항목은 사유와 후속 조치를 기록한다.
 - DB, cloud, secret, shared infra 변경은 승인 필요 작업으로 분리한다.
-- WBS와 Google Sheets를 수정하지 않았음을 확인한다.
+- WBS 본시트와 Sprint 2 문서의 범위, 일정, 담당 기준이 일치하는지 확인한다.
 
 **검증 방법**
 
@@ -232,7 +232,7 @@
 | Owner | 김민경 |
 | Reviewer | 여도현 |
 | Support | 김민경, 김태준 |
-| 기준 WBS 개념 | 3.5 Issue/Kanban Candidate |
+| 기준 WBS | 3.5 Issue/Kanban Candidate |
 | 기준 문서 | `기능-분해표.md`, `기능-시나리오-API-ERD-추적표.md`, `ERD.md`, `화면정의서.md`, `API-명세서.md`, `보류-기능-최종표.md` |
 
 **작업 후보 범위**
@@ -246,14 +246,14 @@
 
 **착수 조건**
 
-- 3.1부터 3.4까지의 Foundation confirmed backlog가 review 가능한 수준으로 통과해야 한다.
+- 3.1부터 3.4까지의 Foundation 계획 backlog가 review 가능한 수준으로 통과해야 한다.
 - Project Backend와 Project Frontend의 최소 flow가 검증되어야 한다.
 - 2026-07-20 기준 capacity가 남아야 한다.
-- WBS 또는 팀 합의 없이 committed scope로 승격하지 않는다.
+- WBS 또는 팀 합의 없이 Sprint 2 계획 backlog로 승격하지 않는다.
 
 **완료 조건 후보**
 
-- 이 항목은 Sprint 2 committed scope가 아니므로 완료 조건도 후보 기준이다.
+- 이 항목은 Sprint 2 계획 backlog가 아니므로 완료 조건도 후보 기준이다.
 - 착수한다면 최소 이슈 목록 또는 상태 변경 중 하나를 API와 화면에서 확인한다.
 - 이슈 휴지통, 문서 연결, from-message, thread, notification은 candidate 최소 범위에서 제외한다.
 

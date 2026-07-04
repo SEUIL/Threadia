@@ -2,11 +2,11 @@
 
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-16  
-> **최종 수정**: 2026-07-02
-> **버전**: Auth cookie 계약 보강 v1
+> **최종 수정**: 2026-07-04
+> **버전**: WBS 기준 일정·배정 동기화 v2
 > **상태**: 확정
 > **태그**: sprint-1, plan, auth
-> **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md, Sprint 1 schema.sql 작업 반영, PR #17 Auth API 계약 보강
+> **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md, Sprint 1 schema.sql 작업 반영, PR #17 Auth API 계약 보강, WBS 본시트 1.x 기준 일정·배정 동기화
 
 > 기준: `05_기획주간_5일차_Sprint1_Backlog_검증기준.md` + `5일차_오전회의.md`
 > ERD 반영: `ERD v2.0.md` + `기능-시나리오-API-ERD 추적표 v1.0.md` + `보류 기능 최종표 v1.0.md` + `API 명세서 v2.0.md`
@@ -43,77 +43,83 @@ Sprint 1에서는 Spring Boot, React + Next.js, MySQL 8.4 기반을 구축하고
 
 ## 작업 묶음 1. Sprint 1 Backlog 기준
 
-| 작업 | 순서 | 권장 담당 그룹 | 완료 조건 | 검증 방법 | 의존성 |
-| --- | --- | --- | --- | --- | --- |
-| Spring Boot 기본 프로젝트 생성 | 1 | 여도현 + 김태준 | local에서 서버 실행 가능 | `./gradlew bootRun` | repository clone, Java/Gradle 환경 |
-| MySQL 8.4 연결 확인 | 2 | 여도현 | test DB 연결 성공 | 연결 test 또는 간단 query | DB 실행 방식 결정, Spring Boot 기반 |
-| ERD.md 기준 db/schema.sql 생성 | 2-A | 김민정 + 김태준 + 김민경 | `docs/03-design/ERD.md` 완료 기준으로 MySQL 8.4용 `db/schema.sql` 생성. 전체 MVP DDL 기준을 준비하되 Sprint 1 검증은 `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` 중심 | schema.sql 실행 또는 검토, Auth 4개 table/column/constraint 정합성 확인 | ERD.md 상세 설계 완료, `db/.gitkeep`, MySQL 8.4 연결 확인 |
-| Frontend 프로젝트 구조 생성 | 3 | 정철진 | 라우팅, 기본 layout 구성 | 브라우저 실행 | React + Next.js App Router vs Pages Router 결정 |
-| 인증 JPA Entity 구현 | 4 | 여도현 + 김태준 + 김민경 | ERD v2.0 기준 `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` JPA Entity 클래스 구현. `users.role` 필드 없이 구현, `users.password_hash`는 소셜 전용 계정 NULL 허용 | `./gradlew build` 통과 | ERD v2.0, `db/schema.sql`, MySQL 연결 확인 |
-| 이메일 회원가입/로그인 API 구현 | 5 | 여도현 + 김태준 + 김민경 | API 명세서 v2.3 기준 `POST /api/v1/auth/signup`, `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/me` 구현. email `trim + lowercase`, `ACTIVE` 사용자 인증 기준 반영 | Postman 또는 curl | 인증 Entity, JWT 정책 결정 |
-| 소셜 로그인 API 구현 (Google OAuth) | 6 | 여도현 + 김태준 + 김민경 | API 명세서 v2.3 기준 `GET /oauth2/authorization/{provider}`, `GET /api/v1/auth/oauth2/callback/{provider}` 구현. 이메일만 같은 blind auto-link 금지 | Postman 또는 브라우저 | 인증 Entity, Google OAuth Client ID/Secret 발급 완료 |
-| 비밀번호 재설정 API 구현 | 7 | 여도현 + 김태준 + 김민경 | API 명세서 v2.3 기준 `POST /api/v1/auth/password-reset/request`, `POST /api/v1/auth/password-reset/confirm` 구현. confirm 성공 시 기존 `refresh_tokens` 전부 revoke. 이메일 발송은 Sprint 1에서 Google SMTP 실제 발송으로 검증하며, log/local console은 보조 debugging evidence로만 사용 | Postman 또는 curl | password_reset_tokens, refresh_tokens Entity |
-| 로그인/회원가입 화면 구현 | 8 | 정철진 | 로그인 화면, 회원가입 화면 route 존재, 로그인 API 연동 완료 | 브라우저 확인 | Frontend 구조, 로그인 API 응답 형식 |
-| GitHub Actions CI 도입 기준 확인 | 9 | 황스일 + 김민정 | `./gradlew test` 우선, skeleton 이후 workflow 생성 기준 합의 | CI 기준 문서 확인 | CI 기준 확정 v1.0, Spring Boot skeleton 생성 이후 |
-| AGENTS.md/CLAUDE.md/CONTRIBUTING.md 최소 규칙 확정 | 10 | 황스일 + 김민정 | root 문서와 docs 하위 규칙, commit 규칙 검토 완료 | 파일 존재와 링크 확인 | 4일차 협업 하네스 최신화 |
-| PR Template 실제 생성 여부 결정 | 11 | 황스일 | `.github/PULL_REQUEST_TEMPLATE.md` 생성 완료 | 파일 존재 확인 | PR Template v1.0 |
+| WBS ID | 계획 구간 | 작업 | Owner | Reviewer | 지원 담당 | 완료 조건 |
+|---|---|---|---|---|---|---|
+| 1.1.1 | Day 1 | Spring Boot 기본 프로젝트 생성 | 여도현 | 황스일 | 여도현 | local에서 서버 실행 가능 |
+| 1.1.2 | Day 1 | MySQL 8.4 연결 확인 | 여도현 | 황스일 | 여도현 | test DB 연결 성공 |
+| 1.1.2-A | Day 1 | ERD.md 기준 db/schema.sql 생성 | 김민정 | 황스일 | 김태준, 김민경 | `docs/03-design/ERD.md` 기준 MySQL 8.4용 `db/schema.sql` 생성 |
+| 1.1.3 | Day 1 | Frontend 프로젝트 구조 생성 | 정철진 | 김민정 | 정철진 | 라우팅, 기본 layout 구성 |
+| 1.1.4 | Day 1 | CI 기준 확인 + AGENTS.md 등 규칙 확정 | 황스일 | 김태준 | 황스일 | CI workflow 기준과 root/docs 규칙 검토 완료 |
+| 1.1.5 | Day 1 | PR Template 생성 확인 | 황스일 | 김민정 | 황스일 | `.github/PULL_REQUEST_TEMPLATE.md` 생성 또는 존재 확인 |
+| 1.1.6 | Day 1 | Google OAuth 앱 등록 | 황스일 | 여도현 | 황스일 | Google OAuth Client ID/Secret 발급 및 callback URL 등록 |
+| 1.2.1 | Day 2 | 인증 JPA Entity 구현 | 김태준 | 황스일 | 김민정 | Auth JPA Entity 클래스 구현 |
+| 1.2.2 | Day 2 | 로그인/회원가입 화면 레이아웃 작업 | 정철진 | 김민정 | 정철진 | 로그인/회원가입 화면 UI 구현 |
+| 1.2.3 | Day 2 | JWT/Auth hardening 정책 반영 확인 | 여도현 | 김태준 | 여도현 | JWT/Auth hardening 결정 기준 확인 |
+| 1.3.1 | Day 3 AM | 이메일 회원가입/로그인 API 구현 | 김민경 | 황스일 | 김민정 | 이메일 Auth API 구현 |
+| 1.3.2 | Day 3 AM | 소셜 로그인 API 구현 | 여도현 | 황스일 | 여도현 | Google OAuth 로그인 API 구현 |
+| 1.3.3 | Day 3 AM | 로그인/회원가입 화면 마무리 작업 | 정철진 | 김태준 | 정철진 | Auth 화면 UI 완성과 API 연동 준비 |
+| 1.4.1 | Day 3 PM | 비밀번호 재설정 API 구현 | 김태준 | 황스일 | 여도현 | 비밀번호 재설정 API 구현 |
+| 1.4.2 | Day 3 PM | 로그인/회원가입 화면 API 연동 | 정철진 | 김민정 | - | Auth 화면 API 연동 |
+| 1.4.3 | Day 3 PM | Apidog(postman 대체) 컬렉션 정리 / API 문서화 | 김민정 | 김태준 | - | Auth API 요청/응답 예시 정리 |
+| 1.5.1 | Day 3 QA | 인증 흐름 end-to-end 테스트 | 여도현 | 정철진 | 김태준 | Auth E2E 검증 결과 |
+| 1.5.2 | Day 3 QA | 버그 수정 / 버퍼 | 김민경 | 여도현 | - | 통합 테스트 발견 이슈 수정 결과 |
+| 1.5.3 | Day 3 QA | 6일차 보고 입력값 정리 | 김민정 | 황스일 | - | 6일차 보고용 요약 입력값 |
 
 > 회사/프로젝트/이슈/문서/채팅/DM/쓰레드/알림 Entity·API는 이 Backlog에서 제외했다. 다음 스프린트 Backlog 작성 시 ERD v2.0 영역 2~4(이전 v0.1 버전 참고)를 그대로 가져와 쓰면 된다.
 
 ---
 
-## 작업 묶음 1-A. 일자별 분할 (Day 1~5)
+## 작업 묶음 1-A. 일자별 분할 (WBS 1.x 압축 일정)
 
-> 가정: Sprint 1 = Week 2, 5영업일 운영.
+> 가정: Sprint 1 = 2026-07-01부터 2026-07-07까지 운영한다.
 > 인원: 황스일, 여도현, 정철진, 김민정, 김민경, 김태준 6명.
-> 배치 원칙: 범위가 인증으로 좁혀지면서 Backend 페어를 둘로 나눌 필요가 없어졌다. **인증 Backend**: 여도현 + 김태준 + 김민경이 entity부터 3개 API까지 순서대로 담당. **Frontend**: 정철진 단독. **협업/지원**: 황스일 + 김민정 — CI/문서/OAuth 설정/통합테스트 보조. 작업량이 줄어든 만큼 Day 4~5는 테스트와 버퍼에 더 쓴다.
+> 배치 원칙: WBS 본시트 1.x row의 계획 구간, Owner, Reviewer, 지원 담당을 따른다. 기존 Day 4~5 표기는 Day 3 PM/QA 압축 일정으로 대체한다.
 
-### Day 1 — 개발 기반 구축
+### Day 1, 2026-07-01 — 개발 기반 구축
 
-| 작업 | 담당 | 완료 조건 | 의존성/비고 |
-| --- | --- | --- | --- |
-| (1) Spring Boot 기본 프로젝트 생성 | 여도현 + 김태준 + 김민경 | `./gradlew bootRun` 성공 | repository clone, Java version 통일 |
-| (2) MySQL 8.4 연결 확인 | 여도현 | test DB 연결 성공 | Docker 등 실행 방식 통일 |
-| ERD.md 기준 db/schema.sql 생성 | 김민정 + 김태준 + 김민경 | 전체 MVP 기준 `db/schema.sql` 생성, Sprint 1 Auth 4개 table DDL 기준 확인 | ERD.md 상세 설계 완료 후 진행. Reviewer: 황스일 |
-| (3) Frontend 프로젝트 구조 생성 | 정철진 | 라우팅, 기본 layout 구성 | App Router vs Pages Router 결정 |
-| (9)(10) CI 기준 확인 + AGENTS.md 등 규칙 확정 | 황스일 + 김민정 | CI workflow 기준 합의, root/docs 규칙 검토 완료 | 4일차 협업 하네스 |
-| (11) PR Template 생성 확인 | 황스일 | `.github/PULL_REQUEST_TEMPLATE.md` 생성 완료 | PR Template v1.0 |
-| Google OAuth 앱 등록 | 황스일 + 김민정 | Google Cloud Console Client ID/Secret 발급, callback URL 등록 | Sprint 1 착수 전 필수 선결 조건 |
+| WBS ID | 작업 | Owner | Reviewer | 지원 담당 | 의존성/비고 |
+|---|---|---|---|---|---|
+| 1.1.1 | Spring Boot 기본 프로젝트 생성 | 여도현 | 황스일 | 여도현 | repository clone, Java version 통일 |
+| 1.1.2 | MySQL 8.4 연결 확인 | 여도현 | 황스일 | 여도현 | Docker 등 실행 방식 통일 |
+| 1.1.2-A | ERD.md 기준 db/schema.sql 생성 | 김민정 | 황스일 | 김태준, 김민경 | ERD.md 기준 개발용 schema 생성 |
+| 1.1.3 | Frontend 프로젝트 구조 생성 | 정철진 | 김민정 | 정철진 | App Router vs Pages Router 결정 |
+| 1.1.4 | CI 기준 확인 + AGENTS.md 등 규칙 확정 | 황스일 | 김태준 | 황스일 | 협업 규칙 / CI 기준 |
+| 1.1.5 | PR Template 생성 확인 | 황스일 | 김민정 | 황스일 | PR 문서 확인 |
+| 1.1.6 | Google OAuth 앱 등록 | 황스일 | 여도현 | 황스일 | OAuth / Secret 관련 |
 
-### Day 2 — 인증 Entity 구현
+### Day 2, 2026-07-02 — 인증 데이터/정책
 
-| 작업 | 담당 | 완료 조건 | 의존성/비고 |
-| --- | --- | --- | --- |
-| (4) 인증 JPA Entity 구현 | 여도현 + 김태준 + 김민경 | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` 구현, `./gradlew build` 통과 | Day 1 MySQL 연결 확인, `db/schema.sql` 생성 |
-| 로그인/회원가입 화면 레이아웃 작업 | 정철진 | 화면 UI만 우선 구현 (API 연동 전) | 화면정의서_v3, API 없이 진행 가능 |
-| JWT 정책 결정 회의 | 황스일 + 여도현 | access/refresh token 만료 시간, 갱신 전략, 저장 위치, password reset/status change refresh token revoke, UTC 시간 기준 결정 | Day 3 API 구현 전 확정 필요 |
+| WBS ID | 작업 | Owner | Reviewer | 지원 담당 | 의존성/비고 |
+|---|---|---|---|---|---|
+| 1.2.1 | 인증 JPA Entity 구현 | 김태준 | 황스일 | 김민정 | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens`, `db/schema.sql` |
+| 1.2.2 | 로그인/회원가입 화면 레이아웃 작업 | 정철진 | 김민정 | 정철진 | 화면 UI |
+| 1.2.3 | JWT/Auth hardening 정책 반영 확인 | 여도현 | 김태준 | 여도현 | access 30분, refresh 14일, rotation/logout invalidation, email 정규화, OAuth blind auto-link 금지, non-ACTIVE 인증 차단 확인 |
 
-### Day 3 — 이메일 로그인 API + 소셜 로그인 API
+### Day 3 AM, 2026-07-07 — Auth API/OAuth
 
-| 작업 | 담당 | 완료 조건 | 의존성/비고 |
-| --- | --- | --- | --- |
-| (5) 이메일 회원가입/로그인 API 구현 | 여도현 + 김태준 + 김민경 | signup/login/logout/me 구현, Postman 검증 | 인증 Entity, JWT 정책 결정 (Day 2 완료분) |
-| (6) 소셜 로그인 API 구현 (Google OAuth) | 여도현 + 김태준 + 김민경 | OAuth 시작/callback 구현, 브라우저로 redirect 확인 | Google OAuth Client ID/Secret (Day 1 완료분) |
-| 로그인/회원가입 화면 마무리 작업 | 정철진 | 화면 UI 완성, API 연동 준비 | API 응답 형식 확인 (황스일 + 김민정 지원) |
+| WBS ID | 작업 | Owner | Reviewer | 지원 담당 | 의존성/비고 |
+|---|---|---|---|---|---|
+| 1.3.1 | 이메일 회원가입/로그인 API 구현 | 김민경 | 황스일 | 김민정 | signup/login/logout/me |
+| 1.3.2 | 소셜 로그인 API 구현 | 여도현 | 황스일 | 여도현 | Google OAuth |
+| 1.3.3 | 로그인/회원가입 화면 마무리 작업 | 정철진 | 김태준 | 정철진 | API 연동 준비 |
 
-### Day 4 — 비밀번호 재설정 API + 화면 연동
+### Day 3 PM, 2026-07-07 — Password Reset/연동
 
-| 작업 | 담당 | 완료 조건 | 의존성/비고 |
-| --- | --- | --- | --- |
-| (7) 비밀번호 재설정 API 구현 | 여도현 + 김태준 + 김민경 | reset 요청/확인 흐름 구현, Google SMTP 실제 발송과 수신 email 확인 | password_reset_tokens Entity |
-| (8) 로그인/회원가입 화면 API 연동 | 정철진 | 로그인/회원가입 화면에서 실제 API 호출, 브라우저에서 동작 확인 | Day 3 인증 API 완료 |
-| Postman 컬렉션 정리 / API 문서화 | 황스일 + 김민정 | 인증 API 전체 요청/응답 예시 정리 | API 명세서 v2.0 |
+| WBS ID | 작업 | Owner | Reviewer | 지원 담당 | 의존성/비고 |
+|---|---|---|---|---|---|
+| 1.4.1 | 비밀번호 재설정 API 구현 | 김태준 | 황스일 | 여도현 | password reset |
+| 1.4.2 | 로그인/회원가입 화면 API 연동 | 정철진 | 김민정 | - | Front ↔ Backend 연동 |
+| 1.4.3 | Apidog(postman 대체) 컬렉션 정리 / API 문서화 | 김민정 | 김태준 | - | API 요청/응답 예시 |
 
-### Day 5 — 통합 테스트 + 버퍼 + 6일차 준비
+### Day 3 QA, 2026-07-07 — 통합 테스트/버퍼
 
-| 작업 | 담당 | 완료 조건 | 의존성/비고 |
-| --- | --- | --- | --- |
-| 인증 흐름 end-to-end 테스트 | 전체 | 회원가입 → 로그인 → 로그아웃 → 소셜 로그인 → 비밀번호 재설정 전체 시나리오 통과 | Day 1~4 전체 완료 |
-| 버그 수정 / 버퍼 | 여도현 + 김태준 + 김민경 | 통합 테스트에서 발견된 이슈 수정 | 일정 여유 확보용 |
-| 6일차 보고 입력값 정리 | 황스일 | Sprint 1 목표/Backlog/DoD/검증/blocker 요약 | 6일차 보고용 |
+| WBS ID | 작업 | Owner | Reviewer | 지원 담당 | 의존성/비고 |
+|---|---|---|---|---|---|
+| 1.5.1 | 인증 흐름 end-to-end 테스트 | 여도현 | 정철진 | 김태준 | 전체 인증 흐름 검증 |
+| 1.5.2 | 버그 수정 / 버퍼 | 김민경 | 여도현 | - | 인증 Backend 수정 |
+| 1.5.3 | 6일차 보고 입력값 정리 | 김민정 | 황스일 | - | 보고용 문서 정리 |
 
-> 작업량이 줄어든 만큼 Day 5는 의도적으로 통합 테스트와 버퍼로 비워뒀다. 일정이 당겨지면 다음 스프린트 도메인 Entity(회사/프로젝트/이슈) 설계를 미리 검토하는 시간으로 써도 된다.
-
+> Day 3 PM/QA 압축 일정은 WBS 본시트의 최신 계획을 따른다. 일정 여유가 생기더라도 Sprint 1 범위는 Auth-only로 유지한다.
 ---
 
 ## 작업 묶음 2. Definition of Done
@@ -158,7 +164,7 @@ Sprint 1에서는 Spring Boot, React + Next.js, MySQL 8.4 기반을 구축하고
 
 | 기능 | 의존성 | blocker | 해결 담당 |
 | --- | --- | --- | --- |
-| 소셜 로그인 API | oauth_accounts entity, Google OAuth 설정 | Google Cloud Console 앱 등록 + Client ID/Secret 발급 필요, callback URL 등록 필요 | 황스일 + 김민정 (Day 1) |
+| 소셜 로그인 API | oauth_accounts entity, Google OAuth 설정 | Google Cloud Console 앱 등록 + Client ID/Secret 발급 필요, callback URL 등록 필요 | 황스일 Owner, 여도현 Reviewer, 황스일 지원 (Day 1) |
 | 비밀번호 재설정 API | password_reset_tokens entity | Sprint 1은 Google SMTP 실제 발송으로 검증한다. AWS SES는 Sprint 1 범위가 아니며 배포/운영 단계에서 도입 여부를 결정한다 | 여도현 + 황스일 |
 | 이메일 로그인 API | 인증 entity, JWT 기준 | access token 30분, refresh token 14일, hash 저장, rotation, logout/password reset/status change invalidation, email 정규화, ACTIVE 사용자 인증, refresh cookie 기준 반영 | 여도현 + 황스일 |
 | Frontend 로그인 화면 | React + Next 구조, 로그인 API | 로그인 API 응답 형식 확인 필요 | 정철진 + 여도현 |
@@ -176,7 +182,7 @@ Sprint 1에서는 Spring Boot, React + Next.js, MySQL 8.4 기반을 구축하고
 
 ### 2. 소셜 로그인 — Google OAuth 앱 등록이 Day 1 선결 조건
 
-Google Cloud Console에서 OAuth 앱 등록 + Client ID/Secret 발급, callback URL 등록(`http://localhost:8080/api/v1/auth/oauth2/callback/google`)을 Day 1에 끝내지 못하면 Day 3 소셜 로그인 API 작업이 막힌다. 황스일 + 김민정이 Day 1에 처리하도록 배정했다.
+Google Cloud Console에서 OAuth 앱 등록 + Client ID/Secret 발급, callback URL 등록(`http://localhost:8080/api/v1/auth/oauth2/callback/google`)을 Day 1에 끝내지 못하면 Day 3 소셜 로그인 API 작업이 막힌다. WBS 기준으로 황스일이 Owner, 여도현이 Reviewer, 황스일이 지원 담당이다.
 
 ---
 
@@ -216,9 +222,9 @@ Mac/Windows 혼재 시 설치 방법이 달라진다. Docker로 통일하는 게
 
 ---
 
-### 9. 작업량이 줄어든 만큼 Day 5는 여유 시간
+### 9. Day 3 QA는 통합 테스트와 버퍼
 
-인증만 구현하면 되므로 6명이 5일을 다 채우지 않을 가능성이 높다. Day 5를 통합 테스트와 버퍼로 비워뒀고, 여유가 있으면 다음 스프린트 도메인 Entity(회사/프로젝트/이슈) 설계를 미리 검토하는 데 쓰는 것을 제안한다.
+WBS 기준 Sprint 1은 Day 3 QA에 인증 흐름 end-to-end 테스트, 버그 수정 / 버퍼, 6일차 보고 입력값 정리를 배치한다. 여유가 생기더라도 Sprint 1 범위는 Auth-only로 유지하고, 회사/프로젝트 기반 기능은 Sprint 2 계획 문서에서 다룬다.
 
 ---
 
@@ -227,14 +233,14 @@ Mac/Windows 혼재 시 설치 방법이 달라진다. Docker로 통일하는 게
 
 > Sprint 1은 Auth-only로 유지한다. 아래 작업은 Sprint 1 완료 후 별도 Sprint 1.5로 착수한다.
 
-| 작업 | 권장 담당 | 완료 조건 | 검증 방법 | 의존성 |
-|---|---|---|---|---|
-| `invitations` DB/entity 구현 | 여도현 + 김태준 + 김민경 | ERD 기준 `invitations`와 users/companies/company_members 관계 mapping 완료 | repository test 또는 `db/schema.sql` 기준 DB 확인 | Sprint 1 Auth DB 완료, 회사 seed와 company_members reference schema 확인 |
-| 등록 사용자 lookup API | 여도현 + 김민경 | exact email lookup으로 등록 사용자만 반환 | curl 또는 Postman | `users` 구현 |
-| 회사 invitation API | 김태준 + 김민경 | create/list, duplicate pending, already member, 7일 expiresAt 처리 | curl 또는 Postman | `invitations`, `company_members` |
-| 내 invitation 목록과 accept/decline/cancel | 여도현 + 김태준 + 김민경 | 수락 시 membership 생성, decline/cancel/expired 실패 처리 | API 정상/실패 케이스 | invitation 상태 전이 기준 |
-| 화면 S14 연결 | 정철진 | pending/accepted/declined/canceled/expired 상태 표시 | 브라우저 확인 | API 응답 형식 확정 |
-| 문서와 DoD 동기화 | 황스일 + 김민정 | API, ERD, 화면, 추적표, DoD가 seed bootstrap, notification 분리, UTC, email 정규화, OAuth link, refresh token revoke, ACTIVE 인증 기준과 충돌하지 않음 | 문서 리뷰 | 검수리포트 이슈 1, 3, 4, 9 |
+| WBS ID | 작업 | Owner | Reviewer | 지원 담당 | 완료 조건 | 검증 방법 |
+|---|---|---|---|---|---|---|
+| 2.1 | `invitations` DB/entity와 seed 검증 기반 구현 | 여도현 | 정철진 | - | ERD 기준 `invitations`와 users/companies/company_members 관계 mapping 완료 | repository test 또는 `db/schema.sql` 기준 DB 확인 |
+| 2.2 | 등록 사용자 exact email lookup API 구현 | 김민경 | 여도현 | - | exact email lookup으로 등록 사용자만 반환 | curl 또는 Postman |
+| 2.3 | 회사 invitation 생성/목록 API 구현 | 김태준 | 정철진 | - | create/list, duplicate pending, already member, 7일 expiresAt 처리 | curl 또는 Postman |
+| 2.4 | 내 invitation 목록과 accept/decline/cancel 구현 | 여도현 | 황스일 | 김태준 | 수락 시 membership 생성, decline/cancel/expired 실패 처리 | API 정상/실패 케이스 |
+| 2.5 | S14 구성원·권한 관리 화면 invitation 연결 | 정철진 | 김민정 | 정철진 | pending/accepted/declined/canceled/expired 상태 표시 | 브라우저 확인 |
+| 2.6 | Sprint 1.5 문서와 DoD 동기화, QA gate | 김민정 | 황스일 | - | API, ERD, 화면, 추적표, DoD가 seed bootstrap, notification 분리, UTC, email 정규화, OAuth link, refresh token revoke, ACTIVE 인증 기준과 충돌하지 않음 | 문서 리뷰 |
 
 ### Sprint 1.5 완료 기준
 
@@ -256,8 +262,8 @@ Mac/Windows 혼재 시 설치 방법이 달라진다. Docker로 통일하는 게
 
 1. Phase B는 Sprint 1.5의 등록 사용자 대상 app-internal invitation 정책을 반영한다.
 2. Sprint 1은 Auth-only이며 invitation을 구현하지 않는다.
-3. Sprint 1.5부터 회사 멤버 추가는 즉시 membership 생성이 아니라 `invitations` 생성과 대상자 accept 후 membership 생성으로 처리한다. 프로젝트 멤버 추가와 project invitation은 Sprint 2로 분리한다.
-4. Sprint 2는 project invitation, project membership 생성, actual invitee email sending, token link acceptance, unregistered onboarding, resend, email template, delivery failure handling, batch cleanup/operations의 후보 시점이며 확정 구현 commitment는 아니다.
+3. Sprint 1.5부터 회사 멤버 추가는 즉시 membership 생성이 아니라 `invitations` 생성과 대상자 accept 후 membership 생성으로 처리한다. 프로젝트 invitation과 project_members accept 흐름은 Backlog 4.2 이후로 분리하고, Sprint 2는 project_members 조회/역할 기준 skeleton만 WBS 3.x 계획 범위에서 다룬다.
+4. Project invitation, actual invitee email sending, token link acceptance, unregistered onboarding, resend, email template, delivery failure handling, batch cleanup/operations는 Sprint 2 계획 backlog가 아니라 후속 backlog 또는 후보 범위다.
 
 ### invitation 공식 결정
 

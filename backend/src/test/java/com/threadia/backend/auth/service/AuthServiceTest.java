@@ -9,8 +9,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Field;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -203,7 +205,7 @@ class AuthServiceTest {
 	@Test
 	void refresh_성공시_기존_refreshToken을_rotate하고_새_accessToken과_refresh_cookie를_발급한다() {
 		User user = userWithStatus("hashed", UserStatus.ACTIVE);
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = nowUtc();
 		RefreshToken oldRefreshToken = new RefreshToken(
 				user,
 				"hashed-old-refresh-token",
@@ -274,7 +276,7 @@ class AuthServiceTest {
 	@Test
 	void refresh_이미_revoke된_refreshToken이면_AuthenticationFailedException을_던지고_새_토큰을_발급하지_않는다() {
 		User user = userWithStatus("hashed", UserStatus.ACTIVE);
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = nowUtc();
 		RefreshToken refreshToken = new RefreshToken(
 				user,
 				"hashed-refresh-token",
@@ -298,7 +300,7 @@ class AuthServiceTest {
 	@Test
 	void refresh_만료된_refreshToken이면_AuthenticationFailedException을_던지고_새_토큰을_발급하지_않는다() {
 		User user = userWithStatus("hashed", UserStatus.ACTIVE);
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = nowUtc();
 		RefreshToken refreshToken = new RefreshToken(
 				user,
 				"hashed-refresh-token",
@@ -320,7 +322,7 @@ class AuthServiceTest {
 	@Test
 	void refresh_비활성_사용자의_refreshToken이면_AuthenticationFailedException을_던지고_새_토큰을_발급하지_않는다() {
 		User user = userWithStatus("hashed", UserStatus.SUSPENDED);
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = nowUtc();
 		RefreshToken refreshToken = new RefreshToken(
 				user,
 				"hashed-refresh-token",
@@ -343,7 +345,7 @@ class AuthServiceTest {
 	void logout_success_revokes_refresh_token_and_returns_clear_cookie() {
 		User user = userWithStatus("hashed", UserStatus.ACTIVE);
 		String accessToken = jwtTokenService.issueAccessToken(user.getId(), user.getEmail());
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = nowUtc();
 		RefreshToken refreshToken = new RefreshToken(
 				user,
 				"hashed-refresh-token",
@@ -379,7 +381,7 @@ class AuthServiceTest {
 	void logout_이미_revoke된_refreshToken이면_AuthenticationFailedException을_던지고_다시_revoke하지_않는다() {
 		User user = userWithStatus("hashed", UserStatus.ACTIVE);
 		String accessToken = jwtTokenService.issueAccessToken(user.getId(), user.getEmail());
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = nowUtc();
 		RefreshToken refreshToken = new RefreshToken(
 				user,
 				"hashed-refresh-token",
@@ -404,14 +406,14 @@ class AuthServiceTest {
 		User loginUser = userWithStatus("hashed", UserStatus.ACTIVE);
 		String accessToken = jwtTokenService.issueAccessToken(loginUser.getId(), loginUser.getEmail());
 		User otherUser = new User("other@example.com", "hashed", "other", null, UserStatus.ACTIVE,
-				LocalDateTime.now(), LocalDateTime.now());
+				nowUtc(), nowUtc());
 		setId(otherUser, 2L);
 		RefreshToken refreshToken = new RefreshToken(
 				otherUser,
 				"hashed-refresh-token",
-				LocalDateTime.now().plusDays(14),
-				LocalDateTime.now(),
-				LocalDateTime.now());
+				nowUtc().plusDays(14),
+				nowUtc(),
+				nowUtc());
 		when(refreshTokenGenerator.hash("raw-refresh-token")).thenReturn("hashed-refresh-token");
 		when(refreshTokenRepository.findByTokenHash("hashed-refresh-token")).thenReturn(Optional.of(refreshToken));
 
@@ -433,7 +435,7 @@ class AuthServiceTest {
 	}
 
 	private static User userWithStatus(String passwordHash, UserStatus status) {
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = nowUtc();
 		User user = new User("user@example.com", passwordHash, "nick", null, status, now, now);
 		setId(user, 1L);
 		return user;
@@ -447,5 +449,11 @@ class AuthServiceTest {
 		} catch (ReflectiveOperationException e) {
 			throw new IllegalStateException(e);
 		}
+	}
+
+	// AuthService(nowUtc())와 동일한 기준으로 시각을 맞춘다. LocalDateTime.now()(로컬 timezone)를 쓰면
+	// KST 등 UTC+9 환경에서 만료/미만료 경계값이 서비스 쪽 UTC 판정과 어긋나 테스트가 로컬에서만 실패한다.
+	private static LocalDateTime nowUtc() {
+		return LocalDateTime.now(Clock.system(ZoneOffset.UTC));
 	}
 }
