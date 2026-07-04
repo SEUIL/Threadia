@@ -1,23 +1,23 @@
-> **작성자**: Threadia 팀  
-> **작성일**: 2026-07-02  
-> **최종 수정**: 2026-07-02  
-> **버전**: v0.1  
-> **상태**: 작성 중  
+> **작성자**: Threadia 팀
+> **작성일**: 2026-07-02
+> **최종 수정**: 2026-07-04
+> **버전**: v0.2 WBS 기준 계획 정렬
+> **상태**: 작성 중
 > **태그**: sprint-2, plan, company, project, rbac
 
 # Sprint 2 상세계획
 
 ## 1. 문서 목적
 
-이 문서는 Sprint 2 착수 전 review를 위한 상세계획 초안이다. WBS 편집 전에 팀이 범위, 일정, 의존성, 제외 범위를 확인할 수 있도록 작성한다.
+이 문서는 Sprint 2 착수 전 review를 위한 상세계획 초안이다. Google Sheets `WBS` 본시트 3.x row를 최신 계획 기준으로 삼아 팀이 범위, 일정, 의존성, 제외 범위를 확인할 수 있도록 작성한다.
 
-이 단계에서는 WBS와 Google Sheets를 수정하지 않는다. `docs/02-requirements/`, `docs/03-design/`, `docs/04-api/`, `docs/00-project/`, `docs/07-decisions/`의 canonical 확정 문서는 참조만 하며 수정하지 않는다.
+이 문서는 WBS 본시트와 요구사항추적표를 최신 기준으로 참조한다. Sprint 2 문서 자체는 아직 `작성 중` 상태이며, `docs/02-requirements/`, `docs/03-design/`, `docs/04-api/`, `docs/00-project/`, `docs/07-decisions/`의 canonical 문서는 현재 개발 기준으로 사용한다.
 
 ## 2. Sprint 2 목표
 
-Sprint 2의 목표는 Sprint 1에서 만들어진 Spring Boot, MySQL, Frontend route skeleton을 바탕으로 회사 workspace와 프로젝트 기반 기능을 실제 API, DB, 화면 흐름으로 연결 가능한 상태까지 끌어올리는 것이다.
+Sprint 2의 목표는 Sprint 1에서 만들어진 Spring Boot, MySQL, Frontend route skeleton을 바탕으로 회사 workspace와 프로젝트 기반 기능을 실제 API, DB, 화면 흐름으로 연결 가능한 상태까지 끌어올리는 것이다. 일정과 담당 기준은 WBS 본시트 3.x row를 따른다.
 
-확정 범위는 회사, 부서, 회사 구성원, RBAC, 프로젝트 기반구축이다. Minimum Issue/Kanban은 capacity candidate일 뿐이며, Sprint 2 committed scope로 보지 않는다.
+WBS 기준 계획 범위는 회사, 부서, 회사 구성원, RBAC, 프로젝트 기반구축이다. Minimum Issue/Kanban은 capacity candidate일 뿐이며, Sprint 2 계획 backlog로 보지 않는다.
 
 ## 3. 현재 코드 상태 제약
 
@@ -31,36 +31,36 @@ Sprint 2의 목표는 Sprint 1에서 만들어진 Spring Boot, MySQL, Frontend r
 
 현재 code state constraint는 backend가 skeleton, JDBC, MySQL connection test only 상태이고, frontend가 후속 화면 route skeleton을 가진 상태라는 점이다. Sprint 2 domain API와 DB feature behavior는 아직 구현되어 있지 않다.
 
-## 4. 확정 범위
+## 4. WBS 기준 계획 범위
 
-| WBS 개념 | 확정 범위 | 목표 결과 |
-|---|---|---|
-| 3.1 Company/RBAC Backend | 회사, 부서, 회사 구성원, company membership role, 기본 RBAC 검사 | ERD와 API 명세 기준의 company domain API가 local에서 검증 가능하다 |
-| 3.2 Company Frontend/Entry | 회사 관리, 구성원 관리, workspace 진입 흐름 | C 역할 사용자가 회사 관리 화면과 구성원 화면에 진입하고 기본 상태를 확인할 수 있다 |
-| 3.3 Project Backend | 프로젝트 생성, 목록, 상세, 수정, archive, project membership 기반 | 회사 하위 프로젝트를 API로 생성, 조회, 수정, archive할 수 있다 |
-| 3.4 Project Frontend | 프로젝트 목록, 프로젝트 상세 또는 설정 진입, 프로젝트 생성 entry | 화면정의서 S04, S12 기준으로 프로젝트 기반 화면 흐름을 확인할 수 있다 |
-| 3.6 CI/Deploy/QA | Sprint 2 변경 범위의 test, build, CI, QA evidence 정리 | Backend, Frontend, 문서 변경이 Definition of Done과 검증 방법 기준을 따른다 |
+| WBS ID | WBS 기준 계획 범위 | Owner | Reviewer | 목표 결과 |
+|---|---|---|---|---|
+| 3.1 Company/RBAC Backend | 회사, 부서, 회사 구성원, company membership role, 기본 RBAC 검사 | 여도현 | 황스일 | ERD와 API 명세 기준의 company domain API가 local에서 검증 가능하다 |
+| 3.2 Company Frontend/Entry | 회사 관리, 구성원 관리, workspace 진입 흐름 | 정철진 | 김민정 | C 역할 사용자가 회사 관리 화면과 구성원 화면에 진입하고 기본 상태를 확인할 수 있다 |
+| 3.3 Project Backend | 프로젝트 생성, 목록, 상세, 수정, archive, project membership 기반 | 김태준 | 여도현 | 회사 하위 프로젝트를 API로 생성, 조회, 수정, archive할 수 있다 |
+| 3.4 Project Frontend | 프로젝트 목록, 프로젝트 상세 또는 설정 진입, 프로젝트 생성 entry | 정철진 | 김민정 | 화면정의서 S04, S12 기준으로 프로젝트 기반 화면 흐름을 확인할 수 있다 |
+| 3.6 CI/Deploy/QA | Sprint 2 변경 범위의 test, build, CI, QA evidence 정리 | 김민정 | 황스일 | Backend, Frontend, 문서 변경이 Definition of Done과 검증 방법 기준을 따른다 |
 
-Sprint 2 confirmed scope는 company, department, company-members, RBAC and project foundation이다. 이 범위는 Foundation + candidate 옵션의 Foundation에 해당한다.
+Sprint 2 WBS 기준 계획 범위는 company, department, company-members, RBAC and project foundation이다. 이 범위는 Foundation + candidate 옵션의 Foundation에 해당하며, 문서 상태는 `작성 중`으로 유지한다.
 
 ## 5. Candidate 범위
 
-| WBS 개념 | Candidate 항목 | 착수 조건 | Sprint 2 commitment 여부 |
+| WBS 개념 | Candidate 항목 | 착수 조건 | Sprint 2 계획 여부 |
 |---|---|---|---|
-| 3.5 Issue/Kanban Candidate | Minimum Issue/Kanban, 5컬럼 상태, 이슈 목록 또는 카드 상태 변경의 최소 vertical slice | 3.1부터 3.4까지의 company/project foundation이 검증되고 team capacity가 남는 경우 | committed scope가 아니다 |
+| 3.5 Issue/Kanban Candidate | Minimum Issue/Kanban, 5컬럼 상태, 이슈 목록 또는 카드 상태 변경의 최소 vertical slice | 3.1부터 3.4까지의 company/project foundation이 검증되고 team capacity가 남는 경우 | 계획 backlog가 아니다 |
 
-Minimum Issue/Kanban은 capacity candidate only다. 일정 여유가 생겨도 WBS 또는 팀 합의 없이 Sprint 2 확정 범위로 승격하지 않는다.
+Minimum Issue/Kanban은 capacity candidate only다. 일정 여유가 생겨도 WBS 또는 팀 합의 없이 Sprint 2 WBS 기준 계획 범위로 승격하지 않는다.
 
 ## 6. 명시적 제외 범위
 
 | 제외 항목 | 제외 이유 |
 |---|---|
-| WBS 또는 Google Sheets 수정 | 사용자가 현 단계에서 WBS를 수정하지 말라고 명시했다 |
-| canonical 확정 문서 수정 | 이 문서는 Sprint 2 planning draft이며, 확정 문서는 reference only다 |
+| WBS 본시트 임의 변경 | 이번 문서 작업은 WBS 본시트를 최신 기준으로 참조하고, 시트 자체 변경은 별도 작업으로 분리한다 |
+| Sprint 2 문서 상태 고정 금지 | 이 문서는 Sprint 2 planning draft이며, WBS 기준 정렬 후에도 `작성 중` 상태를 유지한다 |
 | `sprint-2-해야할일.md` | Sprint 2 문서 수를 늘리지 않기 위해 생성하지 않는다 |
 | `sprint-2-프로젝트-기반구축.md` | 프로젝트 기반구축은 이 상세계획과 backlog 안에서 다룬다 |
 | 별도 FE/BE DoD 문서 | canonical `Definition-of-Done.md`와 `검증-방법.md`를 기준으로 사용한다 |
-| Minimum Issue/Kanban 확정 구현 | WBS 3.5는 candidate이며 Sprint 2 committed scope가 아니다 |
+| Minimum Issue/Kanban 계획 backlog 편입 | WBS 3.5는 candidate이며 Sprint 2 계획 backlog가 아니다 |
 | 문서, 채팅, DM, 쓰레드, 알림 본구현 | Sprint 2 foundation 범위를 넘어선다 |
 | 플랫폼 관리자 F/S15 | 보류 기능이며 이번 Foundation + candidate 범위에 포함하지 않는다 |
 | 미가입 사용자 초대, invitation email 발송, token link, resend | Sprint 1.5 및 보류 기능 기준에서 제외 또는 후보로 관리된다 |
@@ -70,12 +70,12 @@ Minimum Issue/Kanban은 capacity candidate only다. 일정 여유가 생겨도 W
 
 | 기간 | 운영 초점 | 산출물 기준 |
 |---|---|---|
-| 2026-07-10 | Sprint 2 kickoff, scope freeze, current code baseline 확인 | 확정 범위와 candidate 경계 재확인, WBS는 read only |
-| 2026-07-13부터 2026-07-14까지 | Company/RBAC Backend와 Company Frontend entry 우선 진행 | 회사, 부서, 구성원, 권한 검사 skeleton과 화면 entry 검증 |
-| 2026-07-15부터 2026-07-16까지 | Project Backend와 Project Frontend foundation 진행 | 프로젝트 생성, 목록, 상세, 수정, archive 흐름의 최소 검증 |
-| 2026-07-17 | 통합, 권한별 접근, API와 화면 연결 확인 | C, P, A 역할별 접근 기준과 실패 케이스 점검 |
-| 2026-07-20 | QA, CI, 문서 evidence 정리, candidate 착수 여부 판단 | committed scope 검증이 먼저 통과해야 candidate 검토 가능 |
-| 2026-07-21 | Sprint 2 review 준비, 미완료와 blocker 정리 | 완료, 미완료, candidate 미착수 사유를 분리해 기록 |
+| 2026-07-10부터 2026-07-11까지 | 3.1 Company/RBAC Backend | 회사, 부서, 구성원, 권한 검사 skeleton과 Backend 검증 evidence 정리 |
+| 2026-07-10부터 2026-07-12까지 | 3.2 Company Frontend / Entry | S03/S04 진입 skeleton, S13/S14 회사·구성원 관리 화면, 권한별 navigation/action 기준 확인 |
+| 2026-07-12부터 2026-07-13까지 | 3.3 Project Backend | 프로젝트 목록/생성/상세/수정/archive와 project_members 기준 검증 |
+| 2026-07-13부터 2026-07-14까지 | 3.4 Project Frontend | S04 프로젝트 목록, 프로젝트 생성 entry, S12 프로젝트 설정/상세 화면 검증 |
+| 2026-07-14부터 2026-07-21까지 | 3.5 Issue/Kanban Candidate reserve | 2026-07-20 candidate gate 이후 capacity가 있을 때만 최소 Issue/Kanban 후보 검토 |
+| 2026-07-21 | 3.6 CI/Deploy/QA | Backend/Frontend/문서 QA evidence, Sprint 2 review, Backlog handoff 정리 |
 
 운영 원칙은 다음과 같다.
 

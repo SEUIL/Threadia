@@ -2,9 +2,9 @@
 
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-15  
-> **최종 수정**: 2026-07-01
-> **버전**: 개발주간 ERD 상세화 v1.2
-> **상태**: 검토 중
+> **최종 수정**: 2026-07-04
+> **버전**: 개발 기준 사용 반영 v1.3
+> **상태**: 확정
 > **태그**: erd, db, schema, auth, invitation
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
 > **기준 문서**: ERD 초안 v1.4, 기능 분해표 v3.0, API 명세서 v2.0, 보류 기능 최종표 v1.0
@@ -17,6 +17,8 @@
 ## 0. DB schema 관리 기준
 
 Threadia Sprint 1 개발 단계에서는 Flyway/Liquibase migration tool을 사용하지 않는다. `docs/03-design/ERD.md`는 schema 설계 기준이고, `db/schema.sql`은 MySQL 8.4 local DB 생성 기준이다.
+
+2026-07-04 기준 ERD 검토는 완료됐고, 현재 개발은 이 문서와 `db/schema.sql`을 기준으로 진행한다. 이후 ERD나 schema가 바뀌면 `docs/07-decisions/DB-schema-변경이력.md`와 `docs/07-decisions/기획문서-변경이력.md`에 의미 변경을 기록한다.
 
 Spring Boot JPA Entity는 DB를 자동 생성하거나 수정하는 기준이 아니라, `db/schema.sql`로 생성된 schema와 mapping이 맞는지 검증하는 기준으로 사용한다. DB schema 변경 이력은 `docs/07-decisions/DB-schema-변경이력.md`에 기록한다.
 
@@ -47,15 +49,15 @@ Spring Boot JPA Entity는 DB를 자동 생성하거나 수정하는 기준이 �
 | 인증 | `oauth_accounts` | 소셜 로그인 계정 연결 | Sprint 1 확정 |
 | 인증 | `password_reset_tokens` | 비밀번호 재설정 token | Sprint 1 확정 |
 | 인증 | `refresh_tokens` | JWT refresh token hash, 만료, rotation, revoke 상태 | Sprint 1 확정 |
-| 회사 | `companies` | 회사 workspace | MVP reference, Sprint 1 구현 제외 |
-| 회사 | `departments` | 회사 하위 부서 | MVP reference, Sprint 1 구현 제외 |
-| 회사 | `company_members` | User-Company 소속 및 권한 | MVP reference, Sprint 1 구현 제외 |
-| 초대 | `invitations` | 등록 사용자 대상 회사 초대 요청과 상태. 프로젝트 초대는 Sprint 2 reference | Sprint 1.5(company), Sprint 2(project) |
-| 프로젝트 | `projects` | 회사 하위 프로젝트 | MVP reference, Sprint 1 구현 제외 |
-| 프로젝트 | `project_members` | User-Project 소속 및 권한 | MVP reference, Sprint 1 구현 제외 |
-| Sprint | `sprints` | Sprint 목표/기간/상태 | MVP |
-| 이슈 | `issues` | 칸반 카드/업무 단위 | MVP |
-| 이슈 | `issue_status_history` | 이슈 상태 변경 이력 | MVP |
+| 회사 | `companies` | 회사 workspace | Sprint 2 WBS 기준 개발 대상 |
+| 회사 | `departments` | 회사 하위 부서 | Sprint 2 WBS 기준 개발 대상 |
+| 회사 | `company_members` | User-Company 소속 및 권한 | Sprint 2 WBS 기준 개발 대상 |
+| 초대 | `invitations` | 등록 사용자 대상 회사 초대 요청과 상태. 프로젝트 초대는 Backlog reference | Sprint 1.5(company), Backlog(project) |
+| 프로젝트 | `projects` | 회사 하위 프로젝트 | Sprint 2 WBS 기준 개발 대상 |
+| 프로젝트 | `project_members` | User-Project 소속 및 권한 | Sprint 2 WBS 기준 개발 대상 |
+| Sprint | `sprints` | Sprint 목표/기간/상태 | Backlog |
+| 이슈 | `issues` | 칸반 카드/업무 단위 | Sprint 2 candidate |
+| 이슈 | `issue_status_history` | 이슈 상태 변경 이력 | Sprint 2 candidate |
 | 문서 | `documents` | Markdown 문서 및 회의록 | MVP |
 | 문서 | `document_issue_links` | 문서와 이슈 양방향 연결 | MVP |
 | 채팅 | `messages` | 프로젝트 채팅 메시지 | MVP |
