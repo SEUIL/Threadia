@@ -7,10 +7,15 @@
  * 제외한 모든 (app) 화면에 적용된다.
  *
  * 배경: 기존 AppShell의 "항상 펼쳐진 사이드바 + 고정 상단바" 조합을 hover 시에만
- * 펼쳐지는 아이콘 레일 + 상단바 제거 + 하단 플로팅 커맨드바로 전면 교체했다.
- * 실험 과정과 근거는
+ * 펼쳐지는 아이콘 레일 + 상단바 제거로 전면 교체했다. 실험 과정과 근거는
  * docs/08-members/member-정철진/기술-연구/레이아웃-구조-실험-레일-그래프-조합.md
  * 참고.
+ *
+ * ⚠️ 처음엔 알림/DM/아바타/로그아웃을 담은 별도 하단 플로팅 커맨드바를 뒀는데,
+ * 화면 콘텐츠 위에 항상 떠 있어서 화면마다 겹치는 부분이 계속 나왔다
+ * (2026-07-06). 알림/DM은 이미 레일 nav에도 있던 중복이라, 커맨드바를 없애고
+ * 아바타/로그아웃만 레일 하단(`mt-auto`)으로 옮겼다 — 레일은 항상 고정된 좁은
+ * 컬럼이라 콘텐츠와 겹칠 여지 자체가 없다.
  *
  * 적용 위치: app/(app)/[companyId]/layout.tsx 에서만 감싼다. hub, invitations는
  * [companyId] 밖에 있어서 영향을 받지 않는다(허브는 자체 3D 오버레이 유지).
@@ -22,6 +27,7 @@ import Link from "next/link";
 import { usePathname, useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { PageTransition } from "./PageTransition";
 
 type Role = "A" | "P" | "C";
 
@@ -105,7 +111,15 @@ type NavItem = { href: string; label: string; icon: React.ReactNode; badge?: num
 
 function Rail({ companyId }: { companyId: string }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
+  const nickname = user?.nickname ?? "";
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/login");
+  };
 
   const items: NavItem[] = [
     { href: `/${companyId}/projects`, label: "프로젝트", icon: <FolderIcon /> },
@@ -153,9 +167,27 @@ function Rail({ companyId }: { companyId: string }) {
         );
       })}
 
+      {/* 아바타/로그아웃 — 레일 하단에 고정. 콘텐츠 위에 뜨지 않아 화면과 겹칠 일이 없다 */}
+      <div className="mt-auto flex flex-col items-center gap-2">
+        <span
+          title={nickname}
+          className="flex h-8 w-8 items-center justify-center rounded-full avatar-ring text-xs font-semibold text-chrome-foreground"
+        >
+          {nickname.slice(0, 1)}
+        </span>
+        <button
+          type="button"
+          onClick={handleLogout}
+          title="로그아웃"
+          className="grid h-9 w-9 place-items-center rounded-lg text-chrome-muted transition-colors duration-fast hover:bg-chrome-hover hover:text-chrome-foreground"
+        >
+          <LogoutIcon />
+        </button>
+      </div>
+
       {/* 플라이아웃 — hover 시 확장, 레이아웃을 밀지 않고 위에 뜬다 */}
       <div
-        className="absolute left-16 top-0 h-full w-56 origin-left rounded-r-2xl bg-chrome py-4 shadow-xl transition-all duration-normal ease-out"
+        className="absolute left-16 top-0 flex h-full w-56 origin-left flex-col rounded-r-2xl bg-chrome py-4 shadow-xl transition-all duration-normal ease-out"
         style={{
           transform: open ? "scaleX(1)" : "scaleX(0)",
           opacity: open ? 1 : 0,
@@ -188,58 +220,22 @@ function Rail({ companyId }: { companyId: string }) {
             </Link>
           );
         })}
-      </div>
-    </div>
-  );
-}
 
-function FloatingCommandBar({ companyId }: { companyId: string }) {
-  const { user, logout } = useAuth();
-  const router = useRouter();
-  const nickname = user?.nickname ?? "";
-
-  const handleLogout = async () => {
-    await logout();
-    router.push("/login");
-  };
-
-  return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-5 z-sticky flex justify-center px-4">
-      <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-chrome px-2 py-2 shadow-xl">
-        <Link
-          href={`/${companyId}/notifications`}
-          title="알림"
-          className="relative grid h-9 w-9 place-items-center rounded-full text-chrome-muted transition-colors duration-fast hover:bg-chrome-hover hover:text-chrome-foreground"
-        >
-          <BellIcon />
-          <Badge count={MOCK_NOTIFICATION_COUNT} />
-        </Link>
-        <Link
-          href={`/${companyId}/dm`}
-          title="채팅·DM"
-          className="relative grid h-9 w-9 place-items-center rounded-full text-chrome-muted transition-colors duration-fast hover:bg-chrome-hover hover:text-chrome-foreground"
-        >
-          <ChatIcon />
-          <Badge count={MOCK_DM_UNREAD_COUNT} />
-        </Link>
-
-        <span className="mx-1 h-6 w-px bg-chrome-foreground/15" aria-hidden="true" />
-
-        <div className="flex items-center gap-2 px-1">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full avatar-ring text-xs font-semibold text-chrome-foreground">
+        {/* 플라이아웃 하단에도 아바타/닉네임/로그아웃 표시 */}
+        <div className="mt-auto flex items-center gap-2 border-t border-chrome-foreground/10 px-4 pt-3">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full avatar-ring text-xs font-semibold text-chrome-foreground">
             {nickname.slice(0, 1)}
           </span>
-          <span className="hidden text-sm font-medium text-chrome-foreground sm:inline">{nickname}</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-chrome-foreground">{nickname}</span>
+          <button
+            type="button"
+            onClick={handleLogout}
+            title="로그아웃"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-chrome-muted transition-colors duration-fast hover:bg-chrome-hover hover:text-chrome-foreground"
+          >
+            <LogoutIcon />
+          </button>
         </div>
-
-        <button
-          type="button"
-          onClick={handleLogout}
-          title="로그아웃"
-          className="grid h-9 w-9 place-items-center rounded-full text-chrome-muted transition-colors duration-fast hover:bg-chrome-hover hover:text-chrome-foreground"
-        >
-          <LogoutIcon />
-        </button>
       </div>
     </div>
   );
@@ -252,8 +248,9 @@ export function RailShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen overflow-hidden">
       <Rail companyId={companyId} />
-      <main className="min-h-0 min-w-0 flex-1 overflow-y-auto pb-24">{children}</main>
-      <FloatingCommandBar companyId={companyId} />
+      <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+        <PageTransition>{children}</PageTransition>
+      </main>
     </div>
   );
 }

@@ -17,7 +17,7 @@
  * 연동 전까지는 서로 동기화되지 않는다 — 기존 docs/messages 관계와 동일한
  * 제약이다.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -46,6 +46,84 @@ export default function ProjectGraphPage() {
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [activeKinds, setActiveKinds] = useState<NodeKind[]>(ALL_KINDS);
   const [query, setQuery] = useState("");
+
+  // 캔버스를 스크롤바 대신 드래그(pan)로 이동하고, 휠로 확대/축소한다. 빈
+  // 캔버스 영역에서 mousedown이 시작된 경우에만 pan하고, 노드 카드 위에서
+  // 시작되면 노드 자체를 드래그해서 옮길 수 있다(따로 아래 onNodeMouseDown).
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [scale, setScale] = useState(1);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStart = useRef<{ x: number; y: number } | null>(null);
+  const canvasSurfaceRef = useRef<HTMLDivElement | null>(null);
+
+  // 노드별 위치 — layoutColumn() 계산값으로 초기화한 뒤, 드래그로 옮기면
+  // 여기 override된 값을 우선 사용한다.
+  const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
+  const draggingNode = useRef<{
+    id: string;
+    startX: number;
+    startY: number;
+    origX: number;
+    origY: number;
+    moved: boolean;
+  } | null>(null);
+
+  const onCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target !== canvasSurfaceRef.current) return; // 노드 카드 위에서는 pan 시작 안 함
+    dragStart.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+    setIsDragging(true);
+  };
+  const onCanvasMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (draggingNode.current) {
+      const dn = draggingNode.current;
+      const dx = (e.clientX - dn.startX) / scale;
+      const dy = (e.clientY - dn.startY) / scale;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dn.moved = true;
+      setPositions((prev) => ({ ...prev, [dn.id]: { x: dn.origX + dx, y: dn.origY + dy } }));
+      return;
+    }
+    if (!dragStart.current) return;
+    setPan({ x: e.clientX - dragStart.current.x, y: e.clientY - dragStart.current.y });
+  };
+  const stopDragging = () => {
+    dragStart.current = null;
+    setIsDragging(false);
+    if (draggingNode.current) {
+      const dn = draggingNode.current;
+      draggingNode.current = null;
+      if (!dn.moved) {
+        const node = findNode(dn.id);
+        if (node) setSelectedNode(node);
+      }
+    }
+  };
+
+  const onNodeMouseDown = (e: React.MouseEvent, node: GraphNode) => {
+    e.stopPropagation(); // 캔버스 pan이 같이 시작되지 않도록
+    const pos = positions[node.id] ?? { x: node.x, y: node.y };
+    draggingNode.current = {
+      id: node.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: pos.x,
+      origY: pos.y,
+      moved: false,
+    };
+  };
+
+  // 마우스 커서가 가리키는 지점을 고정한 채 확대/축소한다.
+  const onCanvasWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const cursorX = e.clientX - rect.left;
+    const cursorY = e.clientY - rect.top;
+    const canvasX = (cursorX - pan.x) / scale;
+    const canvasY = (cursorY - pan.y) / scale;
+
+    const nextScale = Math.min(2, Math.max(0.4, scale + (e.deltaY > 0 ? -0.1 : 0.1)));
+    setPan({ x: cursorX - canvasX * nextScale, y: cursorY - canvasY * nextScale });
+    setScale(nextScale);
+  };
 
   // 노드 배치: 문서/이슈/채팅 각각 layoutColumn()으로 자동 배치.
   const { nodes: allNodes, edges: allEdges } = useMemo(() => {
@@ -101,8 +179,33 @@ export default function ProjectGraphPage() {
 
   const findNode = (id: string) => allNodes.find((n) => n.id === id);
 
+  // 드래그로 옮긴 적 없는 노드는 layoutColumn() 계산 위치를 그대로 쓴다.
+  const getPos = (node: GraphNode) => positions[node.id] ?? { x: node.x, y: node.y };
+
+  useEffect(() => {
+    setPositions((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const n of allNodes) {
+        if (!next[n.id]) {
+          next[n.id] = { x: n.x, y: n.y };
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [allNodes]);
+
   const toggleKind = (kind: NodeKind) =>
     setActiveKinds((prev) => (prev.includes(kind) ? prev.filter((k) => k !== kind) : [...prev, kind]));
+
+  // 드래그로 옮긴 위치를 전부 지워서 layoutColumn() 계산 위치로 되돌리고,
+  // pan/zoom도 기본값으로 리셋한다.
+  const resetLayout = () => {
+    setPositions({});
+    setPan({ x: 0, y: 0 });
+    setScale(1);
+  };
 
   return (
     <div className="flex h-full flex-col px-6 py-6">
@@ -138,22 +241,41 @@ export default function ProjectGraphPage() {
           placeholder="제목/이름으로 검색"
           className="ml-auto w-56 rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-foreground placeholder-placeholder outline-none focus:border-ring"
         />
+        <button
+          onClick={resetLayout}
+          title="드래그로 옮긴 위치와 확대/축소를 초기 배치로 되돌립니다"
+          className="shrink-0 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-muted transition-colors duration-fast hover:text-foreground"
+        >
+          자동 정렬
+        </button>
       </div>
 
       {/* 캔버스 — 화면 전체를 채우는 메인 그래프. 카드형 노드 + 점선 연결 */}
       <div className="mt-4 flex min-h-0 flex-1 gap-4">
         <div
-          className="relative min-h-0 flex-1 overflow-auto rounded-xl border border-border"
+          className="relative min-h-0 flex-1 select-none overflow-hidden rounded-xl border border-border"
           style={{
             backgroundImage:
               "radial-gradient(circle at 1px 1px, var(--color-border) 1px, transparent 0)",
             backgroundSize: "22px 22px",
             backgroundColor: "var(--color-surface)",
+            cursor: isDragging ? "grabbing" : "grab",
           }}
+          onMouseDown={onCanvasMouseDown}
+          onMouseMove={onCanvasMouseMove}
+          onMouseUp={stopDragging}
+          onMouseLeave={stopDragging}
+          onWheel={onCanvasWheel}
         >
           <div
-            className="relative"
-            style={{ width: GRAPH_CANVAS_WIDTH, height: GRAPH_CANVAS_HEIGHT }}
+            ref={canvasSurfaceRef}
+            className="absolute"
+            style={{
+              width: GRAPH_CANVAS_WIDTH,
+              height: GRAPH_CANVAS_HEIGHT,
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
+              transformOrigin: "0 0",
+            }}
           >
             <svg
               className="pointer-events-none absolute inset-0"
@@ -164,13 +286,15 @@ export default function ProjectGraphPage() {
                 const from = findNode(edge.from);
                 const to = findNode(edge.to);
                 if (!from || !to) return null;
+                const fromPos = getPos(from);
+                const toPos = getPos(to);
                 return (
                   <line
                     key={i}
-                    x1={from.x + CARD_WIDTH / 2}
-                    y1={from.y + CARD_ANCHOR_Y}
-                    x2={to.x + CARD_WIDTH / 2}
-                    y2={to.y + CARD_ANCHOR_Y}
+                    x1={fromPos.x + CARD_WIDTH / 2}
+                    y1={fromPos.y + CARD_ANCHOR_Y}
+                    x2={toPos.x + CARD_WIDTH / 2}
+                    y2={toPos.y + CARD_ANCHOR_Y}
                     stroke="var(--color-accent)"
                     strokeWidth={1.5}
                     strokeOpacity={0.35}
@@ -180,24 +304,32 @@ export default function ProjectGraphPage() {
               })}
             </svg>
 
-            {nodes.map((node) => (
-              <button
-                key={node.id}
-                onClick={() => setSelectedNode(node)}
-                className={
-                  "absolute rounded-xl border border-border bg-surface p-3 text-left shadow-sm transition hover:shadow-md " +
-                  (selectedNode?.id === node.id ? "ring-2 " + KIND_RING_CLASS[node.kind] : "")
-                }
-                style={{ left: node.x, top: node.y, width: CARD_WIDTH }}
-              >
-                <span
-                  className={"rounded-full px-2 py-0.5 text-[10px] font-bold " + KIND_CHIP_CLASS[node.kind]}
+            {nodes.map((node) => {
+              const pos = getPos(node);
+              return (
+                <div
+                  key={node.id}
+                  role="button"
+                  tabIndex={0}
+                  onMouseDown={(e) => onNodeMouseDown(e, node)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") setSelectedNode(node);
+                  }}
+                  className={
+                    "absolute cursor-grab rounded-xl border border-border bg-surface p-3 text-left shadow-sm transition hover:shadow-md active:cursor-grabbing " +
+                    (selectedNode?.id === node.id ? "ring-2 " + KIND_RING_CLASS[node.kind] : "")
+                  }
+                  style={{ left: pos.x, top: pos.y, width: CARD_WIDTH }}
                 >
-                  {KIND_LABEL[node.kind]}
-                </span>
-                <p className="mt-2 truncate text-xs font-semibold text-foreground">{node.label}</p>
-              </button>
-            ))}
+                  <span
+                    className={"rounded-full px-2 py-0.5 text-[10px] font-bold " + KIND_CHIP_CLASS[node.kind]}
+                  >
+                    {KIND_LABEL[node.kind]}
+                  </span>
+                  <p className="mt-2 truncate text-xs font-semibold text-foreground">{node.label}</p>
+                </div>
+              );
+            })}
 
             {nodes.length === 0 && (
               <p className="absolute inset-0 grid place-items-center text-xs text-muted">
