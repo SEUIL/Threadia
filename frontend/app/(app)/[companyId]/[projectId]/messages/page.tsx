@@ -65,7 +65,7 @@ export default function ProjectMessagesPage() {
   };
 
   return (
-    <div className="mx-auto flex h-screen max-w-2xl flex-col px-6 py-6">
+    <div className="mx-auto flex h-full max-w-2xl flex-col px-6 py-6">
       <div className="border-b border-border pb-4">
         <Link
           href={`/${params.companyId}/projects`}
