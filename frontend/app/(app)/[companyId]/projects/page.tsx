@@ -178,7 +178,7 @@ export default function ProjectsPage() {
         {visibleProjects.map((project) => (
           <Link
             key={project.id}
-            href={`/${companyId}/${project.id}/board`}
+            href={`/${companyId}/${project.id}/graph`}
             className="flex flex-col gap-3 rounded-xl bg-surface p-5 shadow-sm transition-all duration-fast hover:-translate-y-0.5 hover:bg-primary-subtle hover:shadow-md"
           >
             <div className="flex items-start justify-between">
