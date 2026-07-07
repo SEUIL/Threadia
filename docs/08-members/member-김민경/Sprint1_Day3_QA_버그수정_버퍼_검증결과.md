@@ -1,3 +1,10 @@
+> **작성자**: 김민경
+> **작성일**: 2026-07-05
+> **최종 수정**: 2026-07-07
+> **버전**: v1.2
+> **상태**: 완료
+> **태그**: sprint-1, qa, auth, frontend, build
+
 # Sprint 1 Day 3 QA - 버그 수정 / 버퍼 검증 결과
 
 ## 작업 식별
@@ -10,7 +17,7 @@
 - 산출물: 통합 테스트 발견 이슈 수정 결과
 - 담당자: 김민경
 - Reviewer: 여도현
-- 진행 상태: 진행중 50%
+- 진행 상태: 완료
 - 우선순위: P1
 - 기준 문서: sprint-1-상세계획 105~113, sprint-1-역할분담 66~72
 - 비고: Sprint 1 압축 일정. 치명 이슈만 당일 수정하고 나머지는 backlog/이슈로 이월
@@ -141,6 +148,34 @@ Frontend 담당자 또는 해당 PR 작성자가 아래 항목을 확인하는 �
 - 수정 후 `npm.cmd run lint` 재실행
 - 수정 후 `npm.cmd run build` 재실행
 
+
+## Frontend 수정 반영
+
+1.5.2 완료를 막던 production build blocker 1건을 수정했다.
+
+| 항목 | 내용 |
+|---|---|
+| 수정 파일 | `frontend/app/(app)/[companyId]/[projectId]/backlog/page.tsx` |
+| 원인 | `const MOCK_ROLE: Role = "C"`가 `"C"` 리터럴 타입으로 좁혀져 `MOCK_ROLE === "P"` 비교가 TypeScript 오류로 처리됨 |
+| 수정 내용 | `getMockRole(): Role` helper를 추가하고 `const MOCK_ROLE = getMockRole()` 형태로 변경해 `MOCK_ROLE`이 `"C"` 리터럴로 고정 추론되지 않게 함 |
+| 영향 범위 | 스프린트 생성/시작/종료 버튼 노출 조건(`canManageSprint`)의 기존 런타임 동작은 유지하고, TypeScript build 오류만 해소 |
+| 재검증 | `npm.cmd run build` 실행 결과 성공 |
+
+실행 명령:
+
+```powershell
+cd C:\Users\user\Desktop\Threadia\frontend
+npm.cmd run build
+```
+
+결과:
+
+- Next.js production build 성공
+- TypeScript 단계 통과
+- 기존 build blocker였던 `frontend/app/(app)/[companyId]/[projectId]/backlog/page.tsx:50:25` 오류 해결
+- `members/page.tsx`, `notifications/page.tsx`의 lint warning 2건은 company/department/API 실제 연동 전 mock 잔여 코드 성격으로 판단하여 이번 build blocker 수정 범위에서는 제외하였다.
+
+
 ## 최종 판단
 
 Sprint 1 Day 3 QA / 버그 수정·버퍼 기준으로 다음과 같이 기록한다.
@@ -148,6 +183,6 @@ Sprint 1 Day 3 QA / 버그 수정·버퍼 기준으로 다음과 같이 기록�
 - Backend Auth 통합 테스트는 통과했다.
 - Backend에서 즉시 수정해야 할 이슈는 발견되지 않았다.
 - Frontend lint는 warning 2건이 있으나 error는 없다.
-- Frontend production build는 TypeScript type check에서 실패했다.
-- build 실패는 Day 3 QA에서 확인된 이슈로 기록하고, Frontend 담당 범위에서 수정 후 재검증이 필요하다.
-- 현재 시점에는 코드 수정 없이 검증 결과만 문서화했다.
+- Frontend production build를 차단하던 backlog/page.tsx TypeScript 오류는 수정했고, npm.cmd run build 재검증이 통과했다.
+- 남은 lint warning 2건은 build 차단 이슈가 아니며, Sprint 2 company/department/API 실제 연동 또는 별도 품질 정리에서 처리한다.
+- 이 문서는 QA evidence와 build blocker 수정 evidence로 유지한다.
