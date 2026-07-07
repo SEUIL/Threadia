@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.threadia.backend.auth.controller.AuthController;
 import com.threadia.backend.auth.dto.SignupData;
 import com.threadia.backend.auth.service.AuthService;
+import com.threadia.backend.auth.service.PasswordResetService;
 import com.threadia.backend.common.auth.UserResponse;
 
 /**
@@ -40,6 +41,9 @@ class CorsConfigTest {
 
 	@MockitoBean
 	private AuthService authService;
+
+	@MockitoBean
+	private PasswordResetService passwordResetService;
 
 	@Test
 	void 허용된_origin의_preflight_요청은_CORS_헤더와_함께_통과한다() throws Exception {

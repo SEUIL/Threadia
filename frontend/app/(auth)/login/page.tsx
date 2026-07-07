@@ -2,21 +2,53 @@
 
 /*
  * 로그인 화면 — app/(auth)/login/page.tsx
- *
- * TODO (Day 4):
- *   - react-hook-form + zod 연결
- *   - authService.login() 호출 및 에러 처리
- *   - 성공 시 /hub 로 router.push
- *   - Google OAuth: window.location.href = 'http://localhost:8080/api/v1/auth/oauth2/callback/google'
  */
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { isAxiosError } from "axios";
 import Link from "next/link";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { TextField } from "@/components/ui/TextField";
 import { PasswordField } from "@/components/ui/PasswordField";
 import { Button } from "@/components/ui/Button";
+import { useAuth } from "@/contexts/AuthContext";
+import type { ApiError } from "@/types/auth.types";
+
+const loginSchema = z.object({
+  email: z.string().min(1, "이메일을 입력하세요").email("이메일 형식이 올바르지 않습니다"),
+  password: z.string().min(1, "비밀번호를 입력하세요"),
+});
+
+type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { login } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginFormValues>({ resolver: zodResolver(loginSchema) });
+
+  const onSubmit = async (values: LoginFormValues) => {
+    setError(null);
+    try {
+      await login(values.email, values.password);
+      router.push("/hub");
+    } catch (err) {
+      if (isAxiosError<ApiError>(err) && err.response) {
+        setError(err.response.data.error.message);
+      } else {
+        setError("로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      }
+    }
+  };
+
   return (
     <AuthCard>
 
@@ -26,8 +58,8 @@ export default function LoginPage() {
         <p className="mt-2 text-sm text-muted">Threadia에 오신 것을 환영합니다</p>
       </div>
 
-      {/* 폼 — Day 4에 react-hook-form 연결 */}
-      <form onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-5" noValidate>
+      {/* 폼 */}
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5" noValidate>
 
         {/* 이메일 */}
         <TextField
@@ -36,6 +68,8 @@ export default function LoginPage() {
           type="email"
           autoComplete="email"
           placeholder="example@threadia.com"
+          hint={errors.email?.message}
+          {...register("email")}
         />
 
         {/* 비밀번호 */}
@@ -44,18 +78,19 @@ export default function LoginPage() {
           label="비밀번호"
           autoComplete="current-password"
           placeholder="비밀번호를 입력하세요"
+          hint={errors.password?.message}
           labelRight={
             <Link href="/forgot-password" className="text-xs font-medium text-primary hover:text-primary-hover transition-colors duration-fast">
               비밀번호를 잊으셨나요?
             </Link>
           }
+          {...register("password")}
         />
 
-        {/* 에러 메시지 — Day 4 활성화 */}
-        {/* {error && <p className="text-sm text-destructive">{error}</p>} */}
+        {error && <p className="text-sm text-destructive">{error}</p>}
 
-        {/* 로그인 버튼 — Day 4에 loading 상태 연결 */}
-        <Button type="submit">로그인</Button>
+        {/* 로그인 버튼 */}
+        <Button type="submit" loading={isSubmitting}>로그인</Button>
       </form>
 
       {/* 구분선 */}
@@ -65,9 +100,12 @@ export default function LoginPage() {
         <div className="h-px flex-1 bg-border" />
       </div>
 
-      {/* Google OAuth 버튼 — Day 4에 onClick 연결 */}
+      {/* Google OAuth 버튼 */}
       <button
         type="button"
+        onClick={() => {
+          window.location.href = `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"}/oauth2/authorization/google`;
+        }}
         className="flex w-full items-center justify-center gap-3 rounded-lg border border-border bg-surface py-3 text-sm font-medium text-foreground transition-all duration-normal hover:border-ring hover:shadow-sm"
       >
         <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">

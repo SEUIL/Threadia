@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-07-02
-> **버전**: Auth cookie 계약 보강 v1
+> **최종 수정**: 2026-07-04
+> **버전**: OAuth handoff 구현 반영 v1
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -153,7 +153,7 @@ GET /api/v1/auth/oauth2/callback/{provider}
 - 이메일만 같다는 이유로 provider 계정을 기존 로컬 계정에 blind auto-link하지 않는다. 이미 로그인한 사용자가 명시적으로 연결하거나, provider의 이메일 검증을 신뢰할 수 있는 경우에만 같은 `users` 계정에 연결한다.
 - OAuth 계정 연결 판단에도 정규화된 이메일을 사용한다.
 - provider 식별자는 `oauth_accounts`에 저장한다.
-- callback 성공 시 `oauth_accounts`를 통해 `users`를 매핑하거나 생성한 뒤 이메일 로그인과 동일한 Threadia JWT access token과 refresh token pair를 발급한다. 다만 OAuth callback endpoint의 직접 HTTP 응답 shape는 이메일 login JSON 응답과 동일하다고 확정하지 않으며, browser redirect 후 access token 전달 방식은 `docs/05-architecture/프론트엔드-구조.md`에서 별도로 결정한다.
+- callback 성공 시 `oauth_accounts`를 통해 `users`를 매핑하거나 생성한 뒤 Threadia refresh token cookie를 `Set-Cookie`로 내려주고 frontend success URL(`/hub`)로 redirect한다. OAuth callback endpoint는 이메일 login처럼 JSON body로 access token을 반환하지 않으며, access token은 URL query/fragment에도 노출하지 않는다. Frontend는 redirect 후 `POST /api/v1/auth/refresh`를 호출해 HttpOnly refresh cookie 기반으로 access token과 user context를 복원한다.
 
 ### 3.3 비밀번호 재설정
 

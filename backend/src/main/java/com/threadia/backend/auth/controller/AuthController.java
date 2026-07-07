@@ -13,11 +13,15 @@ import org.springframework.web.bind.annotation.RestController;
 import com.threadia.backend.auth.dto.LoginData;
 import com.threadia.backend.auth.dto.LoginRequest;
 import com.threadia.backend.auth.dto.LogoutData;
+import com.threadia.backend.auth.dto.PasswordResetConfirmRequest;
+import com.threadia.backend.auth.dto.PasswordResetData;
+import com.threadia.backend.auth.dto.PasswordResetRequest;
 import com.threadia.backend.auth.dto.SignupData;
 import com.threadia.backend.auth.dto.SignupRequest;
 import com.threadia.backend.auth.service.AuthService;
 import com.threadia.backend.auth.service.LoginResult;
 import com.threadia.backend.auth.service.LogoutResult;
+import com.threadia.backend.auth.service.PasswordResetService;
 import com.threadia.backend.common.response.ApiResponse;
 import com.threadia.backend.config.jwt.JwtAuthenticationException;
 
@@ -45,9 +49,11 @@ public class AuthController {
 	private static final String BEARER_PREFIX = "Bearer ";
 
 	private final AuthService authService;
+	private final PasswordResetService passwordResetService;
 
-	public AuthController(AuthService authService) {
+	public AuthController(AuthService authService, PasswordResetService passwordResetService) {
 		this.authService = authService;
+		this.passwordResetService = passwordResetService;
 	}
 
 	// 이메일 회원가입. 성공 시 201 + 가입된 user 정보만 반환(토큰 미발급).
@@ -84,6 +90,20 @@ public class AuthController {
 		return ResponseEntity.ok()
 				.header(HttpHeaders.SET_COOKIE, result.clearCookie().toString())
 				.body(ApiResponse.of(result.data()));
+	}
+
+	@PostMapping("/password-reset/request")
+	public ResponseEntity<ApiResponse<PasswordResetData>> requestPasswordReset(
+			@Valid @RequestBody PasswordResetRequest request) {
+		PasswordResetData data = passwordResetService.request(request);
+		return ResponseEntity.ok(ApiResponse.of(data));
+	}
+
+	@PostMapping("/password-reset/confirm")
+	public ResponseEntity<ApiResponse<PasswordResetData>> confirmPasswordReset(
+			@Valid @RequestBody PasswordResetConfirmRequest request) {
+		PasswordResetData data = passwordResetService.confirm(request);
+		return ResponseEntity.ok(ApiResponse.of(data));
 	}
 
 	private static String extractAccessToken(String authorizationHeader) {

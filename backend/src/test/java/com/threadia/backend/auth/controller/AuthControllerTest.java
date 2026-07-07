@@ -27,6 +27,7 @@ import com.threadia.backend.auth.dto.LogoutData;
 import com.threadia.backend.auth.service.AuthService;
 import com.threadia.backend.auth.service.LoginResult;
 import com.threadia.backend.auth.service.LogoutResult;
+import com.threadia.backend.auth.service.PasswordResetService;
 import com.threadia.backend.common.auth.UserResponse;
 import com.threadia.backend.common.exception.AuthenticationFailedException;
 import com.threadia.backend.common.exception.EmailAlreadyExistsException;
@@ -41,6 +42,9 @@ class AuthControllerTest {
 
 	@MockitoBean
 	private AuthService authService;
+
+	@MockitoBean
+	private PasswordResetService passwordResetService;
 
 	@Test
 	void signup_성공시_201과_user_data를_반환한다() throws Exception {

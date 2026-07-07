@@ -153,21 +153,21 @@ export default function MembersPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
-      <div className="flex items-center justify-between">
+      <Link
+        href={`/${companyId}/settings`}
+        className="text-sm text-muted transition-colors duration-fast hover:text-primary"
+      >
+        ← 회사 관리
+      </Link>
+      <div className="mt-3 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">구성원·권한 관리</h1>
           <p className="mt-1 text-sm text-muted">회사 구성원을 초대하고 역할·부서를 관리합니다.</p>
         </div>
-        <Link
-          href={`/${companyId}/settings`}
-          className="rounded-md px-3 py-1.5 text-sm font-medium text-primary transition-colors duration-fast hover:bg-primary-subtle"
-        >
-          회사 관리로
-        </Link>
       </div>
 
       {/* 구성원 추가 */}
-      <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+      <section className="mt-6 rounded-xl border border-border bg-surface p-6">
         <h2 className="text-sm font-semibold text-foreground">구성원 추가</h2>
         <div className="mt-3 flex gap-2">
           <input
@@ -181,7 +181,7 @@ export default function MembersPage() {
           />
           <button
             onClick={lookupEmail}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast hover:bg-primary-hover"
+            className="rounded-lg btn-gradient px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast"
           >
             조회
           </button>
@@ -203,7 +203,7 @@ export default function MembersPage() {
               </button>
               <button
                 onClick={confirmInvite}
-                className="rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
+                className="rounded-md btn-gradient px-3 py-1.5 text-sm font-semibold text-primary-foreground"
               >
                 초대 보내기
               </button>
@@ -212,11 +212,11 @@ export default function MembersPage() {
         )}
 
         {invitations.length > 0 && (
-          <ul className="mt-4 flex flex-col gap-2">
+          <ul className="mt-4 divide-y divide-border">
             {invitations.map((inv) => (
               <li
                 key={inv.id}
-                className="flex items-center justify-between rounded-lg border border-border px-3 py-2"
+                className="flex items-center justify-between px-1 py-2.5"
               >
                 <span className="text-sm text-foreground">{inv.email}</span>
                 <div className="flex items-center gap-2">
@@ -239,7 +239,7 @@ export default function MembersPage() {
       </section>
 
       {/* 구성원 목록 */}
-      <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+      <section className="mt-6 rounded-xl border border-border bg-surface p-6">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-foreground">구성원 ({members.length})</h2>
           <input
@@ -251,14 +251,14 @@ export default function MembersPage() {
           />
         </div>
 
-        <ul className="mt-4 flex flex-col gap-2">
+        <ul className="mt-4 divide-y divide-border">
           {filteredMembers.map((member) => (
             <li
               key={member.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5"
+              className="flex flex-wrap items-center justify-between gap-3 px-1 py-3"
             >
               <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-on-primary">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full avatar-ring text-sm font-semibold">
                   {member.name.slice(0, 1)}
                 </span>
                 <div>

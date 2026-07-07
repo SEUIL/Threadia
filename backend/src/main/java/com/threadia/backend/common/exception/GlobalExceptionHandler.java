@@ -11,7 +11,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -55,10 +57,28 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ErrorResponse.of(body));
 	}
 
+	@ExceptionHandler(ForbiddenException.class)
+	public ResponseEntity<ErrorResponse> handleForbidden(ForbiddenException ex) {
+		ErrorBody body = ErrorBody.of("FORBIDDEN", ex.getMessage());
+		return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ErrorResponse.of(body));
+	}
+
 	// 요청 body가 비어있거나 JSON 형식이 깨진 경우(정의되지 않은 필드 포함) -> 400. 원인 메시지는 details에 담지 않는다(내부 파싱 정보 노출 금지).
 	@ExceptionHandler(HttpMessageNotReadableException.class)
 	public ResponseEntity<ErrorResponse> handleMessageNotReadable(HttpMessageNotReadableException ex) {
 		ErrorBody body = ErrorBody.of("VALIDATION_ERROR", "요청 형식이 올바르지 않습니다.");
+		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(body));
+	}
+
+	@ExceptionHandler(UserNotFoundException.class)
+	public ResponseEntity<ErrorResponse> handleUserNotFound(UserNotFoundException ex) {
+		ErrorBody body = ErrorBody.of("NOT_FOUND", ex.getMessage());
+		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of(body));
+	}
+
+	@ExceptionHandler(MissingServletRequestParameterException.class)
+	public ResponseEntity<ErrorResponse> handleMissingRequestParameter(MissingServletRequestParameterException ex) {
+		ErrorBody body = ErrorBody.of("VALIDATION_ERROR", "요청 파라미터가 누락되었습니다.");
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(body));
 	}
 
@@ -83,6 +103,14 @@ public class GlobalExceptionHandler {
 			}
 		}
 		return false;
+	}
+
+	// Content-Type이 컨트롤러가 소비 가능한 타입(application/json)이 아닌 경우 -> 415. 이 예외를 별도 처리하지
+	// 않으면 catch-all(Exception)로 흘러가 클라이언트 요청 오류(잘못된 Content-Type)가 500(서버 오류)로 응답된다.
+	@ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+	public ResponseEntity<ErrorResponse> handleUnsupportedMediaType(HttpMediaTypeNotSupportedException ex) {
+		ErrorBody body = ErrorBody.of("UNSUPPORTED_MEDIA_TYPE", "지원하지 않는 Content-Type입니다.");
+		return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).body(ErrorResponse.of(body));
 	}
 
 	// 위에서 처리하지 못한 나머지 예외는 500으로 통일하고, 원인은 log에만 남기고 응답에는 노출하지 않는다.
