@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-16
-> **최종 수정**: 2026-06-27
-> **버전**: 개발주간 DB정책 반영 v1
+> **최종 수정**: 2026-07-07
+> **버전**: Sprint 3 기준선 정합화 v1
 > **상태**: 확정
 > **태그**: dod, auth, sprint-1, db
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
@@ -182,11 +182,11 @@ Sprint 1.5 invitation 작업은 Sprint 1 Auth-only 범위와 분리해 판정한
 |---|---|
 | DB | `invitations` table과 `users`, `companies`, `company_members` 관계가 ERD와 일치한다. `projects`, `project_members`는 Sprint 2 reference로 둔다 |
 | 상태 | `PENDING`, `ACCEPTED`, `DECLINED`, `CANCELED`, `EXPIRED` 전이가 API와 화면 기준에 맞다 |
-| 생성 | 등록 사용자 exact email lookup 후 company invitation을 생성한다. lookup email은 `trim + lowercase`로 정규화한다. 프로젝트 invitation은 Sprint 2로 분리한다 |
-| Role | 회사 invitation은 `COMPANY_ADMIN` 또는 `MEMBER`만 허용한다. 프로젝트 invitation role은 Sprint 2에서 `PROJECT_ADMIN` 또는 `MEMBER`로 제한한다 |
+| 생성 | 등록 사용자 exact email lookup 후 company invitation을 생성한다. lookup email은 `trim + lowercase`로 정규화한다. 프로젝트 invitation은 현재 기준선에서 Sprint 3 `PROJECT-MEMBER-01~02` 후보로 분리한다 |
+| Role | 회사 invitation은 `COMPANY_ADMIN` 또는 `MEMBER`만 허용한다. 프로젝트 invitation role은 Sprint 3 `PROJECT-MEMBER-01~02` 후보에서 `PROJECT_ADMIN` 또는 `MEMBER`로 제한한다 |
 | Membership | Sprint 1.5에서는 accept 시점에만 회사 membership을 생성한다 |
 | 만료 | 기본 7일 `expiresAt`을 반환하고 read/accept/decline/cancel 시 lazy expiration을 확인한다. 서버 생성/만료 시각은 UTC로 저장하고 ISO-8601 UTC `Z`로 응답한다 |
-| 예외 | `ALREADY_COMPANY_MEMBER`, `INVITATION_ALREADY_PENDING`, `INVITATION_EXPIRED`, `INVITATION_CANCELED`를 공통 error 형식으로 반환한다. `ALREADY_PROJECT_MEMBER`는 Sprint 2 project invitation에서 처리한다 |
+| 예외 | `ALREADY_COMPANY_MEMBER`, `INVITATION_ALREADY_PENDING`, `INVITATION_EXPIRED`, `INVITATION_CANCELED`를 공통 error 형식으로 반환한다. `ALREADY_PROJECT_MEMBER`는 Sprint 3 project invitation 후보에서 처리한다 |
 | 알림 | invitation 관련 `notification_events`는 필요 시 내부 event 원장 기록을 남길 수 있으나 Sprint 1.5 완료 조건에는 포함하지 않는다. Push 알림, 별도 Invitation notification preference, S11 사용자 알림 UI 필수 구현은 제외한다. `activity_events`와 `notification_events`는 별도 원장으로 운영한다 |
 | Bootstrap/제외 범위 | Sprint 1.5 검증은 local/dev/demo seed 회사 1개와 `COMPANY_ADMIN` 1명을 사용한다. actual email sending, token link, 미가입 사용자 invitation, signup auto-accept, resend, `POST /api/v1/companies`, 필수 batch scheduler를 구현 완료 조건에 넣지 않는다 |
 | 검증 | invitation create/list/my invitations/accept/decline/cancel 정상과 실패 케이스를 curl 또는 Postman으로 확인한다 |
@@ -203,8 +203,8 @@ Sprint 1.5 invitation 작업은 Sprint 1 Auth-only 범위와 분리해 판정한
 
 1. Phase B는 Sprint 1.5의 등록 사용자 대상 app-internal invitation 정책을 반영한다.
 2. Sprint 1은 Auth-only이며 invitation을 구현하지 않는다.
-3. Sprint 1.5부터 회사 멤버 추가는 즉시 membership 생성이 아니라 `invitations` 생성과 대상자 accept 후 membership 생성으로 처리한다. 프로젝트 멤버 추가와 project invitation은 Sprint 2로 분리한다.
-4. Sprint 2는 project invitation, project membership 생성, actual invitee email sending, token link acceptance, unregistered onboarding, resend, email template, delivery failure handling, batch cleanup/operations의 후보 시점이며 확정 구현 commitment는 아니다.
+3. Sprint 1.5부터 회사 멤버 추가는 즉시 membership 생성이 아니라 `invitations` 생성과 대상자 accept 후 membership 생성으로 처리한다. 프로젝트 멤버 추가와 project invitation은 당시 Sprint 2 후보로 분리한 과거 결정 기록이며, 현재 기준선에서는 Sprint 3 `PROJECT-MEMBER-01~02` 후보로 다룬다.
+4. 당시 Sprint 2는 project invitation, project membership 생성, actual invitee email sending, token link acceptance, unregistered onboarding, resend, email template, delivery failure handling, batch cleanup/operations의 후보 시점이며 확정 구현 commitment는 아니었다. 현재 project invitation baseline은 Sprint 3 `PROJECT-MEMBER-01~02` 후보이고, `INVITE-01~04`는 company invitation 전용이다.
 
 ### invitation 공식 결정
 
