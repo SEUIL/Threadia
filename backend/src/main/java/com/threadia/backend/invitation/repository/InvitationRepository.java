@@ -16,7 +16,7 @@ import jakarta.persistence.LockModeType;
 
 public interface InvitationRepository extends JpaRepository<Invitation, Long> {
 
-	boolean existsByCompany_IdAndInvitee_IdAndScopeTypeAndStatus(
+	List<Invitation> findAllByCompany_IdAndInvitee_IdAndScopeTypeAndStatus(
 			Long companyId,
 			Long inviteeUserId,
 			InvitationScopeType scopeType,

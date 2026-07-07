@@ -82,8 +82,8 @@ public class CompanyInvitationService {
 		assertCompanyAdmin(companyId, requester.getId());
 		Company company = companyForUpdate(companyId);
 		User invitee = activeInvitee(request.inviteeUserId());
-		assertInviteeCanBeInvited(companyId, invitee.getId());
 		LocalDateTime now = LocalDateTime.now(clock);
+		assertInviteeCanBeInvited(companyId, invitee.getId(), now);
 		Invitation invitation = new Invitation(
 				company,
 				null,
@@ -138,6 +138,9 @@ public class CompanyInvitationService {
 				.findByCompany_IdAndUser_Id(invitation.getCompany().getId(), requester.getId());
 		if (existingMember.filter(member -> member.getStatus() == CompanyMemberStatus.ACTIVE).isPresent()) {
 			throw InvitationConflictException.alreadyCompanyMember();
+		}
+		if (existingMember.filter(member -> member.getStatus() == CompanyMemberStatus.SUSPENDED).isPresent()) {
+			throw InvitationConflictException.suspendedCompanyMember();
 		}
 		CompanyMemberRole role = CompanyMemberRole.valueOf(invitation.getRole());
 		boolean membershipCreated = existingMember.isEmpty();
@@ -261,18 +264,23 @@ public class CompanyInvitationService {
 				.orElseThrow(() -> new UserNotFoundException(String.valueOf(inviteeUserId)));
 	}
 
-	private void assertInviteeCanBeInvited(Long companyId, Long inviteeUserId) {
+	private void assertInviteeCanBeInvited(Long companyId, Long inviteeUserId, LocalDateTime now) {
 		if (companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(
 				companyId,
 				inviteeUserId,
 				CompanyMemberStatus.ACTIVE)) {
 			throw InvitationConflictException.alreadyCompanyMember();
 		}
-		if (invitationRepository.existsByCompany_IdAndInvitee_IdAndScopeTypeAndStatus(
-				companyId,
-				inviteeUserId,
-				InvitationScopeType.COMPANY,
-				InvitationStatus.PENDING)) {
+		boolean hasActivePendingInvitation = invitationRepository
+				.findAllByCompany_IdAndInvitee_IdAndScopeTypeAndStatus(
+						companyId,
+						inviteeUserId,
+						InvitationScopeType.COMPANY,
+						InvitationStatus.PENDING)
+				.stream()
+				.map(invitation -> expirePendingIfNeeded(invitation, now))
+				.anyMatch(invitation -> invitation.getStatus() == InvitationStatus.PENDING);
+		if (hasActivePendingInvitation) {
 			throw InvitationConflictException.alreadyPending();
 		}
 	}

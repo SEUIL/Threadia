@@ -17,6 +17,10 @@ public class InvitationConflictException extends RuntimeException {
 		return new InvitationConflictException("INVITATION_ALREADY_PENDING", "이미 대기 중인 초대가 있습니다.");
 	}
 
+	public static InvitationConflictException suspendedCompanyMember() {
+		return new InvitationConflictException("COMPANY_MEMBER_SUSPENDED", "정지된 회사 구성원은 초대 수락으로 복구할 수 없습니다.");
+	}
+
 	public static InvitationConflictException expired() {
 		return new InvitationConflictException("INVITATION_EXPIRED", "초대가 만료되었습니다.");
 	}

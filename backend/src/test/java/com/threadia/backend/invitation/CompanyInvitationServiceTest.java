@@ -88,8 +88,8 @@ class CompanyInvitationServiceTest {
 		when(userRepository.findById(2L)).thenReturn(Optional.of(invitee));
 		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE))
 				.thenReturn(false);
-		when(invitationRepository.existsByCompany_IdAndInvitee_IdAndScopeTypeAndStatus(
-				1L, 2L, InvitationScopeType.COMPANY, InvitationStatus.PENDING)).thenReturn(false);
+		when(invitationRepository.findAllByCompany_IdAndInvitee_IdAndScopeTypeAndStatus(
+				1L, 2L, InvitationScopeType.COMPANY, InvitationStatus.PENDING)).thenReturn(List.of());
 		when(invitationRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> {
 			Invitation invitation = invocation.getArgument(0);
 			setId(invitation, 10L);
@@ -247,13 +247,43 @@ class CompanyInvitationServiceTest {
 		when(userRepository.findById(2L)).thenReturn(Optional.of(invitee));
 		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE))
 				.thenReturn(false);
-		when(invitationRepository.existsByCompany_IdAndInvitee_IdAndScopeTypeAndStatus(
-				1L, 2L, InvitationScopeType.COMPANY, InvitationStatus.PENDING)).thenReturn(true);
+		Invitation pendingInvitation = invitation(10L, company, requester, invitee);
+		when(invitationRepository.findAllByCompany_IdAndInvitee_IdAndScopeTypeAndStatus(
+				1L, 2L, InvitationScopeType.COMPANY, InvitationStatus.PENDING)).thenReturn(List.of(pendingInvitation));
 
 		assertThatThrownBy(() -> companyInvitationService.create(
 				"valid-token", 1L, new CompanyInvitationRequest(2L, CompanyMemberRole.MEMBER)))
 				.isInstanceOf(InvitationConflictException.class)
 				.hasMessageContaining("이미 대기 중인 초대가 있습니다.");
+	}
+
+	@Test
+	void createCompanyInvitationExpiresStalePendingInvitationAndCreatesNewOne() {
+		User requester = user(1L, "admin@example.com", UserStatus.ACTIVE);
+		User invitee = user(2L, "member@example.com", UserStatus.ACTIVE);
+		Company company = company(1L, requester);
+		Invitation staleInvitation = invitation(10L, company, requester, invitee);
+		staleInvitation.setExpiresAt(LocalDateTime.now(FIXED_CLOCK).minusSeconds(1));
+		stubAuthorizedRequester(requester, company);
+		when(userRepository.findById(2L)).thenReturn(Optional.of(invitee));
+		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE))
+				.thenReturn(false);
+		when(invitationRepository.findAllByCompany_IdAndInvitee_IdAndScopeTypeAndStatus(
+				1L, 2L, InvitationScopeType.COMPANY, InvitationStatus.PENDING)).thenReturn(List.of(staleInvitation));
+		when(invitationRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> {
+			Invitation invitation = invocation.getArgument(0);
+			setId(invitation, 11L);
+			return invitation;
+		});
+
+		CompanyInvitationData data = companyInvitationService.create(
+				"valid-token",
+				1L,
+				new CompanyInvitationRequest(2L, CompanyMemberRole.MEMBER));
+
+		assertThat(staleInvitation.getStatus()).isEqualTo(InvitationStatus.EXPIRED);
+		assertThat(data.invitation().id()).isEqualTo(11L);
+		assertThat(data.invitation().status()).isEqualTo("PENDING");
 	}
 
 	@Test
@@ -265,8 +295,8 @@ class CompanyInvitationServiceTest {
 		when(userRepository.findById(2L)).thenReturn(Optional.of(invitee));
 		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE))
 				.thenReturn(false);
-		when(invitationRepository.existsByCompany_IdAndInvitee_IdAndScopeTypeAndStatus(
-				1L, 2L, InvitationScopeType.COMPANY, InvitationStatus.PENDING)).thenReturn(false);
+		when(invitationRepository.findAllByCompany_IdAndInvitee_IdAndScopeTypeAndStatus(
+				1L, 2L, InvitationScopeType.COMPANY, InvitationStatus.PENDING)).thenReturn(List.of());
 		when(invitationRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> {
 			Invitation invitation = invocation.getArgument(0);
 			setId(invitation, 11L);
@@ -437,6 +467,36 @@ class CompanyInvitationServiceTest {
 		assertThat(data.membershipCreated()).isFalse();
 		assertThat(inactiveMember.getStatus()).isEqualTo(CompanyMemberStatus.ACTIVE);
 		assertThat(inactiveMember.getJoinedAt()).isEqualTo(LocalDateTime.now(FIXED_CLOCK));
+		verify(companyMemberRepository, never()).save(org.mockito.ArgumentMatchers.any());
+	}
+
+	@Test
+	void acceptCompanyInvitationThrowsWhenExistingMembershipIsSuspended() {
+		User inviter = user(1L, "admin@example.com", UserStatus.ACTIVE);
+		User invitee = user(2L, "member@example.com", UserStatus.ACTIVE);
+		Company company = company(1L, inviter);
+		Invitation invitation = invitation(10L, company, inviter, invitee);
+		CompanyMember suspendedMember = new CompanyMember(
+				company,
+				invitee,
+				null,
+				CompanyMemberRole.MEMBER,
+				CompanyMemberStatus.SUSPENDED,
+				LocalDateTime.now(FIXED_CLOCK).minusDays(10),
+				LocalDateTime.now(FIXED_CLOCK).minusDays(10),
+				LocalDateTime.now(FIXED_CLOCK).minusDays(10));
+		when(jwtTokenService.parseAccessToken("valid-token"))
+				.thenReturn(new AuthenticatedUser(invitee.getId(), invitee.getEmail()));
+		when(userRepository.findById(invitee.getId())).thenReturn(Optional.of(invitee));
+		when(invitationRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(invitation));
+		when(companyMemberRepository.findByCompany_IdAndUser_Id(company.getId(), invitee.getId()))
+				.thenReturn(Optional.of(suspendedMember));
+
+		assertThatThrownBy(() -> companyInvitationService.accept("valid-token", 10L))
+				.isInstanceOf(InvitationConflictException.class)
+				.hasMessageContaining("정지된 회사 구성원은 초대 수락으로 복구할 수 없습니다.");
+		assertThat(suspendedMember.getStatus()).isEqualTo(CompanyMemberStatus.SUSPENDED);
+		assertThat(invitation.getStatus()).isEqualTo(InvitationStatus.PENDING);
 		verify(companyMemberRepository, never()).save(org.mockito.ArgumentMatchers.any());
 	}
 
