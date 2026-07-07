@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
 > **최종 수정**: 2026-07-07
-> **버전**: OAuth handoff 구현 반영 v1.1
+> **버전**: Sprint 1.5 invitation 표시 필드 보강 + Sprint 3 기준선 반영 v1.2
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -43,7 +43,7 @@
 }
 ```
 
-목록 응답은 `page`를 포함한다.
+pagination이 필요한 목록 응답은 `page`를 포함한다. endpoint별 응답 예시에서 `data.{resource}` wrapper를 명시한 소규모 scoped list는 해당 wrapper 계약을 따른다.
 
 ```json
 {
@@ -949,8 +949,14 @@ Response 201:
       "id": 501,
       "scopeType": "COMPANY",
       "companyId": 10,
+      "companyName": "Threadia",
       "projectId": null,
+      "inviterUserId": 1,
+      "inviterNickname": "초대자1",
       "inviteeUserId": 2,
+      "inviteeEmail": "member@threadia.com",
+      "inviteeNickname": "사용자1",
+      "role": "MEMBER",
       "status": "PENDING",
       "expiresAt": "2026-06-24T10:00:00Z"
     }
@@ -959,9 +965,38 @@ Response 201:
 }
 ```
 
+#### GET `/api/v1/companies/{companyId}/invitations`
+
+Response 200:
+
+```json
+{
+  "data": {
+    "invitations": [
+      {
+        "id": 501,
+        "scopeType": "COMPANY",
+        "companyId": 10,
+        "companyName": "Threadia",
+        "projectId": null,
+        "inviterUserId": 1,
+        "inviterNickname": "초대자1",
+        "inviteeUserId": 2,
+        "inviteeEmail": "member@threadia.com",
+        "inviteeNickname": "사용자1",
+        "role": "MEMBER",
+        "status": "PENDING",
+        "expiresAt": "2026-06-24T10:00:00Z"
+      }
+    ]
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
 #### Sprint 3 Candidate: POST `/api/v1/projects/{projectId}/invitations`
 
-> Sprint 1.5 구현 범위에서는 제외한다.
+> Sprint 1.5 구현 범위에서는 제외한다. 현재 기준선에서는 Sprint 3 `PROJECT-MEMBER-01~02` 후보로 둔다.
 
 Request Body:
 
@@ -981,8 +1016,14 @@ Response 201:
       "id": 601,
       "scopeType": "PROJECT",
       "companyId": 10,
+      "companyName": "Threadia",
       "projectId": 20,
+      "inviterUserId": 1,
+      "inviterNickname": "초대자1",
       "inviteeUserId": 2,
+      "inviteeEmail": "member@threadia.com",
+      "inviteeNickname": "사용자1",
+      "role": "MEMBER",
       "status": "PENDING",
       "expiresAt": "2026-06-24T10:00:00Z"
     }
@@ -997,20 +1038,30 @@ Response 200:
 
 ```json
 {
-  "data": [
-    {
-      "id": 501,
-      "scopeType": "COMPANY",
-      "companyId": 10,
-      "projectId": null,
-      "status": "PENDING",
-      "expiresAt": "2026-06-24T10:00:00Z"
-    }
-  ],
-  "page": { "cursor": null, "hasNext": false, "size": 20 },
+  "data": {
+    "invitations": [
+      {
+        "id": 501,
+        "scopeType": "COMPANY",
+        "companyId": 10,
+        "companyName": "Threadia",
+        "projectId": null,
+        "inviterUserId": 1,
+        "inviterNickname": "초대자1",
+        "inviteeUserId": 2,
+        "inviteeEmail": "member@threadia.com",
+        "inviteeNickname": "사용자1",
+        "role": "MEMBER",
+        "status": "PENDING",
+        "expiresAt": "2026-06-24T10:00:00Z"
+      }
+    ]
+  },
   "meta": { "requestId": "req_..." }
 }
 ```
+
+`companyName`, `inviterNickname`, `inviteeEmail`, `inviteeNickname`은 초대 화면 표시용 필드다. Action 처리와 권한 검증에는 `id`, `companyId`, `projectId`, `inviterUserId`, `inviteeUserId`를 사용한다.
 
 #### POST `/api/v1/invitations/{invitationId}/accept`
 
