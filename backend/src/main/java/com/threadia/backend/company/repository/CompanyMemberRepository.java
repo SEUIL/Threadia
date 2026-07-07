@@ -1,5 +1,7 @@
 package com.threadia.backend.company.repository;
 
+import java.util.Optional;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.threadia.backend.company.domain.CompanyMember;
@@ -15,4 +17,8 @@ public interface CompanyMemberRepository extends JpaRepository<CompanyMember, Lo
 			CompanyMemberStatus status);
 
 	boolean existsByCompany_IdAndUser_IdAndStatus(Long companyId, Long userId, CompanyMemberStatus status);
+
+	boolean existsByCompany_IdAndUser_Id(Long companyId, Long userId);
+
+	Optional<CompanyMember> findByCompany_IdAndUser_Id(Long companyId, Long userId);
 }

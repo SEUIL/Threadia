@@ -145,4 +145,11 @@ public class CompanyMember {
 	public void setUpdatedAt(LocalDateTime updatedAt) {
 		this.updatedAt = updatedAt;
 	}
+
+	public void activate(CompanyMemberRole role, LocalDateTime now) {
+		this.role = role;
+		this.status = CompanyMemberStatus.ACTIVE;
+		this.joinedAt = now;
+		this.updatedAt = now;
+	}
 }

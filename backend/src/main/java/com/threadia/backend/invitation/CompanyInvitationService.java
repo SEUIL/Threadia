@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import com.threadia.backend.common.exception.AuthenticationFailedException;
 import com.threadia.backend.common.exception.ForbiddenException;
 import com.threadia.backend.common.exception.UserNotFoundException;
 import com.threadia.backend.company.domain.Company;
+import com.threadia.backend.company.domain.CompanyMember;
 import com.threadia.backend.company.domain.CompanyMemberRole;
 import com.threadia.backend.company.domain.CompanyMemberStatus;
 import com.threadia.backend.company.repository.CompanyMemberRepository;
@@ -29,9 +31,11 @@ import com.threadia.backend.invitation.domain.InvitationStatus;
 import com.threadia.backend.invitation.dto.CompanyInvitationData;
 import com.threadia.backend.invitation.dto.CompanyInvitationRequest;
 import com.threadia.backend.invitation.dto.CompanyInvitationsData;
+import com.threadia.backend.invitation.dto.InvitationActionData;
 import com.threadia.backend.invitation.dto.InvitationResponse;
 import com.threadia.backend.invitation.exception.CompanyNotFoundException;
 import com.threadia.backend.invitation.exception.InvitationConflictException;
+import com.threadia.backend.invitation.exception.InvitationNotFoundException;
 import com.threadia.backend.invitation.repository.InvitationRepository;
 
 @Service
@@ -95,7 +99,7 @@ public class CompanyInvitationService {
 		return new CompanyInvitationData(toResponse(savedInvitation));
 	}
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public CompanyInvitationsData list(String accessToken, Long companyId) {
 		User requester = activeRequester(accessToken);
 		assertCompanyAdmin(companyId, requester.getId());
@@ -103,9 +107,83 @@ public class CompanyInvitationService {
 		List<InvitationResponse> invitations = invitationRepository
 				.findByCompany_IdAndScopeTypeOrderByCreatedAtDesc(companyId, InvitationScopeType.COMPANY)
 				.stream()
+				.map(this::expirePendingIfNeeded)
 				.map(CompanyInvitationService::toResponse)
 				.toList();
 		return new CompanyInvitationsData(invitations);
+	}
+
+	@Transactional
+	public CompanyInvitationsData listMine(String accessToken) {
+		User requester = activeRequester(accessToken);
+		List<InvitationResponse> invitations = invitationRepository
+				.findByInvitee_IdAndScopeTypeOrderByCreatedAtDesc(requester.getId(), InvitationScopeType.COMPANY)
+				.stream()
+				.map(this::expirePendingIfNeeded)
+				.map(CompanyInvitationService::toResponse)
+				.toList();
+		return new CompanyInvitationsData(invitations);
+	}
+
+	@Transactional(noRollbackFor = InvitationConflictException.class)
+	public InvitationActionData accept(String accessToken, Long invitationId) {
+		User requester = activeRequester(accessToken);
+		Invitation invitation = invitationForUpdate(invitationId);
+		assertCompanyInvitee(invitation, requester.getId());
+		assertPending(invitation);
+		LocalDateTime now = LocalDateTime.now(clock);
+		expirePendingIfNeeded(invitation, now);
+		assertPending(invitation);
+		Optional<CompanyMember> existingMember = companyMemberRepository
+				.findByCompany_IdAndUser_Id(invitation.getCompany().getId(), requester.getId());
+		if (existingMember.filter(member -> member.getStatus() == CompanyMemberStatus.ACTIVE).isPresent()) {
+			throw InvitationConflictException.alreadyCompanyMember();
+		}
+		CompanyMemberRole role = CompanyMemberRole.valueOf(invitation.getRole());
+		boolean membershipCreated = existingMember.isEmpty();
+		if (membershipCreated) {
+			CompanyMember member = new CompanyMember(
+					invitation.getCompany(),
+					requester,
+					null,
+					role,
+					CompanyMemberStatus.ACTIVE,
+					now,
+					now,
+					now);
+			companyMemberRepository.save(member);
+		} else {
+			existingMember.get().activate(role, now);
+		}
+		invitation.accept(now);
+		return new InvitationActionData(invitation.getId(), invitation.getStatus().name(), membershipCreated);
+	}
+
+	@Transactional(noRollbackFor = InvitationConflictException.class)
+	public InvitationActionData decline(String accessToken, Long invitationId) {
+		User requester = activeRequester(accessToken);
+		Invitation invitation = invitationForUpdate(invitationId);
+		assertCompanyInvitee(invitation, requester.getId());
+		assertPending(invitation);
+		LocalDateTime now = LocalDateTime.now(clock);
+		expirePendingIfNeeded(invitation, now);
+		assertPending(invitation);
+		invitation.decline(now);
+		return new InvitationActionData(invitation.getId(), invitation.getStatus().name(), false);
+	}
+
+	@Transactional(noRollbackFor = InvitationConflictException.class)
+	public InvitationActionData cancel(String accessToken, Long invitationId) {
+		User requester = activeRequester(accessToken);
+		Invitation invitation = invitationForUpdate(invitationId);
+		assertCompanyInvitation(invitation);
+		assertCompanyAdmin(invitation.getCompany().getId(), requester.getId());
+		assertPending(invitation);
+		LocalDateTime now = LocalDateTime.now(clock);
+		expirePendingIfNeeded(invitation, now);
+		assertPending(invitation);
+		invitation.cancel(now);
+		return new InvitationActionData(invitation.getId(), invitation.getStatus().name(), false);
 	}
 
 	private User activeRequester(String accessToken) {
@@ -134,6 +212,47 @@ public class CompanyInvitationService {
 		if (!companyAdmin) {
 			throw new ForbiddenException("회사 관리자 권한이 필요합니다.");
 		}
+	}
+
+	private Invitation invitationForUpdate(Long invitationId) {
+		return invitationRepository.findByIdForUpdate(invitationId)
+				.orElseThrow(() -> new InvitationNotFoundException(invitationId));
+	}
+
+	private void assertCompanyInvitee(Invitation invitation, Long requesterUserId) {
+		assertCompanyInvitation(invitation);
+		if (!invitation.getInvitee().getId().equals(requesterUserId)) {
+			throw new ForbiddenException("초대 대상자만 처리할 수 있습니다.");
+		}
+	}
+
+	private void assertCompanyInvitation(Invitation invitation) {
+		if (invitation.getScopeType() != InvitationScopeType.COMPANY) {
+			throw new ForbiddenException("회사 초대만 처리할 수 있습니다.");
+		}
+	}
+
+	private void assertPending(Invitation invitation) {
+		if (invitation.getStatus() == InvitationStatus.EXPIRED) {
+			throw InvitationConflictException.expired();
+		}
+		if (invitation.getStatus() == InvitationStatus.CANCELED) {
+			throw InvitationConflictException.canceled();
+		}
+		if (invitation.getStatus() != InvitationStatus.PENDING) {
+			throw InvitationConflictException.invalidStatus();
+		}
+	}
+
+	private Invitation expirePendingIfNeeded(Invitation invitation) {
+		return expirePendingIfNeeded(invitation, LocalDateTime.now(clock));
+	}
+
+	private Invitation expirePendingIfNeeded(Invitation invitation, LocalDateTime now) {
+		if (invitation.getStatus() == InvitationStatus.PENDING && !invitation.getExpiresAt().isAfter(now)) {
+			invitation.expire(now);
+		}
+		return invitation;
 	}
 
 	private User activeInvitee(Long inviteeUserId) {
