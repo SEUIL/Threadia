@@ -41,6 +41,11 @@ class InvitationControllerTest {
 					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.invitations[0].id").value(10))
+				.andExpect(jsonPath("$.data.invitations[0].companyName").value("Threadia"))
+				.andExpect(jsonPath("$.data.invitations[0].inviterUserId").value(1))
+				.andExpect(jsonPath("$.data.invitations[0].inviterNickname").value("admin"))
+				.andExpect(jsonPath("$.data.invitations[0].inviteeEmail").value("member@example.com"))
+				.andExpect(jsonPath("$.data.invitations[0].inviteeNickname").value("member"))
 				.andExpect(jsonPath("$.data.invitations[0].status").value("PENDING"));
 	}
 
@@ -123,8 +128,13 @@ class InvitationControllerTest {
 				id,
 				"COMPANY",
 				1L,
+				"Threadia",
 				null,
+				1L,
+				"admin",
 				2L,
+				"member@example.com",
+				"member",
 				"MEMBER",
 				status,
 				"2026-07-14T10:15:30Z");

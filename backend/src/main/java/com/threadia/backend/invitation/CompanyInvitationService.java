@@ -290,8 +290,13 @@ public class CompanyInvitationService {
 				invitation.getId(),
 				invitation.getScopeType().name(),
 				invitation.getCompany().getId(),
+				invitation.getCompany().getName(),
 				invitation.getProjectId(),
+				invitation.getInviter().getId(),
+				invitation.getInviter().getNickname(),
 				invitation.getInvitee().getId(),
+				invitation.getInvitee().getEmail(),
+				invitation.getInvitee().getNickname(),
 				invitation.getRole(),
 				invitation.getStatus().name(),
 				formatUtc(invitation.getExpiresAt()));

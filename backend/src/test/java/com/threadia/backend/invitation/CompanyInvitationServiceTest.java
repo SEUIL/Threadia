@@ -104,8 +104,13 @@ class CompanyInvitationServiceTest {
 		assertThat(data.invitation().id()).isEqualTo(10L);
 		assertThat(data.invitation().scopeType()).isEqualTo("COMPANY");
 		assertThat(data.invitation().companyId()).isEqualTo(1L);
+		assertThat(data.invitation().companyName()).isEqualTo("Threadia");
 		assertThat(data.invitation().projectId()).isNull();
+		assertThat(data.invitation().inviterUserId()).isEqualTo(1L);
+		assertThat(data.invitation().inviterNickname()).isEqualTo("admin@example.com");
 		assertThat(data.invitation().inviteeUserId()).isEqualTo(2L);
+		assertThat(data.invitation().inviteeEmail()).isEqualTo("member@example.com");
+		assertThat(data.invitation().inviteeNickname()).isEqualTo("member@example.com");
 		assertThat(data.invitation().status()).isEqualTo("PENDING");
 		assertThat(data.invitation().expiresAt()).isEqualTo("2026-07-14T10:15:30Z");
 		ArgumentCaptor<Invitation> invitationCaptor = ArgumentCaptor.forClass(Invitation.class);
@@ -136,7 +141,12 @@ class CompanyInvitationServiceTest {
 		assertThat(data.invitations()).hasSize(1);
 		assertThat(data.invitations().get(0).id()).isEqualTo(10L);
 		assertThat(data.invitations().get(0).scopeType()).isEqualTo("COMPANY");
+		assertThat(data.invitations().get(0).companyName()).isEqualTo("Threadia");
+		assertThat(data.invitations().get(0).inviterUserId()).isEqualTo(1L);
+		assertThat(data.invitations().get(0).inviterNickname()).isEqualTo("admin@example.com");
 		assertThat(data.invitations().get(0).inviteeUserId()).isEqualTo(2L);
+		assertThat(data.invitations().get(0).inviteeEmail()).isEqualTo("member@example.com");
+		assertThat(data.invitations().get(0).inviteeNickname()).isEqualTo("member@example.com");
 	}
 
 	@Test

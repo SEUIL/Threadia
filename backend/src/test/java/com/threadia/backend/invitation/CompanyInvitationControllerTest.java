@@ -54,8 +54,13 @@ class CompanyInvitationControllerTest {
 				.andExpect(jsonPath("$.data.invitation.id").value(10))
 				.andExpect(jsonPath("$.data.invitation.scopeType").value("COMPANY"))
 				.andExpect(jsonPath("$.data.invitation.companyId").value(1))
+				.andExpect(jsonPath("$.data.invitation.companyName").value("Threadia"))
 				.andExpect(jsonPath("$.data.invitation.projectId").isEmpty())
+				.andExpect(jsonPath("$.data.invitation.inviterUserId").value(1))
+				.andExpect(jsonPath("$.data.invitation.inviterNickname").value("admin"))
 				.andExpect(jsonPath("$.data.invitation.inviteeUserId").value(2))
+				.andExpect(jsonPath("$.data.invitation.inviteeEmail").value("member@example.com"))
+				.andExpect(jsonPath("$.data.invitation.inviteeNickname").value("member"))
 				.andExpect(jsonPath("$.data.invitation.status").value("PENDING"))
 				.andExpect(jsonPath("$.data.invitation.expiresAt").value("2026-07-14T10:15:30Z"))
 				.andExpect(jsonPath("$.meta.requestId").exists());
@@ -71,8 +76,13 @@ class CompanyInvitationControllerTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.invitations[0].id").value(10))
 				.andExpect(jsonPath("$.data.invitations[0].scopeType").value("COMPANY"))
+				.andExpect(jsonPath("$.data.invitations[0].companyName").value("Threadia"))
 				.andExpect(jsonPath("$.data.invitations[0].projectId").isEmpty())
+				.andExpect(jsonPath("$.data.invitations[0].inviterUserId").value(1))
+				.andExpect(jsonPath("$.data.invitations[0].inviterNickname").value("admin"))
 				.andExpect(jsonPath("$.data.invitations[0].inviteeUserId").value(2))
+				.andExpect(jsonPath("$.data.invitations[0].inviteeEmail").value("member@example.com"))
+				.andExpect(jsonPath("$.data.invitations[0].inviteeNickname").value("member"))
 				.andExpect(jsonPath("$.data.invitations[0].status").value("PENDING"));
 	}
 
@@ -220,8 +230,13 @@ class CompanyInvitationControllerTest {
 				id,
 				"COMPANY",
 				companyId,
+				"Threadia",
 				null,
+				1L,
+				"admin",
 				inviteeUserId,
+				"member@example.com",
+				"member",
 				role,
 				"PENDING",
 				"2026-07-14T10:15:30Z");
