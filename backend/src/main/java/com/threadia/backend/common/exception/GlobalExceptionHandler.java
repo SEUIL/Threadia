@@ -20,8 +20,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.threadia.backend.common.error.ErrorBody;
 import com.threadia.backend.common.error.ErrorResponse;
+import com.threadia.backend.company.exception.CompanyNotFoundException;
 import com.threadia.backend.config.jwt.JwtAuthenticationException;
-import com.threadia.backend.invitation.exception.CompanyNotFoundException;
 import com.threadia.backend.invitation.exception.InvitationConflictException;
 
 // 앱 전체 컨트롤러에서 발생한 예외를 공통 에러 응답 형식으로 변환한다.
@@ -79,8 +79,10 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of(body));
 	}
 
-	@ExceptionHandler(CompanyNotFoundException.class)
-	public ResponseEntity<ErrorResponse> handleCompanyNotFound(CompanyNotFoundException ex) {
+	@ExceptionHandler({
+			CompanyNotFoundException.class,
+			com.threadia.backend.invitation.exception.CompanyNotFoundException.class})
+	public ResponseEntity<ErrorResponse> handleCompanyNotFound(RuntimeException ex) {
 		ErrorBody body = ErrorBody.of("NOT_FOUND", ex.getMessage());
 		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of(body));
 	}
