@@ -73,5 +73,6 @@ Sprint 1 기간 중 발견했으나 Sprint 1 범위에서 즉시 처리하지 �
 | 공통 axios interceptor의 401 처리 | 로그인 실패/비밀번호 재설정 token 실패 시 page-level error 처리 | PR #41에서 High/Blocking으로 판정(Oracle 검토 동일 결론): `frontend/lib/axios.ts`의 response interceptor가 public auth endpoint의 401까지 refresh 대상으로 가로채 로그인 실패·reset token 실패 화면에 backend error message가 정상 노출되지 않을 수 있음. **미해결** |
 | WBS 1.5.1(여도현) 최종 팀 reviewer 확인 | 1.5 자체 완료 조건 충족 여부 | 진척률상 99%이나 정식 리뷰 승인 기록은 별도 확인 필요 |
 | DB 잔여 테스트 계정 | 운영 데이터 오염 아님(로컬 test DB 한정), 정리 여지 있음 | 낮은 우선순위, 이월 |
+| GitHub PR의 `Vercel` check 실패(X) | PR 화면에 check 실패로 표시됨 | **코드 실패 아님** — 원인은 "Git author minjeong333 must have access to the project on Vercel to create deployments"(Vercel team 미가입). `dev` branch ruleset(`protection_dev`)에 required status check로 걸려 있지 않아 merge를 막지 않음. Vercel team 초대는 보류하고 진행, 후속으로 필요 시 초대 요청 |
 
-**Sprint 1 Auth backend 범위 자체의 치명적 blocker는 없다.** 다만 frontend 쪽 401 interceptor 결함과 1.5.2 완료 근거는 Sprint 2 착수 전에 반드시 정리해야 한다.
+**Sprint 1 Auth backend 범위 자체의 치명적 blocker는 없다.** 다만 frontend 쪽 401 interceptor 결함과 1.5.2 완료 근거는 Sprint 2 착수 전에 반드시 정리해야 한다. `Vercel` check 실패는 권한 문제일 뿐 코드 결함이 아니며, merge 요건에도 포함되지 않는다.
