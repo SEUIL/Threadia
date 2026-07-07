@@ -1,7 +1,7 @@
 > **작성자**: 김민정 (WBS 1.5.3 Owner)
 > **작성일**: 2026-07-04
-> **최종 수정**: 2026-07-04
-> **버전**: v1.0
+> **최종 수정**: 2026-07-07
+> **버전**: v1.1
 > **상태**: 작성 중
 > **태그**: sprint-1, report, auth, wbs-1.5.3
 
@@ -30,6 +30,7 @@ Sprint 1 기간 중 발견했으나 Sprint 1 범위에서 즉시 처리하지 �
 | `docs/05-architecture`/`docs/04-api`의 OAuth accessToken 전달 방식 canonical 문서 미동기화 | PR #33 리뷰 코멘트(김태준)로 발견 | 담당자 미정으로 team 채널에 확인 요청 → **PR #37로 이미 처리 완료됨** (`docs/auth-canonical-handoff`) |
 | signup nickname XSS 미이스케이프 발견 | WBS 1.5 이상값 테스트 중 발견 | 백엔드는 sanitize 안 하지만, 프론트가 `dangerouslySetInnerHTML` 없이 JSX 텍스트로만 렌더링해 실제 위험 없음을 확인 → 후속 조치 불필요로 종결 |
 | E2E/이상값 테스트 중 DB에 남은 테스트 계정 일부 | 반복 테스트 과정에서 누적 | 일부 정리했으나 잔여분 있음, 치명적이지 않아 후속 정리로 이월 |
+| Invitation | Sprint 1 목표 확정 시 Auth 이외 범위(회사/프로젝트/이슈/문서/채팅/DM/쓰레드/알림/프로필수정/invitation)로 제외 확정 | Sprint 1에서는 제외했지만, invitation은 Sprint 1.5 backlog로 이어지는 후속 범위다. Sprint 1.5에서 invitation 관련 seed 회사/accept 시 membership 생성/notification 분리 등을 처리할 예정이다 |
 
 ---
 
@@ -59,7 +60,7 @@ Sprint 1 기간 중 발견했으나 Sprint 1 범위에서 즉시 처리하지 �
 - **API 레벨 이상값 테스트**: SQL injection, XSS, null/빈값, 잘못된 타입, 이모지, 필드 주입, 긴 문자열, 경계값, 깨진 JSON, 잘못된 Content-Type 등 signup 11건 + login/refresh/logout/me 28건, 총 39건 curl로 직접 실행·확인 (상세: `인증-api-이상값-테스트-결과.md`)
 - **Password reset 전체 라이프사이클**: request(이메일 존재/미존재 동일 응답) → confirm → token 재사용 차단 → 구/신규 비밀번호 로그인 → 기존 refresh token revoke까지 curl로 직접 검증
 - **자동화 E2E**: 여도현의 `auth-e2e-preflight.sh`(31개 검증 항목) + MailHog 연동 실제 이메일 기반 검증 + 실제 Google 계정 기반 OAuth backend callback smoke test + frontend forgot/reset password Playwright E2E 모두 통과
-- **문서화**: `인증-api-전체-요청응답-예시.md`(signup/login/refresh/logout/me/OAuth/password-reset 전체 요청·응답 예시, Reviewer 김태준 승인 완료)
+- **문서화**: `인증-api-전체-요청응답-예시.md`(signup/login/refresh/logout/me/OAuth/password-reset 전체 요청·응답 예시). PR #33 review 기록(`gh api repos/SEUIL/Threadia/pulls/33/reviews`)에는 review가 없어 Reviewer 김태준 승인 완료로 표기하지 않는다. 실제 승인 근거가 확인되면 링크를 추가하고, 그 전까지는 merge 완료/후속 리뷰 필요 상태로 본다
 
 ---
 
@@ -68,7 +69,10 @@ Sprint 1 기간 중 발견했으나 Sprint 1 범위에서 즉시 처리하지 �
 | Blocker | 영향 | 상태 |
 |---|---|---|
 | `backlog/page.tsx` production build 차단 TS 에러 (`MOCK_ROLE` 타입 비교) | `npm run build` 실패 | **미해결** — 방금 재확인함(2026-07-04). Frontend 담당자 처리 필요 |
-| WBS 1.5.1(여도현)/1.5.2(김민경) 최종 팀 reviewer 확인 | 1.5 자체 완료 조건 충족 여부 | 진척률상 99%/99%이나 정식 리뷰 승인 기록은 별도 확인 필요 |
+| WBS 1.5.2(김민경) 완료 근거 부족 | 1.5.2 완료 조건(통합 테스트 이슈 수정) 충족 여부 | PR #41(황스일 사후 검토, `wbs-1.4.2-1.5.2-PR-검토-결과.md`)에서 High로 판정: PR #35는 여도현 approval은 있으나 frontend build 실패를 문서화만 하고 실제로 수정하지 않아 1.5.2 완료 처리 근거로 부족. 별도 build 수정 PR과 재검증 필요 |
+| 공통 axios interceptor의 401 처리 | 로그인 실패/비밀번호 재설정 token 실패 시 page-level error 처리 | PR #41에서 High/Blocking으로 판정(Oracle 검토 동일 결론): `frontend/lib/axios.ts`의 response interceptor가 public auth endpoint의 401까지 refresh 대상으로 가로채 로그인 실패·reset token 실패 화면에 backend error message가 정상 노출되지 않을 수 있음. **미해결** |
+| WBS 1.5.1(여도현) 최종 팀 reviewer 확인 | 1.5 자체 완료 조건 충족 여부 | 진척률상 99%이나 정식 리뷰 승인 기록은 별도 확인 필요 |
 | DB 잔여 테스트 계정 | 운영 데이터 오염 아님(로컬 test DB 한정), 정리 여지 있음 | 낮은 우선순위, 이월 |
+| GitHub PR의 `Vercel` check 실패(X) | PR 화면에 check 실패로 표시됨 | **코드 실패 아님** — 원인은 "Git author minjeong333 must have access to the project on Vercel to create deployments"(Vercel team 미가입). `dev` branch ruleset(`protection_dev`)에 required status check로 걸려 있지 않아 merge를 막지 않음. Vercel team 초대는 보류하고 진행, 후속으로 필요 시 초대 요청 |
 
-**Sprint 1 Auth 범위 자체의 치명적 blocker는 없다.** 위 항목은 Sprint 2 착수 전 정리하면 되는 수준이다.
+**Sprint 1 Auth backend 범위 자체의 치명적 blocker는 없다.** 다만 frontend 쪽 401 interceptor 결함과 1.5.2 완료 근거는 Sprint 2 착수 전에 반드시 정리해야 한다. `Vercel` check 실패는 권한 문제일 뿐 코드 결함이 아니며, merge 요건에도 포함되지 않는다.
