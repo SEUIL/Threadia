@@ -143,7 +143,10 @@ public class CompanyInvitationService {
 	}
 
 	private void assertInviteeCanBeInvited(Long companyId, Long inviteeUserId) {
-		if (companyMemberRepository.existsByCompany_IdAndUser_Id(companyId, inviteeUserId)) {
+		if (companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(
+				companyId,
+				inviteeUserId,
+				CompanyMemberStatus.ACTIVE)) {
 			throw InvitationConflictException.alreadyCompanyMember();
 		}
 		if (invitationRepository.existsByCompany_IdAndInvitee_IdAndScopeTypeAndStatus(

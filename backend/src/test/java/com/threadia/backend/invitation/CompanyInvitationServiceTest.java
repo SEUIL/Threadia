@@ -85,7 +85,7 @@ class CompanyInvitationServiceTest {
 		Company company = company(1L, requester);
 		stubAuthorizedRequester(requester, company);
 		when(userRepository.findById(2L)).thenReturn(Optional.of(invitee));
-		when(companyMemberRepository.existsByCompany_IdAndUser_Id(1L, 2L))
+		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE))
 				.thenReturn(false);
 		when(invitationRepository.existsByCompany_IdAndInvitee_IdAndScopeTypeAndStatus(
 				1L, 2L, InvitationScopeType.COMPANY, InvitationStatus.PENDING)).thenReturn(false);
@@ -228,7 +228,7 @@ class CompanyInvitationServiceTest {
 		Company company = company(1L, requester);
 		stubAuthorizedRequester(requester, company);
 		when(userRepository.findById(2L)).thenReturn(Optional.of(invitee));
-		when(companyMemberRepository.existsByCompany_IdAndUser_Id(1L, 2L))
+		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE))
 				.thenReturn(true);
 
 		assertThatThrownBy(() -> companyInvitationService.create(
@@ -244,7 +244,7 @@ class CompanyInvitationServiceTest {
 		Company company = company(1L, requester);
 		stubAuthorizedRequester(requester, company);
 		when(userRepository.findById(2L)).thenReturn(Optional.of(invitee));
-		when(companyMemberRepository.existsByCompany_IdAndUser_Id(1L, 2L))
+		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE))
 				.thenReturn(false);
 		when(invitationRepository.existsByCompany_IdAndInvitee_IdAndScopeTypeAndStatus(
 				1L, 2L, InvitationScopeType.COMPANY, InvitationStatus.PENDING)).thenReturn(true);
@@ -253,6 +253,32 @@ class CompanyInvitationServiceTest {
 				"valid-token", 1L, new CompanyInvitationRequest(2L, CompanyMemberRole.MEMBER)))
 				.isInstanceOf(InvitationConflictException.class)
 				.hasMessageContaining("이미 대기 중인 초대가 있습니다.");
+	}
+
+	@Test
+	void createCompanyInvitationAllowsInviteeWithNonActiveMembership() {
+		User requester = user(1L, "admin@example.com", UserStatus.ACTIVE);
+		User invitee = user(2L, "member@example.com", UserStatus.ACTIVE);
+		Company company = company(1L, requester);
+		stubAuthorizedRequester(requester, company);
+		when(userRepository.findById(2L)).thenReturn(Optional.of(invitee));
+		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE))
+				.thenReturn(false);
+		when(invitationRepository.existsByCompany_IdAndInvitee_IdAndScopeTypeAndStatus(
+				1L, 2L, InvitationScopeType.COMPANY, InvitationStatus.PENDING)).thenReturn(false);
+		when(invitationRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> {
+			Invitation invitation = invocation.getArgument(0);
+			setId(invitation, 11L);
+			return invitation;
+		});
+
+		CompanyInvitationData data = companyInvitationService.create(
+				"valid-token",
+				1L,
+				new CompanyInvitationRequest(2L, CompanyMemberRole.MEMBER));
+
+		assertThat(data.invitation().id()).isEqualTo(11L);
+		assertThat(data.invitation().inviteeUserId()).isEqualTo(2L);
 	}
 
 	private void stubAuthorizedRequester(User requester, Company company) {
