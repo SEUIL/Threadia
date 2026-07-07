@@ -10,6 +10,8 @@ import com.threadia.backend.company.domain.CompanyMemberStatus;
 
 public interface CompanyMemberRepository extends JpaRepository<CompanyMember, Long> {
 
+	Optional<CompanyMember> findByCompany_IdAndUser_Id(Long companyId, Long userId);
+
 	boolean existsByCompany_IdAndUser_IdAndRoleAndStatus(
 			Long companyId,
 			Long userId,
