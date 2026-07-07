@@ -203,4 +203,27 @@ public class Invitation {
 	public void setUpdatedAt(LocalDateTime updatedAt) {
 		this.updatedAt = updatedAt;
 	}
+
+	public void accept(LocalDateTime now) {
+		this.status = InvitationStatus.ACCEPTED;
+		this.acceptedAt = now;
+		this.updatedAt = now;
+	}
+
+	public void decline(LocalDateTime now) {
+		this.status = InvitationStatus.DECLINED;
+		this.declinedAt = now;
+		this.updatedAt = now;
+	}
+
+	public void cancel(LocalDateTime now) {
+		this.status = InvitationStatus.CANCELED;
+		this.canceledAt = now;
+		this.updatedAt = now;
+	}
+
+	public void expire(LocalDateTime now) {
+		this.status = InvitationStatus.EXPIRED;
+		this.updatedAt = now;
+	}
 }
