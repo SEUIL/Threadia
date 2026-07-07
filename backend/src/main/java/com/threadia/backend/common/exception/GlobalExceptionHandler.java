@@ -23,6 +23,7 @@ import com.threadia.backend.common.error.ErrorResponse;
 import com.threadia.backend.company.exception.CompanyNotFoundException;
 import com.threadia.backend.config.jwt.JwtAuthenticationException;
 import com.threadia.backend.invitation.exception.InvitationConflictException;
+import com.threadia.backend.invitation.exception.InvitationNotFoundException;
 
 // 앱 전체 컨트롤러에서 발생한 예외를 공통 에러 응답 형식으로 변환한다.
 // 컨트롤러/서비스 코드는 예외를 던지기만 하면 되고, HTTP status/에러 body 조립은 여기서 한 번에 처리한다.
@@ -83,6 +84,12 @@ public class GlobalExceptionHandler {
 			CompanyNotFoundException.class,
 			com.threadia.backend.invitation.exception.CompanyNotFoundException.class})
 	public ResponseEntity<ErrorResponse> handleCompanyNotFound(RuntimeException ex) {
+		ErrorBody body = ErrorBody.of("NOT_FOUND", ex.getMessage());
+		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of(body));
+	}
+
+	@ExceptionHandler(InvitationNotFoundException.class)
+	public ResponseEntity<ErrorResponse> handleInvitationNotFound(InvitationNotFoundException ex) {
 		ErrorBody body = ErrorBody.of("NOT_FOUND", ex.getMessage());
 		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of(body));
 	}
