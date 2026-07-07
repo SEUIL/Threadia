@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -20,6 +21,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.threadia.backend.common.error.ErrorBody;
 import com.threadia.backend.common.error.ErrorResponse;
 import com.threadia.backend.config.jwt.JwtAuthenticationException;
+import com.threadia.backend.invitation.exception.CompanyNotFoundException;
+import com.threadia.backend.invitation.exception.InvitationConflictException;
 
 // 앱 전체 컨트롤러에서 발생한 예외를 공통 에러 응답 형식으로 변환한다.
 // 컨트롤러/서비스 코드는 예외를 던지기만 하면 되고, HTTP status/에러 body 조립은 여기서 한 번에 처리한다.
@@ -76,9 +79,27 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of(body));
 	}
 
+	@ExceptionHandler(CompanyNotFoundException.class)
+	public ResponseEntity<ErrorResponse> handleCompanyNotFound(CompanyNotFoundException ex) {
+		ErrorBody body = ErrorBody.of("NOT_FOUND", ex.getMessage());
+		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of(body));
+	}
+
+	@ExceptionHandler(InvitationConflictException.class)
+	public ResponseEntity<ErrorResponse> handleInvitationConflict(InvitationConflictException ex) {
+		ErrorBody body = ErrorBody.of(ex.getCode(), ex.getMessage());
+		return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(body));
+	}
+
 	@ExceptionHandler(MissingServletRequestParameterException.class)
 	public ResponseEntity<ErrorResponse> handleMissingRequestParameter(MissingServletRequestParameterException ex) {
 		ErrorBody body = ErrorBody.of("VALIDATION_ERROR", "요청 파라미터가 누락되었습니다.");
+		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(body));
+	}
+
+	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
+	public ResponseEntity<ErrorResponse> handleArgumentTypeMismatch(MethodArgumentTypeMismatchException ex) {
+		ErrorBody body = ErrorBody.of("VALIDATION_ERROR", "요청 경로 변수가 올바르지 않습니다.");
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(body));
 	}
 
