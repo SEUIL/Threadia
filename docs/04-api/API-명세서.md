@@ -2,16 +2,18 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-07-04
-> **버전**: OAuth handoff 구현 반영 v1
+> **최종 수정**: 2026-07-07
+> **버전**: OAuth handoff 구현 반영 v1.1
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
-> **기준 문서**: API 명세서 초안 v1.4, 기능 분해표 v3.0, ERD v2.0, 보류 기능 최종표 v1.0
+> **기준 문서**: API 명세서 초안 v1.4, 기능 분해표 v3.1, ERD v2.0, 보류 기능 최종표 v1.0, Sprint 3 기준선 업데이트 제안, Sprint 3 Backlog 초안
 
 ---
 
 > **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows이며, DB는 ERD 기반 `db/schema.sql`과 문서 변경이력으로 관리한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
+
+> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, Sprint 3 decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15는 `3.7~3.7.5` planning gate 이후 `4.10`에서 추적한다. attachment, document optimistic locking, advanced DM, PROJECT notification scope, project restore, permanent delete는 선행 결정 전 full endpoint contract나 request/response body를 만들지 않는다.
 
 
 ## 1. 공통 규칙
@@ -73,6 +75,7 @@
 | 409 | INVITATION_ALREADY_PENDING | 동일 scope와 대상 사용자에 대한 대기 중 초대가 이미 있음 |
 | 409 | INVITATION_EXPIRED | 초대가 만료됨 |
 | 409 | INVITATION_CANCELED | 초대가 취소됨 |
+| 409 | DOCUMENT_VERSION_CONFLICT | 문서 수정 optimistic locking 충돌. Sprint 3 decision-needed boundary code |
 
 ### 사용자 요약 DTO
 
@@ -254,7 +257,7 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 | PATCH | `/api/v1/projects/{projectId}` | P/C | 프로젝트 정보 수정 |
 | POST | `/api/v1/projects/{projectId}/archive` | P/C | 프로젝트 아카이빙 |
 | GET | `/api/v1/projects/{projectId}/project-members` | A/P/C | 프로젝트 멤버 목록 |
-| POST | `/api/v1/projects/{projectId}/invitations` | P/C | Sprint 2 프로젝트 초대 생성 reference. 대상은 같은 회사 ACTIVE 구성원으로 제한하고 수락 전 membership 미생성 |
+| POST | `/api/v1/projects/{projectId}/invitations` | P/C | Sprint 3 프로젝트 초대 후보. 대상은 같은 회사 ACTIVE 구성원으로 제한하고 수락 전 membership 미생성 |
 | PATCH | `/api/v1/project-members/{projectMemberId}` | P/C | 프로젝트 멤버 역할/상태 변경 |
 | DELETE | `/api/v1/project-members/{projectMemberId}` | P/C | 프로젝트 멤버 제거 |
 | GET | `/api/v1/projects/{projectId}/sprints` | A/P/C | Sprint 목록 |
@@ -265,7 +268,7 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 | POST | `/api/v1/sprints/{sprintId}/complete` | P/C | Sprint 종료 |
 | POST | `/api/v1/sprints/{sprintId}/issues` | P/C | Sprint에 이슈 배정 |
 
-프로젝트 복원은 Sprint 1에서 제공하지 않는다.
+프로젝트 복원은 Sprint 3 decision-needed다. archive 프로젝트 복원 권한, UI, API 기준이 확정되기 전까지 full endpoint contract를 추가하지 않는다.
 
 ---
 
@@ -281,17 +284,17 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 | GET | `/api/v1/users/me/invitations` | A/P/C | 내가 받은 invitation 목록 조회 |
 | POST | `/api/v1/invitations/{invitationId}/accept` | A/P/C | invitation 수락, membership 생성 |
 | POST | `/api/v1/invitations/{invitationId}/decline` | A/P/C | invitation 거절 |
-| POST | `/api/v1/invitations/{invitationId}/cancel` | C | 보낸 company invitation 취소. Project invitation cancel은 Sprint 2에서 P/C 기준으로 처리 |
+| POST | `/api/v1/invitations/{invitationId}/cancel` | C | 보낸 company invitation 취소. Project invitation cancel은 Sprint 3 후보에서 P/C 기준으로 처리 |
 
 ### Invitation 정책
 
 - `status`는 `PENDING`, `ACCEPTED`, `DECLINED`, `CANCELED`, `EXPIRED` 중 하나다.
 - 기본 만료 기간은 생성 시각 기준 7일이며 `expiresAt`은 null로 내려주지 않는다.
 - read/accept/decline/cancel 시 lazy expiration을 확인한다. 필수 batch scheduler는 Sprint 1.5 범위가 아니다.
-- 이미 회사 멤버면 `409 ALREADY_COMPANY_MEMBER`를 반환한다. 프로젝트 멤버 중복 검증과 `ALREADY_PROJECT_MEMBER`는 Sprint 2 project invitation에서 처리한다.
+- 이미 회사 멤버면 `409 ALREADY_COMPANY_MEMBER`를 반환한다. 프로젝트 멤버 중복 검증과 `ALREADY_PROJECT_MEMBER`는 Sprint 3 project invitation 후보에서 처리한다.
 - 동일 scope와 대상 사용자에 대한 대기 중 초대가 있으면 `409 INVITATION_ALREADY_PENDING`을 반환한다.
-- 회사 invitation role은 `COMPANY_ADMIN` 또는 `MEMBER`만 허용한다. 프로젝트 invitation role 검증은 Sprint 2에서 `PROJECT_ADMIN` 또는 `MEMBER` 기준으로 처리한다.
-- 프로젝트 invitation 대상 제한은 Sprint 2 기준이다. 구현 시 대상자는 해당 프로젝트가 속한 회사의 `ACTIVE` company member여야 하며, 조건을 만족하지 않으면 `400 VALIDATION_ERROR`로 거절한다.
+- 회사 invitation role은 `COMPANY_ADMIN` 또는 `MEMBER`만 허용한다. 프로젝트 invitation role 검증은 Sprint 3 후보에서 `PROJECT_ADMIN` 또는 `MEMBER` 기준으로 처리한다.
+- 프로젝트 invitation 대상 제한은 Sprint 3 후보 기준이다. 구현 시 대상자는 해당 프로젝트가 속한 회사의 `ACTIVE` company member여야 하며, 조건을 만족하지 않으면 `400 VALIDATION_ERROR`로 거절한다. `INVITE-01~04` company invitation 의미는 유지한다.
 - Sprint 1.5의 invitation-related notification은 필요 시 내부 `notification_events` 원장 기록을 남길 수 있으나 완료 조건에는 포함하지 않는다. Push 알림, 별도 Invitation notification preference, S11 사용자 알림 UI 필수 구현은 Sprint 1.5 범위가 아니다.
 - `activity_events`는 활동 원장, `notification_events`는 알림 사건 원본으로 별도 운영하고 통합 저장소로 합치지 않는다. 필요 시 activity 이벤트에서 notification 이벤트를 생성하는 연계만 허용한다.
 
@@ -325,7 +328,11 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 | GET | `/api/v1/issues/{issueId}/documents` | A/P/C | 이슈 기준 연결 문서 |
 | GET | `/api/v1/documents/{documentId}/issues` | A/P/C | 문서 기준 연결 이슈 |
 
-이슈/문서 영구 삭제는 보류하고, Sprint 1은 휴지통/복원까지만 제공한다.
+이슈/문서 영구 삭제는 Sprint 3 decision-needed다. 참조 무결성, audit, 보존 기간, 권한 기준이 확정되기 전까지 full endpoint contract를 추가하지 않는다.
+
+문서 optimistic locking은 Sprint 3 decision-needed다. `DOCUMENT_VERSION_CONFLICT`는 boundary error code로만 둔다. request body의 `version` 또는 `revision` 필드, conflict response body, UI 해소 방식은 아직 확정 계약이 아니다.
+
+파일/이미지 첨부는 Sprint 3 decision-needed다. `/api/v1/attachments` full endpoint, S3 presigned URL request/response, metadata schema, 권한, 크기, MIME 정책은 선행 결정 후 추가한다.
 
 ---
 
@@ -353,7 +360,7 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 | POST | `/api/v1/direct-messages/rooms/{roomId}/mark-read` | 참여자 | DM 읽음 위치 갱신 |
 | GET | `/api/v1/direct-messages/unread-count` | A/P/C | 전체 DM unread count |
 
-다자간 DM, DM 상대 read receipt, DM 메시지 삭제, DM 메시지 이슈 전환은 Sprint 1에서 제공하지 않는다.
+1:1 DM core는 Sprint 3 후보다. 다자간 DM, DM room + participants 일반화, DM 상대 read receipt, DM 메시지 삭제, DM 메시지 이슈 전환은 선행 결정 전 full endpoint contract를 만들지 않는다.
 
 ---
 
@@ -371,7 +378,7 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 | GET | `/api/v1/notification-preferences` | A/P/C | 알림 설정 조회 |
 | PUT | `/api/v1/notification-preferences` | A/P/C | 전체/이벤트별 on/off 설정 |
 
-MVP는 `GLOBAL` scope만 허용한다. `PROJECT` scope 요청은 `PROJECT_NOTIFICATION_SCOPE_DEFERRED`로 처리한다.
+알림 목록, 읽음 처리, unread count는 Sprint 3 후보이며 primary WBS는 `NOTI-01`=`4.8`이다. `GLOBAL` scope preference는 현재 계약으로 유지한다. `PROJECT` scope preference는 Sprint 3 decision-needed API boundary이며 실제 지원 기준 확정 전에는 `PROJECT_NOTIFICATION_SCOPE_DEFERRED`로 처리한다. `NOTI-02/03`은 현재 계약/reference row로 유지하고 요구사항추적표 primary WBS backfill 대상에서 제외한다.
 
 `notificationRecipientId`는 `notification_recipients.id`를 의미한다. API는 로그인 사용자 소유의 수신 알림만 읽음 처리한다.
 
@@ -387,7 +394,7 @@ MVP는 `GLOBAL` scope만 허용한다. `PROJECT` scope 요청은 `PROJECT_NOTIFI
 | `POST /notifications/{notificationRecipientId}/read` | `notificationRecipientId`가 존재하지 않음 | 404 | `NOT_FOUND` | 알림을 찾을 수 없습니다. |
 | `POST /notifications/{notificationRecipientId}/read` | 조회된 수신 알림의 `user_id`가 현재 사용자와 다름 | 403 | `FORBIDDEN` | 본인 알림만 읽음 처리할 수 있습니다. |
 | `POST /notifications/read-all` | `type` enum 값 오류 | 400 | `VALIDATION_ERROR` | 전체 읽음 처리 조건이 올바르지 않습니다. |
-| `GET /notification-preferences` | `scopeType=PROJECT` 요청 | 409 | `PROJECT_NOTIFICATION_SCOPE_DEFERRED` | 프로젝트별 알림 설정은 Sprint 1 범위에서 제공하지 않습니다. |
+| `GET /notification-preferences` | `scopeType=PROJECT` 요청 | 409 | `PROJECT_NOTIFICATION_SCOPE_DEFERRED` | 프로젝트별 알림 설정은 Sprint 3 decision-needed입니다. |
 | `PUT /notification-preferences` | `notificationType=ALL` 외부 요청 | 400 | `VALIDATION_ERROR` | `notificationType=ALL`은 외부 API에서 사용할 수 없습니다. |
 | `PUT /notification-preferences` | `enabled`와 `allEnabled`를 동시에 전달 | 400 | `VALIDATION_ERROR` | 알림 설정 요청 형식이 올바르지 않습니다. |
 
@@ -400,9 +407,9 @@ MVP는 `GLOBAL` scope만 허용한다. `PROJECT` scope 요청은 `PROJECT_NOTIFI
 
 | Method | Endpoint | 권한 | 설명 | 상태 |
 |---|---|---|---|---|
-| GET | `/api/v1/projects/{projectId}/activity-events` | A/P/C | 프로젝트 활동 피드 조회 | 조건부 확장 |
-| GET | `/api/v1/search` | A/P/C | 프로젝트 내부 통합 검색 | 조건부 확장 |
-| GET | `/api/v1/projects/{projectId}/dashboard` | A/P/C | 프로젝트 홈/대시보드 summary | 조건부 확장 |
+| GET | `/api/v1/projects/{projectId}/activity-events` | A/P/C | 프로젝트 활동 피드 조회 | Sprint 3 후보 |
+| GET | `/api/v1/search` | A/P/C | 프로젝트 내부 통합 검색 | Sprint 3 decision-needed |
+| GET | `/api/v1/projects/{projectId}/dashboard` | A/P/C | 프로젝트 홈/대시보드 summary | Sprint 3 후보 |
 
 ### 10.1 활동 피드
 
@@ -415,7 +422,7 @@ MVP는 `GLOBAL` scope만 허용한다. `PROJECT` scope 요청은 `PROJECT_NOTIFI
 
 - 1차 검색 대상: Issue, Document, Thread, Project Message.
 - MySQL `LIKE` 또는 FULLTEXT를 우선 사용한다.
-- Typesense/Meilisearch는 Sprint 1 보류다.
+- MySQL `LIKE` 또는 FULLTEXT 우선 여부는 Sprint 3 decision-needed다. Typesense/Meilisearch는 기본 계약에 넣지 않는다.
 
 ### 10.3 프로젝트 대시보드
 
@@ -429,18 +436,20 @@ MVP는 `GLOBAL` scope만 허용한다. `PROJECT` scope 요청은 `PROJECT_NOTIFI
 
 | 구분 | API/기능 | 처리 | 이유 |
 |---|---|---|---|
-| 보류 | 다자간 DM 방 | 미제공 | Sprint 2 |
+| Sprint 3 decision-needed | S15 플랫폼 관리자 | full endpoint 미정 | `3.7~3.7.5` planning gate와 Go/No-Go handoff 이후 `4.10`에서 상세 기능 ID, ERD/API/화면 영향도 확인 필요 |
+| Sprint 3 decision-needed | 다자간 DM 방 | full endpoint 미정 | DM room + participants 모델 결정 필요 |
 | 보류 | DM 메시지 삭제 | 미제공 | 전송/조회/unread 중심 |
-| 보류 | DM 상대 read receipt | 미제공 | Sprint 2 |
+| Sprint 3 decision-needed | DM 상대 read receipt | full endpoint 미정 | read receipt 정책 결정 필요 |
 | 보류 | DM 메시지→이슈 전환 | `DM_MESSAGE_CANNOT_CREATE_ISSUE` | DM은 사적 소통 |
 | 보류 | Thread→DM 공유 | `THREAD_DM_SHARE_DEFERRED` | 정책 미정 |
 | 보류 | Thread→Issue 추가 연결 | `THREAD_ISSUE_LINK_DEFERRED` | 데이터 모델 미정 |
-| 보류 | 이슈/문서 영구 삭제 | `PERMANENT_DELETE_DEFERRED` | 참조 보존 정책 필요 |
-| 보류 | 프로젝트 복원 | `PROJECT_RESTORE_DEFERRED` | 복원 UI 미정 |
-| 보류 | 프로젝트별 알림 설정 | `PROJECT_NOTIFICATION_SCOPE_DEFERRED` | GLOBAL only MVP |
+| Sprint 3 decision-needed | 문서 optimistic locking | `DOCUMENT_VERSION_CONFLICT` boundary만 유지 | version/revision 정책 결정 필요 |
+| Sprint 3 decision-needed | 이슈/문서 영구 삭제 | `PERMANENT_DELETE_DEFERRED` | 참조 무결성, audit, 보존 기간, 권한 기준 필요 |
+| Sprint 3 decision-needed | 프로젝트 복원 | `PROJECT_RESTORE_DEFERRED` | 복원 권한, UI, API 기준 필요 |
+| Sprint 3 decision-needed | 프로젝트별 알림 설정 | `PROJECT_NOTIFICATION_SCOPE_DEFERRED` API boundary | PROJECT scope 지원 기준 필요. 요구사항추적표 primary WBS row로 backfill하지 않는다 |
 | 보류 | NoSQL 알림/활동 저장소 | 미제공 | MySQL 원장 사용, Sprint 1 제외 |
 | 제외 | Redis 원본 저장 | 미제공 | Redis는 cache/push 보조로만 사용 |
-| 선택 | 범용 파일 첨부 | `/api/v1/attachments` 미제공 | S3 사용 확정, 구현은 Sprint 1 이후 |
+| Sprint 3 decision-needed | 범용 파일 첨부 | `/api/v1/attachments` full contract 미정 | S3 presigned URL, metadata, 권한, 크기, MIME 정책 필요 |
 | 보류 | Typesense/Meilisearch | 미제공 | 검색 고도화 후보 |
 
 ---
@@ -454,6 +463,7 @@ MVP는 `GLOBAL` scope만 허용한다. `PROJECT` scope 요청은 `PROJECT_NOTIFI
 - 메시지 목록 실시간 업데이트 방식.
 - DM 방 unread count 처리 방식.
 - `activity_events`와 `notification_events`는 분리 운영한다. activity 이벤트가 notification 이벤트를 생성하는 조건은 구현 단계에서 이벤트별로 제한한다.
+- S15(`3.7~3.7.5` planning gate 이후 `4.10`), attachment, document optimistic locking, advanced DM, PROJECT notification scope, project restore, permanent delete의 full API 계약.
 
 ---
 
@@ -464,7 +474,7 @@ MVP는 `GLOBAL` scope만 허용한다. `PROJECT` scope 요청은 `PROJECT_NOTIFI
 - `v1.4`의 예시는 형식 참고용으로만 사용한다.
 - 실제 계약 기준은 이 문서의 endpoint 표와 v2.2에서 확정한 정책이다.
 - `PATCH` 요청은 변경할 필드만 전달한다.
-- S3 파일 저장 API, Redis/NoSQL 알림 저장 API, 프로젝트별 알림 설정은 Sprint 1에서 제공하지 않는다.
+- S3 파일 저장 API, Redis/NoSQL 알림 저장 API, 프로젝트별 알림 설정은 현재 full contract로 제공하지 않는다. Sprint 3 decision-needed 항목은 선행 결정 후 request/response 예시를 추가한다.
 
 ### 13.1 공통 Error Response
 
@@ -818,7 +828,7 @@ Response 200:
 #### Deprecated/Internal Note: POST `/api/v1/projects/{projectId}/project-members`
 
 > Sprint 1.5에서는 이 endpoint와 프로젝트 멤버 invitation 흐름을 user-facing API로 제공하지 않는다.
-> 프로젝트 멤버 추가 흐름은 Sprint 2에서 `POST /api/v1/projects/{projectId}/invitations`로 invitation을 만들고, 대상자가 `POST /api/v1/invitations/{invitationId}/accept`를 호출할 때 membership을 생성한다.
+> 프로젝트 멤버 추가 흐름은 Sprint 3 candidate에서 `POST /api/v1/projects/{projectId}/invitations`로 invitation을 만들고, 대상자가 `POST /api/v1/invitations/{invitationId}/accept`를 호출할 때 membership을 생성한다. `INVITE-01~04` company invitation과는 분리한다.
 > 기존 프로젝트 membership의 역할과 상태 변경은 `PATCH /api/v1/project-members/{projectMemberId}`에서 처리한다.
 
 #### PATCH `/api/v1/project-members/{projectMemberId}`
@@ -949,7 +959,7 @@ Response 201:
 }
 ```
 
-#### Sprint 2 Reference: POST `/api/v1/projects/{projectId}/invitations`
+#### Sprint 3 Candidate: POST `/api/v1/projects/{projectId}/invitations`
 
 > Sprint 1.5 구현 범위에서는 제외한다.
 
@@ -1147,6 +1157,8 @@ Request Body:
 ```
 
 #### PATCH `/api/v1/documents/{documentId}`
+
+> 문서 optimistic locking은 Sprint 3 decision-needed다. 이 예시는 현재 문서 수정 body 기준이며 `version` 또는 `revision` 필드를 확정하지 않는다.
 
 Request Body:
 
@@ -1491,7 +1503,7 @@ Response 200:
 }
 ```
 
-`notificationType=ALL`은 외부 API에서 사용하지 않는다. 프로젝트별 설정인 `scopeType=PROJECT`는 Sprint 1에서 `PROJECT_NOTIFICATION_SCOPE_DEFERRED`로 처리한다.
+`notificationType=ALL`은 외부 API에서 사용하지 않는다. 프로젝트별 설정인 `scopeType=PROJECT`는 Sprint 3 decision-needed API boundary이며 실제 지원 기준 확정 전까지 `PROJECT_NOTIFICATION_SCOPE_DEFERRED`로 처리한다. 요구사항추적표 primary WBS row로는 backfill하지 않는다.
 
 ---
 
@@ -1501,12 +1513,14 @@ Response 200:
 > **상태**: 공식 결정 반영 완료
 > **기준**: `.sisyphus/evidence/task-5-invitation-impact-matrix.md`의 affected row와 2026-06-16 공식 decision set을 사용한다.
 
+> **현재 기준선 주석**: 이 섹션은 2026-06-16/Sprint 1.5 결정 기록이다. 현재 Gate 3/4 완료 기준선은 project invitation을 Sprint 3 `PROJECT-MEMBER-01~02` 후보로 다루며, `INVITE-01~04` company invitation을 project invitation으로 재사용하지 않는다.
+
 ### 반영 범위
 
 1. Phase B는 Sprint 1.5의 등록 사용자 대상 app-internal invitation 정책을 반영한다.
 2. Sprint 1은 Auth-only이며 invitation을 구현하지 않는다.
-3. Sprint 1.5부터 회사 멤버 추가는 즉시 membership 생성이 아니라 `invitations` 생성과 대상자 accept 후 membership 생성으로 처리한다. 프로젝트 멤버 추가와 project invitation은 Sprint 2로 분리한다.
-4. Sprint 2는 project invitation, project membership 생성, actual invitee email sending, token link acceptance, unregistered onboarding, resend, email template, delivery failure handling, batch cleanup/operations의 후보 시점이며 확정 구현 commitment는 아니다.
+3. Sprint 1.5부터 회사 멤버 추가는 즉시 membership 생성이 아니라 `invitations` 생성과 대상자 accept 후 membership 생성으로 처리한다. 프로젝트 멤버 추가와 project invitation은 당시 Sprint 2 후보로 분리한 과거 결정 기록이며, 현재 기준선에서는 Sprint 3 `PROJECT-MEMBER-01~02` 후보로 다룬다.
+4. 당시 Sprint 2는 project invitation, project membership 생성, actual invitee email sending, token link acceptance, unregistered onboarding, resend, email template, delivery failure handling, batch cleanup/operations의 후보 시점이며 확정 구현 commitment는 아니었다. 현재 project invitation baseline은 Sprint 3 `PROJECT-MEMBER-01~02` 후보이고, `INVITE-01~04`는 company invitation 전용이다.
 
 ### invitation 공식 결정
 
