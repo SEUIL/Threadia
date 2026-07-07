@@ -1,27 +1,28 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-02
-> **최종 수정**: 2026-07-04
-> **버전**: v0.2 WBS 기준 계획 정렬
+> **최종 수정**: 2026-07-07
+> **버전**: v0.4 WBS 3.7.5 연결 문서 수정 gate 반영
 > **상태**: 작성 중
-> **태그**: sprint-2, backlog, company, project, rbac
+> **태그**: sprint-2, backlog, company, project, rbac, platform-admin
 
 # Sprint 2 Backlog
 
 ## 1. 문서 목적
 
-이 문서는 Sprint 2 review 전 backlog 초안이다. Google Sheets `WBS` 본시트 3.x row를 최신 계획 기준으로 삼아 3.1, 3.2, 3.3, 3.4, 3.6은 WBS 기준 계획 backlog로 정리하고, 3.5는 capacity candidate backlog로 분리한다.
+이 문서는 Sprint 2 review 전 backlog 초안이다. Google Sheets `WBS` 본시트 3.x row를 최신 계획 기준으로 삼아 3.1, 3.2, 3.3, 3.4, 3.6은 WBS 기준 계획 backlog로 정리하고, 3.7은 플랫폼 관리자 planning gate로 분리하며, 3.5는 capacity candidate backlog로 분리한다.
 
 이 문서는 WBS 본시트와 요구사항추적표를 최신 기준으로 참조한다. Sprint 2 문서 자체는 아직 `작성 중` 상태이며, canonical 요구사항, ERD, 화면정의서, API 명세서, DoD, 검증 방법, 보류 기능 최종표는 현재 개발 기준으로 사용한다.
 
 ## 2. Backlog 작성 원칙
 
-1. Sprint 2 WBS 기준 계획 범위는 company, department, company-members, RBAC and project foundation이다.
+1. Sprint 2 WBS 기준 계획 범위는 company, department, company-members, RBAC, project foundation and platform admin planning gate다.
 2. Minimum Issue/Kanban은 capacity candidate only이며 WBS 기준 계획 backlog가 아니다.
-3. 현재 backend는 skeleton, JDBC, MySQL connection test only 상태이고, Sprint 2 domain API와 DB feature behavior는 구현되어 있지 않다.
-4. 현재 frontend는 후속 화면을 위한 route skeleton을 가지고 있지만, Sprint 2 domain API behavior는 구현되어 있지 않다.
-5. 완료 조건은 새 DoD 문서를 만들지 않고 `docs/00-project/Definition-of-Done.md`를 따른다.
-6. 검증 방법은 새 검증 문서를 만들지 않고 `docs/00-project/검증-방법.md`를 따른다.
-7. secret, credential, password, token, private data는 backlog와 evidence에 기록하지 않는다.
+3. WBS 3.7은 `DEFER-01/F/S15` 플랫폼 관리자 planning gate이며 schema, API, 화면 구현 backlog가 아니다.
+4. 현재 backend는 skeleton, JDBC, MySQL connection test only 상태이고, Sprint 2 domain API와 DB feature behavior는 구현되어 있지 않다.
+5. 현재 frontend는 후속 화면을 위한 route skeleton을 가지고 있지만, Sprint 2 domain API behavior는 구현되어 있지 않다.
+6. 완료 조건은 새 DoD 문서를 만들지 않고 `docs/00-project/Definition-of-Done.md`를 따른다.
+7. 검증 방법은 새 검증 문서를 만들지 않고 `docs/00-project/검증-방법.md`를 따른다.
+8. secret, credential, password, token, private data는 backlog와 evidence에 기록하지 않는다.
 
 ## 3. WBS 기준 계획 backlog
 
@@ -222,6 +223,59 @@
 - 각 feature owner의 evidence 제출이 필요하다.
 - 현재 프로젝트 script와 CI workflow 상태 확인이 필요하다.
 
+### 3.7 Platform Admin Planning Gate
+
+| 항목 | 내용 |
+|---|---|
+| 상태 | planning gate |
+| Owner | 황스일 |
+| Reviewer |  |
+| Support |  |
+| 기준 WBS | 3.7 Platform Admin Planning Gate, 3.7.1~3.7.5 |
+| 기준 문서 | `플랫폼-관리자-인가-모델-결정.md`, `S15-플랫폼-관리자-1차-범위-정의.md`, `보류-기능-최종표.md`, `기능-분해표.md`, `요구사항-정의서.md`, `ERD.md`, `API-명세서.md`, `화면정의서.md` |
+
+**세부 WBS**
+
+| WBS ID | 항목 | 산출물 기준 |
+|---|---|---|
+| 3.7.1 | S15 세부 기능 ID와 WBS 분해 | 기능 ID, 우선순위, 후속 WBS 후보 |
+| 3.7.2 | 플랫폼 관리자 ERD/API 영향도 초안 | ERD/API 영향도와 후속 설계 수정 필요 목록 |
+| 3.7.3 | S15 화면/권한 flow 초안 | 화면 흐름과 권한별 action 초안 |
+| 3.7.4 | 플랫폼 관리자 구현 Go/No-Go와 handoff 정리 | Go/No-Go 판단과 연결 문서 triage 결과 |
+| 3.7.5 | 연결 문서 수정 반영 | 수정 반영된 연결 문서 목록과 변경이력 |
+
+**작업 범위**
+
+| 세부 항목 | 설명 |
+|---|---|
+| S15 기능 분해 | `DEFER-01/F/S15`를 문의/신고, 사용자 정지, 회사 비활성화, 시스템 설정, 운영 로그 단위로 나눈다 |
+| ERD/API 영향도 | `platform_admins`, `support_cases`, audit log와 기존 `users`, `companies`, `company_members`, `project_members` 영향 범위를 구분한다 |
+| 화면/권한 flow | A/P/C 권한과 분리된 platform admin entry, action, 처리 flow를 초안 수준으로 정리한다 |
+| Go/No-Go handoff | S15 구현 착수 여부, 선행 WBS, 수정할 canonical 문서 목록, 4.9 분리 결과를 정리한다 |
+| 연결 문서 수정 반영 | 실제 수정이 필요한 canonical 문서에 S15 planning gate 결과를 반영하고, 수정하지 않는 문서는 사유를 남긴다 |
+
+**완료 조건**
+
+- `users.role` 단일 권한 모델을 만들지 않고 `platform_admins` 분리 기준을 유지한다.
+- `support_cases`로 문의와 신고를 통합하고, 관리자 조치에는 reason과 audit log가 필요하다는 원칙을 유지한다.
+- 사용자 정지와 회사 비활성화는 hard delete가 아니라 상태 변경 기준으로 분리한다.
+- 4.9의 플랫폼 관리자 보류 항목은 `3.7` planning gate로 이동한 상태가 WBS와 Sprint 2 문서에서 일치한다.
+- 3.7.5에서 `기능-분해표`, `요구사항-정의서`, `사용자-시나리오`, `기능-시나리오-API-ERD-추적표`, `화면정의서`, `ERD`, `API-명세서`, `보류-기능-최종표`, `기획문서-변경이력` 중 실제 수정 대상을 반영한다.
+- ERD/API/화면 구현 상세 확정은 후속 구현 WBS 대상으로 남기되, planning gate 결과와 충돌하는 문서 문구는 3.7.5에서 정합화한다.
+
+**검증 방법**
+
+- WBS `3.7~3.7.5`와 Sprint 2 문서의 owner, reviewer, support, 선행 WBS, 완료 조건이 일치하는지 확인한다.
+- `4.9`에 `DEFER-01/F/S15` 구현 항목이 남아 있지 않은지 확인한다.
+- 연결 문서 수정 반영 결과와 미수정 사유를 PR 또는 handoff 기록으로 확인한다.
+
+**의존성**
+
+- 3.1~3.4 company, RBAC, project foundation 기준이 필요하다.
+- 3.6.3 문서/추적성 QA 결과가 필요하다.
+- 플랫폼 관리자 인가 모델 결정과 S15 1차 범위 정의가 기준 문서로 필요하다.
+- 3.7.5는 3.7.4 Go/No-Go handoff와 연결 문서 triage 결과 이후 진행한다.
+
 ## 4. Candidate backlog
 
 ### 3.5 Issue/Kanban Candidate
@@ -298,3 +352,5 @@ Sprint 2는 별도 DoD 문서를 만들지 않는다. 완료 판정은 `docs/00-
 | `docs/00-project/Definition-of-Done.md` | 완료 판정 기준 확인 |
 | `docs/00-project/검증-방법.md` | 실행 검증 방법 확인 |
 | `docs/07-decisions/보류-기능-최종표.md` | candidate와 제외 범위 확인 |
+| `docs/07-decisions/플랫폼-관리자-인가-모델-결정.md` | 플랫폼 관리자 권한 모델과 A/P/C 권한 분리 기준 확인 |
+| `docs/02-requirements/S15-플랫폼-관리자-1차-범위-정의.md` | S15 1차 범위와 planning gate 기준 확인 |

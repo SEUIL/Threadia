@@ -46,7 +46,8 @@ type Sprint = {
 };
 
 // TODO(Sprint 2): /api/v1/auth/me 연동 후 실제 로그인 사용자 role로 교체 (HubOverlay와 동일)
-const MOCK_ROLE: Role = "C";
+const getMockRole = (): Role => "C";
+const MOCK_ROLE = getMockRole();
 const canManageSprint = MOCK_ROLE === "P" || MOCK_ROLE === "C";
 
 const STATUS_LABEL: Record<SprintStatus, string> = {
@@ -112,169 +113,169 @@ export default function BacklogPage() {
     // TODO: POST /api/v1/sprints/{sprintId}/complete
     // 미완료(DONE 아닌) 이슈는 백로그로 되돌린다.
     setIssues((prev) =>
-      prev.map((i) => (i.sprintId === id && i.status !== "DONE" ? { ...i, sprintId: null } : i))
+        prev.map((i) => (i.sprintId === id && i.status !== "DONE" ? { ...i, sprintId: null } : i))
     );
     setSprints((prev) => prev.map((s) => (s.id === id ? { ...s, status: "COMPLETED" } : s)));
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-10">
-      <Link
-        href={`/${params.companyId}/projects`}
-        className="text-sm text-muted transition-colors duration-fast hover:text-primary"
-      >
-        ← 프로젝트 목록
-      </Link>
-      <div className="mt-3 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-foreground">백로그 / 스프린트</h1>
-          <p className="mt-1 text-sm text-muted">프로젝트 {params.projectId}</p>
-        </div>
-        {canManageSprint && (
-          <button
-            onClick={() => setCreatingSprint((v) => !v)}
-            className="rounded-lg btn-gradient px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast"
-          >
-            + 새 스프린트
-          </button>
-        )}
-      </div>
-
-      {creatingSprint && (
-        <section className="mt-4 rounded-xl border border-border bg-surface p-5">
-          <div className="flex flex-col gap-2">
-            <input
-              aria-label="스프린트 이름"
-              value={newSprintName}
-              onChange={(e) => setNewSprintName(e.target.value)}
-              placeholder="스프린트 이름"
-              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-placeholder focus:border-ring focus:outline-none"
-            />
-            <input
-              aria-label="스프린트 목표"
-              value={newSprintGoal}
-              onChange={(e) => setNewSprintGoal(e.target.value)}
-              placeholder="목표 (선택)"
-              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-placeholder focus:border-ring focus:outline-none"
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setCreatingSprint(false)}
-                className="rounded-md px-3 py-1.5 text-sm font-medium text-muted hover:bg-primary-subtle"
-              >
-                취소
-              </button>
-              <button
-                onClick={createSprint}
-                className="rounded-md btn-gradient px-3 py-1.5 text-sm font-semibold text-primary-foreground"
-              >
-                생성
-              </button>
-            </div>
+      <div className="mx-auto max-w-3xl px-6 py-10">
+        <Link
+            href={`/${params.companyId}/projects`}
+            className="text-sm text-muted transition-colors duration-fast hover:text-primary"
+        >
+          ← 프로젝트 목록
+        </Link>
+        <div className="mt-3 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-foreground">백로그 / 스프린트</h1>
+            <p className="mt-1 text-sm text-muted">프로젝트 {params.projectId}</p>
           </div>
-        </section>
-      )}
+          {canManageSprint && (
+              <button
+                  onClick={() => setCreatingSprint((v) => !v)}
+                  className="rounded-lg btn-gradient px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast"
+              >
+                + 새 스프린트
+              </button>
+          )}
+        </div>
 
-      {/* 스프린트별 이슈 */}
-      <div className="mt-6 flex flex-col gap-4">
-        {sprints.map((sprint) => {
-          const sprintIssues = issues.filter((i) => i.sprintId === sprint.id);
-          return (
-            <section key={sprint.id} className="rounded-xl border border-border bg-surface p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-semibold text-foreground">{sprint.name}</h2>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_CLASS[sprint.status]}`}>
+        {creatingSprint && (
+            <section className="mt-4 rounded-xl border border-border bg-surface p-5">
+              <div className="flex flex-col gap-2">
+                <input
+                    aria-label="스프린트 이름"
+                    value={newSprintName}
+                    onChange={(e) => setNewSprintName(e.target.value)}
+                    placeholder="스프린트 이름"
+                    className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-placeholder focus:border-ring focus:outline-none"
+                />
+                <input
+                    aria-label="스프린트 목표"
+                    value={newSprintGoal}
+                    onChange={(e) => setNewSprintGoal(e.target.value)}
+                    placeholder="목표 (선택)"
+                    className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-placeholder focus:border-ring focus:outline-none"
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                      onClick={() => setCreatingSprint(false)}
+                      className="rounded-md px-3 py-1.5 text-sm font-medium text-muted hover:bg-primary-subtle"
+                  >
+                    취소
+                  </button>
+                  <button
+                      onClick={createSprint}
+                      className="rounded-md btn-gradient px-3 py-1.5 text-sm font-semibold text-primary-foreground"
+                  >
+                    생성
+                  </button>
+                </div>
+              </div>
+            </section>
+        )}
+
+        {/* 스프린트별 이슈 */}
+        <div className="mt-6 flex flex-col gap-4">
+          {sprints.map((sprint) => {
+            const sprintIssues = issues.filter((i) => i.sprintId === sprint.id);
+            return (
+                <section key={sprint.id} className="rounded-xl border border-border bg-surface p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-sm font-semibold text-foreground">{sprint.name}</h2>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_CLASS[sprint.status]}`}>
                       {STATUS_LABEL[sprint.status]}
                     </span>
+                      </div>
+                      {sprint.goal && <p className="mt-0.5 text-xs text-muted">{sprint.goal}</p>}
+                    </div>
+                    {canManageSprint && sprint.status === "PLANNED" && (
+                        <button
+                            onClick={() => startSprint(sprint.id)}
+                            className="rounded-md btn-gradient px-3 py-1.5 text-xs font-semibold text-primary-foreground"
+                        >
+                          시작
+                        </button>
+                    )}
+                    {canManageSprint && sprint.status === "ACTIVE" && (
+                        <button
+                            onClick={() => completeSprint(sprint.id)}
+                            className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-primary-subtle"
+                        >
+                          종료
+                        </button>
+                    )}
                   </div>
-                  {sprint.goal && <p className="mt-0.5 text-xs text-muted">{sprint.goal}</p>}
-                </div>
-                {canManageSprint && sprint.status === "PLANNED" && (
-                  <button
-                    onClick={() => startSprint(sprint.id)}
-                    className="rounded-md btn-gradient px-3 py-1.5 text-xs font-semibold text-primary-foreground"
-                  >
-                    시작
-                  </button>
-                )}
-                {canManageSprint && sprint.status === "ACTIVE" && (
-                  <button
-                    onClick={() => completeSprint(sprint.id)}
-                    className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-primary-subtle"
-                  >
-                    종료
-                  </button>
-                )}
-              </div>
 
-              <ul className="mt-3 divide-y divide-border">
-                {sprintIssues.map((issue) => (
-                  <li
-                    key={issue.id}
-                    className="flex items-center justify-between px-1 py-2.5 text-sm"
-                  >
+                  <ul className="mt-3 divide-y divide-border">
+                    {sprintIssues.map((issue) => (
+                        <li
+                            key={issue.id}
+                            className="flex items-center justify-between px-1 py-2.5 text-sm"
+                        >
                     <span>
                       <span className="mr-2 font-mono text-xs text-muted">{issue.issueKey}</span>
                       {issue.title}
                     </span>
-                    {canManageSprint && (
-                      <button
-                        onClick={() => assignToSprint(issue.id, "")}
-                        className="text-xs font-medium text-muted transition-colors duration-fast hover:text-primary"
-                      >
-                        백로그로
-                      </button>
+                          {canManageSprint && (
+                              <button
+                                  onClick={() => assignToSprint(issue.id, "")}
+                                  className="text-xs font-medium text-muted transition-colors duration-fast hover:text-primary"
+                              >
+                                백로그로
+                              </button>
+                          )}
+                        </li>
+                    ))}
+                    {sprintIssues.length === 0 && (
+                        <li className="text-center text-xs text-muted">배정된 이슈가 없습니다.</li>
                     )}
-                  </li>
-                ))}
-                {sprintIssues.length === 0 && (
-                  <li className="text-center text-xs text-muted">배정된 이슈가 없습니다.</li>
-                )}
-              </ul>
-            </section>
-          );
-        })}
-      </div>
+                  </ul>
+                </section>
+            );
+          })}
+        </div>
 
-      {/* 백로그 */}
-      <section className="mt-6 rounded-xl border border-border bg-surface p-5">
-        <h2 className="text-sm font-semibold text-foreground">백로그 ({backlogIssues.length})</h2>
-        <ul className="mt-3 divide-y divide-border">
-          {backlogIssues.map((issue) => (
-            <li
-              key={issue.id}
-              className="flex items-center justify-between px-1 py-2.5 text-sm"
-            >
+        {/* 백로그 */}
+        <section className="mt-6 rounded-xl border border-border bg-surface p-5">
+          <h2 className="text-sm font-semibold text-foreground">백로그 ({backlogIssues.length})</h2>
+          <ul className="mt-3 divide-y divide-border">
+            {backlogIssues.map((issue) => (
+                <li
+                    key={issue.id}
+                    className="flex items-center justify-between px-1 py-2.5 text-sm"
+                >
               <span>
                 <span className="mr-2 font-mono text-xs text-muted">{issue.issueKey}</span>
                 {issue.title}
               </span>
-              {canManageSprint && (
-                <select
-                  aria-label={`${issue.issueKey} 스프린트 배정`}
-                  value=""
-                  onChange={(e) => e.target.value && assignToSprint(issue.id, e.target.value)}
-                  className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-foreground focus:border-ring focus:outline-none"
-                >
-                  <option value="">스프린트 배정</option>
-                  {sprints
-                    .filter((s) => s.status !== "COMPLETED")
-                    .map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                </select>
-              )}
-            </li>
-          ))}
-          {backlogIssues.length === 0 && (
-            <li className="text-center text-xs text-muted">백로그가 비어 있습니다.</li>
-          )}
-        </ul>
-      </section>
-    </div>
+                  {canManageSprint && (
+                      <select
+                          aria-label={`${issue.issueKey} 스프린트 배정`}
+                          value=""
+                          onChange={(e) => e.target.value && assignToSprint(issue.id, e.target.value)}
+                          className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-foreground focus:border-ring focus:outline-none"
+                      >
+                        <option value="">스프린트 배정</option>
+                        {sprints
+                            .filter((s) => s.status !== "COMPLETED")
+                            .map((s) => (
+                                <option key={s.id} value={s.id}>
+                                  {s.name}
+                                </option>
+                            ))}
+                      </select>
+                  )}
+                </li>
+            ))}
+            {backlogIssues.length === 0 && (
+                <li className="text-center text-xs text-muted">백로그가 비어 있습니다.</li>
+            )}
+          </ul>
+        </section>
+      </div>
   );
 }
