@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-07
 > **최종 수정**: 2026-07-07
-> **버전**: v0.3 Gate 3/4 완료 정합화
+> **버전**: v0.4 Level 3 실행 row 반영
 > **상태**: 검토 중
 > **태그**: decision, sprint-3, baseline, proposal, changelog
 
@@ -11,14 +11,14 @@
 
 이 문서는 `Sprint 3 범위 결정 초안`과 `Sprint 3 Backlog 초안`을 기준으로 canonical 문서, Google Sheets `요구사항추적표`, Google Sheets `WBS`, `기획문서-변경이력.md`에 대한 반영 상태와 남은 변경 묶음을 검토하기 위한 제안 문서다.
 
-이 문서는 Gate 1 요구사항추적표 scope/status/boundary, Gate 2 canonical 문서 반영, Gate 3 Google Sheets WBS 4.x rewrite, Gate 4 요구사항추적표 WBS ID backfill이 완료된 현재 workflow 상태를 기록한다.
+이 문서는 Gate 1 요구사항추적표 scope/status/boundary, Gate 2 canonical 문서 반영, Gate 3 Google Sheets WBS 4.x rewrite, Gate 4 요구사항추적표 WBS ID backfill, 그리고 선택적 Level 3 실행 row 추가가 완료된 현재 workflow 상태를 기록한다.
 
 | 대상 | 처리 |
 |---|---|
 | canonical 확정 문서 | Gate 2 승인에 따라 Sprint 3 기준선 반영을 완료했다. |
 | Google Sheets `요구사항추적표` | Gate 1 승인에 따라 scope/status/boundary를 정리했다. |
-| Google Sheets `WBS` | Gate 3에 따라 Sprint 3 4.x 구조로 rewrite를 완료했다. |
-| `docs/07-decisions/기획문서-변경이력.md` | Gate 3/4 완료와 요구사항추적표 primary WBS backfill 정책을 변경이력에 반영한다. |
+| Google Sheets `WBS` | Gate 3에 따라 Sprint 3 4.x 구조로 rewrite했고, `4.7`, `4.9`, `4.10`, `4.11`, `4.12`, `4.13` 하위 Level 3 실행 row를 추가했다. |
+| `docs/07-decisions/기획문서-변경이력.md` | Gate 3/4 완료, 요구사항추적표 primary WBS backfill 정책, Sprint 3 WBS Level 3 실행 row 추가를 변경이력에 반영한다. |
 | `docs/01-planning/` | raw archive이므로 수정하지 않는다. |
 
 ## 2. 기준 문서와 현재 상태
@@ -32,7 +32,7 @@
 | API 기준 | `docs/04-api/API-명세서.md` |
 | 보류 기준 | `docs/07-decisions/보류-기능-최종표.md` |
 | 변경이력 기준 | `docs/07-decisions/기획문서-변경이력.md` |
-| Google Sheets `WBS` 현재 4.x | Gate 3 완료 기준 `4` root와 `4.1~4.14` Sprint 3 구조 |
+| Google Sheets `WBS` 현재 4.x | Gate 3 완료 기준 `4` root와 `4.1~4.14` Sprint 3 parent 구조, 선택적 `4.x.y` Level 3 실행 row |
 | Google Sheets `요구사항추적표` 현재 상태 | Gate 1 scope/status/boundary 정리와 Gate 4 WBS ID backfill 완료 |
 
 ## 3. 기준선 업데이트 원칙
@@ -44,19 +44,21 @@
 5. 기간, capacity, Owner, Reviewer, 지원 담당은 사용자 지시에 따라 공란으로 둔다.
 6. 새 요구사항 ID는 이 제안에서 임의 생성하지 않는다.
 7. Project invitation은 Sprint 3 `PROJECT-MEMBER-01~02` 후보로 다루고, 기존 `INVITE-01~04` 회사 invitation row를 덮어쓰지 않는다.
-8. WBS는 작은 작업으로 과분할하지 않고 PR/검증 가능한 굵은 실행 단위로 둔다.
-9. 쉬운 작업은 Owner 1명과 지원 담당 공란을 기본으로 한다. 어려운 작업, cross-domain 작업, 보안/감사/인프라 위험이 있는 작업에만 지원 담당 1명을 둔다.
-10. `선행 WBS ID`, `의존 유형`, `착수 가능 조건`, `병렬 그룹`, `의존성`을 채워 병목과 대기 상태를 줄인다.
+8. WBS parent row는 작은 작업으로 과분할하지 않고 PR/검증 가능한 굵은 실행 단위로 둔다.
+9. Level 3 row는 decision, 정책, 구현, 검증 순서가 실제로 갈리는 parent에만 추가한다.
+10. 요구사항추적표 primary WBS ID는 Level 3 row가 추가돼도 parent row를 유지한다.
+11. 쉬운 작업은 Owner 1명과 지원 담당 공란을 기본으로 한다. 어려운 작업, cross-domain 작업, 보안/감사/인프라 위험이 있는 작업에만 지원 담당 1명을 둔다.
+12. `선행 WBS ID`, `의존 유형`, `착수 가능 조건`, `병렬 그룹`, `의존성`을 채워 병목과 대기 상태를 줄인다.
 
 ## 4. 승인 전 작성 가능한 산출물
 
 | 산출물 | 위치 | 상태 |
 |---|---|---|
 | Sprint 3 기준선 업데이트 제안 | 이 문서 | 검토 중 |
-| 기획문서 변경이력 추가 예정 entry | 이 문서 8장 | 초안 |
+| 기획문서 변경이력 반영 상태 | 이 문서 8장과 `docs/07-decisions/기획문서-변경이력.md` | Level 3 entry 반영 완료 |
 | canonical 문서별 수정 영향도 | 이 문서 5장 | Gate 2 반영 완료 |
 | 요구사항추적표 1차 변경 draft | 이 문서 6장 | Gate 1 반영 완료 |
-| WBS 4.x rewrite 기준 | `sprint-3-backlog.md`와 Google Sheets `WBS` 4.x | Gate 3 반영 완료 |
+| WBS 4.x rewrite 기준 | `sprint-3-backlog.md`와 Google Sheets `WBS` 4.x parent/Level 3 실행 row | Gate 3 및 Level 3 row 반영 완료 |
 
 ## 5. canonical 문서 영향도
 
@@ -113,9 +115,9 @@
 | `DM_MESSAGE_CANNOT_CREATE_ISSUE` | DM은 사적 소통으로 유지하고 메시지→이슈 전환 대상에서 제외한다. |
 | `INVITE-01~04` | company invitation 전용 row로 유지한다. project invitation으로 의미를 덮어쓰지 않는다. |
 
-## 7. WBS 4.x rewrite draft 기준
+## 7. WBS 4.x rewrite와 Level 3 실행 row 기준
 
-WBS rewrite는 `docs/00-project/sprint-운영/sprint-3-backlog.md`의 4.x 구조를 기준으로 Gate 3에서 Google Sheets에 반영했다. 기존 `A:Z` 컬럼 중 `선행 WBS ID`, `의존 유형`, `착수 가능 조건`, `병렬 그룹`, `의존성`, `완료 조건`, `검증 방법`을 함께 채운다.
+WBS rewrite는 `docs/00-project/sprint-운영/sprint-3-backlog.md`의 4.x parent 구조를 기준으로 Gate 3에서 Google Sheets에 반영했다. 기존 `A:Z` 컬럼 중 `선행 WBS ID`, `의존 유형`, `착수 가능 조건`, `병렬 그룹`, `의존성`, `완료 조건`, `검증 방법`을 함께 채운다.
 
 | WBS ID | 변경 방향 | 요구사항 ID | 의존 유형 | 병렬 그룹 |
 |---|---|---|---|---|
@@ -135,73 +137,28 @@ WBS rewrite는 `docs/00-project/sprint-운영/sprint-3-backlog.md`의 4.x 구조
 | `4.13` | Restore / permanent delete | `PROJECT_RESTORE_DEFERRED`, `PERMANENT_DELETE_DEFERRED` | Policy+Implementation | S3-Retention |
 | `4.14` | Sprint 3 통합 QA와 문서 정합성 gate | 공통/QA | QA Gate | S3-QA |
 
-WBS row는 Level 2 중심으로 입력한다. 세부 구현 task는 PR, issue, 담당자 작업 기록에서 관리하고, WBS에는 병렬 착수와 검증 단위가 보이는 수준까지만 둔다. 요구사항추적표 primary WBS ID는 기능 ID별 단일 값을 원칙으로 하며, `DOC-02`와 `LINK-02`의 primary는 `4.6`, document optimistic locking boundary는 `4.12`, `LINK-01/LINK-03` primary는 `4.5`, `NOTI-01` primary는 `4.8`로 둔다. `NOTI-02/03`과 `PROJECT_NOTIFICATION_SCOPE_DEFERRED`는 현재 계약/reference 또는 API boundary로 유지하고 primary WBS backfill 대상이 아니다.
+Level 3 row는 전체 parent를 기계적으로 쪼개지 않고 실행 순서가 달라지는 parent에만 추가한다.
 
-## 8. 기획문서 변경이력 추가 예정 entry
+| Parent | Level 3 row 범위 | 기준 |
+|---|---|---|
+| `4.7` | `4.7.1~4.7.4` | thread core, project chat, 1:1 DM, group DM/read receipt decision 분리 |
+| `4.9` | `4.9.1~4.9.3` | activity feed, search decision, dashboard aggregate 분리 |
+| `4.10` | `4.10.1~4.10.4` | support cases, enforcement, system settings decision, audit/operation logs 분리 |
+| `4.11` | `4.11.1~4.11.3` | attachment policy, presigned URL 구현, metadata/validation 검증 분리 |
+| `4.12` | `4.12.1~4.12.3` | version/revision policy, conflict API/backend, conflict UI/검증 분리 |
+| `4.13` | `4.13.1~4.13.3` | retention/audit policy, project restore, permanent delete 구현 분리 |
 
-아래 내용은 approval 이후 `docs/07-decisions/기획문서-변경이력.md`에 추가할 변경 묶음 초안이다.
+요구사항추적표 primary WBS ID는 기능 ID별 단일 값을 원칙으로 하며, Level 3 row가 추가돼도 parent 기준을 유지한다. `DOC-02`와 `LINK-02`의 primary는 `4.6`, document optimistic locking boundary는 `4.12`, `LINK-01/LINK-03` primary는 `4.5`, `NOTI-01` primary는 `4.8`로 둔다. `NOTI-02/03`과 `PROJECT_NOTIFICATION_SCOPE_DEFERRED`는 현재 계약/reference 또는 API boundary로 유지하고 primary WBS backfill 대상이 아니다.
 
-```md
-| 2026-07-07 Sprint 3 scope/backlog 기준선 업데이트 | Sprint 3 범위 결정, 요구사항추적표, canonical 문서, WBS 4.x를 Sprint 3 실행 기준으로 동기화한다. | [블록 링크](#change-2026-07-07-sprint-3-baseline-update) |
+## 8. 기획문서 변경이력 반영 상태
 
-<a id="change-2026-07-07-sprint-3-baseline-update"></a>
+`docs/07-decisions/기획문서-변경이력.md`에는 Sprint 3 기준선 변경을 실제 반영 단계별로 분리해 기록한다. 단일 예정 entry로 합치지 않는다.
 
-## 2026-07-07 Sprint 3 scope/backlog 기준선 업데이트
-
-> 변경이력 묶음 ID: Sprint 3 scope/backlog 기준선 업데이트 ^change-2026-07-07-sprint-3-baseline-update
-
-### 1. 목적
-
-Sprint 3에서 Backlog 전체 개발, S15 platform admin, 조건부 확장, 고급 DM/문서/알림 기능을 실행 가능한 Sprint 3 범위와 WBS 4.x 기준으로 정렬한다.
-
-### 2. 변경 원칙
-
-- Sprint 3 committed, decision-needed, 유지 보류 항목을 분리한다.
-- 요구사항추적표의 scope/status/boundary를 WBS 4.x rewrite보다 먼저 정리한다.
-- WBS 4.x 반영 후 요구사항추적표에 WBS reference를 backfill한다.
-- 기간, capacity, Owner, Reviewer, 지원 담당은 공란으로 둔다.
-- WBS row는 과분할하지 않고 PR/검증 가능한 굵은 실행 단위로 둔다.
-- 쉬운 작업은 Owner 1명과 지원 담당 공란을 기본으로 하고, 어려운 작업에만 지원 담당 1명을 둔다.
-- 선행 WBS ID, 의존 유형, 착수 가능 조건, 병렬 그룹을 함께 채운다.
-- project invitation은 기존 company invitation row를 덮어쓰지 않는다.
-- `docs/01-planning/` archive는 수정하지 않는다.
-
-### 3. 변경 문서
-
-| 문서 | 변경 내용 |
-|---|---|
-| Google Sheets `요구사항추적표` | Sprint 3 후보, decision-needed, 유지 보류 상태와 WBS reference를 동기화 |
-| Google Sheets `WBS` | 기존 4.x Backlog Development를 Sprint 3 4.1~4.14 구조로 재작성하고 dependency metadata를 채운다. |
-| `docs/02-requirements/기능-분해표.md` | Sprint 3 승격 항목과 보류 경계 갱신 |
-| `docs/02-requirements/요구사항-정의서.md` | Sprint 3 범위와 수용 기준 반영 |
-| `docs/02-requirements/사용자-시나리오.md` | Sprint 3 사용자 흐름과 보류 해제 흐름 반영 |
-| `docs/02-requirements/기능-시나리오-API-ERD-추적표.md` | API/ERD/화면 추적성과 stub 경계 갱신 |
-| `docs/03-design/화면정의서.md` | Sprint 3 화면 상태, S15, DM, 알림, 문서 충돌, 복원/삭제 action 반영 |
-| `docs/03-design/ERD.md` | S15, DM room model, PROJECT notification scope, attachment, document versioning 영향 반영 |
-| `docs/04-api/API-명세서.md` | Sprint 3 API 계약과 보류/Stub 목록 갱신 |
-| `docs/07-decisions/보류-기능-최종표.md` | Sprint 3 승격 항목을 보류표에서 재분류 |
-| `docs/07-decisions/기획문서-변경이력.md` | 이번 변경 묶음 추가 |
-
-### 4. 영향 범위
-
-| 구분 | 영향 |
-|---|---|
-| 요구사항 | Backlog core, 조건부 확장, S15, 고급 DM/문서/알림, 첨부, restore/delete의 Sprint 3 상태가 바뀐다. |
-| API | Sprint/Issue/Kanban, 문서/그래프, 채팅/DM, 알림, 조건부 확장, S15, attachment, document conflict, restore/delete API 계약이 갱신된다. |
-| ERD/DB | S15, support/audit, attachment, DM participants, document versioning, PROJECT notification scope 영향이 정리된다. |
-| 화면 | S03~S15 화면 상태와 action 경계가 Sprint 3 기준으로 정렬된다. |
-| Sprint/DoD/검증 | WBS 4.x와 요구사항추적표, canonical docs의 정합성 QA가 Sprint 3 gate로 추가된다. |
-
-### 5. AI 사용 및 사람 검토
-
-| 항목 | 내용 |
-|---|---|
-| AI 사용 여부 | 사용 |
-| AI 사용 범위 | Sprint 3 초안, canonical 문서, Google Sheets WBS/요구사항추적표 read-only 대조와 변경 묶음 초안 작성 |
-| 최종 책임자 | 미정 |
-| 검토자 | 미정 |
-| 관련 PR/작업 기록 | 미정 |
-```
+| 변경 묶음 | 상태 | 기준 |
+|---|---|---|
+| Sprint 3 canonical docs 기준선 업데이트 | 반영 완료 | Gate 1 요구사항추적표 scope/status/boundary와 Gate 2 canonical 문서 반영 당시 범위 |
+| Sprint 3 Gate 3/4 WBS 정합화 | 반영 완료 | Google Sheets `WBS` 4.x rewrite와 요구사항추적표 primary WBS ID backfill 완료 상태 |
+| Sprint 3 WBS Level 3 실행 row 추가 | 반영 완료 | 선택 parent 하위 `4.x.y` 실행 row 추가와 parent/child WBS 기준 정리 |
 
 ## 9. 승인 gate
 
@@ -213,7 +170,8 @@ Sprint 3에서 Backlog 전체 개발, S15 platform admin, 조건부 확장, 고�
 | Gate 2 | canonical 문서 의미 변경 | 승인 완료, 5장 대상 문서 반영 완료 |
 | Gate 3 | WBS 4.x rewrite | 완료, Google Sheets `WBS` 4.x 재작성 반영 |
 | Gate 4 | WBS reference backfill | 완료, 요구사항추적표 primary WBS ID backfill 반영 |
-| Gate 5 | 변경이력 확정 | 별도 확인 필요, `기획문서-변경이력.md` 실제 반영 전 |
+| Gate 4.5 | WBS Level 3 실행 row 추가 | 완료, 선택 parent 하위 `4.x.y` row 추가 반영 |
+| Gate 5 | 변경이력 확정 | 반영 완료, PR reviewer 확인 필요 |
 
 ## 10. 검증 기준
 
@@ -221,7 +179,7 @@ Sprint 3에서 Backlog 전체 개발, S15 platform admin, 조건부 확장, 고�
 |---|---|
 | scope 분류 | Sprint 3 항목이 committed 후보, decision-needed, 유지 보류/제외 중 하나로 분류된다. |
 | 요구사항추적표 | Sprint 3 scope/status/boundary가 canonical 문서와 충돌하지 않는다. |
-| WBS | Gate 3 완료 기준 WBS 4.x row가 Sprint 3 backlog의 4.1~4.14 구조와 일치하고 선행 WBS ID, 의존 유형, 착수 가능 조건, 병렬 그룹이 채워진다. |
+| WBS | Gate 3 완료 기준 WBS 4.x parent row가 Sprint 3 backlog의 4.1~4.14 구조와 일치하고, 선택 parent 하위 Level 3 실행 row가 backlog의 child row 표와 일치한다. |
 | WBS backfill | Gate 4 완료 기준 요구사항추적표 primary WBS ID가 실제 WBS row와 상호 참조된다. |
 | 보류표 | Sprint 3로 승격한 항목이 보류로만 남지 않는다. |
 | S15 | `users.role` 단일 권한 모델을 만들지 않고 `platform_admins` 분리 기준을 유지한다. |

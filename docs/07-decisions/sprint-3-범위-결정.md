@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-07
 > **최종 수정**: 2026-07-07
-> **버전**: v0.2 Gate 3/4 완료 정합화
+> **버전**: v0.3 Level 3 실행 row 반영
 > **상태**: 검토 중
 > **태그**: decision, sprint-3, scope, backlog, platform-admin
 
@@ -11,7 +11,7 @@
 
 이 문서는 Sprint 3에서 Backlog 전체 개발, S15 platform admin, 조건부 확장, 고급 DM/문서/알림 기능을 어떤 기준으로 Sprint 3 실행 범위에 올릴지 정리하는 scope decision 초안이다.
 
-이 문서는 Sprint 3 Gate 1 요구사항추적표 scope/status/boundary, Gate 2 canonical 문서 반영, Gate 3 Google Sheets WBS 4.x rewrite, Gate 4 요구사항추적표 WBS ID backfill이 완료된 상태를 기준으로 한다.
+이 문서는 Sprint 3 Gate 1 요구사항추적표 scope/status/boundary, Gate 2 canonical 문서 반영, Gate 3 Google Sheets WBS 4.x rewrite, Gate 4 요구사항추적표 WBS ID backfill, 선택적 Level 3 실행 row 추가가 완료된 상태를 기준으로 한다.
 
 ## 2. 현재 기준
 
@@ -20,8 +20,8 @@
 | Sprint 1 | Auth-only 완료 기준 |
 | Sprint 1.5 | Company invitation 진행/계획 기준 |
 | Sprint 2 | Company/RBAC/Project foundation 계획, Issue/Kanban은 capacity candidate |
-| Backlog 4.x | Gate 3 완료 기준 Sprint 3 `4.1~4.14` 구조로 재작성 완료 |
-| S15 | `3.7~3.7.5` Sprint 2 planning gate와 Go/No-Go handoff 기준 존재, Sprint 3 구현/결정 primary row는 `4.10` |
+| Backlog 4.x | Gate 3 완료 기준 Sprint 3 `4.1~4.14` parent 구조와 선택적 `4.x.y` Level 3 실행 row 반영 완료 |
+| S15 | `3.7~3.7.5` Sprint 2 planning gate와 Go/No-Go handoff 기준 존재, Sprint 3 구현/결정 primary row는 `4.10`, 실행 row는 `4.10.1~4.10.4` |
 
 ## 3. Sprint 3 범위 모델
 
@@ -60,12 +60,12 @@ Sprint 3는 기존 `WBS 4.x Backlog Development`를 실행 가능한 Sprint 3 �
 | Sprint / Issue / Kanban | `SPRINT-01~02`, `ISSUE-01~04`, `KANBAN-01~02` | Sprint 운영, 이슈 CRUD, 5컬럼 칸반, 휴지통/복원 |
 | Message / Issue / Document link | `LINK-01`, `LINK-03` | 메시지에서 이슈 생성, 문서 이벤트 알림 후보. `LINK-02` 문서-이슈 연결 primary WBS는 `4.6` |
 | Documents / Graph | `DOC-01~04`, `GRAPH-01~02`, `LINK-02` | Markdown 문서, 회의록, graph 조회, 문서-이슈 edge |
-| Thread / Chat / DM | `THREAD-01~04`, `CHAT-01~03`, `DEFER-05~06` | 쓰레드, 프로젝트 채팅, 1:1 DM, 다자간 DM, read receipt |
+| Thread / Chat / DM | `THREAD-01~04`, `CHAT-01~03`, `DEFER-05~06` | 쓰레드, 프로젝트 채팅, 1:1 DM, 다자간 DM, read receipt. 실행 row는 `4.7.1~4.7.4` |
 | Notification | `NOTI-01` | 알림 목록, 읽음 처리 core. `NOTI-02/03`은 현재 계약/reference row로 유지 |
-| Conditional extensions | `FEED-01`, `SEARCH-01`, `DASH-01~04` | activity feed, 검색, 프로젝트 dashboard |
-| S15 Platform Admin | `DEFER-01` 재분해 | 문의/신고, 사용자 정지, 회사 비활성화, 시스템 설정, 운영 로그 |
-| Attachment | `ATTACH-01` | S3 presigned URL 기반 첨부 |
-| Restore / permanent delete | 보류 API 코드 승격 | project restore, issue/document permanent delete 정책 및 구현 |
+| Conditional extensions | `FEED-01`, `SEARCH-01`, `DASH-01~04` | activity feed, 검색, 프로젝트 dashboard. 실행 row는 `4.9.1~4.9.3` |
+| S15 Platform Admin | `DEFER-01` 재분해 | 문의/신고, 사용자 정지, 회사 비활성화, 시스템 설정, 운영 로그. 실행 row는 `4.10.1~4.10.4` |
+| Attachment | `ATTACH-01` | S3 presigned URL 기반 첨부. 실행 row는 `4.11.1~4.11.3` |
+| Restore / permanent delete | 보류 API 코드 승격 | project restore, issue/document permanent delete 정책 및 구현. 실행 row는 `4.13.1~4.13.3` |
 
 ## 6. 선행 설계가 필요한 항목
 
@@ -95,18 +95,29 @@ Sprint 3는 기존 `WBS 4.x Backlog Development`를 실행 가능한 Sprint 3 �
 
 ## 8. WBS 반영 원칙
 
-1. 기존 `WBS 4.x`를 Sprint 3 root와 세부 실행 row로 재작성한다.
+1. 기존 `WBS 4.x`를 Sprint 3 root, Level 2 parent row, 선택적 Level 3 실행 row로 재작성한다.
 2. 기간, capacity, Owner, Reviewer, 지원 담당은 공란으로 둔다.
 3. `decision-needed` 항목은 구현 row와 분리한다.
-4. S15는 `3.7~3.7.5` Sprint 2 planning gate와 Go/No-Go handoff를 거쳐 `4.10` Sprint 3 primary 구현/결정 row로 진행한다.
-5. 검색, 첨부, permanent delete처럼 정책 결정이 필요한 항목은 decision row를 선행한다.
-6. Gate 1 요구사항추적표 scope/status/boundary, Gate 2 canonical 문서 반영, Gate 3 WBS rewrite, Gate 4 요구사항추적표 WBS ID backfill은 완료된 기준선으로 둔다.
+4. Level 3 row는 `4.7`, `4.9`, `4.10`, `4.11`, `4.12`, `4.13`처럼 정책/구현/검증 순서가 실제로 갈리는 parent에만 둔다.
+5. S15는 `3.7~3.7.5` Sprint 2 planning gate와 Go/No-Go handoff를 거쳐 `4.10` Sprint 3 primary 구현/결정 row와 `4.10.1~4.10.4` 실행 row로 진행한다.
+6. 검색, 첨부, permanent delete처럼 정책 결정이 필요한 항목은 decision row를 선행한다.
+7. 요구사항추적표 primary WBS ID는 Level 3 row가 추가돼도 parent row를 유지한다.
+8. Gate 1 요구사항추적표 scope/status/boundary, Gate 2 canonical 문서 반영, Gate 3 WBS rewrite, Gate 4 요구사항추적표 WBS ID backfill은 완료된 기준선으로 둔다.
+
+| Parent | Level 3 row | 범위 |
+|---|---|---|
+| `4.7` | `4.7.1~4.7.4` | thread core, project chat, 1:1 DM, group DM/read receipt decision |
+| `4.9` | `4.9.1~4.9.3` | activity feed, search decision, dashboard aggregate |
+| `4.10` | `4.10.1~4.10.4` | support cases, enforcement, system settings decision, audit/operation logs |
+| `4.11` | `4.11.1~4.11.3` | attachment policy, presigned URL, metadata/validation |
+| `4.12` | `4.12.1~4.12.3` | version/revision policy, conflict API/backend, conflict UI/검증 |
+| `4.13` | `4.13.1~4.13.3` | retention/audit policy, project restore, permanent delete |
 
 ## 9. 검증 기준
 
 | 검증 항목 | 기준 |
 |---|---|
-| 범위 분류 | 모든 Sprint 3 항목이 committed, decision-needed, excluded 중 하나로 분류된다. |
+| 범위 분류 | 모든 Sprint 3 항목이 committed, decision-needed, excluded 중 하나로 분류되고, 선택적 Level 3 실행 row가 parent 범위를 벗어나지 않는다. |
 | 보류표 정합성 | Sprint 3로 승격한 항목이 `보류-기능-최종표.md`에 보류로 남지 않는다. |
 | API/ERD 정합성 | 신규 API는 ERD table 또는 비저장 정책과 연결된다. |
 | S15 정합성 | `users.role` 없이 `platform_admins` 기준을 유지한다. |
@@ -123,3 +134,4 @@ Sprint 3는 기존 `WBS 4.x Backlog Development`를 실행 가능한 Sprint 3 �
 | 검색 엔진 도입 여부 | WBS decision row에서 결정 |
 | 첨부 상세 정책 | WBS decision row에서 결정 |
 | permanent delete 상세 정책 | WBS decision row에서 결정 |
+| Level 3 row 담당자/일정 | 공란 유지, Sprint 3 착수 합의 후 입력 |
