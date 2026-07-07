@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀 / Sisyphus 지원
 > **작성일**: 2026-07-01
-> **최종 수정**: 2026-07-01
-> **버전**: v0.3
+> **최종 수정**: 2026-07-07
+> **버전**: v0.4 Sprint 3 기준선 정합화
 > **상태**: 검토 중
 > **태그**: erd, db, schema, traceability
 
@@ -50,9 +50,9 @@
 | 5 | `companies` | MVP reference, Sprint 1 제외 | 요약만 있음 | COMPANY-01/02/04, 회사 생성/조회/수정/로고/통계, Sprint 1.5 seed 회사 | 회사명, 설명, 대표자, 업종, 로고 URL, 상태, 통계 API에 필요한 기준, 생성자가 COMPANY_ADMIN이 되는 정책 확인 | 전체 DDL 포함 가능, Sprint 1 구현 제외 |
 | 6 | `departments` | MVP reference, Sprint 1 제외 | 요약만 있음 | DEPT-01~04, 부서 CRUD, 삭제 시 구성원 department NULL | `company_id`, 부서명, 단일 depth, 회사별 부서명 unique, 삭제 정책 | 전체 DDL 포함 가능, Sprint 1 구현 제외 |
 | 7 | `company_members` | Sprint 1.5 core, Sprint 1 제외 | 요약만 있음 | RBAC-01, MEMBER-01~04, INVITE accept 시 membership 생성 | `company_id`, `user_id`, `department_id`, `role`, `status`, unique membership, 부서 삭제 시 NULL | 전체 DDL 포함 가능, Sprint 1.5 선행 근거 |
-| 8 | `invitations` | Sprint 1.5 company, Sprint 2 project reference | 상세 있음 | INVITE-01~04, MEMBER-02, 회사 invitation, project invitation 분리 | company/project scope, inviter/invitee, role, status, 7일 만료, lazy expiration, 중복 pending 제한 | 전체 DDL 포함 가능, Sprint 1 구현 제외 |
+| 8 | `invitations` | Sprint 1.5 company, Sprint 3 project candidate | 상세 있음 | INVITE-01~04, MEMBER-02, 회사 invitation, `PROJECT-MEMBER-01~02` project invitation 분리 | company/project scope, inviter/invitee, role, status, 7일 만료, lazy expiration, 중복 pending 제한 | 전체 DDL 포함 가능, Sprint 1 구현 제외 |
 | 9 | `projects` | MVP reference, Sprint 1 제외 | 요약만 있음 | PROJECT-01~04, 회사 하위 프로젝트, archive 정책 | `company_id`, 이름, 설명, 상태, 기간, archive 처리, 생성자 column 포함 여부 TBD, 수정 시각 | 전체 DDL 포함 가능, Sprint 1 구현 제외 |
-| 10 | `project_members` | MVP/Sprint 2 reference | 요약만 있음 | PROJECT-MEMBER-01~02, RBAC-01, project invitation accept | `project_id`, `user_id`, role, status, PROJECT_ADMIN 최소 1명 정책, same company active member 제한 | 전체 DDL 포함 가능, Sprint 1 구현 제외 |
+| 10 | `project_members` | MVP reference, Sprint 3 project invitation candidate | 요약만 있음 | PROJECT-MEMBER-01~02, RBAC-01, project invitation accept | `project_id`, `user_id`, role, status, PROJECT_ADMIN 최소 1명 정책, same company active member 제한 | 전체 DDL 포함 가능, Sprint 1 구현 제외 |
 | 11 | `sprints` | MVP reference, Sprint 1 제외 | 요약만 있음 | SPRINT-01~02, Sprint 목록/생성/시작/종료/이슈 배정 | `project_id`, 이름, 목표, 기간, 상태, start/complete 시각, 미완료 이슈 처리 기준 | 전체 DDL 포함 가능, Sprint 1 구현 제외 |
 | 12 | `issues` | MVP reference, Sprint 1 제외 | 요약만 있음 | ISSUE-01~04, KANBAN-01~02, LINK-01, Sprint 배정, schema 수정필요사항 | `project_id`, `sprint_id`, 작성자, 담당자, title, description, status 5컬럼, priority, due date, `issue_key VARCHAR(40)`, source message, trash/restore pair CHECK | 전체 DDL 포함 가능, Sprint 1 구현 제외 |
 | 13 | `issue_status_history` | MVP reference, Sprint 1 제외 | 요약만 있음 | KANBAN-02, 이슈 상태 변경 이력 | `issue_id`, 이전 status, 변경 status, 변경자, 변경 시각. A/P/C 권한 차이는 service policy로 분리 | 전체 DDL 포함 가능, Sprint 1 구현 제외 |
@@ -68,7 +68,7 @@
 | 23 | `activity_events` | 조건부 확장 | 상세 있음 | FEED-01, 활동 원장, notification과 분리 | event type, target type/id, metadata JSON, actor nullable, notification event 생성 조건 제한 | 전체 MVP DDL 스켈레톤에는 포함 가능. 실제 활성화는 조건부 확장 |
 | 24 | `notification_events` | MVP reference, Sprint 1 제외 | 요약만 있음 | NOTI-01, LINK-03, THREAD-04, invitation event optional, API notification 응답 예시 | event source, type, actor, target, `title`, `body`, 선택적 `activity_event_id`, activity_events와 역할 분리. `route`/`payload_json`은 보류 | 전체 DDL 포함 가능, Sprint 1 구현 제외 |
 | 25 | `notification_recipients` | MVP reference, Sprint 1 제외 | 요약만 있음 | NOTI-01, 알림 목록/읽음/read-all, schema 수정필요사항 | `notification_event_id`, recipient user, read_at, ownership check, unread count 기준, `(recipient_user_id, read_at, created_at, id)` 조회 index | 전체 DDL 포함 가능, Sprint 1 구현 제외 |
-| 26 | `notification_preferences` | MVP reference, Sprint 1 제외 | 요약만 있음 | NOTI-02/03, GLOBAL scope, invitation 별도 preference 제외 | `user_id`, scope GLOBAL, event category, enabled, project scope 보류 | 전체 DDL 포함 가능, Sprint 1 구현 제외 |
+| 26 | `notification_preferences` | MVP reference, Sprint 1 제외 | 요약만 있음 | NOTI-02/03 현재 계약/reference, GLOBAL scope, invitation 별도 preference 제외 | `user_id`, scope GLOBAL, event category, enabled, PROJECT scope는 API boundary로 유지 | 전체 DDL 포함 가능, Sprint 1 구현 제외 |
 | 27 | `project_dashboard_summaries` | 조건부 확장 | 상세 있음 | DASH-01~04, project dashboard summary, read model | 원본 아님, aggregate counts, sprint summary, refreshed_at, Redis cache 조건 | 전체 MVP DDL 스켈레톤에는 포함 가능. 실제 활성화는 조건부 확장 |
 
 ## 5. 상세화 우선순위
@@ -77,7 +77,7 @@
 |---:|---|---|
 | 1 | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` | Sprint 1 구현·검증 대상이며 Day 2 Auth JPA Entity의 직접 기준이다. |
 | 2 | `companies`, `company_members`, `invitations` | Sprint 1.5 invitation과 seed 회사/COMPANY_ADMIN 검증의 기반이다. |
-| 3 | `projects`, `project_members` | Sprint 2 project foundation과 RBAC 확장의 기반이다. |
+| 3 | `projects`, `project_members` | project foundation과 Sprint 3 project invitation 후보의 기반이다. |
 | 4 | `sprints`, `issues`, `issue_status_history` | 이슈/칸반과 Sprint 운영의 core path다. |
 | 5 | `documents`, `document_issue_links`, `threads`, `thread_comments` | Threadia의 문서-이슈-논의 연결 핵심 흐름이다. |
 | 6 | `messages`, `project_chat_member_states`, `direct_message_rooms`, `direct_messages`, `dm_room_user_states` | 채팅/DM 흐름과 unread count 기준이 필요하다. |

@@ -2,16 +2,18 @@
 
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-15  
-> **최종 수정**: 2026-07-04
-> **버전**: 개발 기준 사용 반영 v1.3
+> **최종 수정**: 2026-07-07
+> **버전**: 개발 기준 사용 반영 v1.4
 > **상태**: 확정
 > **태그**: erd, db, schema, auth, invitation
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
-> **기준 문서**: ERD 초안 v1.4, 기능 분해표 v3.0, API 명세서 v2.0, 보류 기능 최종표 v1.0
+> **기준 문서**: ERD 초안 v1.4, 기능 분해표 v3.1, API 명세서 v2.0, 보류 기능 최종표 v1.0, Sprint 3 기준선 업데이트 제안, Sprint 3 Backlog 초안
 
 ---
 
 > **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows다. DB schema는 `docs/03-design/ERD.md`와 `db/schema.sql`을 기준으로 관리하고, Spring Boot/JPA는 schema 생성이 아니라 mapping 검증에 사용한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
+
+> **Sprint 3 기준선 메모**: 현재 ERD 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, Sprint 3 decision-needed, 유지 보류 항목을 분리한다. S15는 `3.7~3.7.5` planning gate 이후 `4.10`에서 추적하고, NOTI primary WBS는 `NOTI-01`=`4.8`이다. 이 문서는 S15, 첨부, document versioning, 고급 DM, PROJECT notification scope, project restore, permanent delete의 영향 범위만 표시하며, 선행 결정 전 concrete table이나 column 계약을 추가하지 않는다.
 
 
 ## 0. DB schema 관리 기준
@@ -52,26 +54,26 @@ Spring Boot JPA Entity는 DB를 자동 생성하거나 수정하는 기준이 �
 | 회사 | `companies` | 회사 workspace | Sprint 2 WBS 기준 개발 대상 |
 | 회사 | `departments` | 회사 하위 부서 | Sprint 2 WBS 기준 개발 대상 |
 | 회사 | `company_members` | User-Company 소속 및 권한 | Sprint 2 WBS 기준 개발 대상 |
-| 초대 | `invitations` | 등록 사용자 대상 회사 초대 요청과 상태. 프로젝트 초대는 Backlog reference | Sprint 1.5(company), Backlog(project) |
+| 초대 | `invitations` | 등록 사용자 대상 회사 초대 요청과 상태. 프로젝트 초대는 Sprint 3 후보이며 company invitation과 분리 | Sprint 1.5(company), Sprint 3 후보(project) |
 | 프로젝트 | `projects` | 회사 하위 프로젝트 | Sprint 2 WBS 기준 개발 대상 |
 | 프로젝트 | `project_members` | User-Project 소속 및 권한 | Sprint 2 WBS 기준 개발 대상 |
 | Sprint | `sprints` | Sprint 목표/기간/상태 | Backlog |
-| 이슈 | `issues` | 칸반 카드/업무 단위 | Sprint 2 candidate |
-| 이슈 | `issue_status_history` | 이슈 상태 변경 이력 | Sprint 2 candidate |
-| 문서 | `documents` | Markdown 문서 및 회의록 | MVP |
-| 문서 | `document_issue_links` | 문서와 이슈 양방향 연결 | MVP |
-| 채팅 | `messages` | 프로젝트 채팅 메시지 | MVP |
-| 채팅 | `project_chat_member_states` | 프로젝트 채팅 읽음 위치 | MVP |
-| DM | `direct_message_rooms` | 1:1 DM 방 | MVP |
-| DM | `direct_messages` | DM 메시지 | MVP |
-| DM | `dm_room_user_states` | DM 방별 읽음 위치 | MVP |
-| 쓰레드 | `threads` | Issue/Document/Message 대표 논의 공간 | MVP |
-| 쓰레드 | `thread_comments` | 쓰레드 댓글/결정 표시 | MVP |
-| 활동 | `activity_events` | 주요 변경 원장 | 조건부 확장 |
-| 알림 | `notification_events` | 알림 사건 원본 | MVP |
-| 알림 | `notification_recipients` | 사용자별 수신/읽음 상태 | MVP |
-| 알림 | `notification_preferences` | 개인 알림 설정 | MVP |
-| 대시보드 | `project_dashboard_summaries` | 프로젝트 홈 read model | 조건부 확장 |
+| 이슈 | `issues` | 칸반 카드/업무 단위 | Sprint 3 후보 |
+| 이슈 | `issue_status_history` | 이슈 상태 변경 이력 | Sprint 3 후보 |
+| 문서 | `documents` | Markdown 문서 및 회의록. version/revision exact schema는 Sprint 3 decision-needed | Sprint 3 후보 |
+| 문서 | `document_issue_links` | 문서와 이슈 양방향 연결 | Sprint 3 후보 |
+| 채팅 | `messages` | 프로젝트 채팅 메시지 | Sprint 3 후보 |
+| 채팅 | `project_chat_member_states` | 프로젝트 채팅 읽음 위치 | Sprint 3 후보 |
+| DM | `direct_message_rooms` | 1:1 DM 방. participants 일반화는 Sprint 3 decision-needed | Sprint 3 후보 |
+| DM | `direct_messages` | DM 메시지 | Sprint 3 후보 |
+| DM | `dm_room_user_states` | DM 방별 읽음 위치. 상대 read receipt는 Sprint 3 decision-needed | Sprint 3 후보 |
+| 쓰레드 | `threads` | Issue/Document/Message 대표 논의 공간 | Sprint 3 후보 |
+| 쓰레드 | `thread_comments` | 쓰레드 댓글/결정 표시 | Sprint 3 후보 |
+| 활동 | `activity_events` | 주요 변경 원장 | Sprint 3 후보 |
+| 알림 | `notification_events` | 알림 사건 원본 | Sprint 3 후보 |
+| 알림 | `notification_recipients` | 사용자별 수신/읽음 상태 | Sprint 3 후보 |
+| 알림 | `notification_preferences` | 개인 알림 설정. NOTI-02/03은 현재 계약/reference이며 PROJECT scope exact schema는 API boundary로 유지 | Sprint 3 후보 |
+| 대시보드 | `project_dashboard_summaries` | 프로젝트 홈 read model. 성능 필요 확인 전 조건부 | Sprint 3 후보 |
 
 ---
 
@@ -220,8 +222,8 @@ login, OAuth callback, token refresh, `/auth/me`는 `users.status = ACTIVE`인 �
 - Sprint 1.5 invitation은 등록 사용자 대상 app-internal invitation만 지원한다. 미가입 사용자 email 발송, token link, signup/onboarding auto-accept, resend는 Sprint 1.5 범위가 아니다.
 - 기본 만료 기간은 7일이며, read/accept/decline/cancel 시점에 lazy expiration을 확인한다. 필수 batch scheduler는 두지 않는다.
 - CHECK: `expires_at > created_at`.
-- Sprint 1.5에서는 `PENDING` company invitation 수락 시 `company_members` membership을 생성한다. 이미 회사 멤버인 경우 중복 membership을 만들지 않는다. Project invitation accept와 `project_members` 생성은 Sprint 2로 분리한다.
-- 프로젝트 invitation은 Sprint 2로 분리한다. 구현 시 해당 프로젝트가 속한 회사의 `ACTIVE` company member에게만 생성한다.
+- Sprint 1.5에서는 `PENDING` company invitation 수락 시 `company_members` membership을 생성한다. 이미 회사 멤버인 경우 중복 membership을 만들지 않는다. Project invitation accept와 `project_members` 생성은 Sprint 3 후보로 분리한다.
+- 프로젝트 invitation은 `PROJECT-MEMBER-01~02` 기준 Sprint 3 후보다. 구현 시 해당 프로젝트가 속한 회사의 `ACTIVE` company member에게만 생성한다. `INVITE-01~04` company invitation 의미를 덮어쓰지 않는다.
 - invitation-related notification은 필요 시 내부 `notification_events` 원장 기록을 남길 수 있으나 Sprint 1.5 완료 조건에는 포함하지 않는다. Push 알림, 별도 Invitation notification preference, S11 사용자 알림 UI 필수 구현은 포함하지 않는다.
 - Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local/dev/demo seed로 준비한다. `POST /api/v1/companies`는 Sprint 1.5 구현 범위에 포함하지 않고 MVP/Sprint 2 reference로 유지하며, 운영 데이터에는 seed를 포함하지 않는다.
 
@@ -440,7 +442,8 @@ summary table은 원본이 아니라 read model이다. 원본은 `issues`, `docu
 
 - INDEX (`project_id`, `document_type`).
 - CHECK: `trashed_at`과 `trashed_by_user_id`는 둘 다 NULL이거나 둘 다 NOT NULL이어야 한다.
-- 문서 영구 삭제는 보류하고 휴지통/복원까지만 제공한다.
+- 문서 영구 삭제는 Sprint 3 decision-needed이며, 참조 무결성, audit, 보존 기간, 권한 기준 결정 전까지 schema 계약을 추가하지 않는다.
+- optimistic locking용 version/revision column과 document versioning table 여부는 Sprint 3 decision-needed다. `DOCUMENT_VERSION_CONFLICT`는 API boundary로만 관리하고, exact schema는 선행 결정 후 반영한다.
 - 문서 수정 event는 `notification_events`에서 판단한다.
 
 ### 5.10 document_issue_links
@@ -503,7 +506,7 @@ summary table은 원본이 아니라 read model이다. 원본은 `issues`, `docu
 
 - CHECK (`user1_id` < `user2_id`).
 - UNIQUE KEY (`company_id`, `user1_id`, `user2_id`).
-- 같은 회사 구성원 간 1:1 DM만 허용한다. 다자간 DM은 Sprint 2로 보류한다.
+- 같은 회사 구성원 간 1:1 DM만 현재 schema 계약으로 둔다. 다자간 DM, DM room + participants 일반화, 상대 read receipt는 Sprint 3 decision-needed이며 exact schema는 선행 결정 후 반영한다.
 
 ### 5.14 direct_messages
 
@@ -613,7 +616,7 @@ summary table은 원본이 아니라 read model이다. 원본은 `issues`, `docu
 
 - UNIQUE KEY (`user_id`, `scope_type`, `notification_type`).
 - 전체 알림 on/off는 외부 API의 `notificationType=ALL`이 아니라 별도 요청 형식으로 처리한다.
-- `scope_type=PROJECT`는 `PROJECT_NOTIFICATION_SCOPE_DEFERRED`로 처리하고 ERD에는 포함하지 않는다.
+- `scope_type=PROJECT`는 Sprint 3 decision-needed로 처리한다. 실제 지원 기준, unique key, project FK 필요 여부가 확정되기 전까지 ERD에는 concrete column이나 table 계약을 추가하지 않는다.
 
 ### 5.21 service policy 검증 항목
 
@@ -638,13 +641,28 @@ DB FK와 CHECK만으로 표현하기 어려운 tenant/project/다형성 정합�
 
 ---
 
+## 5.22 Sprint 3 decision-needed schema 경계
+
+아래 항목은 Sprint 3에서 선행 결정이 필요한 schema 영향이다. 이 표는 구현 계약이 아니라 경계 기록이며, concrete table, column, FK, index는 결정 후 별도 변경이력으로 반영한다.
+
+| 항목 | 현재 경계 |
+|---|---|
+| S15 platform admin | `3.7~3.7.5` planning gate와 Go/No-Go handoff 이후 `4.10`에서 추적한다. `users.role` 단일 권한 모델을 만들지 않는다. `platform_admins`, `support_cases`, audit log exact schema는 decision-needed다. |
+| Attachment | S3 presigned URL, metadata, 권한, 크기, MIME 정책 결정 전까지 `attachments` table 계약을 추가하지 않는다. |
+| Document versioning | optimistic locking 우선안은 decision-needed다. `documents.version` column 또는 별도 version table 여부는 미정이다. |
+| Advanced DM | 1:1 DM 현재 schema를 유지한다. participants table과 read receipt schema는 decision-needed다. |
+| PROJECT notification scope | GLOBAL preference 계약을 유지한다. PROJECT scope column/FK/index는 `PROJECT_NOTIFICATION_SCOPE_DEFERRED` API boundary이며 요구사항추적표 primary WBS row로 backfill하지 않는다. |
+| Restore / permanent delete | 프로젝트 복원, 이슈/문서 영구 삭제는 권한, 보존 기간, 참조 무결성, audit 정책 확정 전 schema를 추가하지 않는다. |
+
+---
+
 ## 6. Redis와 검색 엔진의 위치
 
 | 기술 | ERD 포함 여부 | 판단 |
 |---|---|---|
 | Redis cache | ERD 미포함 | DB가 아니라 cache 계층. 최근 활동, unread count, dashboard summary 캐시에 사용 |
 | STOMP push | ERD 미포함 | 실시간 신호 전달 계층. 원본 데이터는 MySQL |
-| Typesense/Meilisearch | ERD 미포함 | Sprint 1 보류. 검색 index는 추후 별도 설계 |
+| Typesense/Meilisearch | ERD 미포함 | Sprint 3 decision-needed. 기본안은 MySQL `LIKE` 또는 FULLTEXT 우선이며 검색 엔진 도입은 별도 결정 |
 | NoSQL feed store | ERD 미포함 | Sprint 1 제외 |
 
 ---
@@ -654,7 +672,11 @@ DB FK와 CHECK만으로 표현하기 어려운 tenant/project/다형성 정합�
 - `issues` 정렬용 position 필드 관리 방식.
 - `threads` 자동 생성 vs 수동 생성 정책.
 - `activity_events`와 `notification_events`는 분리 운영한다. activity 이벤트가 notification 이벤트를 생성하는 조건은 구현 단계에서 이벤트별로 제한한다.
-- 범용 attachments 테이블과 S3 presigned URL 상세 정책은 Sprint 1 이후 구현 단계에서 확정.
+- 범용 attachments 테이블과 S3 presigned URL 상세 정책은 Sprint 3 decision-needed로 확정.
+- S15 `platform_admins`, `support_cases`, audit log exact schema는 Sprint 3 decision-needed로 확정.
+- document optimistic locking용 exact schema는 Sprint 3 decision-needed로 확정.
+- DM participants/read receipt schema와 PROJECT notification scope schema는 Sprint 3 decision-needed로 확정.
+- project restore와 issue/document permanent delete schema 영향은 Sprint 3 decision-needed로 확정.
 - Thread→Issue 추가 연결 방식.
 - 범용 `issue_history` 도입 여부.
 
@@ -666,12 +688,14 @@ DB FK와 CHECK만으로 표현하기 어려운 tenant/project/다형성 정합�
 > **상태**: 공식 결정 반영 완료
 > **기준**: `.sisyphus/evidence/task-5-invitation-impact-matrix.md`의 affected row와 2026-06-16 공식 decision set을 사용한다.
 
+> **현재 기준선 주석**: 이 섹션은 2026-06-16/Sprint 1.5 결정 기록이다. 현재 Gate 3/4 완료 기준선은 project invitation을 Sprint 3 `PROJECT-MEMBER-01~02` 후보로 다루며, `INVITE-01~04` company invitation을 project invitation으로 재사용하지 않는다.
+
 ### 반영 범위
 
 1. Phase B는 Sprint 1.5의 등록 사용자 대상 app-internal invitation 정책을 반영한다.
 2. Sprint 1은 Auth-only이며 invitation을 구현하지 않는다.
-3. Sprint 1.5부터 회사 멤버 추가는 즉시 membership 생성이 아니라 `invitations` 생성과 대상자 accept 후 membership 생성으로 처리한다. 프로젝트 멤버 추가와 project invitation은 Sprint 2로 분리한다.
-4. Sprint 2는 project invitation, project membership 생성, actual invitee email sending, token link acceptance, unregistered onboarding, resend, email template, delivery failure handling, batch cleanup/operations의 후보 시점이며 확정 구현 commitment는 아니다.
+3. Sprint 1.5부터 회사 멤버 추가는 즉시 membership 생성이 아니라 `invitations` 생성과 대상자 accept 후 membership 생성으로 처리한다. 프로젝트 멤버 추가와 project invitation은 당시 Sprint 2 후보로 분리한 과거 결정 기록이며, 현재 기준선에서는 Sprint 3 `PROJECT-MEMBER-01~02` 후보로 다룬다.
+4. 당시 Sprint 2는 project invitation, project membership 생성, actual invitee email sending, token link acceptance, unregistered onboarding, resend, email template, delivery failure handling, batch cleanup/operations의 후보 시점이며 확정 구현 commitment는 아니었다. 현재 project invitation baseline은 Sprint 3 `PROJECT-MEMBER-01~02` 후보이고, `INVITE-01~04`는 company invitation 전용이다.
 
 ### invitation 공식 결정
 
