@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-02
 > **최종 수정**: 2026-07-07
-> **버전**: v0.3 WBS 3.7 플랫폼 관리자 기획 gate 반영
+> **버전**: v0.4 WBS 3.7.5 연결 문서 수정 gate 반영
 > **상태**: 작성 중
 > **태그**: sprint-2, backlog, company, project, rbac, platform-admin
 
@@ -231,8 +231,18 @@
 | Owner | 황스일 |
 | Reviewer |  |
 | Support |  |
-| 기준 WBS | 3.7 Platform Admin Planning Gate |
+| 기준 WBS | 3.7 Platform Admin Planning Gate, 3.7.1~3.7.5 |
 | 기준 문서 | `플랫폼-관리자-인가-모델-결정.md`, `S15-플랫폼-관리자-1차-범위-정의.md`, `보류-기능-최종표.md`, `기능-분해표.md`, `요구사항-정의서.md`, `ERD.md`, `API-명세서.md`, `화면정의서.md` |
+
+**세부 WBS**
+
+| WBS ID | 항목 | 산출물 기준 |
+|---|---|---|
+| 3.7.1 | S15 세부 기능 ID와 WBS 분해 | 기능 ID, 우선순위, 후속 WBS 후보 |
+| 3.7.2 | 플랫폼 관리자 ERD/API 영향도 초안 | ERD/API 영향도와 후속 설계 수정 필요 목록 |
+| 3.7.3 | S15 화면/권한 flow 초안 | 화면 흐름과 권한별 action 초안 |
+| 3.7.4 | 플랫폼 관리자 구현 Go/No-Go와 handoff 정리 | Go/No-Go 판단과 연결 문서 triage 결과 |
+| 3.7.5 | 연결 문서 수정 반영 | 수정 반영된 연결 문서 목록과 변경이력 |
 
 **작업 범위**
 
@@ -242,6 +252,7 @@
 | ERD/API 영향도 | `platform_admins`, `support_cases`, audit log와 기존 `users`, `companies`, `company_members`, `project_members` 영향 범위를 구분한다 |
 | 화면/권한 flow | A/P/C 권한과 분리된 platform admin entry, action, 처리 flow를 초안 수준으로 정리한다 |
 | Go/No-Go handoff | S15 구현 착수 여부, 선행 WBS, 수정할 canonical 문서 목록, 4.9 분리 결과를 정리한다 |
+| 연결 문서 수정 반영 | 실제 수정이 필요한 canonical 문서에 S15 planning gate 결과를 반영하고, 수정하지 않는 문서는 사유를 남긴다 |
 
 **완료 조건**
 
@@ -249,19 +260,21 @@
 - `support_cases`로 문의와 신고를 통합하고, 관리자 조치에는 reason과 audit log가 필요하다는 원칙을 유지한다.
 - 사용자 정지와 회사 비활성화는 hard delete가 아니라 상태 변경 기준으로 분리한다.
 - 4.9의 플랫폼 관리자 보류 항목은 `3.7` planning gate로 이동한 상태가 WBS와 Sprint 2 문서에서 일치한다.
-- ERD, API 명세서, 화면정의서 직접 수정은 후속 설계 WBS 대상으로 남긴다.
+- 3.7.5에서 `기능-분해표`, `요구사항-정의서`, `사용자-시나리오`, `기능-시나리오-API-ERD-추적표`, `화면정의서`, `ERD`, `API-명세서`, `보류-기능-최종표`, `기획문서-변경이력` 중 실제 수정 대상을 반영한다.
+- ERD/API/화면 구현 상세 확정은 후속 구현 WBS 대상으로 남기되, planning gate 결과와 충돌하는 문서 문구는 3.7.5에서 정합화한다.
 
 **검증 방법**
 
-- WBS `3.7~3.7.4`와 Sprint 2 문서의 owner, reviewer, support, 선행 WBS, 완료 조건이 일치하는지 확인한다.
+- WBS `3.7~3.7.5`와 Sprint 2 문서의 owner, reviewer, support, 선행 WBS, 완료 조건이 일치하는지 확인한다.
 - `4.9`에 `DEFER-01/F/S15` 구현 항목이 남아 있지 않은지 확인한다.
-- 연결 문서 triage 결과를 PR 또는 handoff 기록으로 확인한다.
+- 연결 문서 수정 반영 결과와 미수정 사유를 PR 또는 handoff 기록으로 확인한다.
 
 **의존성**
 
 - 3.1~3.4 company, RBAC, project foundation 기준이 필요하다.
 - 3.6.3 문서/추적성 QA 결과가 필요하다.
 - 플랫폼 관리자 인가 모델 결정과 S15 1차 범위 정의가 기준 문서로 필요하다.
+- 3.7.5는 3.7.4 Go/No-Go handoff와 연결 문서 triage 결과 이후 진행한다.
 
 ## 4. Candidate backlog
 

@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-02
 > **최종 수정**: 2026-07-07
-> **버전**: v0.3 WBS 3.7 플랫폼 관리자 기획 gate 반영
+> **버전**: v0.4 WBS 3.7.5 연결 문서 수정 gate 반영
 > **상태**: 작성 중
 > **태그**: sprint-2, plan, company, project, rbac, platform-admin
 
@@ -40,7 +40,7 @@ WBS 기준 계획 범위는 회사, 부서, 회사 구성원, RBAC, 프로젝트
 | 3.3 Project Backend | 프로젝트 생성, 목록, 상세, 수정, archive, project membership 기반 | 김태준 | 여도현 | 회사 하위 프로젝트를 API로 생성, 조회, 수정, archive할 수 있다 |
 | 3.4 Project Frontend | 프로젝트 목록, 프로젝트 상세 또는 설정 진입, 프로젝트 생성 entry | 정철진 | 김민정 | 화면정의서 S04, S12 기준으로 프로젝트 기반 화면 흐름을 확인할 수 있다 |
 | 3.6 CI/Deploy/QA | Sprint 2 변경 범위의 test, build, CI, QA evidence 정리 | 김민정 | 황스일 | Backend, Frontend, 문서 변경이 Definition of Done과 검증 방법 기준을 따른다 |
-| 3.7 Platform Admin Planning Gate | `DEFER-01/F/S15` 플랫폼 관리자 기능 분해, ERD/API/화면 영향도, Go/No-Go handoff | 황스일 |  | 구현 전 기획 gate로 S15 후속 WBS와 연결 문서 triage 기준을 확정한다 |
+| 3.7 Platform Admin Planning Gate | `DEFER-01/F/S15` 플랫폼 관리자 기능 분해, ERD/API/화면 영향도, Go/No-Go handoff, 연결 문서 수정 반영 | 황스일 |  | 구현 전 기획 gate로 S15 후속 WBS와 연결 canonical 문서 수정 기준을 확정한다 |
 
 Sprint 2 WBS 기준 계획 범위는 company, department, company-members, RBAC, project foundation and platform admin planning gate다. 이 범위는 Foundation + candidate 옵션의 Foundation과 후속 구현 전 기획 gate에 해당하며, 문서 상태는 `작성 중`으로 유지한다.
 
@@ -56,7 +56,7 @@ Minimum Issue/Kanban은 capacity candidate only다. 일정 여유가 생겨도 W
 
 | 제외 항목 | 제외 이유 |
 |---|---|
-| WBS 본시트 추가 임의 변경 | 이번 작업에서 승인된 `3.7` 추가와 `4.9` 조정 외 추가 시트 변경은 별도 작업으로 분리한다 |
+| WBS 본시트 추가 임의 변경 | 이번 작업에서 승인된 `3.7~3.7.5` 추가와 `4.9` 조정 외 추가 시트 변경은 별도 작업으로 분리한다 |
 | Sprint 2 문서 상태 고정 금지 | 이 문서는 Sprint 2 planning draft이며, WBS 기준 정렬 후에도 `작성 중` 상태를 유지한다 |
 | `sprint-2-해야할일.md` | Sprint 2 문서 수를 늘리지 않기 위해 생성하지 않는다 |
 | `sprint-2-프로젝트-기반구축.md` | 프로젝트 기반구축은 이 상세계획과 backlog 안에서 다룬다 |
@@ -77,7 +77,7 @@ Minimum Issue/Kanban은 capacity candidate only다. 일정 여유가 생겨도 W
 | 2026-07-13부터 2026-07-14까지 | 3.4 Project Frontend | S04 프로젝트 목록, 프로젝트 생성 entry, S12 프로젝트 설정/상세 화면 검증 |
 | 2026-07-14부터 2026-07-21까지 | 3.5 Issue/Kanban Candidate reserve | 2026-07-20 candidate gate 이후 capacity가 있을 때만 최소 Issue/Kanban 후보 검토 |
 | 2026-07-21 | 3.6 CI/Deploy/QA | Backend/Frontend/문서 QA evidence, Sprint 2 review, Backlog handoff 정리 |
-| 2026-07-21 | 3.7 Platform Admin Planning Gate | S15 기능 분해, ERD/API/화면 영향도, Go/No-Go와 연결 문서 triage 정리 |
+| 2026-07-21 | 3.7 Platform Admin Planning Gate | S15 기능 분해, ERD/API/화면 영향도, Go/No-Go, 연결 문서 수정 반영 정리 |
 
 운영 원칙은 다음과 같다.
 
@@ -87,6 +87,7 @@ Minimum Issue/Kanban은 capacity candidate only다. 일정 여유가 생겨도 W
 4. secret, DB password, token, private data는 문서와 evidence에 기록하지 않는다.
 5. 변경 검증은 canonical DoD와 검증 방법 문서를 따른다.
 6. `3.7`은 구현 착수가 아니라 `4.9`에서 분리한 `DEFER-01`의 후속 WBS 작성 전 planning gate로 운영한다.
+7. `3.7.5`는 triage에서 끝내지 않고 실제 수정이 필요한 연결 canonical 문서 반영과 미수정 사유 기록까지 포함한다.
 
 ## 8. 주요 의존성과 blocker
 
@@ -97,7 +98,7 @@ Minimum Issue/Kanban은 capacity candidate only다. 일정 여유가 생겨도 W
 | Project Backend | 회사와 company membership, project role | 프로젝트는 회사 소속과 RBAC에 의존한다 | 회사 기반 API와 seed 또는 테스트 데이터 준비 후 진행한다 |
 | Project Frontend | S04, S12 화면과 project API | 권한별 버튼 노출과 진입 조건이 API와 맞아야 한다 | C, P, A 역할별 route와 action 노출 기준을 review한다 |
 | Candidate Issue/Kanban | 프로젝트와 project membership | Foundation 미완료 시 candidate 착수 불가 | 2026-07-20에 capacity를 보고 착수 여부를 판단한다 |
-| Platform Admin Planning Gate | 3.1~3.4 foundation, 3.6.3 문서/추적성 QA, 플랫폼 관리자 기획 결정 문서 | S15 schema/API/screen이 아직 확정되지 않았다 | 3.7에서 기능 ID/WBS, ERD/API 영향도, 화면/권한 flow, 연결 문서 triage만 정리한다 |
+| Platform Admin Planning Gate | 3.1~3.4 foundation, 3.6.3 문서/추적성 QA, 플랫폼 관리자 기획 결정 문서 | S15 schema/API/screen이 아직 확정되지 않았다 | 3.7.1~3.7.4에서 기능 ID/WBS, ERD/API 영향도, 화면/권한 flow, Go/No-Go를 정리하고 3.7.5에서 필요한 연결 canonical 문서를 수정 반영한다 |
 | CI/Deploy/QA | Backend, Frontend script와 환경 변수 | DB password가 없으면 MySQL 연결 test가 skip될 수 있다 | skip과 pass를 구분해 evidence에 남긴다 |
 
 ## 9. 참조 문서
