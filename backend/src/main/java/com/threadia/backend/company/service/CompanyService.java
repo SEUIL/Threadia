@@ -116,7 +116,7 @@ public class CompanyService {
 	public CompanyStatsData stats(String accessToken, Long companyId) {
 		AuthContext authContext = authContextService.fromAccessToken(accessToken);
 		authContextService.requireActiveUser(authContext);
-		companyAccessService.requireActiveMember(companyId, authContext);
+		companyAccessService.requireCompanyAdmin(companyId, authContext);
 		company(companyId);
 		long memberCount = companyMemberRepository.countByCompany_IdAndStatus(companyId, CompanyMemberStatus.ACTIVE);
 		long departmentCount = companyStatsRepository.countDepartments(companyId);

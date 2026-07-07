@@ -141,11 +141,11 @@ class CompanyServiceTest {
 	}
 
 	@Test
-	void statsRequiresActiveMemberAndReturnsAggregateCounts() {
-		AuthContext authContext = new AuthContext(1L, "member@example.com");
-		User member = user(1L);
+	void statsRequiresCompanyAdminAndReturnsAggregateCounts() {
+		AuthContext authContext = new AuthContext(1L, "admin@example.com");
+		User admin = user(1L);
 		when(authContextService.fromAccessToken("valid-token")).thenReturn(authContext);
-		when(authContextService.requireActiveUser(authContext)).thenReturn(member);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
 		when(companyRepository.findById(10L)).thenReturn(Optional.of(company(10L, user(1L))));
 		when(companyMemberRepository.countByCompany_IdAndStatus(10L, CompanyMemberStatus.ACTIVE)).thenReturn(3L);
 		when(companyStatsRepository.countDepartments(10L)).thenReturn(2L);
@@ -156,7 +156,7 @@ class CompanyServiceTest {
 
 		InOrder inOrder = inOrder(authContextService, companyAccessService);
 		inOrder.verify(authContextService).requireActiveUser(authContext);
-		inOrder.verify(companyAccessService).requireActiveMember(10L, authContext);
+		inOrder.verify(companyAccessService).requireCompanyAdmin(10L, authContext);
 		assertThat(data.memberCount()).isEqualTo(3L);
 		assertThat(data.departmentCount()).isEqualTo(2L);
 		assertThat(data.projectCount()).isEqualTo(4L);

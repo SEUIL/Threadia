@@ -112,6 +112,17 @@ class CompanyControllerTest {
 	}
 
 	@Test
+	void statsReturnsForbiddenWhenRequesterIsMember() throws Exception {
+		when(companyService.stats("member-token", 10L))
+				.thenThrow(new ForbiddenException("회사 관리자 권한이 필요합니다."));
+
+		mockMvc.perform(get("/api/v1/companies/10/stats")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer member-token"))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+	}
+
+	@Test
 	void createReturnsValidationErrorWhenNameIsBlank() throws Exception {
 		mockMvc.perform(post("/api/v1/companies")
 					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
