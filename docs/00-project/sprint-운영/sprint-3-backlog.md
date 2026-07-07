@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-07
 > **최종 수정**: 2026-07-07
-> **버전**: v0.3 Gate 3/4 완료 정합화
+> **버전**: v0.4 Level 3 실행 row 반영
 > **상태**: 검토 중
 > **태그**: sprint-3, backlog, wbs, platform-admin, extension
 
@@ -11,27 +11,28 @@
 
 이 문서는 Sprint 3에서 기존 `WBS 4.x Backlog Development`를 실행 가능한 Sprint 3 backlog로 재편하기 위한 초안이다.
 
-현재 문서는 Gate 1 요구사항추적표 scope/status/boundary, Gate 2 canonical 문서 반영, Gate 3 Google Sheets WBS 4.x rewrite, Gate 4 요구사항추적표 WBS ID backfill이 완료된 상태를 기준으로 한다.
+현재 문서는 Gate 1 요구사항추적표 scope/status/boundary, Gate 2 canonical 문서 반영, Gate 3 Google Sheets WBS 4.x rewrite, Gate 4 요구사항추적표 WBS ID backfill, 그리고 선택 parent의 Level 3 실행 row 추가가 완료된 상태를 기준으로 한다.
 
 ## 2. 작성 원칙
 
 1. 기간, capacity, Owner, Reviewer, 지원 담당은 일단 공란으로 둔다.
-2. 기존 `4.x`를 Sprint 3 root와 병목 방지형 Level 2 실행 row로 재작성한다.
+2. 기존 `4.x`를 Sprint 3 root와 병목 방지형 Level 2 parent row로 재작성한다.
 3. 너무 작은 작업 row로 과분할하지 않는다. WBS row는 PR, 문서 변경 묶음, API/화면 vertical slice, QA gate처럼 검증 가능한 단위로 둔다.
-4. 쉬운 작업은 Owner 1명만 배정하고 지원 담당은 공란으로 둔다. 어려운 작업이나 cross-domain 작업에만 지원 담당 1명을 둔다.
-5. `decision-needed` 항목은 구현 row와 분리한다.
-6. `선행 WBS ID`, `의존 유형`, `착수 가능 조건`, `병렬 그룹`, `의존성`을 채워 팀원이 자율적으로 착수 여부를 판단할 수 있게 한다.
-7. 같은 병렬 그룹의 row는 동시에 착수 가능해야 한다. Gate row, backend/API row, frontend row, QA row를 같은 그룹으로 섞지 않는다.
-8. S15는 `3.7~3.7.5` Sprint 2 planning gate와 Go/No-Go handoff를 선행 기준으로 두고, Sprint 3 `4.10`에서 primary 구현/결정 row로 추적한다.
-9. 동시 문서 편집은 optimistic locking을 기본 권장안으로 두되, 후속 변경 가능성을 명시한다.
-10. 고급 DM은 room + participants 구조로 일반화하는 방향을 기본 권장안으로 둔다.
-11. 알림 primary WBS 매핑은 `NOTI-01`을 `4.8`에 둔다. `NOTI-02/03`은 현재 계약/reference row로 유지하고, `PROJECT_NOTIFICATION_SCOPE_DEFERRED`는 API boundary code로 관리한다.
-12. 검색과 첨부는 기술 정책 결정 row를 선행한다.
-13. project restore와 issue/document permanent delete는 포함하되, 정책 결정 row를 선행한다.
+4. Level 3 row는 `4.7`, `4.9`, `4.10`, `4.11`, `4.12`, `4.13`처럼 decision, 정책, 구현, 검증 순서가 실제로 갈리는 parent에만 둔다.
+5. 쉬운 작업은 Owner 1명만 배정하고 지원 담당은 공란으로 둔다. 어려운 작업이나 cross-domain 작업에만 지원 담당 1명을 둔다.
+6. `decision-needed` 항목은 구현 row와 분리한다.
+7. `선행 WBS ID`, `의존 유형`, `착수 가능 조건`, `병렬 그룹`, `의존성`을 채워 팀원이 자율적으로 착수 여부를 판단할 수 있게 한다.
+8. 같은 병렬 그룹의 row는 동시에 착수 가능해야 한다. Gate row, backend/API row, frontend row, QA row를 같은 그룹으로 섞지 않는다.
+9. S15는 `3.7~3.7.5` Sprint 2 planning gate와 Go/No-Go handoff를 선행 기준으로 두고, Sprint 3 `4.10`에서 primary 구현/결정 row로 추적한다.
+10. 동시 문서 편집은 optimistic locking을 기본 권장안으로 두되, 후속 변경 가능성을 명시한다.
+11. 고급 DM은 room + participants 구조로 일반화하는 방향을 기본 권장안으로 둔다.
+12. 알림 primary WBS 매핑은 `NOTI-01`을 `4.8`에 둔다. `NOTI-02/03`은 현재 계약/reference row로 유지하고, `PROJECT_NOTIFICATION_SCOPE_DEFERRED`는 API boundary code로 관리한다.
+13. 검색과 첨부는 기술 정책 결정 row를 선행한다.
+14. project restore와 issue/document permanent delete는 포함하되, 정책 결정 row를 선행한다.
 
-## 3. WBS 4.x 재구성 요약
+## 3. WBS 4.x parent 재구성 요약
 
-아래 표는 Gate 3 완료 기준 Google Sheets `WBS`의 `A:Z` 컬럼 중 Sprint 3 rewrite에서 채운 핵심 metadata를 요약한다.
+아래 표는 Gate 3 완료 기준 Google Sheets `WBS`의 `A:Z` 컬럼 중 Sprint 3 parent row에서 채운 핵심 metadata를 요약한다. Level 3 실행 row는 4장에서 별도로 관리한다.
 
 | WBS ID | Level | 대분류 | 작업명 | 선행 WBS ID | 의존 유형 | 착수 가능 조건 | 병렬 그룹 | 상태 | 우선순위 | 확정성 |
 |---|---:|---|---|---|---|---|---|---|---|---|
@@ -51,9 +52,36 @@
 | 4.13 | 2 | Restore / Permanent Delete | project restore와 issue/document permanent delete | 4.4, 4.6, 4.10 | Policy+Implementation | restore/delete 권한, 보존 기간, 참조 처리, audit 기준 결정 | S3-Retention | 계획 | P2 | decision-needed |
 | 4.14 | 2 | Integration QA | Sprint 3 통합 QA와 문서 정합성 gate | 4.2~4.13 | QA Gate | feature evidence와 문서/WBS/추적표 변경 반영 완료 | S3-QA | 계획 | P0 | QA gate |
 
-## 4. 병목 방지형 WBS 입력 초안
+## 4. 선택적 Level 3 실행 row
 
-실제 WBS 입력은 Level 2 row 중심으로 한다. 아래 표의 `Owner/지원`은 배정 원칙이며, 실제 이름은 WBS baseline 승인 후 입력한다.
+Level 3 row는 전체 `4.x`를 기계적으로 쪼갠 것이 아니라, 실제 착수 순서와 검증 기준이 달라지는 parent에만 추가한다. 요구사항추적표 primary WBS ID는 parent row를 유지한다.
+
+| Parent | Level 3 row | 작업명 | 성격 |
+|---|---|---|---|
+| `4.7` | `4.7.1` | thread core 구현 | Sprint 3 후보 |
+| `4.7` | `4.7.2` | project chat 구현 | Sprint 3 후보 |
+| `4.7` | `4.7.3` | 1:1 DM 구현 | Sprint 3 후보 |
+| `4.7` | `4.7.4` | group DM/read receipt decision | decision-needed |
+| `4.9` | `4.9.1` | activity feed 최소 구현 | Sprint 3 후보 |
+| `4.9` | `4.9.2` | search 방식 결정 | decision-needed |
+| `4.9` | `4.9.3` | dashboard aggregate 구현 | Sprint 3 후보 |
+| `4.10` | `4.10.1` | support cases 구현 범위 확정/구현 | Sprint 3 후보 |
+| `4.10` | `4.10.2` | user/company enforcement 구현 | Sprint 3 후보 |
+| `4.10` | `4.10.3` | system settings 구현 범위 확정 | decision-needed |
+| `4.10` | `4.10.4` | audit/operation logs 구현 | Sprint 3 후보 |
+| `4.11` | `4.11.1` | attachment policy/contract 결정 | decision-needed |
+| `4.11` | `4.11.2` | presigned upload/download 구현 | Sprint 3 후보 |
+| `4.11` | `4.11.3` | metadata/validation 검증 | Sprint 3 후보 |
+| `4.12` | `4.12.1` | version/revision 정책 결정 | decision-needed |
+| `4.12` | `4.12.2` | conflict API/backend 구현 | Sprint 3 후보 |
+| `4.12` | `4.12.3` | conflict UI와 검증 | Sprint 3 후보 |
+| `4.13` | `4.13.1` | retention/audit 정책 결정 | decision-needed |
+| `4.13` | `4.13.2` | project restore 구현 | Sprint 3 후보 |
+| `4.13` | `4.13.3` | issue/document permanent delete 구현 | Sprint 3 후보 |
+
+## 5. 병목 방지형 parent WBS 입력 초안
+
+아래 표는 parent row의 Owner/지원 배정 원칙이다. 실제 이름은 WBS baseline 승인 후 입력하고, Level 3 row가 있는 parent는 실제 착수 담당을 child row에 우선 배정한다.
 
 | WBS ID | 요구사항 ID | 관련 API/화면/DB | 산출물 | Owner/지원 원칙 | 완료 조건 | 검증 방법 |
 |---|---|---|---|---|---|---|
@@ -72,7 +100,7 @@
 | 4.13 | `PROJECT_RESTORE_DEFERRED`, `PERMANENT_DELETE_DEFERRED` | project restore, issue/document permanent delete, audit | restore/delete 정책 결정과 제한 구현 | Owner 1명, 정책/감사 위험으로 지원 1명 가능 | restore와 permanent delete 권한, 참조, audit 기준 충족 | decision record, test, curl, DB 확인 |
 | 4.14 | 공통/QA | backend, frontend, canonical docs, WBS, 요구사항추적표 | Sprint 3 통합 QA와 release gate | Owner 1명, 각 domain evidence owner 협조 | 완료/미완료/이월, 문서/WBS/추적표 충돌 여부 분리 | test/build/browser, diff, grep |
 
-## 5. WBS 입력 시 공란 유지 컬럼
+## 6. WBS 입력 시 공란 유지 컬럼
 
 | 컬럼 | 처리 |
 |---|---|
@@ -84,7 +112,7 @@
 | 지원 담당 | 공란 |
 | capacity | 별도 column이 없으므로 입력하지 않음 |
 
-## 6. 기존 WBS 4.x와의 변경 요약
+## 7. 기존 WBS 4.x와의 변경 요약
 
 | 기존 WBS | 기존 의미 | Sprint 3 변경 방향 |
 |---|---|---|
@@ -100,10 +128,10 @@
 | 4.9 | Optional/Deferred | 4.10 S15로 재배치, optional/deferred는 세부 row로 분해 |
 | 4.10 | Deferred Invitation/Tech Details | 검색/첨부/고급 기능 decision row로 분산 |
 
-## 7. 확정 전 주의사항
+## 8. 확정 전 주의사항
 
 1. 이 문서는 Gate 3 Google Sheets WBS rewrite와 Gate 4 요구사항추적표 WBS ID backfill 완료 결과를 반영한 Sprint 3 backlog 기준이다.
 2. S15는 `3.7~3.7.5` Sprint 2 planning gate와 Go/No-Go handoff를 전제로 `4.10`에서 상세 확정과 구현을 추적한다.
 3. optimistic locking, DM room model, MySQL 우선 검색, S3 presigned URL은 현재 권장안이며 구현 중 변경될 수 있다.
 4. permanent delete는 참조 무결성과 audit 정책이 확정되지 않으면 구현 row로 넘어가면 안 된다.
-5. 요구사항추적표 primary WBS ID는 기능 ID별 단일 값을 원칙으로 한다. `LINK-02`와 `DOC-02` primary는 `4.6`, `DEFER-04` primary는 `4.12`, `NOTI-01` primary는 `4.8`이다.
+5. 요구사항추적표 primary WBS ID는 기능 ID별 단일 값을 원칙으로 한다. Level 3 row를 추가해도 `LINK-02`와 `DOC-02` primary는 `4.6`, `DEFER-04` primary는 `4.12`, `NOTI-01` primary는 `4.8`이다.
