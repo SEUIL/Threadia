@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-15  
 > **최종 수정**: 2026-07-08
-> **버전**: v1.2 Sprint 3 기준선 반영 + company member scoped PATCH 동기화
+> **버전**: v1.3 Sprint 3 기준선 반영 + company member scoped PATCH 동기화 + current-user membership context
 > **상태**: 확정
 > **태그**: requirements, traceability, api, erd
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
@@ -46,7 +46,7 @@
 
 | 시나리오 | Actor | 연결 기능 | 주요 API | 주요 ERD | 화면 | 상태 |
 |---|---|---|---|---|---|---|
-| SC-AUTH-01 인증과 프로필 설정 | 비로그인, A/P/C | AUTH-01~04는 Sprint 1 확정. USER-01은 Sprint 3 후보 | `POST /api/v1/auth/signup`, `POST /api/v1/auth/login`, `GET /oauth2/authorization/{provider}`, `GET /api/v1/auth/oauth2/callback/{provider}`, `POST /api/v1/auth/password-reset/request`, `POST /api/v1/auth/password-reset/confirm`, `PATCH /api/v1/users/me/profile` | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` | S01, S02, S03 | Sprint 1 확정 + Sprint 3 후보 |
+| SC-AUTH-01 인증과 프로필 설정 | 비로그인, A/P/C | AUTH-01~04는 Sprint 1 확정. USER-01은 Sprint 3 후보. USER-02/NAV-01/RBAC-01은 S03 frontend/RBAC context | `POST /api/v1/auth/signup`, `POST /api/v1/auth/login`, `GET /oauth2/authorization/{provider}`, `GET /api/v1/auth/oauth2/callback/{provider}`, `POST /api/v1/auth/password-reset/request`, `POST /api/v1/auth/password-reset/confirm`, `GET /api/v1/users/me/company-memberships`, `PATCH /api/v1/users/me/profile` | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens`, `company_members`, `companies` | S01, S02, S03 | Sprint 1 확정 + Sprint 3 frontend/RBAC context |
 | SC-C-01 회사 관리자 초기 세팅 | C | COMPANY-01, COMPANY-02, DEPT-01~04, MEMBER-01~04, RBAC-01 | `POST /api/v1/companies`, `GET/PATCH /api/v1/companies/{companyId}`, `POST /api/v1/companies/{companyId}/logo`, `GET/POST /api/v1/companies/{companyId}/departments`, `PATCH/DELETE /api/v1/departments/{departmentId}`, `GET /api/v1/companies/{companyId}/company-members`, `GET /api/v1/users/lookup`, `POST/GET /api/v1/companies/{companyId}/invitations`, `POST /api/v1/invitations/{invitationId}/accept`, `POST /api/v1/invitations/{invitationId}/decline`, `POST /api/v1/invitations/{invitationId}/cancel`, `PATCH /api/v1/companies/{companyId}/company-members/{companyMemberId}` | `companies`, `departments`, `company_members`, `invitations`, `users` | S13, S14, S04, S12 | 연결 완료 |
 | SC-C-02 회사 관리자 모니터링과 의사결정 | C | PROJECT-01, ISSUE-01, THREAD-01, NOTI-01, COMPANY-04 | `GET /api/v1/companies/{companyId}/projects`, `GET /api/v1/projects/{projectId}/issues`, `GET /api/v1/projects/{projectId}/threads`, `POST /api/v1/threads/{threadId}/comments`, `GET /api/v1/notifications`, `GET /api/v1/companies/{companyId}/stats` | `projects`, `issues`, `threads`, `thread_comments`, `notification_events`, `notification_recipients`, `companies` | S04, S05, S10, S11, S13 | 연결 완료 |
 | SC-P-01 프로젝트 관리자 프로젝트 운영 | P | PROJECT-02, PROJECT-03, PROJECT-04, PROJECT-MEMBER-01, PROJECT-MEMBER-02, SPRINT-01, SPRINT-02, ISSUE-01, ISSUE-02, ISSUE-03, KANBAN-01, KANBAN-02, DOC-01, DOC-02, GRAPH-01, GRAPH-02, NOTI-01 | `POST /api/v1/companies/{companyId}/projects`, `GET/PATCH /api/v1/projects/{projectId}`, `POST /api/v1/projects/{projectId}/archive`, `GET /api/v1/projects/{projectId}/project-members`, `POST/GET /api/v1/projects/{projectId}/invitations`, `PATCH/DELETE /api/v1/project-members/{projectMemberId}`, `GET/POST /api/v1/projects/{projectId}/sprints`, `POST /api/v1/sprints/{sprintId}/start`, `POST /api/v1/sprints/{sprintId}/complete`, `GET/POST /api/v1/projects/{projectId}/issues`, `PATCH /api/v1/issues/{issueId}/status`, `GET/POST /api/v1/projects/{projectId}/documents`, `GET /api/v1/projects/{projectId}/documents/graph` | `projects`, `project_members`, `invitations`, `sprints`, `issues`, `issue_status_history`, `documents`, `document_issue_links`, `notification_events` | S04, S05, S06, S07, S08, S10, S11, S12 | Foundation reference + Sprint 3 후보 |
@@ -64,6 +64,7 @@
 | 비밀번호 재설정 | AUTH-04 | Sprint 1 확정 | SC-AUTH-01 | reset 요청/확정 | `password_reset_tokens`, `users`, `refresh_tokens` | token 원문 저장 금지, hash/만료/사용 시각 관리. confirm 성공 시 해당 user의 refresh token 전부 revoke |
 | Invitation | INVITE-01~04 | Sprint 1.5 | SC-C-01 | 사용자 lookup, 회사 초대 생성/목록, 내 초대 목록, accept/decline/cancel | `invitations`, `users`, `company_members` | 등록 사용자 app-internal company invitation, 기본 7일 만료, lazy expiration. project invitation은 `PROJECT-MEMBER-01~02`와 분리한다. lookup email은 `trim + lowercase` 정규화 |
 | 프로필 | USER-01 | Sprint 3 후보 | SC-AUTH-01, SC-C-01 | 내 프로필 수정 | `users.avatar_url` | 파일 업로드가 아니라 URL 저장으로 시작 |
+| 사용자 context | USER-02, NAV-01, RBAC-01 | Sprint 3 frontend/RBAC context | SC-AUTH-01, SC-C-01 | 현재 사용자 ACTIVE 회사 membership context 조회 | `company_members`, `companies` | `/users/me/company-memberships`가 `companyId`, `companyName`, `role`, `status`를 제공한다. `/auth/me`와 login `companies` 계약은 변경하지 않는다 |
 | 권한 | RBAC-01 | MVP | 전체 시나리오 | 모든 인증 API 권한 검사 | `company_members.role`, `project_members.role` | 사용자 단일 role 필드 금지 |
 | 회사/부서 | COMPANY-01, COMPANY-02, COMPANY-04, DEPT-01~04 | MVP | SC-C-01, SC-C-02 | 회사 생성/조회/수정/로고/통계, 부서 CRUD | `companies`, `departments`, `company_members` | 부서 삭제 시 멤버 `department_id = NULL` |
 | 구성원/권한 | MEMBER-01~04, INVITE-01~04 | Sprint 1.5 | SC-C-01 | 등록 사용자 lookup, 회사 invitation 생성/조회, 내 초대 조회, accept/decline/cancel, 회사 역할 변경 | `users`, `company_members`, `invitations` | Sprint 1.5 membership은 company invitation accept 시 생성한다. project invitation은 `PROJECT-MEMBER-01~02`와 분리한다 |
@@ -117,7 +118,7 @@
 | 비밀번호 reset token은 API에서 원문을 받고 ERD에는 hash로 저장한다. | API 명세서 v2.0, ERD v2.0 | 일치 |
 | refresh token은 raw token이 아니라 `refresh_tokens.token_hash`로 저장하고 rotate/revoke/expire 상태를 추적한다. | API 명세서 v2.3, ERD v2.0 | 일치 |
 | Sprint 1.5 invitation은 `invitations`를 생성하고 대상자가 accept할 때 company membership을 만든다. Project invitation은 `PROJECT-MEMBER-01~02` 기준 Sprint 3 후보로 분리하고 `INVITE-01~04`를 덮어쓰지 않는다. | API 명세서 v2.3, ERD v2.0, 화면정의서_v3 | 일치 |
-| 권한은 `users.role`이 아니라 회사/프로젝트 소속 테이블에서 판정한다. | 기능 분해표 v3.1, ERD v2.0, 화면정의서_v3 | 일치 |
+| 권한은 `users.role`이 아니라 회사/프로젝트 소속 테이블에서 판정한다. S03 frontend/RBAC context는 `/users/me/company-memberships`의 ACTIVE 회사 membership 목록을 사용하고 `/auth/me` minimal Auth context는 확장하지 않는다. | 기능 분해표 v3.1, API 명세서 v2.3, ERD v2.0, 화면정의서_v3 | 일치 |
 | 프로젝트 삭제는 물리 삭제가 아니라 `ARCHIVED` 상태로 처리한다. | API 명세서 v2.0, ERD v2.0, 화면정의서_v3 | 일치 |
 | 이슈/문서는 영구 삭제 없이 휴지통/복원까지만 제공한다. | API 명세서 v2.0, 화면정의서_v3, 보류 기능 최종표 v1.0 | 일치 |
 | DM은 1:1 core를 Sprint 3 후보로 두고 다자간 DM과 상대 read receipt는 Sprint 3 decision-needed로 둔다. | 사용자 시나리오 v3.1, API 명세서 v2.0, ERD v2.0 | 일치 |
