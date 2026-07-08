@@ -27,6 +27,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePendingInvitationCount } from "@/hooks/usePendingInvitationCount";
 
 type Role = "A" | "P" | "C";
 
@@ -76,6 +77,20 @@ function FolderIcon() {
   );
 }
 
+function MailIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+      <path
+        d="M4.5 6h15A1.5 1.5 0 0 1 21 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 16.5v-9A1.5 1.5 0 0 1 4.5 6Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path d="m4 7 8 6 8-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function BuildingIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
@@ -113,6 +128,7 @@ function HubRail() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const nickname = user?.nickname ?? "";
+  const pendingInvitationCount = usePendingInvitationCount();
 
   const handleLogout = async () => {
     await logout();
@@ -122,6 +138,8 @@ function HubRail() {
   const items: NavItem[] = [
     { href: `/${MOCK_COMPANY_ID}/projects`, label: "프로젝트", icon: <FolderIcon /> },
     { href: `/${MOCK_COMPANY_ID}/dm`, label: "채팅·DM", icon: <ChatIcon />, badge: MOCK_DM_UNREAD_COUNT },
+    // company-agnostic — 아직 어느 회사에도 소속 안 된 신규 유저의 유일한 진입점이기도 하다.
+    { href: "/invitations", label: "받은 초대", icon: <MailIcon />, badge: pendingInvitationCount },
     { href: `/${MOCK_COMPANY_ID}/notifications`, label: "알림", icon: <BellIcon />, badge: MOCK_NOTIFICATION_COUNT },
   ];
   // C(회사 관리자)만 회사 관리 메뉴가 보인다 (화면정의서 S03 메뉴 노출 규칙, RailShell과 동일)

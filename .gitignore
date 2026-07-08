@@ -35,6 +35,7 @@ temp/
 .claude/sessions/
 .claude/cache/
 .claude/tmp/
+.claude/launch.json
 claude-code*.log
 codex*.log
 opencode*.log
