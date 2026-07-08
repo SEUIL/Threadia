@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
 > **최종 수정**: 2026-07-08
-> **버전**: Sprint 1.5 invitation 표시 필드 보강 + Sprint 3 기준선 반영 + company member scoped PATCH 동기화 v1.4
+> **버전**: Sprint 1.5 invitation 표시 필드 보강 + Sprint 3 기준선 반영 + company member scoped PATCH 동기화 + current-user membership context v1.5
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -206,6 +206,7 @@ POST /api/v1/auth/refresh
 
 | Method | Endpoint | 권한 | 설명 | 상태 |
 |---|---|---|---|---|
+| GET | `/api/v1/users/me/company-memberships` | A/P/C | 현재 사용자의 ACTIVE 회사 membership context 조회 | Sprint 3 frontend/RBAC context |
 | PATCH | `/api/v1/users/me/profile` | A/P/C | nickname, avatarUrl 수정 | MVP, Sprint 1 구현 제외 |
 
 ```json
@@ -575,7 +576,7 @@ Set-Cookie: refreshToken=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0
 
 #### GET `/api/v1/auth/me`
 
-> **Sprint 1 공식 결정**: `/auth/me`의 Sprint 1 응답은 `data.user` 아래 `id`, `email`, `nickname`, `avatarUrl`만 포함하는 minimal Auth context다. `companyMemberships`, `projectMemberships`, `unreadNotificationCount`, `dmUnreadCount`는 후속 MVP reference 예시이며 Sprint 1 구현 target이 아니다.
+> **Sprint 1 공식 결정**: `/auth/me`의 응답은 `data.user` 아래 `id`, `email`, `nickname`, `avatarUrl`만 포함하는 minimal Auth context다. `companyMemberships`는 `/api/v1/users/me/company-memberships`에서 별도로 조회하고, `projectMemberships`, `unreadNotificationCount`, `dmUnreadCount`는 후속 MVP reference 예시다.
 
 Response 200:
 
@@ -613,6 +614,31 @@ Request Body:
 ```
 
 ### 13.3 User
+
+#### GET `/api/v1/users/me/company-memberships`
+
+현재 로그인 사용자의 ACTIVE 회사 membership context만 반환한다. Frontend S03/RBAC context는 이 endpoint를 기준으로 회사 선택, 회사관리 메뉴 노출, 초기 라우팅을 결정한다. `/api/v1/auth/me`와 `/api/v1/auth/login` 응답 shape는 변경하지 않는다.
+
+Response 200:
+
+```json
+{
+  "data": {
+    "companyMemberships": [
+      {
+        "companyMemberId": 101,
+        "companyId": 10,
+        "companyName": "Threadia",
+        "role": "COMPANY_ADMIN",
+        "status": "ACTIVE"
+      }
+    ]
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+ACTIVE membership이 없으면 `companyMemberships`는 빈 배열이다.
 
 #### PATCH `/api/v1/users/me/profile`
 

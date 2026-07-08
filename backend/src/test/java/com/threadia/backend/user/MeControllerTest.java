@@ -39,6 +39,7 @@ class MeControllerTest {
 				.andExpect(jsonPath("$.data.user.id").value(1))
 				.andExpect(jsonPath("$.data.user.email").value("user@example.com"))
 				.andExpect(jsonPath("$.data.user.nickname").value("nick"))
+				.andExpect(jsonPath("$.data.companyMemberships").doesNotExist())
 				.andExpect(jsonPath("$.meta.requestId").exists());
 	}
 
