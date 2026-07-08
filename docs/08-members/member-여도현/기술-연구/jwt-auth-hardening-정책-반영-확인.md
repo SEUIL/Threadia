@@ -1,13 +1,13 @@
 > **작성자**: 여도현
 > **작성일**: 2026-07-02
-> **최종 수정**: 2026-07-02
-> **버전**: v1.0
+> **최종 수정**: 2026-07-07
+> **버전**: v1.1
 > **상태**: 검토 중
 > **태그**: jwt, auth, security, hardening, sprint-1
 
 # JWT/Auth hardening 정책 반영 확인
 
-이 문서는 Sprint 1 WBS `1.2.3 JWT/Auth hardening 정책 반영 확인`의 결정 기준, 현재 반영 상태, 후속 구현 완료 기준을 정리한다. 코드 구현은 후속 `1.3.x` Auth API 구현 작업에서 진행하고, 이 문서는 구현자가 따라야 할 정책 기준과 검증 기준을 확정하는 산출물이다.
+이 문서는 Sprint 1 WBS `1.2.3 JWT/Auth hardening 정책 반영 확인`의 결정 기준, 구현 반영 상태, 후속 hardening 기준을 정리한다. 최초 작성 시점에는 구현 전 정책 기준 산출물이었고, 2026-07-07 기준으로 Sprint 1 Auth 구현과 password reset 검증 결과를 반영해 최신화했다.
 
 ## 1. 결론
 
@@ -109,26 +109,29 @@ WBS `1.2.3`은 Day 3 API 구현 전에 Auth 정책 기준이 코드와 문서에
 
 ## 4. 현재 반영 상태
 
-현재 backend 코드는 Spring Boot skeleton과 MySQL 연결 검증 중심이며 JWT/Auth 구현은 아직 없다. 따라서 이 문서의 “반영 확인”은 코드 완료 확인이 아니라 **구현 전 정책 기준 확정과 canonical 문서 반영 상태 확인**이다.
+2026-07-07 기준 backend는 Sprint 1 Auth 구현과 password reset 흐름까지 반영된 상태다. 이 문서는 최초 정책 기준 산출물이었지만, 현재는 구현 반영 여부를 함께 추적한다.
 
 | 확인 대상 | 문서 반영 상태 | 코드 반영 상태 | 판단 |
 |---|---|---|---|
-| access 30분 / refresh 14일 | 반영 | 미구현 | 구현 시 반영 필요 |
-| refresh hash 저장 | 반영 | 미구현 | 구현 시 반영 필요 |
-| refresh rotation | 반영 | 미구현 | 구현 시 반영 필요 |
-| logout invalidation | 반영 | 미구현 | 구현 시 반영 필요 |
-| password reset/status change revoke | 반영 | 미구현 | 구현 시 반영 필요 |
-| access memory / refresh HttpOnly SameSite=Lax cookie | 반영 | 미구현 | FE-BE 연동 시 세부 구현 필요 |
-| email `trim + lowercase` | 반영 | 미구현 | 모든 Auth 진입점 공통 유틸 또는 정책 필요 |
-| OAuth blind auto-link 금지 | 반영 | 미구현 | `1.3.2` 구현 시 검증 필요 |
-| ACTIVE-only 인증 | 반영 | 미구현 | login/OAuth/refresh/me 공통 검증 필요 |
-| UTC 시간 기준 | 반영 | 미구현 | token 만료/생성 시각 구현 시 반영 필요 |
-| secret/token 비노출 | 반영 | 부분 적용 | `.env`는 gitignore 대상이나 구현 PR에서 재확인 필요 |
+| access 30분 / refresh 14일 | 반영 | 구현됨 | `JwtTokenService`, refresh token 설정 기준 유지 |
+| refresh hash 저장 | 반영 | 구현됨 | raw refresh token은 cookie로만 전달하고 DB에는 hash 저장 |
+| refresh rotation | 반영 | 구현됨 | `/api/v1/auth/refresh` 성공 시 기존 token rotate/revoke 후 새 token 발급 |
+| logout invalidation | 반영 | 구현됨 | access token과 refresh cookie 소유자 일치 확인 후 revoke |
+| password reset 성공 시 revoke | 반영 | 구현됨 | confirm 성공 시 기존 refresh token revoke |
+| `SUSPENDED`/`DELETED` 상태 차단 | 반영 | 부분 구현 | login/OAuth/refresh/me 차단 기준은 구현, 상태 변경 API는 후속 |
+| access memory / refresh HttpOnly SameSite=Lax cookie | 반영 | 구현됨 | backend는 access body, refresh cookie 기준 제공 |
+| email `trim + lowercase` | 반영 | 구현됨 | signup/login/password reset/OAuth/user lookup 기준 적용 |
+| OAuth blind auto-link 금지 | 반영 | 구현됨 | provider account 기준 매핑, email-only 자동 연결 금지 |
+| ACTIVE-only 인증 | 반영 | 구현됨 | login/OAuth/refresh/me에서 ACTIVE 기준 확인 |
+| UTC 시간 기준 | 반영 | 구현됨 | token 만료/생성 시각은 UTC 기준 |
+| secret/token 비노출 | 반영 | 구현됨 | `.env`와 환경변수 주입 기준, raw token 문서/로그 미노출 |
 
 코드 상태 근거:
 
-- `backend/build.gradle:20` 기준 현재 dependency는 actuator, jdbc, validation, web, MySQL connector, test 중심이다.
-- `docs/08-members/member-여도현/기술-연구/google-oauth-login-api-구현-조사.md:99`는 현재 backend가 OAuth/Auth 구현 전 skeleton임을 정리한다.
+- `backend/src/main/java/com/threadia/backend/auth/controller/AuthController.java`에 signup/login/logout/refresh/password reset endpoint가 있다.
+- `backend/src/main/java/com/threadia/backend/auth/service/GoogleOAuthLoginService.java`가 Google OAuth user mapping과 refresh cookie 발급을 처리한다.
+- `backend/src/main/java/com/threadia/backend/auth/service/PasswordResetService.java`가 reset token 검증과 refresh token revoke를 처리한다.
+- `backend/scripts/auth-e2e-preflight.sh` 기준 backend Auth core flow, password reset positive confirm, OAuth smoke 검증 기록이 있다.
 
 ## 5. 후속 구현 완료 기준
 
@@ -198,33 +201,31 @@ OAuth 구현 상세 근거 문서:
 - [ ] cookie 선택 시 `HttpOnly`, `SameSite=Lax`, 운영 `Secure` 기준이 적용된다.
 - [ ] log, PR, 문서, 테스트 fixture에 secret/raw token/개인정보가 노출되지 않는다.
 
-## 7. 미구현/후속 작업
+## 7. 남은 후속 작업
 
 | 항목 | 후속 작업 | 관련 WBS |
 |---|---|---|
-| Auth Entity/Repository | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` 구현 | Day 2 Auth Entity |
-| JWT 발급/검증 | access/refresh token 발급, 검증, 만료 정책 구현 | `1.3.1` |
-| Refresh API | hash 조회, rotation, revoke 처리 구현 | `1.3.1` |
-| Logout API | refresh token invalidation 구현 | `1.3.1` |
-| OAuth callback | Google OAuth callback, user mapping, token 발급 구현 | `1.3.2` |
-| Password reset | reset token hash, used-state, refresh revoke 구현 | `1.4.1` |
-| Cookie/CORS | FE-BE 연동 방식에 맞춘 cookie/CORS 세부 설정 | Auth API 연동 |
+| Refresh token reuse detection | 탈취 의심 reuse 탐지와 token family 전체 revoke 정책 결정 | Auth hardening |
+| CSRF/Origin 방어 | cookie 기반 refresh/logout/password reset endpoint 보호 정책 결정 | Auth hardening |
+| Endpoint별 authorization | `permitAll` 중심 구조에서 protected/public endpoint 기준 분리 | `3.1.1` 이후 RBAC |
+| Rate limiting | login/OAuth/password reset abuse 방어 | Auth hardening |
+| 상태 변경 revoke | `SUSPENDED`/`DELETED` 변경 API 도입 시 기존 refresh token revoke 연결 | `3.1.4` 이후 |
 
 ## 8. 최종 판단
 
-`JWT/Auth hardening 정책 반영 확인`은 현재 시점에서 **문서 기준 확정 완료, 코드 반영은 후속 구현 대상**으로 판단한다.
+`JWT/Auth hardening 정책 반영 확인`은 현재 시점에서 **Sprint 1 Auth 핵심 구현까지 반영 완료, production-ready hardening은 후속**으로 판단한다.
 
 완료로 볼 수 있는 부분:
 
 1. canonical 문서에 JWT/Auth hardening 정책이 반영되어 있다.
 2. OAuth 구현 조사 문서에 1.3.2와 직접 연결되는 account linking, ACTIVE-only, JWT 발급 기준이 정리되어 있다.
-3. 후속 구현 PR에서 확인해야 할 완료 기준과 검증 체크리스트가 정리되어 있다.
+3. 구현 PR과 E2E preflight 기준으로 access/refresh/logout/password reset/OAuth 핵심 흐름이 검증되어 있다.
 
 완료로 보면 안 되는 부분:
 
-1. JWT/Auth 코드 구현이 완료된 것은 아니다.
-2. OAuth callback 구현이 완료된 것은 아니다.
-3. refresh token rotation/revoke 동작이 검증된 것은 아니다.
-4. cookie/CORS 세부 구현이 확정된 것은 아니다.
+1. refresh token reuse detection과 token family revoke 정책까지 완료된 것은 아니다.
+2. CSRF/Origin 방어와 endpoint별 authorization 정책이 production-ready 수준으로 정리된 것은 아니다.
+3. login/OAuth/password reset rate limiting은 아직 없다.
+4. `SUSPENDED`/`DELETED` 상태 변경 API와 refresh revoke 연결은 후속 company/RBAC 작업 이후 확인해야 한다.
 
-따라서 이 문서는 Day 3 Auth API 구현 전 정책 기준 산출물로 사용하고, 실제 동작 검증은 각 구현 PR에서 수행한다.
+따라서 이 문서는 Sprint 1 Auth 핵심 구현 완료 상태와 후속 hardening gap을 구분하는 기준으로 사용한다.

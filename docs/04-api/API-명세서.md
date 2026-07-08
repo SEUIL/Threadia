@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-07-07
-> **버전**: Sprint 1.5 invitation 표시 필드 보강 + Sprint 3 기준선 반영 v1.2
+> **최종 수정**: 2026-07-08
+> **버전**: Sprint 1.5 invitation 표시 필드 보강 + Sprint 3 기준선 반영 + suspended member error code 동기화 v1.3
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -71,6 +71,7 @@ pagination이 필요한 목록 응답은 `page`를 포함한다. endpoint별 응
 | 404 | NOT_FOUND | 리소스 없음 |
 | 409 | CONFLICT | 중복 데이터 |
 | 409 | ALREADY_COMPANY_MEMBER | 이미 회사 소속 구성원 |
+| 409 | COMPANY_MEMBER_SUSPENDED | 정지된 회사 구성원은 초대 수락으로 복구할 수 없음 |
 | 409 | ALREADY_PROJECT_MEMBER | 이미 프로젝트 소속 구성원 |
 | 409 | INVITATION_ALREADY_PENDING | 동일 scope와 대상 사용자에 대한 대기 중 초대가 이미 있음 |
 | 409 | INVITATION_EXPIRED | 초대가 만료됨 |
@@ -291,7 +292,7 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 - `status`는 `PENDING`, `ACCEPTED`, `DECLINED`, `CANCELED`, `EXPIRED` 중 하나다.
 - 기본 만료 기간은 생성 시각 기준 7일이며 `expiresAt`은 null로 내려주지 않는다.
 - read/accept/decline/cancel 시 lazy expiration을 확인한다. 필수 batch scheduler는 Sprint 1.5 범위가 아니다.
-- 이미 회사 멤버면 `409 ALREADY_COMPANY_MEMBER`를 반환한다. 프로젝트 멤버 중복 검증과 `ALREADY_PROJECT_MEMBER`는 Sprint 3 project invitation 후보에서 처리한다.
+- 이미 회사 멤버면 `409 ALREADY_COMPANY_MEMBER`를 반환한다. 단, 기존 회사 membership이 `SUSPENDED` 상태이면 invitation accept로 복구하지 않고 `409 COMPANY_MEMBER_SUSPENDED`를 반환한다. 프로젝트 멤버 중복 검증과 `ALREADY_PROJECT_MEMBER`는 Sprint 3 project invitation 후보에서 처리한다.
 - 동일 scope와 대상 사용자에 대한 대기 중 초대가 있으면 `409 INVITATION_ALREADY_PENDING`을 반환한다.
 - 회사 invitation role은 `COMPANY_ADMIN` 또는 `MEMBER`만 허용한다. 프로젝트 invitation role 검증은 Sprint 3 후보에서 `PROJECT_ADMIN` 또는 `MEMBER` 기준으로 처리한다.
 - 프로젝트 invitation 대상 제한은 Sprint 3 후보 기준이다. 구현 시 대상자는 해당 프로젝트가 속한 회사의 `ACTIVE` company member여야 하며, 조건을 만족하지 않으면 `400 VALIDATION_ERROR`로 거절한다. `INVITE-01~04` company invitation 의미는 유지한다.

@@ -1,7 +1,7 @@
 > **작성자**: 여도현
 > **작성일**: 2026-07-03
-> **최종 수정**: 2026-07-03
-> **버전**: v1.0
+> **최종 수정**: 2026-07-07
+> **버전**: v1.1
 > **상태**: 검토 중
 > **태그**: auth, logout, cors, refresh-token, security
 
@@ -111,7 +111,7 @@ AuthController.logout()
 | `BackendApplicationTests` class 선언 formatting | `class BackendApplicationTests`로 정리 |
 | 불필요한 끝 빈 줄 | 제거 |
 | backend 구조 문서 최신화 | logout/CORS 구현 상태와 남은 refresh 후속 과제 반영 |
-| 개인 OAuth 보안 gap 문서 최신화 | logout 완료, refresh 미구현, CSRF/Origin 후속 과제 분리 |
+| 개인 OAuth 보안 gap 문서 최신화 | logout 완료, 이후 최신 기준에서 refresh 구현 완료와 CSRF/Origin 후속 과제 분리 |
 
 ## 6. 남은 주의점
 
@@ -125,7 +125,7 @@ AuthController.logout()
 
 | 항목 | 왜 개인 단독 처리하지 않는가 | 문서화 기준 |
 |---|---|---|
-| `/api/v1/auth/refresh` 구현 | OAuth redirect 후 access token 복구 방식과 refresh rotation 정책이 함께 필요함 | P0 후속 과제로 유지 |
+| `/api/v1/auth/refresh` 구현 | 최신 `dev` 기준 구현 완료 | stale 항목으로 보정 |
 | Google OAuth access token handoff | URL 노출 금지와 frontend memory 저장 정책이 충돌하지 않게 설계 필요 | `/refresh` 기반 복구안 권장 |
 | logout 시 expired access token 허용 여부 | 현재 logout은 valid access token과 refresh cookie를 모두 요구함. UX/보안 trade-off가 있음 | 정책 결정 필요 |
 | CSRF/Origin 방어 | CORS는 browser 허용 정책이고 CSRF 방어 자체는 아님 | cookie 기반 `logout/refresh` endpoint 추가 정책으로 정리 |
@@ -134,6 +134,6 @@ AuthController.logout()
 
 ## 7. 현재 판단
 
-logout과 CORS는 Sprint 1 Auth common 흐름에 필요한 기반으로 들어왔다. 다만 production-ready 인증으로 보기에는 아직 `/refresh`, CSRF/Origin 방어, endpoint별 security policy, OAuth access token 복구 경로가 남아 있다.
+logout과 CORS는 Sprint 1 Auth common 흐름에 필요한 기반으로 들어왔다. 최신 `dev` 기준 `/refresh`와 OAuth access token 복구 경로도 구현됐다. 다만 production-ready 인증으로 보기에는 아직 CSRF/Origin 방어, endpoint별 security policy, refresh token reuse detection, rate limiting이 남아 있다.
 
 개인 범위에서는 stale 주석과 formatting 정리, 관련 문서 최신화까지 처리할 수 있다. refresh, CSRF, OAuth handoff, logout 만료 token 정책은 팀 합의 후 구현하는 것이 안전하다.
