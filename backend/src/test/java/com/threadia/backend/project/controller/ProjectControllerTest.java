@@ -19,6 +19,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.threadia.backend.common.exception.ForbiddenException;
+import com.threadia.backend.project.dto.ProjectArchiveData;
 import com.threadia.backend.project.dto.ProjectCreateData;
 import com.threadia.backend.project.dto.ProjectData;
 import com.threadia.backend.project.dto.ProjectMemberSummaryResponse;
@@ -286,6 +287,67 @@ class ProjectControllerTest {
 							"""))
 				.andExpect(status().isConflict())
 				.andExpect(jsonPath("$.error.code").value("CONFLICT"));
+	}
+
+	@Test
+	void archiveReturnsArchivedStatus() throws Exception {
+		when(projectService.archive(org.mockito.ArgumentMatchers.eq("admin-token"), org.mockito.ArgumentMatchers.eq(20L), org.mockito.ArgumentMatchers.any()))
+				.thenReturn(new ProjectArchiveData(20L, "ARCHIVED"));
+
+		mockMvc.perform(post("/api/v1/projects/20/archive")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer admin-token")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("""
+							{ "reason": "MVP 종료 후 보관" }
+							"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.projectId").value(20))
+				.andExpect(jsonPath("$.data.status").value("ARCHIVED"));
+	}
+
+	@Test
+	void archiveReturnsConflictWhenProjectAlreadyArchived() throws Exception {
+		when(projectService.archive(org.mockito.ArgumentMatchers.eq("admin-token"), org.mockito.ArgumentMatchers.eq(20L), org.mockito.ArgumentMatchers.any()))
+				.thenThrow(new ProjectConflictException("이미 archive된 프로젝트입니다."));
+
+		mockMvc.perform(post("/api/v1/projects/20/archive")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer admin-token")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("""
+							{ "reason": "MVP 종료 후 보관" }
+							"""))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.error.code").value("CONFLICT"));
+	}
+
+	@Test
+	void archiveReturnsForbiddenWhenRequesterCannotArchiveProject() throws Exception {
+		when(projectService.archive(org.mockito.ArgumentMatchers.eq("member-token"), org.mockito.ArgumentMatchers.eq(20L), org.mockito.ArgumentMatchers.any()))
+				.thenThrow(new ForbiddenException("프로젝트 관리자 권한이 필요합니다."));
+
+		mockMvc.perform(post("/api/v1/projects/20/archive")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer member-token")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("""
+							{ "reason": "MVP 종료 후 보관" }
+							"""))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+	}
+
+	@Test
+	void archiveReturnsNotFoundWhenProjectDoesNotExist() throws Exception {
+		when(projectService.archive(org.mockito.ArgumentMatchers.eq("admin-token"), org.mockito.ArgumentMatchers.eq(404L), org.mockito.ArgumentMatchers.any()))
+				.thenThrow(new ProjectNotFoundException(404L));
+
+		mockMvc.perform(post("/api/v1/projects/404/archive")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer admin-token")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("""
+							{ "reason": "MVP 종료 후 보관" }
+							"""))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.error.code").value("NOT_FOUND"));
 	}
 
 	private static ProjectResponse projectResponse(Long id, String name, String projectKey) {

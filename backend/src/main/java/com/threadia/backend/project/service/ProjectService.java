@@ -22,6 +22,8 @@ import com.threadia.backend.project.domain.ProjectMember;
 import com.threadia.backend.project.domain.ProjectMemberRole;
 import com.threadia.backend.project.domain.ProjectMemberStatus;
 import com.threadia.backend.project.domain.ProjectStatus;
+import com.threadia.backend.project.dto.ProjectArchiveData;
+import com.threadia.backend.project.dto.ProjectArchiveRequest;
 import com.threadia.backend.project.dto.ProjectCreateData;
 import com.threadia.backend.project.dto.ProjectCreateRequest;
 import com.threadia.backend.project.dto.ProjectData;
@@ -148,6 +150,24 @@ public class ProjectService {
 		project.setEndDate(request.endDate());
 		project.setUpdatedAt(now);
 		return new ProjectData(ProjectResponse.from(project));
+	}
+
+	@Transactional
+	public ProjectArchiveData archive(String accessToken, Long projectId, ProjectArchiveRequest request) {
+		AuthContext authContext = authContextService.fromAccessToken(accessToken);
+		User actor = authContextService.requireActiveUser(authContext);
+		Project project = project(projectId);
+		requireProjectManage(project, authContext);
+		if (project.getStatus() == ProjectStatus.ARCHIVED) {
+			throw ProjectConflictException.alreadyArchived();
+		}
+		LocalDateTime now = now();
+		project.setStatus(ProjectStatus.ARCHIVED);
+		project.setArchivedAt(now);
+		project.setArchivedBy(actor);
+		project.setArchiveReason(request.reason());
+		project.setUpdatedAt(now);
+		return new ProjectArchiveData(project.getId(), project.getStatus().name());
 	}
 
 	private void validateCreateRequest(ProjectCreateRequest request) {

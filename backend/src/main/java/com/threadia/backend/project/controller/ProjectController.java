@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.threadia.backend.common.response.ApiResponse;
 import com.threadia.backend.config.jwt.JwtAuthenticationException;
+import com.threadia.backend.project.dto.ProjectArchiveData;
+import com.threadia.backend.project.dto.ProjectArchiveRequest;
 import com.threadia.backend.project.dto.ProjectCreateData;
 import com.threadia.backend.project.dto.ProjectCreateRequest;
 import com.threadia.backend.project.dto.ProjectData;
@@ -65,6 +67,15 @@ public class ProjectController {
 			@PathVariable Long projectId,
 			@Valid @RequestBody ProjectUpdateRequest request) {
 		ProjectData data = projectService.update(extractAccessToken(authorizationHeader), projectId, request);
+		return ResponseEntity.ok(ApiResponse.of(data));
+	}
+
+	@PostMapping("/projects/{projectId}/archive")
+	public ResponseEntity<ApiResponse<ProjectArchiveData>> archive(
+			@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+			@PathVariable Long projectId,
+			@Valid @RequestBody ProjectArchiveRequest request) {
+		ProjectArchiveData data = projectService.archive(extractAccessToken(authorizationHeader), projectId, request);
 		return ResponseEntity.ok(ApiResponse.of(data));
 	}
 
