@@ -20,6 +20,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.threadia.backend.common.error.ErrorBody;
 import com.threadia.backend.common.error.ErrorResponse;
+import com.threadia.backend.company.exception.CompanyMemberConflictException;
+import com.threadia.backend.company.exception.CompanyMemberNotFoundException;
 import com.threadia.backend.company.exception.CompanyNotFoundException;
 import com.threadia.backend.company.exception.DepartmentConflictException;
 import com.threadia.backend.company.exception.DepartmentNotFoundException;
@@ -84,6 +86,7 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler({
 			CompanyNotFoundException.class,
+			CompanyMemberNotFoundException.class,
 			DepartmentNotFoundException.class,
 			com.threadia.backend.invitation.exception.CompanyNotFoundException.class})
 	public ResponseEntity<ErrorResponse> handleCompanyNotFound(RuntimeException ex) {
@@ -91,8 +94,8 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of(body));
 	}
 
-	@ExceptionHandler(DepartmentConflictException.class)
-	public ResponseEntity<ErrorResponse> handleDepartmentConflict(DepartmentConflictException ex) {
+	@ExceptionHandler({DepartmentConflictException.class, CompanyMemberConflictException.class})
+	public ResponseEntity<ErrorResponse> handleCompanyConflict(RuntimeException ex) {
 		ErrorBody body = ErrorBody.of("CONFLICT", ex.getMessage());
 		return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(body));
 	}

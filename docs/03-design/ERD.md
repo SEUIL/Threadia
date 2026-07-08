@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-15  
-> **최종 수정**: 2026-07-07
-> **버전**: 개발 기준 사용 반영 v1.4
+> **최종 수정**: 2026-07-08
+> **버전**: 개발 기준 사용 반영 + company member scoped PATCH 동기화 v1.5
 > **상태**: 확정
 > **태그**: erd, db, schema, auth, invitation
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
@@ -313,7 +313,7 @@ summary table은 원본이 아니라 read model이다. 원본은 `issues`, `docu
 
 - UNIQUE KEY (`company_id`, `user_id`).
 - Sprint 1.5에서는 company invitation accept 시 생성한다.
-- 기존 membership의 role, department, status 변경은 `PATCH /api/v1/company-members/{companyMemberId}`에서 처리한다.
+- 기존 membership의 role, department, status 변경은 `PATCH /api/v1/companies/{companyId}/company-members/{companyMemberId}`에서 처리한다.
 
 ### 5.4 projects
 
