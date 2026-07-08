@@ -23,6 +23,18 @@ public interface CompanyMemberRepository extends JpaRepository<CompanyMember, Lo
 			select companyMember
 			from CompanyMember companyMember
 			join fetch companyMember.company
+			where companyMember.user.id = :userId
+			  and companyMember.status = :status
+			order by companyMember.company.id asc, companyMember.id asc
+			""")
+	List<CompanyMember> findByUserIdAndStatusWithCompanyOrderByCompanyIdAscCompanyMemberIdAsc(
+			@Param("userId") Long userId,
+			@Param("status") CompanyMemberStatus status);
+
+	@Query("""
+			select companyMember
+			from CompanyMember companyMember
+			join fetch companyMember.company
 			join fetch companyMember.user
 			where companyMember.company.id = :companyId
 			  and (:status is null or companyMember.status = :status)
