@@ -27,6 +27,7 @@ import Link from "next/link";
 import { usePathname, useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePendingInvitationCount } from "@/hooks/usePendingInvitationCount";
 import { PageTransition } from "./PageTransition";
 
 type Role = "A" | "P" | "C";
@@ -77,6 +78,20 @@ function FolderIcon() {
   );
 }
 
+function MailIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+      <path
+        d="M4.5 6h15A1.5 1.5 0 0 1 21 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 16.5v-9A1.5 1.5 0 0 1 4.5 6Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path d="m4 7 8 6 8-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function BuildingIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
@@ -115,6 +130,7 @@ function Rail({ companyId }: { companyId: string }) {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const nickname = user?.nickname ?? "";
+  const pendingInvitationCount = usePendingInvitationCount();
 
   const handleLogout = async () => {
     await logout();
@@ -124,6 +140,8 @@ function Rail({ companyId }: { companyId: string }) {
   const items: NavItem[] = [
     { href: `/${companyId}/projects`, label: "프로젝트", icon: <FolderIcon /> },
     { href: `/${companyId}/dm`, label: "채팅·DM", icon: <ChatIcon />, badge: MOCK_DM_UNREAD_COUNT },
+    // company-agnostic — 이미 소속된 회사 기준 레일에서도 다른 회사에서 온 초대를 받을 수 있다.
+    { href: "/invitations", label: "받은 초대", icon: <MailIcon />, badge: pendingInvitationCount },
     { href: `/${companyId}/notifications`, label: "알림", icon: <BellIcon />, badge: MOCK_NOTIFICATION_COUNT },
   ];
   // C(회사 관리자)만 회사 관리 메뉴가 보인다 (화면정의서 S03 메뉴 노출 규칙, 이전 AppShell과 동일)
