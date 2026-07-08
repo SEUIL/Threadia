@@ -1,7 +1,7 @@
 > **작성자**: 여도현
 > **작성일**: 2026-07-01
 > **최종 수정**: 2026-07-02
-> **버전**: v1.1
+> **버전**: v1.2
 > **상태**: 작성 중
 > **태그**: backend, mysql, spring-boot, sprint-1, validation, security
 
@@ -380,3 +380,20 @@ docker exec -e MYSQL_PWD="$THREADIA_DB_ROOT_PASSWORD" threadia-mysql84 \
 |---|---|---|
 | v1.0 | 2026-07-01 | 최초 작성 |
 | v1.1 | 2026-07-02 | schema.sql 적용 검증 테스트 방법 추가 |
+| v1.2 | 2026-07-07 | 최신 dev 기준 schema/JPA/company invitation 반영 상태 메모 추가 |
+
+---
+
+## 9. 2026-07-07 최신 반영 메모
+
+이 문서는 WBS `1.1.2` MySQL 8.4 연결 확인 당시의 feedback 기록이다. 최신 `dev` 기준으로는 아래 후속 항목이 반영됐다.
+
+| 항목 | 최신 상태 |
+|---|---|
+| `db/schema.sql` | 생성됨 |
+| JPA starter | 도입됨 |
+| Auth Entity mapping | `users`, `oauth_accounts`, `password_reset_tokens`, `refresh_tokens` 기준 검증됨 |
+| Sprint 1.5 company/invitation 기반 | `companies`, `company_members`, `invitations` Entity와 schema 검증 추가됨 |
+| schema 검증 범위 | Auth 4개 table에서 company/invitation 선행 table까지 확장됨 |
+
+따라서 본문 중 “후속 작업”과 “Auth 4개 table” 표현은 작성 당시 범위로 읽어야 한다. 최신 backend 구조 기준은 `docs/05-architecture/백엔드-구조.md`를 따른다.

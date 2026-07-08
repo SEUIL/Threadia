@@ -1,13 +1,13 @@
 > **작성자**: 여도현
 > **작성일**: 2026-07-02
-> **최종 수정**: 2026-07-02
-> **버전**: v1.0
+> **최종 수정**: 2026-07-07
+> **버전**: v1.1
 > **상태**: 검토 중
 > **태그**: oauth, google, auth, spring-security, sprint-1
 
 # Google OAuth 로그인 API 구현 조사
 
-이 문서는 Sprint 1 WBS `1.3.2 소셜 로그인 API 구현`을 시작하기 전에 Google OAuth 로그인 구현 조건과 프로젝트 적용 기준을 정리한다.
+이 문서는 Sprint 1 WBS `1.3.2 소셜 로그인 API 구현`을 시작하기 전에 Google OAuth 로그인 구현 조건과 프로젝트 적용 기준을 정리한 사전 조사 문서다. 2026-07-07 기준 실제 구현 완료 상태는 별도 최신 반영 메모로 보강한다.
 
 ## 1. 조사 결론
 
@@ -98,7 +98,7 @@ OAuth 구현은 API 공통 Auth hardening 기준을 그대로 따라야 한다.
 
 ## 4. 현재 코드베이스 상태
 
-현재 backend는 Spring Boot skeleton과 MySQL 연결 검증 중심이다. OAuth/Auth 구현은 아직 없다.
+작성 당시 backend는 Spring Boot skeleton과 MySQL 연결 검증 중심이었고 OAuth/Auth 구현은 없었다. 최신 `dev` 기준 구현 완료 상태는 12장 최신 반영 메모에 따로 정리한다.
 
 | 확인 항목 | 현재 상태 | 근거 |
 |---|---|---|
@@ -108,7 +108,7 @@ OAuth 구현은 API 공통 Auth hardening 기준을 그대로 따라야 한다.
 | 누락 의존성 | `spring-boot-starter-security`, `spring-boot-starter-oauth2-client` 없음 | `backend/build.gradle:20` |
 | 실코드 상태 | `BackendApplication` 중심 skeleton | `backend/src/main/java/com/threadia/backend/BackendApplication.java:1` |
 
-따라서 1.3.2 구현 전에 최소한 아래 작업이 선행되어야 한다.
+작성 당시 1.3.2 구현 전에는 최소한 아래 작업이 선행되어야 했다.
 
 1. Auth Entity와 Repository 준비
 2. Spring Security dependency 추가
@@ -284,4 +284,21 @@ Backend DoD는 Google OAuth 완료 조건을 “OAuth 시작, callback, user map
 4. Google Console redirect URI, Spring Security `redirectionEndpoint`, client registration `redirect-uri`가 모두 같은 값을 사용해야 한다.
 5. 계정 매핑은 email이 아니라 Google `sub`를 `oauth_accounts.provider_user_id`로 저장하는 방식이 안전하다.
 6. 같은 email만으로 기존 계정에 자동 연결하지 않는 정책은 프로젝트 요구사항과 Google OIDC 식별 기준에 모두 맞다. 명시적 연결 또는 신뢰 가능한 provider 이메일 검증 조건은 blind auto-link와 구분한다.
-7. 현재 backend에는 OAuth/Security 의존성과 구현 코드가 없으므로 1.3.2 구현 PR에서 dependency, security config, success handler, user mapping, JWT 발급까지 연결해야 한다.
+7. 작성 당시에는 OAuth/Security 의존성과 구현 코드가 없었으나, 최신 `dev` 기준으로 dependency, security config, success handler, user mapping, refresh cookie handoff까지 구현됐다.
+
+## 12. 2026-07-07 최신 반영 메모
+
+이 문서는 사전 조사 기록이므로 구현 전 판단 근거는 유지한다. 다만 최신 `dev` 기준으로 아래 항목은 구현 완료 상태다.
+
+| 항목 | 최신 상태 | 근거 |
+|---|---|---|
+| OAuth/Security dependency | 구현됨 | `spring-boot-starter-oauth2-client`, security test 기반 사용 |
+| OAuth 시작 endpoint | 구현됨 | `GET /oauth2/authorization/google` |
+| OAuth callback endpoint | 구현됨 | `GET /api/v1/auth/oauth2/callback/google` |
+| Google `sub` 기반 매핑 | 구현됨 | `oauth_accounts.provider_user_id` 기준 |
+| blind auto-link 금지 | 구현됨 | 같은 email local user 자동 연결 금지 |
+| refresh cookie handoff | 구현됨 | callback 성공 후 refresh cookie 설정, access token URL 미노출 |
+| access token 복구 경로 | 구현됨 | frontend는 `/api/v1/auth/refresh`로 access token 복구 가능 |
+| 실제 smoke 검증 | 진행됨 | backend Auth E2E preflight 기록에 OAuth smoke와 DB row 확인 반영 |
+
+남은 항목은 OAuth 자체 구현이 아니라 운영 hardening이다. 환경별 redirect URI, CSRF/Origin 방어, rate limiting, endpoint별 authorization 정책은 후속 보안 작업에서 정리한다.

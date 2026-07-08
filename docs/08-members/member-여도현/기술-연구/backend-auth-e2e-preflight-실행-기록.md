@@ -1,7 +1,7 @@
 > **작성자**: 여도현
 > **작성일**: 2026-07-04
-> **최종 수정**: 2026-07-04
-> **버전**: v1.0
+> **최종 수정**: 2026-07-07
+> **버전**: v1.1
 > **상태**: 검토 중
 > **태그**: auth, backend, e2e, preflight, sprint-1
 
@@ -212,7 +212,7 @@ Preflight는 `/oauth2/authorization/google`의 시작 redirect와 Google redirec
 
 ## 8. 진행률 판단
 
-`1.5.1 인증 흐름 end-to-end 테스트` 전체 기준 진행률은 `90%`로 기록하는 것이 적절하다.
+최신 WBS 기준 `1.5.1 인증 흐름 end-to-end 테스트`는 완료 100% 상태다. 아래 진행률 판단은 2026-07-04 preflight 작성 당시의 중간 판단이며, 현재는 reviewer 확인까지 반영된 완료 상태로 본다.
 
 근거는 다음과 같다.
 
@@ -227,4 +227,4 @@ Preflight는 `/oauth2/authorization/google`의 시작 redirect와 Google redirec
 | Password reset | request, missing user request, invalid token confirm, weak password confirm, positive confirm, token reuse, old/new password login 자동 검증 완료 |
 | Frontend 연동 | forgot/reset password browser E2E 통과 |
 
-즉, backend 단독으로 검증 가능한 핵심 Auth 흐름, 실제 Google OAuth backend callback smoke, password reset positive confirm, frontend forgot/reset password 연동은 진행했다. 남은 범위는 전체 frontend Auth flow의 브라우저 통합 검증과 팀 reviewer 확인이다.
+즉, backend 단독으로 검증 가능한 핵심 Auth 흐름, 실제 Google OAuth backend callback smoke, password reset positive confirm, frontend forgot/reset password 연동은 진행했다. 최신 WBS에서는 해당 Auth E2E 작업을 완료로 본다.

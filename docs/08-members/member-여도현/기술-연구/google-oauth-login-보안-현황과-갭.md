@@ -1,13 +1,13 @@
 > **작성자**: 여도현
 > **작성일**: 2026-07-03
-> **최종 수정**: 2026-07-03
-> **버전**: v1.0
+> **최종 수정**: 2026-07-07
+> **버전**: v1.1
 > **상태**: 검토 중
 > **태그**: auth, oauth, security, jwt, refresh-token
 
 # Google OAuth 로그인 보안 현황과 남은 갭
 
-이 문서는 `feature/auth-common` 기준 Google OAuth와 이메일 로그인 구현에서 이미 반영된 보안 통제와 production-ready 전까지 남은 보안 gap을 구분해 정리한다. 구현 완료와 정책 확정, 미구현 항목을 섞어 쓰지 않는 것이 목적이다.
+이 문서는 Google OAuth와 이메일 로그인 구현에서 이미 반영된 보안 통제와 production-ready 전까지 남은 보안 gap을 구분해 정리한다. 최초 기준은 `feature/auth-common`이었고, 2026-07-07에는 최신 `dev` 상태를 반영했다. 구현 완료와 정책 확정, 미구현 항목을 섞어 쓰지 않는 것이 목적이다.
 
 ## 1. 판단 기준
 
@@ -36,31 +36,32 @@
 | revoke된 refresh token 재사용 차단 | 완료 | 이미 revoke된 refresh token으로 재로그아웃하면 401 처리하고 `revoked_at` 보존 |
 | frontend CORS | 완료 | `/api/**`에 credential 포함 CORS 설정과 회귀 테스트 추가 |
 | OAuth failure log sanitize | 완료 | OAuth callback/failure handler가 provider exception message를 log에 직접 남기지 않음 |
+| `/api/v1/auth/refresh` | 완료 | refresh cookie 기반 access token 복구와 refresh token rotation 구현 |
+| password reset 연동 | 완료 | reset confirm 성공 시 기존 refresh token revoke |
+| 실제 OAuth smoke | 완료 | 실제 Google OAuth backend callback, DB row, refresh cookie 흐름 확인 기록 존재 |
 | secret 비노출 | 완료 | `.env`를 사용하고 문서/코드에는 실제 secret 값 미기록 |
 
 ## 3. 정책은 확정됐지만 구현이 남은 항목
 
 | 항목 | 현재 상태 | 왜 남은 gap인가 |
 |---|---|---|
-| `/api/v1/auth/refresh` | 미구현 | OAuth redirect 후 refresh cookie만 있는 상태에서 access token 복구 경로가 필요함 |
-| refresh token rotation | 미구현 | `refresh_tokens.rotated_at` 필드는 있으나 refresh 성공 시 rotate 로직이 없음 |
 | refresh token reuse detection | 미구현 | 탈취된 refresh token 재사용 탐지/전체 revoke 정책이 없음 |
-| status 변경 시 revoke | 미구현 | `SUSPENDED`, `DELETED`, password reset 성공 시 기존 refresh token 전체 revoke 필요 |
-| password reset 연동 | 미구현 | reset 성공 후 refresh revoke 정책은 문서상 확정이지만 API 구현 전 |
+| status 변경 시 revoke | 부분 구현 | password reset 성공 시 revoke는 구현됨. `SUSPENDED`, `DELETED` 상태 변경 API 연동은 후속 |
 | logout 만료 access token 정책 | 미정 | 현재 logout은 valid access token과 refresh cookie를 모두 요구하므로 access token 만료 후 cookie clear UX 정책 결정 필요 |
 
 ## 4. 보안상 아쉬운 점
 
 ### 4.1 OAuth callback 후 access token handoff 미확정
 
-현재 OAuth 성공 handler는 refresh cookie를 설정하고 `/hub`로 redirect한다. access token은 URL query/string에 노출하지 않는다. 이 선택은 token leakage 관점에서는 안전하지만, frontend가 `/hub` 도착 후 access token을 얻는 경로가 아직 없다.
+현재 OAuth 성공 handler는 refresh cookie를 설정하고 `/hub`로 redirect한다. access token은 URL query/string에 노출하지 않는다. frontend는 `/hub` 도착 후 `/api/v1/auth/refresh`를 호출해 access token을 복구할 수 있다.
 
-권장 방향:
+현재 유지할 방향:
 
 1. OAuth callback은 계속 access token을 URL에 싣지 않는다.
 2. frontend는 `/hub` 진입 직후 `POST /api/v1/auth/refresh`를 호출한다.
 3. backend는 HttpOnly refresh cookie를 검증하고 새 access token을 JSON body로 반환한다.
 4. refresh 성공 시 refresh token을 rotate한다.
+5. 남은 과제는 reuse detection과 CSRF/Origin 방어다.
 
 ### 4.2 CSRF 전략 부재
 
@@ -101,30 +102,31 @@
 
 | 우선순위 | 항목 | 이유 |
 |---|---|---|
-| P0 | `/api/v1/auth/refresh` + refresh rotation | OAuth redirect 후 access token 복구 경로와 refresh lifecycle 핵심 |
 | P0 | CSRF/Origin 방어 | cookie 기반 refresh/logout endpoint 보호 정책 필요 |
+| P0 | refresh token reuse detection | 탈취된 refresh token 재사용 탐지와 전체 revoke 정책 필요 |
 | P1 | endpoint별 security policy 축소 | API 증가 전 `permitAll` 위험 축소 |
 | P1 | status/password reset 시 refresh revoke | 계정 상태 변경 후 기존 세션 차단 |
 | P1 | rate limiting | brute force, abuse 방어 |
 
 ## 6. 후속 작업 체크리스트
 
-- [ ] `POST /api/v1/auth/refresh` 구현
-- [ ] refresh token 만료/revoke 검증
-- [ ] refresh 성공 시 token rotation
+- [x] `POST /api/v1/auth/refresh` 구현
+- [x] refresh token 만료/revoke 검증
+- [x] refresh 성공 시 token rotation
 - [ ] refresh token reuse detection 기준 결정
 - [x] `POST /api/v1/auth/logout` 구현
 - [x] logout 시 refresh token revoke + cookie clear
 - [ ] logout 시 expired access token 허용 여부 결정
-- [ ] `SUSPENDED`, `DELETED`, password reset 성공 시 기존 refresh token 전체 revoke
+- [ ] `SUSPENDED`, `DELETED` 상태 변경 시 기존 refresh token 전체 revoke
+- [x] password reset 성공 시 기존 refresh token revoke
 - [ ] cookie 기반 endpoint CSRF/Origin 방어 설계
 - [ ] SecurityFilterChain endpoint별 정책 분리
 - [ ] login/OAuth/password reset rate limiting 설계
 - [x] OAuth failure log sanitize
-- [ ] 실제 browser OAuth flow와 DB 저장 결과 검증 기록 남기기
+- [x] 실제 browser OAuth flow와 DB 저장 결과 검증 기록 남기기
 
 ## 7. 결론
 
-현재 구현은 Sprint 1 Google OAuth 최소 보안 기준은 충족한다. 특히 Google `sub`, `email_verified=true`, blind auto-link 금지, ACTIVE-only, refresh token hash 저장, HttpOnly cookie, prod Secure guardrail, logout revoke와 clear cookie는 코드와 테스트로 확인된다.
+현재 구현은 Sprint 1 Google OAuth 최소 보안 기준과 OAuth 후 access token 복구 경로를 충족한다. 특히 Google `sub`, `email_verified=true`, blind auto-link 금지, ACTIVE-only, refresh token hash 저장, HttpOnly cookie, prod Secure guardrail, refresh rotation, logout revoke/clear cookie, password reset revoke는 코드와 테스트로 확인된다.
 
-다만 production-ready 인증으로 보기에는 아직 부족하다. 핵심 후속 과제는 refresh, CSRF, token rotation/reuse detection, endpoint별 security policy, rate limiting이다.
+다만 production-ready 인증으로 보기에는 아직 부족하다. 핵심 후속 과제는 CSRF/Origin 방어, refresh token reuse detection, endpoint별 security policy, rate limiting이다.
