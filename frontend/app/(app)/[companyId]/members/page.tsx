@@ -176,6 +176,7 @@ export default function MembersPage() {
       );
     } catch (error) {
       setInvitationsError(invitationErrorMessage(error, "초대 취소에 실패했습니다."));
+      setInvitationsState("error");
     } finally {
       setCancelBusyId(null);
     }
