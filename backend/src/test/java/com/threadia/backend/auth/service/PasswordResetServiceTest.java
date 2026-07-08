@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Field;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -92,7 +93,8 @@ class PasswordResetServiceTest {
 		PasswordResetToken saved = captor.getValue();
 		assertThat(saved.getUser()).isSameAs(user);
 		assertThat(saved.getTokenHash()).isEqualTo("hashed-reset-token");
-		assertThat(saved.getExpiresAt()).isAfter(saved.getCreatedAt());
+		assertThat(Duration.between(saved.getCreatedAt(), saved.getExpiresAt()).toMinutes())
+				.isEqualTo(RESET_EXPIRATION_MINUTES);
 		assertThat(saved.getUsedAt()).isNull();
 		verify(emailSender).send(
 				eq("user@example.com"),

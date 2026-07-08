@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Date;
 
 import javax.crypto.SecretKey;
@@ -46,8 +47,15 @@ class JwtTokenServiceImplTest {
 		JwtTokenServiceImpl service = new JwtTokenServiceImpl(SECRET, 1800);
 
 		String token = service.issueAccessToken(1L, "user@example.com");
-		String tampered = token.substring(0, token.length() - 1)
-				+ (token.charAt(token.length() - 1) == 'a' ? 'b' : 'a');
+		String[] tokenParts = token.split("\\.", -1);
+		assertThat(tokenParts).hasSize(3);
+
+		String payloadJson = new String(Base64.getUrlDecoder().decode(tokenParts[1]), StandardCharsets.UTF_8);
+		assertThat(payloadJson).contains("\"email\":\"user@example.com\"");
+		String tamperedPayload = Base64.getUrlEncoder().withoutPadding()
+				.encodeToString(payloadJson.replace("\"email\":\"user@example.com\"", "\"email\":\"attacker@example.com\"")
+						.getBytes(StandardCharsets.UTF_8));
+		String tampered = tokenParts[0] + "." + tamperedPayload + "." + tokenParts[2];
 
 		assertThatThrownBy(() -> service.parseAccessToken(tampered))
 				.isInstanceOf(JwtAuthenticationException.class);

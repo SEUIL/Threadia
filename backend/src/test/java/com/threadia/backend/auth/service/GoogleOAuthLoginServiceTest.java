@@ -112,7 +112,7 @@ class GoogleOAuthLoginServiceTest {
 		RefreshToken refreshToken = refreshCaptor.getValue();
 		assertThat(refreshToken.getTokenHash()).isEqualTo("hashed-token");
 		assertThat(Duration.between(refreshToken.getCreatedAt(), refreshToken.getExpiresAt()))
-				.isCloseTo(REFRESH_TOKEN_MAX_AGE, Duration.ofSeconds(1));
+				.isEqualTo(REFRESH_TOKEN_MAX_AGE);
 	}
 
 	@Test
