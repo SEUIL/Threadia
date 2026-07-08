@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.threadia.backend.auth.domain.User;
 import com.threadia.backend.common.auth.AuthContext;
 import com.threadia.backend.common.auth.AuthContextService;
+import com.threadia.backend.common.exception.ForbiddenException;
 import com.threadia.backend.company.domain.Company;
 import com.threadia.backend.company.domain.CompanyMemberRole;
 import com.threadia.backend.company.exception.CompanyNotFoundException;
@@ -23,10 +24,12 @@ import com.threadia.backend.project.domain.ProjectMemberStatus;
 import com.threadia.backend.project.domain.ProjectStatus;
 import com.threadia.backend.project.dto.ProjectCreateData;
 import com.threadia.backend.project.dto.ProjectCreateRequest;
+import com.threadia.backend.project.dto.ProjectData;
 import com.threadia.backend.project.dto.ProjectMemberSummaryResponse;
 import com.threadia.backend.project.dto.ProjectResponse;
 import com.threadia.backend.project.dto.ProjectsData;
 import com.threadia.backend.project.exception.ProjectConflictException;
+import com.threadia.backend.project.exception.ProjectNotFoundException;
 import com.threadia.backend.project.exception.ProjectValidationException;
 import com.threadia.backend.project.repository.ProjectMemberRepository;
 import com.threadia.backend.project.repository.ProjectRepository;
@@ -119,6 +122,14 @@ public class ProjectService {
 		return new ProjectCreateData(ProjectResponse.from(project), ProjectMemberSummaryResponse.from(projectMember));
 	}
 
+	@Transactional(readOnly = true)
+	public ProjectData detail(String accessToken, Long projectId) {
+		AuthContext authContext = activeAuthContext(accessToken);
+		Project project = project(projectId);
+		requireProjectView(project, authContext);
+		return new ProjectData(ProjectResponse.from(project));
+	}
+
 	private void validateCreateRequest(ProjectCreateRequest request) {
 		if (request.status() == ProjectStatus.ARCHIVED) {
 			throw ProjectValidationException.archivedStatusNotAllowed();
@@ -126,6 +137,21 @@ public class ProjectService {
 		if (request.startDate() != null && request.endDate() != null && request.startDate().isAfter(request.endDate())) {
 			throw ProjectValidationException.invalidDateRange();
 		}
+	}
+
+	private void requireProjectView(Project project, AuthContext authContext) {
+		Long companyId = project.getCompany().getId();
+		if (companyMembershipService.hasActiveRole(companyId, authContext, CompanyMemberRole.COMPANY_ADMIN)) {
+			return;
+		}
+		companyMembershipService.requireActiveMember(companyId, authContext);
+		activeProjectMember(project, authContext);
+	}
+
+	private ProjectMember activeProjectMember(Project project, AuthContext authContext) {
+		return projectMemberRepository.findByProject_IdAndUser_Id(project.getId(), authContext.userId())
+				.filter(projectMember -> projectMember.getStatus() == ProjectMemberStatus.ACTIVE)
+				.orElseThrow(() -> new ForbiddenException("프로젝트 접근 권한이 없습니다."));
 	}
 
 	private AuthContext activeAuthContext(String accessToken) {
@@ -137,6 +163,11 @@ public class ProjectService {
 	private Company company(Long companyId) {
 		return companyRepository.findById(companyId)
 				.orElseThrow(() -> new CompanyNotFoundException(companyId));
+	}
+
+	private Project project(Long projectId) {
+		return projectRepository.findById(projectId)
+				.orElseThrow(() -> new ProjectNotFoundException(projectId));
 	}
 
 	private LocalDateTime now() {

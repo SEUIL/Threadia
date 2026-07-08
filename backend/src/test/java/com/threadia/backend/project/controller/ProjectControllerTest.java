@@ -19,10 +19,12 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.threadia.backend.common.exception.ForbiddenException;
 import com.threadia.backend.project.dto.ProjectCreateData;
+import com.threadia.backend.project.dto.ProjectData;
 import com.threadia.backend.project.dto.ProjectMemberSummaryResponse;
 import com.threadia.backend.project.dto.ProjectResponse;
 import com.threadia.backend.project.dto.ProjectsData;
 import com.threadia.backend.project.exception.ProjectConflictException;
+import com.threadia.backend.project.exception.ProjectNotFoundException;
 import com.threadia.backend.project.service.ProjectService;
 
 @AutoConfigureMockMvc(addFilters = false)
@@ -158,6 +160,40 @@ class ProjectControllerTest {
 							"""))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+	}
+
+	@Test
+	void detailReturnsProject() throws Exception {
+		when(projectService.detail("valid-token", 20L))
+				.thenReturn(new ProjectData(projectResponse(20L, "Threadia MVP", "THD")));
+
+		mockMvc.perform(get("/api/v1/projects/20")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.project.id").value(20))
+				.andExpect(jsonPath("$.data.project.companyId").value(10))
+				.andExpect(jsonPath("$.data.project.name").value("Threadia MVP"))
+				.andExpect(jsonPath("$.meta.requestId").exists());
+	}
+
+	@Test
+	void detailReturnsNotFoundWhenProjectDoesNotExist() throws Exception {
+		when(projectService.detail("valid-token", 404L)).thenThrow(new ProjectNotFoundException(404L));
+
+		mockMvc.perform(get("/api/v1/projects/404")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.error.code").value("NOT_FOUND"));
+	}
+
+	@Test
+	void detailReturnsForbiddenWhenRequesterCannotViewProject() throws Exception {
+		when(projectService.detail("outsider-token", 20L)).thenThrow(new ForbiddenException("프로젝트 접근 권한이 없습니다."));
+
+		mockMvc.perform(get("/api/v1/projects/20")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer outsider-token"))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
 	}
 
 	private static ProjectResponse projectResponse(Long id, String name, String projectKey) {

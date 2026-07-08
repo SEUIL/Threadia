@@ -29,6 +29,7 @@ import com.threadia.backend.config.jwt.JwtAuthenticationException;
 import com.threadia.backend.invitation.exception.InvitationConflictException;
 import com.threadia.backend.invitation.exception.InvitationNotFoundException;
 import com.threadia.backend.project.exception.ProjectConflictException;
+import com.threadia.backend.project.exception.ProjectNotFoundException;
 import com.threadia.backend.project.exception.ProjectValidationException;
 
 // 앱 전체 컨트롤러에서 발생한 예외를 공통 에러 응답 형식으로 변환한다.
@@ -96,6 +97,7 @@ public class GlobalExceptionHandler {
 			CompanyNotFoundException.class,
 			CompanyMemberNotFoundException.class,
 			DepartmentNotFoundException.class,
+			ProjectNotFoundException.class,
 			com.threadia.backend.invitation.exception.CompanyNotFoundException.class})
 	public ResponseEntity<ErrorResponse> handleCompanyNotFound(RuntimeException ex) {
 		ErrorBody body = ErrorBody.of("NOT_FOUND", ex.getMessage());

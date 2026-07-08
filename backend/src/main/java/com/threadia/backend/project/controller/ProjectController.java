@@ -14,6 +14,7 @@ import com.threadia.backend.common.response.ApiResponse;
 import com.threadia.backend.config.jwt.JwtAuthenticationException;
 import com.threadia.backend.project.dto.ProjectCreateData;
 import com.threadia.backend.project.dto.ProjectCreateRequest;
+import com.threadia.backend.project.dto.ProjectData;
 import com.threadia.backend.project.dto.ProjectsData;
 import com.threadia.backend.project.service.ProjectService;
 
@@ -46,6 +47,14 @@ public class ProjectController {
 			@Valid @RequestBody ProjectCreateRequest request) {
 		ProjectCreateData data = projectService.create(extractAccessToken(authorizationHeader), companyId, request);
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.of(data));
+	}
+
+	@GetMapping("/projects/{projectId}")
+	public ResponseEntity<ApiResponse<ProjectData>> detail(
+			@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+			@PathVariable Long projectId) {
+		ProjectData data = projectService.detail(extractAccessToken(authorizationHeader), projectId);
+		return ResponseEntity.ok(ApiResponse.of(data));
 	}
 
 	private static String extractAccessToken(String authorizationHeader) {

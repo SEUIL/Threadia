@@ -40,8 +40,10 @@ import com.threadia.backend.project.domain.ProjectMemberStatus;
 import com.threadia.backend.project.domain.ProjectStatus;
 import com.threadia.backend.project.dto.ProjectCreateData;
 import com.threadia.backend.project.dto.ProjectCreateRequest;
+import com.threadia.backend.project.dto.ProjectData;
 import com.threadia.backend.project.dto.ProjectsData;
 import com.threadia.backend.project.exception.ProjectConflictException;
+import com.threadia.backend.project.exception.ProjectNotFoundException;
 import com.threadia.backend.project.exception.ProjectValidationException;
 import com.threadia.backend.project.repository.ProjectMemberRepository;
 import com.threadia.backend.project.repository.ProjectRepository;
@@ -241,6 +243,71 @@ class ProjectServiceTest {
 		verify(projectMemberRepository, never()).save(org.mockito.ArgumentMatchers.any());
 	}
 
+	@Test
+	void detailReturnsProjectForCompanyAdmin() {
+		AuthContext authContext = authContext();
+		User admin = user(1L);
+		Company company = company(10L, admin);
+		Project project = project(20L, company, admin, "Threadia MVP", "THD");
+		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(project));
+		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+
+		ProjectData data = projectService.detail("admin-token", 20L);
+
+		assertThat(data.project().id()).isEqualTo(20L);
+		verify(projectMemberRepository, never()).findByProject_IdAndUser_Id(20L, 1L);
+	}
+
+	@Test
+	void detailReturnsProjectForActiveProjectMember() {
+		AuthContext authContext = authContext();
+		User member = user(1L);
+		Company company = company(10L, member);
+		Project project = project(20L, company, member, "Threadia MVP", "THD");
+		when(authContextService.fromAccessToken("member-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(member);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(project));
+		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false);
+		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L))
+				.thenReturn(Optional.of(projectMember(project, member, ProjectMemberRole.MEMBER, ProjectMemberStatus.ACTIVE)));
+
+		ProjectData data = projectService.detail("member-token", 20L);
+
+		verify(companyMembershipService).requireActiveMember(10L, authContext);
+		assertThat(data.project().id()).isEqualTo(20L);
+	}
+
+	@Test
+	void detailRejectsCompanyMemberWithoutProjectMembership() {
+		AuthContext authContext = authContext();
+		User member = user(1L);
+		Company company = company(10L, member);
+		Project project = project(20L, company, member, "Threadia MVP", "THD");
+		when(authContextService.fromAccessToken("member-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(member);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(project));
+		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false);
+		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> projectService.detail("member-token", 20L))
+				.isInstanceOf(ForbiddenException.class)
+				.hasMessage("프로젝트 접근 권한이 없습니다.");
+	}
+
+	@Test
+	void detailRejectsMissingProject() {
+		AuthContext authContext = authContext();
+		User member = user(1L);
+		when(authContextService.fromAccessToken("member-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(member);
+		when(projectRepository.findById(404L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> projectService.detail("member-token", 404L))
+				.isInstanceOf(ProjectNotFoundException.class);
+	}
+
 	private static AuthContext authContext() {
 		return new AuthContext(1L, "admin@example.com");
 	}
@@ -277,6 +344,11 @@ class ProjectServiceTest {
 				now);
 		setId(project, id);
 		return project;
+	}
+
+	private static ProjectMember projectMember(Project project, User user, ProjectMemberRole role, ProjectMemberStatus status) {
+		LocalDateTime now = LocalDateTime.now(FIXED_CLOCK);
+		return new ProjectMember(project, user, role, status, now, now, now);
 	}
 
 	private static void setId(Object entity, Long id) {
