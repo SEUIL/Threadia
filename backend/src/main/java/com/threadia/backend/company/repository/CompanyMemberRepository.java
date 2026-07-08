@@ -45,8 +45,11 @@ public interface CompanyMemberRepository extends JpaRepository<CompanyMember, Lo
 			join fetch companyMember.company
 			join fetch companyMember.user
 			where companyMember.id = :companyMemberId
+			  and companyMember.company.id = :companyId
 			""")
-	Optional<CompanyMember> findByIdForUpdate(@Param("companyMemberId") Long companyMemberId);
+	Optional<CompanyMember> findByIdAndCompanyIdForUpdate(
+			@Param("companyMemberId") Long companyMemberId,
+			@Param("companyId") Long companyId);
 
 	boolean existsByCompany_IdAndUser_IdAndRoleAndStatus(
 			Long companyId,

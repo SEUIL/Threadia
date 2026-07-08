@@ -172,12 +172,13 @@ class CompanyMemberServiceTest {
 		CompanyMember member = companyMember(101L, company, user(2L, "member@example.com"), null, CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE);
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
-		when(companyMemberRepository.findByIdForUpdate(101L)).thenReturn(Optional.of(member));
+		when(companyMemberRepository.findByIdAndCompanyIdForUpdate(101L, 10L)).thenReturn(Optional.of(member));
 		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
 		when(departmentRepository.existsByIdAndCompany_Id(5L, 10L)).thenReturn(true);
 
 		CompanyMemberData data = companyMemberService.update(
 				"admin-token",
+				10L,
 				101L,
 				new CompanyMemberUpdateRequest(CompanyMemberRole.COMPANY_ADMIN, CompanyMemberStatus.ACTIVE, 5L));
 
@@ -197,11 +198,12 @@ class CompanyMemberServiceTest {
 		CompanyMember member = companyMember(101L, company, user(2L, "member@example.com"), 5L, CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE);
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
-		when(companyMemberRepository.findByIdForUpdate(101L)).thenReturn(Optional.of(member));
+		when(companyMemberRepository.findByIdAndCompanyIdForUpdate(101L, 10L)).thenReturn(Optional.of(member));
 		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
 
 		companyMemberService.update(
 				"admin-token",
+				10L,
 				101L,
 				new CompanyMemberUpdateRequest(CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE, null));
 
@@ -210,34 +212,36 @@ class CompanyMemberServiceTest {
 	}
 
 	@Test
-	void updateThrowsForbiddenWhenRequesterIsNotCompanyAdmin() {
+	void updateThrowsForbiddenBeforeTargetMemberLookupWhenRequesterIsNotCompanyAdmin() {
 		AuthContext authContext = authContext();
 		User admin = user(1L, "admin@example.com");
-		Company company = company(10L, admin);
-		CompanyMember member = companyMember(101L, company, user(2L, "member@example.com"), null, CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE);
 		when(authContextService.fromAccessToken("member-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
-		when(companyMemberRepository.findByIdForUpdate(101L)).thenReturn(Optional.of(member));
 		doThrow(new ForbiddenException("회사 관리자 권한이 필요합니다."))
 				.when(companyAccessService).requireCompanyAdmin(10L, authContext);
 
 		assertThatThrownBy(() -> companyMemberService.update(
 				"member-token",
+				10L,
 				101L,
 				new CompanyMemberUpdateRequest(CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE, null)))
 				.isInstanceOf(ForbiddenException.class);
+		verifyNoInteractions(companyRepository, companyMemberRepository, departmentRepository);
 	}
 
 	@Test
-	void updateThrowsNotFoundWhenCompanyMemberDoesNotExist() {
+	void updateThrowsNotFoundWhenCompanyMemberDoesNotExistInRequestedCompany() {
 		AuthContext authContext = authContext();
 		User admin = user(1L, "admin@example.com");
+		Company company = company(10L, admin);
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
-		when(companyMemberRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
+		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
+		when(companyMemberRepository.findByIdAndCompanyIdForUpdate(999L, 10L)).thenReturn(Optional.empty());
 
 		assertThatThrownBy(() -> companyMemberService.update(
 				"admin-token",
+				10L,
 				999L,
 				new CompanyMemberUpdateRequest(CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE, null)))
 				.isInstanceOf(CompanyMemberNotFoundException.class);
@@ -251,12 +255,13 @@ class CompanyMemberServiceTest {
 		CompanyMember member = companyMember(101L, company, user(2L, "member@example.com"), null, CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE);
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
-		when(companyMemberRepository.findByIdForUpdate(101L)).thenReturn(Optional.of(member));
+		when(companyMemberRepository.findByIdAndCompanyIdForUpdate(101L, 10L)).thenReturn(Optional.of(member));
 		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
 		when(departmentRepository.existsByIdAndCompany_Id(99L, 10L)).thenReturn(false);
 
 		assertThatThrownBy(() -> companyMemberService.update(
 				"admin-token",
+				10L,
 				101L,
 				new CompanyMemberUpdateRequest(CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE, 99L)))
 				.isInstanceOf(DepartmentNotFoundException.class);
@@ -270,15 +275,37 @@ class CompanyMemberServiceTest {
 		CompanyMember member = companyMember(101L, company, user(2L, "member@example.com"), null, CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE);
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
-		when(companyMemberRepository.findByIdForUpdate(101L)).thenReturn(Optional.of(member));
+		when(companyMemberRepository.findByIdAndCompanyIdForUpdate(101L, 10L)).thenReturn(Optional.of(member));
 		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
 		when(departmentRepository.existsByIdAndCompany_Id(7L, 10L)).thenReturn(false);
 
 		assertThatThrownBy(() -> companyMemberService.update(
 				"admin-token",
+				10L,
 				101L,
 				new CompanyMemberUpdateRequest(CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE, 7L)))
 				.isInstanceOf(DepartmentNotFoundException.class);
+	}
+
+	@Test
+	void updateThrowsConflictWhenReactivatingLeftMember() {
+		AuthContext authContext = authContext();
+		User admin = user(1L, "admin@example.com");
+		Company company = company(10L, admin);
+		CompanyMember leftMember = companyMember(101L, company, user(2L, "member@example.com"), null, CompanyMemberRole.MEMBER, CompanyMemberStatus.LEFT);
+		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
+		when(companyMemberRepository.findByIdAndCompanyIdForUpdate(101L, 10L)).thenReturn(Optional.of(leftMember));
+		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
+
+		assertThatThrownBy(() -> companyMemberService.update(
+				"admin-token",
+				10L,
+				101L,
+				new CompanyMemberUpdateRequest(CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE, null)))
+				.isInstanceOf(CompanyMemberConflictException.class)
+				.hasMessage("탈퇴한 회사 구성원은 직접 재활성화할 수 없습니다.");
+		assertThat(leftMember.getStatus()).isEqualTo(CompanyMemberStatus.LEFT);
 	}
 
 	@Test
@@ -289,13 +316,14 @@ class CompanyMemberServiceTest {
 		CompanyMember companyAdmin = companyMember(100L, company, admin, null, CompanyMemberRole.COMPANY_ADMIN, CompanyMemberStatus.ACTIVE);
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
-		when(companyMemberRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(companyAdmin));
+		when(companyMemberRepository.findByIdAndCompanyIdForUpdate(100L, 10L)).thenReturn(Optional.of(companyAdmin));
 		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
 		when(companyMemberRepository.countByCompany_IdAndRoleAndStatus(10L, CompanyMemberRole.COMPANY_ADMIN, CompanyMemberStatus.ACTIVE))
 				.thenReturn(1L);
 
 		assertThatThrownBy(() -> companyMemberService.update(
 				"admin-token",
+				10L,
 				100L,
 				new CompanyMemberUpdateRequest(CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE, null)))
 				.isInstanceOf(CompanyMemberConflictException.class);
@@ -309,13 +337,14 @@ class CompanyMemberServiceTest {
 		CompanyMember companyAdmin = companyMember(100L, company, admin, null, CompanyMemberRole.COMPANY_ADMIN, CompanyMemberStatus.ACTIVE);
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
-		when(companyMemberRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(companyAdmin));
+		when(companyMemberRepository.findByIdAndCompanyIdForUpdate(100L, 10L)).thenReturn(Optional.of(companyAdmin));
 		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
 		when(companyMemberRepository.countByCompany_IdAndRoleAndStatus(10L, CompanyMemberRole.COMPANY_ADMIN, CompanyMemberStatus.ACTIVE))
 				.thenReturn(2L);
 
 		CompanyMemberData data = companyMemberService.update(
 				"admin-token",
+				10L,
 				100L,
 				new CompanyMemberUpdateRequest(CompanyMemberRole.MEMBER, CompanyMemberStatus.SUSPENDED, null));
 

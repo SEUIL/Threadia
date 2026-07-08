@@ -48,12 +48,17 @@ public class CompanyMemberController {
 		return ResponseEntity.ok(ApiResponse.of(data));
 	}
 
-	@PatchMapping("/company-members/{companyMemberId}")
+	@PatchMapping("/companies/{companyId}/company-members/{companyMemberId}")
 	public ResponseEntity<ApiResponse<CompanyMemberData>> update(
 			@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+			@PathVariable Long companyId,
 			@PathVariable Long companyMemberId,
 			@Valid @RequestBody CompanyMemberUpdateRequest request) {
-		CompanyMemberData data = companyMemberService.update(extractAccessToken(authorizationHeader), companyMemberId, request);
+		CompanyMemberData data = companyMemberService.update(
+				extractAccessToken(authorizationHeader),
+				companyId,
+				companyMemberId,
+				request);
 		return ResponseEntity.ok(ApiResponse.of(data));
 	}
 

@@ -96,13 +96,13 @@ public class CompanyMemberService {
 	}
 
 	@Transactional
-	public CompanyMemberData update(String accessToken, Long companyMemberId, CompanyMemberUpdateRequest request) {
+	public CompanyMemberData update(String accessToken, Long companyId, Long companyMemberId, CompanyMemberUpdateRequest request) {
 		AuthContext authContext = activeAuthContext(accessToken);
-		CompanyMember companyMember = companyMemberForUpdate(companyMemberId);
-		Long companyId = companyMember.getCompany().getId();
 		companyAccessService.requireCompanyAdmin(companyId, authContext);
 		companyForUpdate(companyId);
+		CompanyMember companyMember = companyMemberForUpdate(companyMemberId, companyId);
 		validateDepartment(companyId, request.departmentId());
+		validateLeftMemberReactivation(companyMember, request.status());
 		validateLastActiveCompanyAdmin(companyMember, request.role(), request.status());
 		companyMember.setRole(request.role());
 		companyMember.setStatus(request.status());
@@ -120,6 +120,12 @@ public class CompanyMemberService {
 	private void validateDepartment(Long companyId, Long departmentId) {
 		if (departmentId != null && !departmentRepository.existsByIdAndCompany_Id(departmentId, companyId)) {
 			throw new DepartmentNotFoundException(departmentId);
+		}
+	}
+
+	private static void validateLeftMemberReactivation(CompanyMember companyMember, CompanyMemberStatus requestedStatus) {
+		if (companyMember.getStatus() == CompanyMemberStatus.LEFT && requestedStatus == CompanyMemberStatus.ACTIVE) {
+			throw CompanyMemberConflictException.leftMemberReactivation();
 		}
 	}
 
@@ -157,8 +163,8 @@ public class CompanyMemberService {
 				.orElseThrow(() -> new CompanyNotFoundException(companyId));
 	}
 
-	private CompanyMember companyMemberForUpdate(Long companyMemberId) {
-		return companyMemberRepository.findByIdForUpdate(companyMemberId)
+	private CompanyMember companyMemberForUpdate(Long companyMemberId, Long companyId) {
+		return companyMemberRepository.findByIdAndCompanyIdForUpdate(companyMemberId, companyId)
 				.orElseThrow(() -> new CompanyMemberNotFoundException(companyMemberId));
 	}
 

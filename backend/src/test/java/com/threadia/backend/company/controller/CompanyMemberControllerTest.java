@@ -74,10 +74,10 @@ class CompanyMemberControllerTest {
 
 	@Test
 	void updateReturnsUpdatedCompanyMember() throws Exception {
-		when(companyMemberService.update(org.mockito.ArgumentMatchers.eq("admin-token"), org.mockito.ArgumentMatchers.eq(100L), org.mockito.ArgumentMatchers.any()))
+		when(companyMemberService.update(org.mockito.ArgumentMatchers.eq("admin-token"), org.mockito.ArgumentMatchers.eq(10L), org.mockito.ArgumentMatchers.eq(100L), org.mockito.ArgumentMatchers.any()))
 				.thenReturn(new CompanyMemberData(companyMemberResponse(100L, null, "MEMBER", "SUSPENDED")));
 
-		mockMvc.perform(patch("/api/v1/company-members/100")
+		mockMvc.perform(patch("/api/v1/companies/10/company-members/100")
 					.header(HttpHeaders.AUTHORIZATION, "Bearer admin-token")
 					.contentType(MediaType.APPLICATION_JSON)
 					.content("""
@@ -96,7 +96,7 @@ class CompanyMemberControllerTest {
 
 	@Test
 	void updateReturnsValidationErrorWhenRoleOrStatusIsMissing() throws Exception {
-		mockMvc.perform(patch("/api/v1/company-members/100")
+		mockMvc.perform(patch("/api/v1/companies/10/company-members/100")
 					.header(HttpHeaders.AUTHORIZATION, "Bearer admin-token")
 					.contentType(MediaType.APPLICATION_JSON)
 					.content("""
@@ -118,11 +118,11 @@ class CompanyMemberControllerTest {
 	}
 
 	@Test
-	void updateReturnsNotFoundWhenCompanyMemberDoesNotExist() throws Exception {
-		when(companyMemberService.update(org.mockito.ArgumentMatchers.eq("admin-token"), org.mockito.ArgumentMatchers.eq(999L), org.mockito.ArgumentMatchers.any()))
+	void updateReturnsNotFoundWhenCompanyMemberDoesNotExistInCompanyScope() throws Exception {
+		when(companyMemberService.update(org.mockito.ArgumentMatchers.eq("admin-token"), org.mockito.ArgumentMatchers.eq(10L), org.mockito.ArgumentMatchers.eq(999L), org.mockito.ArgumentMatchers.any()))
 				.thenThrow(new CompanyMemberNotFoundException(999L));
 
-		mockMvc.perform(patch("/api/v1/company-members/999")
+		mockMvc.perform(patch("/api/v1/companies/10/company-members/999")
 					.header(HttpHeaders.AUTHORIZATION, "Bearer admin-token")
 					.contentType(MediaType.APPLICATION_JSON)
 					.content(updateBody("MEMBER", "ACTIVE", 1L)))
@@ -132,10 +132,10 @@ class CompanyMemberControllerTest {
 
 	@Test
 	void updateReturnsNotFoundWhenDepartmentDoesNotBelongToCompany() throws Exception {
-		when(companyMemberService.update(org.mockito.ArgumentMatchers.eq("admin-token"), org.mockito.ArgumentMatchers.eq(100L), org.mockito.ArgumentMatchers.any()))
+		when(companyMemberService.update(org.mockito.ArgumentMatchers.eq("admin-token"), org.mockito.ArgumentMatchers.eq(10L), org.mockito.ArgumentMatchers.eq(100L), org.mockito.ArgumentMatchers.any()))
 				.thenThrow(new DepartmentNotFoundException(99L));
 
-		mockMvc.perform(patch("/api/v1/company-members/100")
+		mockMvc.perform(patch("/api/v1/companies/10/company-members/100")
 					.header(HttpHeaders.AUTHORIZATION, "Bearer admin-token")
 					.contentType(MediaType.APPLICATION_JSON)
 					.content(updateBody("MEMBER", "ACTIVE", 99L)))
@@ -145,10 +145,10 @@ class CompanyMemberControllerTest {
 
 	@Test
 	void updateReturnsConflictWhenChangingLastActiveCompanyAdmin() throws Exception {
-		when(companyMemberService.update(org.mockito.ArgumentMatchers.eq("admin-token"), org.mockito.ArgumentMatchers.eq(100L), org.mockito.ArgumentMatchers.any()))
+		when(companyMemberService.update(org.mockito.ArgumentMatchers.eq("admin-token"), org.mockito.ArgumentMatchers.eq(10L), org.mockito.ArgumentMatchers.eq(100L), org.mockito.ArgumentMatchers.any()))
 				.thenThrow(CompanyMemberConflictException.lastActiveCompanyAdmin());
 
-		mockMvc.perform(patch("/api/v1/company-members/100")
+		mockMvc.perform(patch("/api/v1/companies/10/company-members/100")
 					.header(HttpHeaders.AUTHORIZATION, "Bearer admin-token")
 					.contentType(MediaType.APPLICATION_JSON)
 					.content(updateBody("MEMBER", "ACTIVE", 1L)))
