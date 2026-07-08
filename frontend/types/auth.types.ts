@@ -5,16 +5,12 @@ export interface UserSummary {
   avatarUrl: string | null;
 }
 
+// companies 필드는 backend가 List<Object>(항상 빈 배열)로만 보내는 죽은
+// 필드라 타입에서 제외한다. 실제 회사 membership은 companyService.
+// getMyMemberships()(GET /users/me/company-memberships)로 별도 조회한다.
 export interface LoginResponse {
   accessToken: string;
   user: UserSummary;
-  companies: CompanyContext[];
-}
-
-export interface CompanyContext {
-  id: number;
-  name: string;
-  role: "COMPANY_ADMIN" | "MEMBER";
 }
 
 export interface ApiResponse<T> {

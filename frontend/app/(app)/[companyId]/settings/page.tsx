@@ -8,26 +8,31 @@
  * "구성원 관리" 버튼(S14 이동).
  *
  * TODO(Sprint 2, 낮은 우선순위): "생성 모드"(회사가 아예 없을 때 POST /companies로
- * 최초 생성하는 폼)는 아직 미구현. 화면정의서도 이걸 "MVP/Sprint 2 reference"로만
- * 표시하고 Sprint 1.5 invitation 검증엔 필요 없다고 명시해서 우선순위를 낮췄다.
+ * 최초 생성하는 폼)는 아직 미구현. 설계문서(sprint2-3.2-company-frontend-rbac-
+ * 사전조사.md §4, §9)에서 스코프 미확정으로 보류했다.
  *
- * ⚠️ MOCK: 백엔드 회사/부서 API(`POST/GET/PATCH /companies`, `/departments`)가
- * 아직 없어서 전부 로컬 state로 흉내낸다. 실제 연동 시 이 파일의 MOCK_* 상수와
- * 로컬 state 갱신 로직을 API 호출로 교체하면 된다.
+ * WBS 3.2.2 실 연동: company.service/department.service 사용. 이 화면 진입은
+ * RailShell이 COMPANY_ADMIN에게만 "회사 관리" 메뉴를 보여주는 것으로만
+ * 막혀 있고(Phase 3), URL 직접 접근 자체를 막는 라우트 가드는 없다 —
+ * MEMBER가 직접 들어오면 회사 정보(GET)는 보이고 통계/부서(admin 전용)는
+ * 403으로 실패해 에러 화면으로 처리된다. 실제 데이터 유출은 없다(서버가
+ * 최종 방어).
  */
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { TextField } from "@/components/ui/TextField";
+import { companyService } from "@/services/company.service";
+import { departmentService } from "@/services/department.service";
+import { invitationErrorMessage } from "@/lib/invitation";
+import type { CompanyResponse, CompanyStatsData, DepartmentResponse } from "@/types/company.types";
 
-type CompanyInfo = {
+type CompanyDraft = {
   name: string;
   representativeName: string;
   description: string;
   industryCategory: string;
 };
-
-type Department = { id: string; name: string; memberCount: number };
 
 type ProjectStatus = "PLANNING" | "ACTIVE" | "PAUSED" | "COMPLETED" | "ARCHIVED";
 
@@ -39,28 +44,16 @@ const STATUS_LABEL: Record<ProjectStatus, string> = {
   ARCHIVED: "보관됨",
 };
 
-const MOCK_COMPANY: CompanyInfo = {
-  name: "Acorn Labs",
-  representativeName: "정철진",
-  description: "협업도구 스타트업",
-  industryCategory: "IT/소프트웨어",
-};
+type LoadState = "loading" | "ready" | "error";
 
-const MOCK_STATS_BY_STATUS: Record<ProjectStatus, number> = {
-  PLANNING: 2,
-  ACTIVE: 4,
-  PAUSED: 1,
-  COMPLETED: 1,
-  ARCHIVED: 0,
-};
-
-const MOCK_MEMBER_COUNT = 25;
-
-const MOCK_DEPARTMENTS: Department[] = [
-  { id: "d1", name: "개발팀", memberCount: 12 },
-  { id: "d2", name: "디자인팀", memberCount: 5 },
-  { id: "d3", name: "기획팀", memberCount: 8 },
-];
+function toDraft(company: CompanyResponse): CompanyDraft {
+  return {
+    name: company.name,
+    representativeName: company.representativeName ?? "",
+    description: company.description ?? "",
+    industryCategory: company.industryCategory ?? "",
+  };
+}
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
@@ -75,38 +68,118 @@ export default function CompanySettingsPage() {
   const params = useParams<{ companyId: string }>();
   const companyId = params.companyId;
 
-  const [company, setCompany] = useState<CompanyInfo>(MOCK_COMPANY);
-  const [draft, setDraft] = useState<CompanyInfo>(MOCK_COMPANY);
+  const [pageState, setPageState] = useState<LoadState>("loading");
+  const [pageError, setPageError] = useState<string | null>(null);
+
+  const [company, setCompany] = useState<CompanyResponse | null>(null);
+  const [draft, setDraft] = useState<CompanyDraft | null>(null);
   const [editing, setEditing] = useState(false);
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
-  const [departments, setDepartments] = useState<Department[]>(MOCK_DEPARTMENTS);
+  const [stats, setStats] = useState<CompanyStatsData | null>(null);
+
+  const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
   const [newDeptName, setNewDeptName] = useState("");
+  const [deptBusy, setDeptBusy] = useState(false);
+  const [deptError, setDeptError] = useState<string | null>(null);
 
-  const totalProjects = Object.values(MOCK_STATS_BY_STATUS).reduce((a, b) => a + b, 0);
+  const loadPage = useCallback(async () => {
+    setPageState("loading");
+    setPageError(null);
+    try {
+      const [companyRes, statsRes, departmentsRes] = await Promise.all([
+        companyService.get(companyId),
+        companyService.stats(companyId),
+        departmentService.list(companyId),
+      ]);
+      setCompany(companyRes.data.data.company);
+      setStats(statsRes.data.data);
+      setDepartments(departmentsRes.data.data.departments);
+      setPageState("ready");
+    } catch (error) {
+      setPageError(invitationErrorMessage(error, "회사 정보를 불러오지 못했습니다."));
+      setPageState("error");
+    }
+  }, [companyId]);
+
+  useEffect(() => {
+    (async () => {
+      await loadPage();
+    })();
+  }, [loadPage]);
 
   const startEdit = () => {
-    setDraft(company);
+    if (!company) return;
+    setDraft(toDraft(company));
+    setEditError(null);
     setEditing(true);
   };
 
-  const saveEdit = () => {
-    // TODO: PATCH /api/v1/companies/{companyId}
-    setCompany(draft);
-    setEditing(false);
+  const saveEdit = async () => {
+    if (!draft) return;
+    setEditBusy(true);
+    setEditError(null);
+    try {
+      const { data } = await companyService.update(companyId, {
+        name: draft.name,
+        representativeName: draft.representativeName || null,
+        description: draft.description || null,
+        industryCategory: draft.industryCategory || null,
+      });
+      setCompany(data.data.company);
+      setEditing(false);
+    } catch (error) {
+      setEditError(invitationErrorMessage(error, "회사 정보 수정에 실패했습니다."));
+    } finally {
+      setEditBusy(false);
+    }
   };
 
-  const addDepartment = () => {
+  const addDepartment = async () => {
     const name = newDeptName.trim();
     if (!name) return;
-    // TODO: POST /api/v1/companies/{companyId}/departments
-    setDepartments((prev) => [...prev, { id: crypto.randomUUID(), name, memberCount: 0 }]);
-    setNewDeptName("");
+    setDeptBusy(true);
+    setDeptError(null);
+    try {
+      const { data } = await departmentService.create(companyId, { name });
+      setDepartments((prev) => [...prev, data.data.department]);
+      setNewDeptName("");
+    } catch (error) {
+      setDeptError(invitationErrorMessage(error, "부서 추가에 실패했습니다."));
+    } finally {
+      setDeptBusy(false);
+    }
   };
 
-  const removeDepartment = (id: string) => {
-    // TODO: DELETE /api/v1/departments/{departmentId} — 소속 멤버는 department_id=NULL 처리
-    setDepartments((prev) => prev.filter((d) => d.id !== id));
+  const removeDepartment = async (departmentId: number) => {
+    setDeptError(null);
+    try {
+      await departmentService.remove(departmentId);
+      setDepartments((prev) => prev.filter((d) => d.id !== departmentId));
+    } catch (error) {
+      setDeptError(invitationErrorMessage(error, "부서 삭제에 실패했습니다."));
+    }
   };
+
+  if (pageState === "loading") {
+    return <div className="mx-auto max-w-3xl px-6 py-10 text-sm text-muted">불러오는 중...</div>;
+  }
+
+  if (pageState === "error" || !company || !stats) {
+    return (
+      <div className="mx-auto max-w-3xl px-6 py-10">
+        <Link href="/hub" className="text-sm text-muted transition-colors duration-fast hover:text-primary">
+          ← 허브로
+        </Link>
+        <div className="mt-6 rounded-xl border border-destructive-subtle bg-surface p-6 text-sm text-destructive">
+          {pageError}
+        </div>
+      </div>
+    );
+  }
+
+  const totalProjects = stats.projectCount;
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
@@ -130,7 +203,9 @@ export default function CompanySettingsPage() {
           )}
         </div>
 
-        {editing ? (
+        {editError && <p className="mt-2 text-xs text-destructive">{editError}</p>}
+
+        {editing && draft ? (
           <div className="mt-4 flex flex-col gap-4">
             <TextField
               id="company-name"
@@ -165,7 +240,8 @@ export default function CompanySettingsPage() {
               </button>
               <button
                 onClick={saveEdit}
-                className="rounded-md btn-gradient px-3 py-1.5 text-sm font-semibold text-primary-foreground transition-colors duration-fast"
+                disabled={editBusy}
+                className="rounded-md btn-gradient px-3 py-1.5 text-sm font-semibold text-primary-foreground transition-colors duration-fast disabled:opacity-50"
               >
                 저장
               </button>
@@ -179,7 +255,7 @@ export default function CompanySettingsPage() {
             </div>
             <div>
               <dt className="text-muted">대표자</dt>
-              <dd className="mt-0.5 font-medium text-foreground">{company.representativeName}</dd>
+              <dd className="mt-0.5 font-medium text-foreground">{company.representativeName || "-"}</dd>
             </div>
             <div className="col-span-2">
               <dt className="text-muted">회사 소개</dt>
@@ -198,17 +274,17 @@ export default function CompanySettingsPage() {
         <h2 className="text-sm font-semibold text-foreground">회사 현황</h2>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard label="전체 프로젝트" value={totalProjects} />
-          <StatCard label="구성원" value={MOCK_MEMBER_COUNT} />
-          <StatCard label="부서" value={departments.length} />
-          <StatCard label="진행중 프로젝트" value={MOCK_STATS_BY_STATUS.ACTIVE} />
+          <StatCard label="구성원" value={stats.memberCount} />
+          <StatCard label="부서" value={stats.departmentCount} />
+          <StatCard label="진행중 프로젝트" value={stats.projectStatusCounts.ACTIVE ?? 0} />
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
-          {(Object.keys(MOCK_STATS_BY_STATUS) as ProjectStatus[]).map((status) => (
+          {(Object.keys(STATUS_LABEL) as ProjectStatus[]).map((status) => (
             <span
               key={status}
               className="rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted"
             >
-              {STATUS_LABEL[status]} {MOCK_STATS_BY_STATUS[status]}
+              {STATUS_LABEL[status]} {stats.projectStatusCounts[status] ?? 0}
             </span>
           ))}
         </div>
@@ -217,6 +293,7 @@ export default function CompanySettingsPage() {
       {/* 부서 목록 */}
       <section className="mt-6 rounded-xl border border-border bg-surface p-6">
         <h2 className="text-sm font-semibold text-foreground">부서</h2>
+        {deptError && <p className="mt-2 text-xs text-destructive">{deptError}</p>}
         <ul className="mt-3 divide-y divide-border">
           {departments.map((dept) => (
             <li
@@ -224,15 +301,12 @@ export default function CompanySettingsPage() {
               className="flex items-center justify-between px-1 py-2.5"
             >
               <span className="text-sm font-medium text-foreground">{dept.name}</span>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-muted">{dept.memberCount}명</span>
-                <button
-                  onClick={() => removeDepartment(dept.id)}
-                  className="text-xs font-medium text-destructive transition-colors duration-fast hover:opacity-70"
-                >
-                  삭제
-                </button>
-              </div>
+              <button
+                onClick={() => removeDepartment(dept.id)}
+                className="text-xs font-medium text-destructive transition-colors duration-fast hover:opacity-70"
+              >
+                삭제
+              </button>
             </li>
           ))}
           {departments.length === 0 && (
@@ -253,7 +327,8 @@ export default function CompanySettingsPage() {
           />
           <button
             onClick={addDepartment}
-            className="rounded-lg btn-gradient px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast"
+            disabled={deptBusy}
+            className="rounded-lg btn-gradient px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast disabled:opacity-50"
           >
             추가
           </button>

@@ -7,77 +7,58 @@
  * 구성원 목록(역할/부서 변경, DM 시작) + 구성원 추가(이메일 조회 → 초대) +
  * 보낸 초대 목록을 구현한다.
  *
- * Invitation 흐름(이메일 조회/생성/목록/취소)은 WBS 2.2~2.4 backend(PR #26, #47,
- * #48) 기준 실 API 연동이다. 계약/에러코드/상태 전이는
+ * Invitation 흐름(이메일 조회/생성/목록/취소)은 WBS 2.2~2.4 backend 기준 실 API
+ * 연동이다. 계약/에러코드/상태 전이는
  * docs/08-members/member-정철진/기술-연구/s14-invitation-프론트-연동-설계.md 참고.
  *
  * "내가 받은 초대" 수락/거절은 이 화면이 아니라 company-agnostic한 /invitations
  * (S14 수신)에서 처리한다 — 초대 수신자는 이 회사의 membership이 아직 없어
  * /{companyId}/... 하위로 못 들어오기 때문이다(위 설계 문서 §1).
  *
- * ⚠️ MOCK 유지 (Sprint 2 범위): 구성원 목록 조회(`GET /company-members`)와
- * 역할/부서 변경(`PATCH /company-members/{id}`)은 WBS 3.1.4 backend가 아직
- * 없어서 로컬 state로 유지한다. 부서 목록도 S13과 공유 저장소가 없어 별도 목업.
+ * WBS 3.2.3 실 연동: 구성원 목록/역할·부서 변경은 Company Member API(3.1.4,
+ * PR #56), 부서 목록은 Department API(3.1.3, PR #54)를 쓴다. role은 §8.2
+ * 통합(AuthContext.companyMemberships)로 실제 값을 쓴다. 근거·계약은
+ * docs/08-members/member-정철진/기술-연구/sprint2-3.2-company-frontend-rbac-사전조사.md
+ * §5, §8.5.
  *
- * ⚠️ MOCK_ROLE: 현재 로그인 사용자의 이 회사 내 role. Sprint 1 `/auth/me`는
- * companyMemberships를 안 내려주므로(AuthContext.tsx 참고) 실제 role을 아직
- * 못 구한다. RBAC 적용(WBS 3.1.4/3.2.4) 전까지 다른 화면과 동일하게 "C"로
- * 고정한다. getMockRole() 우회는 PR #45(TypeScript literal narrowing) 참고.
+ * ⚠️ PM 배지 제거: mock에 있던 isProjectAdmin은 Project Member API(3.3.4,
+ * 아직 없음) 없이는 얻을 수 없는 정보라 임의로 만들지 않고 뺐다.
  *
- * ⚠️ 알려진 gap: 위 고정값 때문에 실제로는 A/P 역할 사용자가 이 화면에
- * 들어와도 프론트에서는 "구성원 추가"(관리자 전용 UI)가 그대로 노출된다.
- * 실제 요청은 백엔드 `assertCompanyAdmin`이 막아 403으로 거절하므로 보안
- * 문제는 아니지만(리뷰 PR #55 참고), UX상 권한 없는 사용자에게 관리자
- * 버튼이 보이는 상태다. RBAC 연동(WBS 3.2.4)에서 role 기반 조건부 렌더링을
- * 실제 값으로 교체하면 해결된다.
+ * ⚠️ PATCH는 partial이 아니라 full-replace다(role/status 둘 다 @NotNull).
+ * updateMember()가 역할·부서 select 어느 쪽이 바뀌든 항상 현재
+ * role/status/departmentId 전체를 합쳐서 보낸다. status(정지/탈퇴) 변경
+ * UI는 아직 없어 항상 현재 status를 그대로 유지해서 보낸다(설계문서 §9 미결).
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 import { invitationService } from "@/services/invitation.service";
+import { companyMemberService } from "@/services/company-member.service";
+import { departmentService } from "@/services/department.service";
 import {
   INVITATION_STATUS_CLASS,
   INVITATION_STATUS_LABEL,
   invitationErrorMessage,
 } from "@/lib/invitation";
 import type { InvitationResponse, InvitationRole } from "@/types/invitation.types";
-
-type Role = "A" | "P" | "C";
-const getMockRole = (): Role => "C";
-const MOCK_ROLE = getMockRole();
-const canManageMembers = MOCK_ROLE === "C";
-
-type CompanyRole = "COMPANY_ADMIN" | "MEMBER";
-
-type Member = {
-  id: string;
-  name: string;
-  email: string;
-  companyRole: CompanyRole;
-  departmentId: string | null;
-  isProjectAdmin: boolean;
-};
-
-const MOCK_DEPARTMENTS = [
-  { id: "d1", name: "개발팀" },
-  { id: "d2", name: "디자인팀" },
-  { id: "d3", name: "기획팀" },
-];
-
-const MOCK_MEMBERS: Member[] = [
-  { id: "u1", name: "정철진", email: "cjfwls39@threadia.com", companyRole: "COMPANY_ADMIN", departmentId: "d1", isProjectAdmin: true },
-  { id: "u2", name: "김민정", email: "minjeong@threadia.com", companyRole: "MEMBER", departmentId: "d2", isProjectAdmin: true },
-  { id: "u3", name: "여도현", email: "dohyun@threadia.com", companyRole: "MEMBER", departmentId: "d1", isProjectAdmin: false },
-  { id: "u4", name: "황스일", email: "seil@threadia.com", companyRole: "MEMBER", departmentId: "d3", isProjectAdmin: false },
-];
+import type { CompanyMemberRole, CompanyMemberResponse, DepartmentResponse } from "@/types/company.types";
 
 type LoadState = "loading" | "ready" | "error";
 
 export default function MembersPage() {
   const params = useParams<{ companyId: string }>();
   const companyId = params.companyId;
+  const { companyMemberships } = useAuth();
+  const canManageMembers =
+    companyMemberships.find((m) => m.companyId === Number(companyId))?.role === "COMPANY_ADMIN";
 
-  const [members, setMembers] = useState<Member[]>(MOCK_MEMBERS);
+  const [members, setMembers] = useState<CompanyMemberResponse[]>([]);
+  const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
+  const [membersState, setMembersState] = useState<LoadState>("loading");
+  const [membersError, setMembersError] = useState<string | null>(null);
+  const [updateBusyId, setUpdateBusyId] = useState<number | null>(null);
+  const [updateError, setUpdateError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
 
   const [invitations, setInvitations] = useState<InvitationResponse[]>([]);
@@ -96,6 +77,23 @@ export default function MembersPage() {
   // action 실패 하나가 렌더 조건(invitationsState === "ready")을 깨서 목록
   // 전체가 사라지는 회귀가 생긴다(PR #55 리뷰, 김민정).
   const [cancelError, setCancelError] = useState<string | null>(null);
+
+  const fetchMembers = useCallback(async () => {
+    setMembersState("loading");
+    setMembersError(null);
+    try {
+      const [membersRes, departmentsRes] = await Promise.all([
+        companyMemberService.list(companyId),
+        departmentService.list(companyId),
+      ]);
+      setMembers(membersRes.data.data.companyMembers);
+      setDepartments(departmentsRes.data.data.departments);
+      setMembersState("ready");
+    } catch (error) {
+      setMembersError(invitationErrorMessage(error, "구성원 목록을 불러오지 못했습니다."));
+      setMembersState("error");
+    }
+  }, [companyId]);
 
   // silent: 취소 실패 후 재검증처럼 이미 목록이 떠 있는 상태에서 다시 부를 때 쓴다.
   // invitationsState를 "loading"으로 안 바꿔서 목록이 순간적으로 사라지는 깜빡임을 막는다.
@@ -122,30 +120,42 @@ export default function MembersPage() {
   );
 
   // 마운트 시 1회 로드. AuthContext.tsx와 동일하게 인라인 IIFE로 감싼다
-  // (fetchInvitations를 직접 호출하면 react-hooks/set-state-in-effect에 걸린다).
+  // (직접 호출하면 react-hooks/set-state-in-effect에 걸린다).
   useEffect(() => {
-    if (!canManageMembers) return;
     (async () => {
-      await fetchInvitations();
+      await fetchMembers();
+      if (canManageMembers) await fetchInvitations();
     })();
-  }, [fetchInvitations]);
+  }, [fetchMembers, fetchInvitations, canManageMembers]);
 
   const filteredMembers = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return members;
     return members.filter(
-      (m) => m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
+      (m) =>
+        m.user.nickname.toLowerCase().includes(q) || m.user.email.toLowerCase().includes(q)
     );
   }, [members, query]);
 
-  const setMemberRole = (id: string, role: CompanyRole) => {
-    // TODO(Sprint 2, WBS 3.1.4): PATCH /api/v1/company-members/{companyMemberId}
-    setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, companyRole: role } : m)));
-  };
-
-  const setMemberDepartment = (id: string, departmentId: string) => {
-    // TODO(Sprint 2, WBS 3.1.4): PATCH /api/v1/company-members/{companyMemberId}
-    setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, departmentId } : m)));
+  // role/departmentId 어느 쪽이 바뀌든 현재 값 전체를 합쳐서 보낸다(PATCH full-replace).
+  const updateMember = async (
+    member: CompanyMemberResponse,
+    partial: { role?: CompanyMemberRole; departmentId?: number | null }
+  ) => {
+    setUpdateError(null);
+    setUpdateBusyId(member.id);
+    try {
+      const { data } = await companyMemberService.update(companyId, member.id, {
+        role: partial.role ?? member.role,
+        status: member.status,
+        departmentId: partial.departmentId !== undefined ? partial.departmentId : member.departmentId,
+      });
+      setMembers((prev) => prev.map((m) => (m.id === member.id ? data.data.companyMember : m)));
+    } catch (error) {
+      setUpdateError(invitationErrorMessage(error, "구성원 정보 변경에 실패했습니다."));
+    } finally {
+      setUpdateBusyId(null);
+    }
   };
 
   const lookupEmail = async () => {
@@ -316,7 +326,7 @@ export default function MembersPage() {
         </section>
       )}
 
-      {/* 구성원 목록 — Sprint 2(WBS 3.1.4) 전까지 mock */}
+      {/* 구성원 목록 */}
       <section className="mt-6 rounded-xl border border-border bg-surface p-6">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-foreground">구성원 ({members.length})</h2>
@@ -329,68 +339,74 @@ export default function MembersPage() {
           />
         </div>
 
-        <ul className="mt-4 divide-y divide-border">
-          {filteredMembers.map((member) => (
-            <li
-              key={member.id}
-              className="flex flex-wrap items-center justify-between gap-3 px-1 py-3"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full avatar-ring text-sm font-semibold">
-                  {member.name.slice(0, 1)}
-                </span>
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    {member.name}
-                    {member.isProjectAdmin && (
-                      <span className="ml-2 rounded-full bg-accent-subtle px-2 py-0.5 text-[10px] font-semibold text-accent">
-                        PM
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-xs text-muted">{member.email}</p>
+        {membersState === "loading" && <p className="mt-4 text-xs text-muted">불러오는 중...</p>}
+        {membersState === "error" && <p className="mt-4 text-xs text-destructive">{membersError}</p>}
+        {updateError && <p className="mt-4 text-xs text-destructive">{updateError}</p>}
+
+        {membersState === "ready" && (
+          <ul className="mt-4 divide-y divide-border">
+            {filteredMembers.map((member) => (
+              <li
+                key={member.id}
+                className="flex flex-wrap items-center justify-between gap-3 px-1 py-3"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full avatar-ring text-sm font-semibold">
+                    {member.user.nickname.slice(0, 1)}
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{member.user.nickname}</p>
+                    <p className="text-xs text-muted">{member.user.email}</p>
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-2">
-                <select
-                  aria-label={`${member.name} 부서`}
-                  value={member.departmentId ?? ""}
-                  onChange={(e) => setMemberDepartment(member.id, e.target.value)}
-                  className="rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-foreground focus:border-ring focus:outline-none"
-                >
-                  {MOCK_DEPARTMENTS.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center gap-2">
+                  <select
+                    aria-label={`${member.user.nickname} 부서`}
+                    value={member.departmentId ?? ""}
+                    disabled={!canManageMembers || updateBusyId === member.id}
+                    onChange={(e) =>
+                      updateMember(member, {
+                        departmentId: e.target.value ? Number(e.target.value) : null,
+                      })
+                    }
+                    className="rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-foreground focus:border-ring focus:outline-none disabled:opacity-50"
+                  >
+                    <option value="">미배정</option>
+                    {departments.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
 
-                <select
-                  aria-label={`${member.name} 회사 역할`}
-                  value={member.companyRole}
-                  onChange={(e) => setMemberRole(member.id, e.target.value as CompanyRole)}
-                  className="rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-foreground focus:border-ring focus:outline-none"
-                >
-                  <option value="COMPANY_ADMIN">COMPANY_ADMIN</option>
-                  <option value="MEMBER">MEMBER</option>
-                </select>
+                  <select
+                    aria-label={`${member.user.nickname} 회사 역할`}
+                    value={member.role}
+                    disabled={!canManageMembers || updateBusyId === member.id}
+                    onChange={(e) => updateMember(member, { role: e.target.value as CompanyMemberRole })}
+                    className="rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-foreground focus:border-ring focus:outline-none disabled:opacity-50"
+                  >
+                    <option value="COMPANY_ADMIN">COMPANY_ADMIN</option>
+                    <option value="MEMBER">MEMBER</option>
+                  </select>
 
-                <Link
-                  href={`/${companyId}/dm/${member.id}`}
-                  className="rounded-md px-2.5 py-1.5 text-xs font-medium text-primary transition-colors duration-fast hover:bg-primary-subtle"
-                >
-                  DM
-                </Link>
-              </div>
-            </li>
-          ))}
-          {filteredMembers.length === 0 && (
-            <li className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-sm text-muted">
-              검색 결과가 없습니다.
-            </li>
-          )}
-        </ul>
+                  <Link
+                    href={`/${companyId}/dm/${member.user.id}`}
+                    className="rounded-md px-2.5 py-1.5 text-xs font-medium text-primary transition-colors duration-fast hover:bg-primary-subtle"
+                  >
+                    DM
+                  </Link>
+                </div>
+              </li>
+            ))}
+            {filteredMembers.length === 0 && (
+              <li className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-sm text-muted">
+                검색 결과가 없습니다.
+              </li>
+            )}
+          </ul>
+        )}
       </section>
     </div>
   );

@@ -18,17 +18,55 @@
  *
  * HubOverlay: 3D 씬 위에 얹는 HTML 상단바+좌측메뉴(S04/S09/S11/S13 이동).
  *   오브젝트 클릭으로 이동하는 방식은 다음 범위(아직 미구현).
+ *
+ * 소속 회사 없음(WBS 3.2.1): companyMemberships가 비어있으면 3D 오피스 대신
+ * 안내 화면을 보여준다. 화면정의서 §S03 설계 메모 기준 — 회사 생성 폼은
+ * 아직 스코프 미확정(설계문서 §9)이라 이번엔 초대 확인 안내만 제공한다.
+ * HubOverlay(레일)는 이 상태에서도 그대로 렌더한다 — "받은 초대"/로그아웃은
+ * 계속 필요하다.
  */
 import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
+import Link from "next/link";
 import { OfficeFloor } from "@/components/hub/OfficeFloor";
 import { HubOverlay } from "@/components/hub/HubOverlay";
+import { useAuth } from "@/contexts/AuthContext";
 
 // 건물 바깥 허공(Canvas scene background) — 브랜드 teal 대신 검정으로 변경.
 const SCENE_BACKGROUND = "#000000";
 
+function NoCompanyNotice() {
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-chrome px-6">
+      <div className="max-w-sm rounded-xl border border-chrome-foreground/10 bg-chrome-hover/50 p-8 text-center">
+        <h1 className="text-lg font-bold text-chrome-foreground">아직 소속된 회사가 없습니다</h1>
+        <p className="mt-2 text-sm text-chrome-muted">
+          회사 관리자에게 초대를 요청하거나, 이미 받은 초대가 있다면 확인해주세요.
+        </p>
+        <Link
+          href="/invitations"
+          className="mt-5 inline-block rounded-lg btn-gradient px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast"
+        >
+          받은 초대 확인하기
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 export default function HubPage() {
+  const { companyMemberships } = useAuth();
+
+  if (companyMemberships.length === 0) {
+    return (
+      <div className="relative h-screen w-full">
+        <NoCompanyNotice />
+        <HubOverlay />
+      </div>
+    );
+  }
+
   return (
     <div className="relative h-screen w-full">
       {/*
