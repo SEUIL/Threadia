@@ -11,7 +11,10 @@ export type InvitationStatus = "PENDING" | "ACCEPTED" | "DECLINED" | "CANCELED" 
 
 export type InvitationScopeType = "COMPANY" | "PROJECT";
 
-/** Sprint 1.5 회사 초대 role. 프로젝트 초대 role(PROJECT_ADMIN)은 Sprint 2. */
+/**
+ * Sprint 1.5 회사 초대 role. 프로젝트 초대 role(PROJECT_ADMIN)은 Sprint 3
+ * `PROJECT-MEMBER-01~02` 후보로 재분류됐다(API-명세서 v1.3 Sprint 3 기준선).
+ */
 export type InvitationRole = "COMPANY_ADMIN" | "MEMBER";
 
 export interface InvitationResponse {

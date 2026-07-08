@@ -33,6 +33,8 @@ export default function InvitationsPage() {
   // action 진행 중인 invitationId. 중복 클릭 방지 + 버튼별 로딩 표시에 쓴다.
   const [actionId, setActionId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // accept 성공 후 안내 배너. AuthContext.companies가 즉시 안 바뀌므로(주석 참고) 필요하다.
+  const [acceptNotice, setAcceptNotice] = useState<string | null>(null);
 
   const fetchInvitations = useCallback(async () => {
     setLoadState("loading");
@@ -66,6 +68,11 @@ export default function InvitationsPage() {
       setInvitations((prev) =>
         prev.map((i) => (i.id === invitation.id ? { ...i, status: data.data.status } : i))
       );
+      if (action === "accept") {
+        setAcceptNotice(
+          `${invitation.companyName} 소속이 반영됐습니다. 새 회사는 재로그인 후 확인할 수 있습니다.`
+        );
+      }
     } catch (error) {
       setActionError(
         invitationErrorMessage(
@@ -94,6 +101,12 @@ export default function InvitationsPage() {
       </div>
 
       {actionError && <p className="mt-4 text-sm text-destructive">{actionError}</p>}
+
+      {acceptNotice && (
+        <p className="mt-4 rounded-lg border border-primary/40 bg-primary-subtle px-4 py-3 text-sm text-foreground">
+          {acceptNotice}
+        </p>
+      )}
 
       {loadState === "loading" && (
         <p className="mt-6 text-sm text-muted">불러오는 중...</p>

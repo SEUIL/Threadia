@@ -23,6 +23,13 @@
  * companyMemberships를 안 내려주므로(AuthContext.tsx 참고) 실제 role을 아직
  * 못 구한다. RBAC 적용(WBS 3.1.4/3.2.4) 전까지 다른 화면과 동일하게 "C"로
  * 고정한다. getMockRole() 우회는 PR #45(TypeScript literal narrowing) 참고.
+ *
+ * ⚠️ 알려진 gap: 위 고정값 때문에 실제로는 A/P 역할 사용자가 이 화면에
+ * 들어와도 프론트에서는 "구성원 추가"(관리자 전용 UI)가 그대로 노출된다.
+ * 실제 요청은 백엔드 `assertCompanyAdmin`이 막아 403으로 거절하므로 보안
+ * 문제는 아니지만(리뷰 PR #55 참고), UX상 권한 없는 사용자에게 관리자
+ * 버튼이 보이는 상태다. RBAC 연동(WBS 3.2.4)에서 role 기반 조건부 렌더링을
+ * 실제 값으로 교체하면 해결된다.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
