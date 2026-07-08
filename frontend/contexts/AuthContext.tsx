@@ -18,9 +18,12 @@
  *    apiClient의 401 인터셉터는 refresh 실패 시 /login으로 강제 이동시키는데,
  *    "로그인했나?" 판별 단계에서 그 리다이렉트가 튀면 안 되기 때문이다.
  *
- * ⚠️ role/companyId 미포함: Sprint 1 백엔드는 로그인/refresh 응답에 회사 멤버십을
- *    담지 않는다(companies는 항상 []). 따라서 여기서 role/companyId는 제공하지
- *    못하며, 화면의 역할 분기는 Sprint 2 회사 API 연동 전까지 mock을 유지한다.
+ * 회사 membership/role: 로그인/refresh 응답 자체에는 안 담겨 있다(Sprint 1
+ *    백엔드 고정 결정, companies는 항상 []). 대신 로그인 성공 직후와 세션
+ *    복원 직후 둘 다에서 companyService.getMyMemberships()
+ *    (GET /users/me/company-memberships)를 추가로 호출해 companyMemberships
+ *    state를 채운다. 이 호출이 실패해도 로그인 자체는 막지 않고 빈 배열로
+ *    둔다 — 화면 쪽에서 "소속 회사 없음" 상태로 자연스럽게 처리한다.
  */
 import {
   createContext,
@@ -32,7 +35,9 @@ import {
 import axios from "axios";
 import { setAccessToken } from "@/lib/axios";
 import { authService } from "@/services/auth.service";
-import type { UserSummary, CompanyContext, ApiResponse, LoginResponse } from "@/types/auth.types";
+import { companyService } from "@/services/company.service";
+import type { UserSummary, ApiResponse, LoginResponse } from "@/types/auth.types";
+import type { CompanyMembership } from "@/types/company.types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
@@ -40,7 +45,7 @@ type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
 interface AuthContextValue {
   user: UserSummary | null;
-  companies: CompanyContext[];
+  companyMemberships: CompanyMembership[];
   status: AuthStatus;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -48,9 +53,20 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+// accessToken이 이미 설정된 뒤에 호출해야 한다(Authorization 헤더 필요).
+// 실패해도 로그인 흐름을 막지 않고 빈 배열로 처리한다.
+async function fetchCompanyMemberships(): Promise<CompanyMembership[]> {
+  try {
+    const { data } = await companyService.getMyMemberships();
+    return data.data.companyMemberships;
+  } catch {
+    return [];
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserSummary | null>(null);
-  const [companies, setCompanies] = useState<CompanyContext[]>([]);
+  const [companyMemberships, setCompanyMemberships] = useState<CompanyMembership[]>([]);
   const [status, setStatus] = useState<AuthStatus>("loading");
 
   // 앱 로드 시 refresh 쿠키로 세션 복원 시도(1회).
@@ -65,8 +81,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         );
         if (cancelled) return;
         setAccessToken(data.data.accessToken);
+        // companyMemberships까지 다 채운 뒤에 status를 authenticated로 바꾼다.
+        // 순서를 반대로 하면 화면이 "인증됨"으로 전환된 짧은 순간
+        // companyMemberships가 아직 빈 배열이라 "소속 회사 없음"으로
+        // 잘못 보일 수 있다.
+        const memberships = await fetchCompanyMemberships();
+        if (cancelled) return;
         setUser(data.data.user);
-        setCompanies(data.data.companies);
+        setCompanyMemberships(memberships);
         setStatus("authenticated");
       } catch {
         // 401(쿠키 없음/만료) 또는 네트워크 오류(백엔드 다운) 모두 미인증으로 처리한다.
@@ -84,8 +106,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // authService.login이 성공 시 setAccessToken까지 처리한다(lib/axios).
     const res = await authService.login({ email, password });
     const data = (res.data as ApiResponse<LoginResponse>).data;
+    // 순서 근거는 위 refresh 흐름과 동일 — companyMemberships를 먼저 채운다.
+    const memberships = await fetchCompanyMemberships();
     setUser(data.user);
-    setCompanies(data.companies);
+    setCompanyMemberships(memberships);
     setStatus("authenticated");
   }, []);
 
@@ -95,13 +119,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       // 서버 실패와 무관하게 프론트 세션은 반드시 정리한다.
       setUser(null);
-      setCompanies([]);
+      setCompanyMemberships([]);
       setStatus("unauthenticated");
     }
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, companies, status, login, logout }}>
+    <AuthContext.Provider value={{ user, companyMemberships, status, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

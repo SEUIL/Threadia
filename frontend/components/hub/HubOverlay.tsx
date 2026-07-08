@@ -18,10 +18,13 @@
  * 추후 별도로 다시 다듬을 예정이라 지금은 RailShell과 동일한 값을 그대로
  * 가져다 썼다.
  *
- * ⚠️ MOCK: 회사 컨텍스트(companyId)와 로그인 사용자 role/뱃지 수는 아직
- *    회사 API 연동 전이라 아래 상수로 임시 고정했다. Sprint 2에서 Company
- *    컨텍스트가 붙으면 이 부분을 실제 값으로 교체해야 한다. 사용자 이름은
- *    useAuth()의 실제 로그인 사용자 정보로 교체 완료.
+ * 회사 컨텍스트: useAuth().companyMemberships(WBS 3.2.1, GET /users/me/
+ *    company-memberships)로 실제 값을 쓴다. 다중 회사 소속 시 어떤 회사로
+ *    진입할지는 화면정의서에 명시가 없어, 우선 companyMemberships[0]
+ *    (서버가 companyId asc로 정렬해서 줌)을 쓴다 — 회사 전환 UI는 범위 밖
+ *    (설계문서 §8.3, §9 미결 1번).
+ *
+ * ⚠️ 알림/DM unread count는 아직 API가 없어 상수로 남겨뒀다.
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -29,11 +32,7 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePendingInvitationCount } from "@/hooks/usePendingInvitationCount";
 
-type Role = "A" | "P" | "C";
-
-// TODO(Sprint 2): 회사 API 연동 후 실제 회사/역할 정보로 교체
-const MOCK_COMPANY_ID = "demo-company";
-const MOCK_ROLE: Role = "C";
+// TODO(Sprint 2): 알림/DM API 연동 후 실제 unread count로 교체
 const MOCK_NOTIFICATION_COUNT = 3;
 const MOCK_DM_UNREAD_COUNT = 1;
 
@@ -124,27 +123,35 @@ function Badge({ count }: { count: number }) {
 type NavItem = { href: string; label: string; icon: React.ReactNode; badge?: number };
 
 function HubRail() {
-  const { user, logout } = useAuth();
+  const { user, companyMemberships, logout } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const nickname = user?.nickname ?? "";
   const pendingInvitationCount = usePendingInvitationCount();
+  // 다중 회사 소속 시 회사 전환 UI는 범위 밖 — 첫 번째 회사로 진입한다.
+  const primaryMembership = companyMemberships[0] ?? null;
 
   const handleLogout = async () => {
     await logout();
     router.push("/login");
   };
 
+  // company-agnostic한 "받은 초대"는 소속 회사가 없어도 항상 보인다 — 신규
+  // 유저가 첫 초대를 확인할 유일한 통로다.
   const items: NavItem[] = [
-    { href: `/${MOCK_COMPANY_ID}/projects`, label: "프로젝트", icon: <FolderIcon /> },
-    { href: `/${MOCK_COMPANY_ID}/dm`, label: "채팅·DM", icon: <ChatIcon />, badge: MOCK_DM_UNREAD_COUNT },
-    // company-agnostic — 아직 어느 회사에도 소속 안 된 신규 유저의 유일한 진입점이기도 하다.
     { href: "/invitations", label: "받은 초대", icon: <MailIcon />, badge: pendingInvitationCount },
-    { href: `/${MOCK_COMPANY_ID}/notifications`, label: "알림", icon: <BellIcon />, badge: MOCK_NOTIFICATION_COUNT },
   ];
-  // C(회사 관리자)만 회사 관리 메뉴가 보인다 (화면정의서 S03 메뉴 노출 규칙, RailShell과 동일)
-  if (MOCK_ROLE === "C") {
-    items.push({ href: `/${MOCK_COMPANY_ID}/settings`, label: "회사 관리", icon: <BuildingIcon /> });
+  if (primaryMembership) {
+    const { companyId, role } = primaryMembership;
+    items.unshift(
+      { href: `/${companyId}/projects`, label: "프로젝트", icon: <FolderIcon /> },
+      { href: `/${companyId}/dm`, label: "채팅·DM", icon: <ChatIcon />, badge: MOCK_DM_UNREAD_COUNT }
+    );
+    items.push({ href: `/${companyId}/notifications`, label: "알림", icon: <BellIcon />, badge: MOCK_NOTIFICATION_COUNT });
+    // C(회사 관리자)만 회사 관리 메뉴가 보인다 (화면정의서 S03 메뉴 노출 규칙, RailShell과 동일)
+    if (role === "COMPANY_ADMIN") {
+      items.push({ href: `/${companyId}/settings`, label: "회사 관리", icon: <BuildingIcon /> });
+    }
   }
 
   return (
@@ -203,7 +210,9 @@ function HubRail() {
       >
         <div className="px-4 pb-3">
           <p className="text-sm font-bold text-chrome-foreground">Threadia</p>
-          <p className="mt-0.5 text-xs text-chrome-muted">Acorn Labs 사무실</p>
+          <p className="mt-0.5 text-xs text-chrome-muted">
+            {primaryMembership?.companyName ?? "소속 회사 없음"}
+          </p>
         </div>
         {items.map((item) => (
           <Link

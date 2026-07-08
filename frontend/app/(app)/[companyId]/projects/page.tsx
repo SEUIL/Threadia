@@ -15,13 +15,15 @@
  *     지금은 mock이라 별도 필터링 없이 전체를 보여준다.
  *
  * ⚠️ MOCK: 프로젝트 API(`GET/POST /companies/{companyId}/projects`)가 아직
- * 없어서 로컬 state로 흉내낸다. HubOverlay와 동일하게 role은 상수로 고정.
+ * 없어서(WBS 3.3) 로컬 state로 흉내낸다. role은 WBS 3.2.4 기준
+ * useCurrentCompanyRole()로 실 연동했다(hooks/useCurrentCompanyRole.ts 참고,
+ * "P"는 Project Member API 부재로 항상 "A"로 처리됨).
  */
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useCurrentCompanyRole } from "@/hooks/useCurrentCompanyRole";
 
-type Role = "A" | "P" | "C";
 type ProjectStatus = "PLANNING" | "ACTIVE" | "PAUSED" | "COMPLETED" | "ARCHIVED";
 
 type Project = {
@@ -33,9 +35,6 @@ type Project = {
   memberCount: number;
   issueCount: number;
 };
-
-// TODO(Sprint 2): /api/v1/auth/me 연동 후 실제 로그인 사용자 role로 교체 (HubOverlay와 동일)
-const MOCK_ROLE: Role = "C";
 
 const STATUS_LABEL: Record<ProjectStatus, string> = {
   PLANNING: "기획중",
@@ -64,6 +63,7 @@ const MOCK_PROJECTS: Project[] = [
 export default function ProjectsPage() {
   const params = useParams<{ companyId: string }>();
   const companyId = params.companyId;
+  const role = useCurrentCompanyRole();
 
   const [projects, setProjects] = useState<Project[]>(MOCK_PROJECTS);
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "ALL">("ALL");
@@ -106,11 +106,11 @@ export default function ProjectsPage() {
         <div>
           <h1 className="text-xl font-bold text-foreground">프로젝트</h1>
           <p className="mt-1 text-sm text-muted">
-            {MOCK_ROLE === "C" ? "회사 전체 프로젝트입니다." : "소속된 프로젝트입니다."}
+            {role === "C" ? "회사 전체 프로젝트입니다." : "소속된 프로젝트입니다."}
           </p>
         </div>
         {/* 화면정의서: A는 새 프로젝트 버튼을 보지 않는다 */}
-        {MOCK_ROLE !== "A" && (
+        {role !== "A" && (
           <button
             onClick={() => setCreating((v) => !v)}
             className="rounded-lg btn-gradient px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast"

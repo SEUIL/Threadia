@@ -8,8 +8,8 @@
  * 시작/종료, 이슈 배정을 구현한다.
  *
  * 설계 메모 반영:
- *   - 스프린트 생성/시작/종료는 P/C 전용(MOCK_ROLE로 분기, 실제 auth 가드는
- *     아직 없음 — 화면정의서 규칙을 코드에 반영해두는 정도).
+ *   - 스프린트 생성/시작/종료는 P/C 전용(useCurrentCompanyRole로 분기, 실제
+ *     auth 가드는 아직 없음 — 화면정의서 규칙을 코드에 반영해두는 정도).
  *   - 스프린트 시작 시 "S11 알림 생성"은 실제 알림 API 연동 전이라 생략.
  *   - 스프린트 종료 시 미완료 이슈(= DONE이 아닌 이슈)는 백로그로 되돌린다.
  *
@@ -19,12 +19,16 @@
  * `/start`, `/complete`, `/issues`)가 아직 없어서 로컬 state로 흉내낸다.
  * S05 칸반 보드와 이슈 저장소를 공유하지 않아 여기서 만든 이슈가 보드에
  * 실제로 나타나지는 않는다(연동은 Sprint 2 백엔드 이후).
+ *
+ * ⚠️ role만 WBS 3.2.4로 실 연동했다(useCurrentCompanyRole, "P"는 Project
+ * Member API 부재로 항상 "A" 취급 — hooks/useCurrentCompanyRole.ts 참고).
+ * 스프린트/이슈 데이터 자체는 여전히 mock이다.
  */
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useCurrentCompanyRole } from "@/hooks/useCurrentCompanyRole";
 
-type Role = "A" | "P" | "C";
 type SprintStatus = "PLANNED" | "ACTIVE" | "COMPLETED";
 type IssueStatus = "BACKLOG" | "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE";
 
@@ -44,11 +48,6 @@ type Sprint = {
   startDate: string | null;
   endDate: string | null;
 };
-
-// TODO(Sprint 2): /api/v1/auth/me 연동 후 실제 로그인 사용자 role로 교체 (HubOverlay와 동일)
-const getMockRole = (): Role => "C";
-const MOCK_ROLE = getMockRole();
-const canManageSprint = MOCK_ROLE === "P" || MOCK_ROLE === "C";
 
 const STATUS_LABEL: Record<SprintStatus, string> = {
   PLANNED: "예정",
@@ -77,6 +76,8 @@ const MOCK_ISSUES: BacklogIssue[] = [
 
 export default function BacklogPage() {
   const params = useParams<{ companyId: string; projectId: string }>();
+  const role = useCurrentCompanyRole();
+  const canManageSprint = role === "P" || role === "C";
 
   const [sprints, setSprints] = useState<Sprint[]>(MOCK_SPRINTS);
   const [issues, setIssues] = useState<BacklogIssue[]>(MOCK_ISSUES);

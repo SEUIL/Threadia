@@ -7,10 +7,11 @@
  * 없어 /{companyId}/... 하위로 진입시킬 수 없다. 설계 근거는
  * docs/08-members/member-정철진/기술-연구/s14-invitation-프론트-연동-설계.md §1.
  *
- * ⚠️ accept 성공 후에도 로그인 세션(AuthContext.companies)은 갱신되지 않는다.
- *    Sprint 1 백엔드는 로그인/refresh 응답의 companies를 항상 []로 고정하므로
- *    (AuthContext.tsx 주석 참고), 새 membership을 실제로 쓰려면 재로그인이
- *    필요하다 — Sprint 2 회사 API 연동 전까지 알려진 제약이다.
+ * ⚠️ accept 성공 후에도 로그인 세션(AuthContext.companyMemberships)은 갱신되지
+ *    않는다. AuthContext는 로그인/세션 복원 시점에만
+ *    GET /users/me/company-memberships를 호출하고(AuthContext.tsx 참고),
+ *    이 화면의 accept 액션 후 자동 재조회는 하지 않으므로 새 membership을
+ *    실제로 쓰려면(RailShell 등에서) 재로그인이 필요하다.
  */
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";

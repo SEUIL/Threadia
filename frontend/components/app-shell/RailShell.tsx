@@ -20,8 +20,10 @@
  * 적용 위치: app/(app)/[companyId]/layout.tsx 에서만 감싼다. hub, invitations는
  * [companyId] 밖에 있어서 영향을 받지 않는다(허브는 자체 3D 오버레이 유지).
  *
- * ⚠️ MOCK: 회사 컨텍스트/역할은 이전 AppShell과 동일하게 아직 회사 API가 없어서
- * 상수로 고정했다. Sprint 2 연동 후 실제 값으로 교체해야 한다.
+ * 회사 컨텍스트/역할: useAuth().companyMemberships(WBS 3.2.1)에서 현재 URL의
+ * companyId와 일치하는 항목을 찾아 쓴다. 못 찾으면(예: 소속 아닌 회사 URL을
+ * 직접 입력한 경우) role은 "MEMBER"로 안전하게 기본값 처리한다 — 실제 접근
+ * 차단은 백엔드가 하므로(403), 여기서는 UI 노출만 보수적으로 숨기면 된다.
  */
 import Link from "next/link";
 import { usePathname, useParams, useRouter } from "next/navigation";
@@ -30,11 +32,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePendingInvitationCount } from "@/hooks/usePendingInvitationCount";
 import { PageTransition } from "./PageTransition";
 
-type Role = "A" | "P" | "C";
-
-// TODO(Sprint 2): 회사 API 연동 후 실제 회사/역할 정보로 교체 (이전 AppShell과 동일 기준)
-const MOCK_ROLE: Role = "C";
-const MOCK_COMPANY_NAME = "Acorn Labs 사무실";
+// TODO(Sprint 2): 알림/DM API 연동 후 실제 unread count로 교체
 const MOCK_NOTIFICATION_COUNT = 3;
 const MOCK_DM_UNREAD_COUNT = 1;
 
@@ -127,10 +125,12 @@ type NavItem = { href: string; label: string; icon: React.ReactNode; badge?: num
 function Rail({ companyId }: { companyId: string }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, companyMemberships, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const nickname = user?.nickname ?? "";
   const pendingInvitationCount = usePendingInvitationCount();
+  const membership = companyMemberships.find((m) => m.companyId === Number(companyId)) ?? null;
+  const companyName = membership?.companyName ?? "소속 회사 없음";
 
   const handleLogout = async () => {
     await logout();
@@ -145,7 +145,7 @@ function Rail({ companyId }: { companyId: string }) {
     { href: `/${companyId}/notifications`, label: "알림", icon: <BellIcon />, badge: MOCK_NOTIFICATION_COUNT },
   ];
   // C(회사 관리자)만 회사 관리 메뉴가 보인다 (화면정의서 S03 메뉴 노출 규칙, 이전 AppShell과 동일)
-  if (MOCK_ROLE === "C") {
+  if (membership?.role === "COMPANY_ADMIN") {
     items.push({ href: `/${companyId}/settings`, label: "회사 관리", icon: <BuildingIcon /> });
   }
 
@@ -214,7 +214,7 @@ function Rail({ companyId }: { companyId: string }) {
       >
         <div className="px-4 pb-3">
           <p className="text-sm font-bold text-chrome-foreground">Threadia</p>
-          <p className="mt-0.5 text-xs text-chrome-muted">{MOCK_COMPANY_NAME}</p>
+          <p className="mt-0.5 text-xs text-chrome-muted">{companyName}</p>
         </div>
         {items.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + "/");

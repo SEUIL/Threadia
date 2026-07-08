@@ -15,10 +15,13 @@
  *     GLOBAL 설정 기준으로 처리(설계 메모에 명시).
  *
  * ⚠️ MOCK: 프로젝트/프로젝트멤버 API(`GET/PATCH /projects/{projectId}`,
- * `/archive`, `/project-members`, invitation)가 아직 없어서 로컬 state로
- * 흉내낸다. MOCK_ROLE은 HubOverlay와 동일한 상수 — S12는 P/C만 접근 가능한
- * 화면이라 A라면 접근 자체를 막아야 하지만, 실제 auth 가드가 없는 지금은
- * 화면 하단에 배지로만 role을 표시해 접근 제약을 시각적으로 남겨둔다.
+ * `/archive`, `/project-members`, invitation)가 WBS 3.3(Project API) 전체가
+ * 아직 없어서 로컬 state로 흉내낸다. WBS 3.2.4(RBAC) 범위에서 다른 화면은
+ * useCurrentCompanyRole()로 실 연동했지만, 이 화면은 "이 프로젝트의 P인지"
+ * (Project Member API, WBS 3.3.4)가 있어야 의미가 있는데 프로젝트 자체가
+ * mock이라 role 연동의 실효가 없다 — Project API 착수 후 재작업 대상으로
+ * 남겨둔다. S12는 P/C만 접근 가능한 화면이라 A라면 접근 자체를 막아야
+ * 하지만, 실제 auth 가드가 없는 지금은 화면 하단에 안내 텍스트로만 남겨둔다.
  */
 import { useState } from "react";
 import Link from "next/link";

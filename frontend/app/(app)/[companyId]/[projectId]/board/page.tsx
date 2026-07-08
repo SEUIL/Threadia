@@ -22,8 +22,10 @@
  *
  * ⚠️ MOCK: 이슈 API(`GET/POST /projects/{projectId}/issues`,
  * `PATCH /issues/{issueId}(/status)`, `POST /issues/{issueId}/trash`)가
- * 아직 없어서 로컬 state로 흉내낸다. role/현재 사용자도 HubOverlay와 동일하게
- * 상수로 고정.
+ * 아직 없어서 로컬 state로 흉내낸다. role은 WBS 3.2.4로 실 연동했다
+ * (useCurrentCompanyRole, "P"는 Project Member API 부재로 항상 "A" 취급 —
+ * hooks/useCurrentCompanyRole.ts 참고). 현재 사용자 이름도 useAuth()의 실제
+ * 닉네임으로 교체했다(이슈 데이터 자체는 여전히 mock).
  */
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -38,6 +40,8 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
+import { useAuth } from "@/contexts/AuthContext";
+import { useCurrentCompanyRole } from "@/hooks/useCurrentCompanyRole";
 
 type Role = "A" | "P" | "C";
 type IssueStatus = "BACKLOG" | "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE";
@@ -55,10 +59,6 @@ type Issue = {
   reporterName: string;
   trashedAt: string | null;
 };
-
-// TODO(Sprint 2): /api/v1/auth/me 연동 후 실제 로그인 사용자로 교체 (HubOverlay와 동일)
-const MOCK_ROLE: Role = "C";
-const MOCK_CURRENT_USER = "정철진";
 
 const COLUMNS: { status: IssueStatus; label: string }[] = [
   { status: "BACKLOG", label: "백로그" },
@@ -137,6 +137,9 @@ function DraggableIssueCard({ id, children }: { id: string; children: React.Reac
 
 export default function BoardPage() {
   const params = useParams<{ companyId: string; projectId: string }>();
+  const role = useCurrentCompanyRole();
+  const { user } = useAuth();
+  const currentUserName = user?.nickname ?? "";
 
   const [issues, setIssues] = useState<Issue[]>(MOCK_ISSUES);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -147,10 +150,10 @@ export default function BoardPage() {
   const activeIssues = useMemo(() => issues.filter((i) => !i.trashedAt), [issues]);
   const trashedIssues = useMemo(() => issues.filter((i) => i.trashedAt), [issues]);
 
-  const canEditFullFields = MOCK_ROLE === "P" || MOCK_ROLE === "C";
-  const allowedStatuses = statusOptionsFor(MOCK_ROLE);
+  const canEditFullFields = role === "P" || role === "C";
+  const allowedStatuses = statusOptionsFor(role);
 
-  const canTrash = (issue: Issue) => canEditFullFields || issue.reporterName === MOCK_CURRENT_USER;
+  const canTrash = (issue: Issue) => canEditFullFields || issue.reporterName === currentUserName;
 
   // 클릭(카드 펼치기)과 드래그를 구분하기 위해 8px 이상 움직여야 드래그로 인식한다.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
@@ -201,7 +204,7 @@ export default function BoardPage() {
         priority: "MEDIUM",
         assigneeName: null,
         dueDate: null,
-        reporterName: MOCK_CURRENT_USER,
+        reporterName: currentUserName,
         trashedAt: null,
       },
     ]);
