@@ -92,19 +92,34 @@ export default function MembersPage() {
   const [pendingInvitee, setPendingInvitee] = useState<{ id: number; email: string } | null>(null);
   const [createBusy, setCreateBusy] = useState(false);
   const [cancelBusyId, setCancelBusyId] = useState<number | null>(null);
+  // 목록 자체 로딩 실패(invitationsState)와 별개로 관리한다 — 같은 state를 쓰면
+  // action 실패 하나가 렌더 조건(invitationsState === "ready")을 깨서 목록
+  // 전체가 사라지는 회귀가 생긴다(PR #55 리뷰, 김민정).
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
-  const fetchInvitations = useCallback(async () => {
-    setInvitationsState("loading");
-    setInvitationsError(null);
-    try {
-      const { data } = await invitationService.listCompany(companyId);
-      setInvitations(data.data.invitations);
-      setInvitationsState("ready");
-    } catch (error) {
-      setInvitationsError(invitationErrorMessage(error, "초대 목록을 불러오지 못했습니다."));
-      setInvitationsState("error");
-    }
-  }, [companyId]);
+  // silent: 취소 실패 후 재검증처럼 이미 목록이 떠 있는 상태에서 다시 부를 때 쓴다.
+  // invitationsState를 "loading"으로 안 바꿔서 목록이 순간적으로 사라지는 깜빡임을 막는다.
+  const fetchInvitations = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!options?.silent) {
+        setInvitationsState("loading");
+      }
+      setInvitationsError(null);
+      try {
+        const { data } = await invitationService.listCompany(companyId);
+        setInvitations(data.data.invitations);
+        setInvitationsState("ready");
+        // 재조회 성공 = 최신 상태 확보. 이전 취소 실패 메시지는 여기서만 지운다
+        // (cancelInvitation의 setCancelError 직후에 지우면 배칭 때문에 메시지가
+        // 아예 안 뜰 수 있다).
+        setCancelError(null);
+      } catch (error) {
+        setInvitationsError(invitationErrorMessage(error, "초대 목록을 불러오지 못했습니다."));
+        setInvitationsState("error");
+      }
+    },
+    [companyId]
+  );
 
   // 마운트 시 1회 로드. AuthContext.tsx와 동일하게 인라인 IIFE로 감싼다
   // (fetchInvitations를 직접 호출하면 react-hooks/set-state-in-effect에 걸린다).
@@ -175,6 +190,7 @@ export default function MembersPage() {
   };
 
   const cancelInvitation = async (invitationId: number) => {
+    setCancelError(null);
     setCancelBusyId(invitationId);
     try {
       const { data } = await invitationService.cancel(invitationId);
@@ -182,8 +198,10 @@ export default function MembersPage() {
         prev.map((i) => (i.id === invitationId ? { ...i, status: data.data.status } : i))
       );
     } catch (error) {
-      setInvitationsError(invitationErrorMessage(error, "초대 취소에 실패했습니다."));
-      setInvitationsState("error");
+      setCancelError(invitationErrorMessage(error, "초대 취소에 실패했습니다."));
+      // 최신 상태(다른 경로로 이미 바뀌었을 수 있음)를 다시 반영한다. silent라
+      // 목록이 화면에서 사라지지 않고 그대로 있다가 새 데이터로 갱신된다.
+      fetchInvitations({ silent: true });
     } finally {
       setCancelBusyId(null);
     }
@@ -267,6 +285,7 @@ export default function MembersPage() {
           {invitationsState === "error" && (
             <p className="mt-4 text-xs text-destructive">{invitationsError}</p>
           )}
+          {cancelError && <p className="mt-4 text-xs text-destructive">{cancelError}</p>}
           {invitationsState === "ready" && invitations.length > 0 && (
             <ul className="mt-4 divide-y divide-border">
               {invitations.map((inv) => (
