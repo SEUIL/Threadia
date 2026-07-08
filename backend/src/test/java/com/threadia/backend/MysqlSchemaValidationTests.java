@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -30,6 +31,10 @@ class MysqlSchemaValidationTests {
 			"companies",
 			"company_members",
 			"invitations"
+	);
+	private static final List<String> PROJECT_TABLES = List.of(
+			"projects",
+			"project_members"
 	);
 
 	@Autowired
@@ -94,6 +99,64 @@ class MysqlSchemaValidationTests {
 		assertCheckConstraint("chk_inv_expiry");
 	}
 
+	@Test
+	void appliesSchemaSqlAndCreatesProjectTables() {
+		applySchemaSql();
+
+		Set<String> existingTables = jdbcTemplate.queryForList("""
+				SELECT table_name
+				FROM information_schema.tables
+				WHERE table_schema = DATABASE()
+				  AND table_name IN ('projects', 'project_members')
+				""", String.class)
+				.stream()
+				.collect(Collectors.toSet());
+
+		assertThat(existingTables).containsExactlyInAnyOrderElementsOf(PROJECT_TABLES);
+	}
+
+	@Test
+	void appliesSchemaSqlAndCreatesProjectReferenceConstraints() {
+		applySchemaSql();
+
+		assertRequiredColumn("projects", "company_id", "bigint");
+		assertRequiredColumn("projects", "name", "varchar");
+		assertRequiredColumn("projects", "project_key", "varchar");
+		assertEnumColumn("projects", "status", "PLANNING", "PLANNING", "ACTIVE", "PAUSED", "COMPLETED", "ARCHIVED");
+		assertNullableColumn("projects", "start_date", "date");
+		assertNullableColumn("projects", "end_date", "date");
+		assertRequiredColumn("projects", "created_by_user_id", "bigint");
+		assertNullableColumn("projects", "archived_at", "datetime");
+		assertNullableColumn("projects", "archived_by_user_id", "bigint");
+		assertNullableColumn("projects", "archive_reason", "text");
+		assertRequiredColumn("projects", "created_at", "datetime");
+		assertRequiredColumn("projects", "updated_at", "datetime");
+		assertIndex("projects", "PRIMARY", "id");
+		assertIndex("projects", "uq_projects_company_key", "company_id", "project_key");
+		assertIndex("projects", "idx_projects_created_by", "created_by_user_id");
+		assertIndex("projects", "idx_projects_archived_by", "archived_by_user_id");
+		assertUniqueConstraint("projects", "uq_projects_company_key");
+		assertForeignKey("projects", "fk_projects_company", "company_id", "companies", "id");
+		assertForeignKey("projects", "fk_projects_created_by", "created_by_user_id", "users", "id");
+		assertForeignKey("projects", "fk_projects_archived_by", "archived_by_user_id", "users", "id");
+		assertCheckConstraint("chk_projects_date_range");
+		assertCheckConstraint("chk_projects_archive_state");
+
+		assertRequiredColumn("project_members", "project_id", "bigint");
+		assertRequiredColumn("project_members", "user_id", "bigint");
+		assertEnumColumn("project_members", "role", null, "PROJECT_ADMIN", "MEMBER");
+		assertEnumColumn("project_members", "status", "ACTIVE", "ACTIVE", "REMOVED");
+		assertNullableColumn("project_members", "joined_at", "datetime");
+		assertRequiredColumn("project_members", "created_at", "datetime");
+		assertRequiredColumn("project_members", "updated_at", "datetime");
+		assertIndex("project_members", "PRIMARY", "id");
+		assertIndex("project_members", "uq_pm_project_user", "project_id", "user_id");
+		assertIndex("project_members", "idx_pm_user", "user_id");
+		assertUniqueConstraint("project_members", "uq_pm_project_user");
+		assertForeignKey("project_members", "fk_pm_project", "project_id", "projects", "id");
+		assertForeignKey("project_members", "fk_pm_user", "user_id", "users", "id");
+	}
+
 	private void applySchemaSql() {
 		Path schemaPath = Path.of("..", "db", "schema.sql").toAbsolutePath().normalize();
 
@@ -114,6 +177,44 @@ class MysqlSchemaValidationTests {
 				""", String.class, tableName, indexName);
 
 		assertThat(actualColumns).containsExactly(columnNames);
+	}
+
+	private void assertRequiredColumn(String tableName, String columnName, String dataType) {
+		assertColumn(tableName, columnName, dataType, "NO");
+	}
+
+	private void assertNullableColumn(String tableName, String columnName, String dataType) {
+		assertColumn(tableName, columnName, dataType, "YES");
+	}
+
+	private void assertColumn(String tableName, String columnName, String dataType, String nullable) {
+		Map<String, Object> column = columnMetadata(tableName, columnName);
+
+		assertThat(column.get("DATA_TYPE")).isEqualTo(dataType);
+		assertThat(column.get("IS_NULLABLE")).isEqualTo(nullable);
+	}
+
+	private void assertEnumColumn(String tableName, String columnName, String defaultValue, String... enumValues) {
+		Map<String, Object> column = columnMetadata(tableName, columnName);
+
+		assertThat(column.get("DATA_TYPE")).isEqualTo("enum");
+		assertThat(column.get("IS_NULLABLE")).isEqualTo("NO");
+		assertThat((String) column.get("COLUMN_TYPE"))
+				.contains(enumValues);
+		if (defaultValue != null) {
+			assertThat(String.valueOf(column.get("COLUMN_DEFAULT")).replace("'", ""))
+					.isEqualTo(defaultValue);
+		}
+	}
+
+	private Map<String, Object> columnMetadata(String tableName, String columnName) {
+		return jdbcTemplate.queryForMap("""
+				SELECT data_type, is_nullable, column_default, column_type
+				FROM information_schema.columns
+				WHERE table_schema = DATABASE()
+				  AND table_name = ?
+				  AND column_name = ?
+				""", tableName, columnName);
 	}
 
 	private void assertUniqueConstraint(String tableName, String constraintName) {
