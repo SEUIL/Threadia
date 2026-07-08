@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
 > **최종 수정**: 2026-07-08
-> **버전**: Sprint 1.5 invitation 표시 필드 보강 + Sprint 3 기준선 반영 + suspended member error code 동기화 v1.3
+> **버전**: Sprint 1.5 invitation 표시 필드 보강 + Sprint 3 기준선 반영 + company member scoped PATCH 동기화 v1.4
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -237,7 +237,7 @@ POST /api/v1/auth/refresh
 | DELETE | `/api/v1/departments/{departmentId}` | C | 부서 삭제, 멤버 부서 NULL 처리 |
 | GET | `/api/v1/companies/{companyId}/company-members` | C | 구성원 목록 조회 |
 | POST | `/api/v1/companies/{companyId}/invitations` | C | Sprint 1.5 회사 초대 생성. 수락 전 membership 미생성 |
-| PATCH | `/api/v1/company-members/{companyMemberId}` | C | 역할/부서/상태 변경 |
+| PATCH | `/api/v1/companies/{companyId}/company-members/{companyMemberId}` | C | 역할/부서/상태 변경 |
 
 Sprint 1.5부터 구성원 추가는 등록 사용자 exact email lookup 후 `invitations`를 생성한다. 가입되지 않은 이메일 대상 invitation, 외부 email 발송, token link 초대는 Sprint 1.5 범위가 아니며 user-facing membership create API로 즉시 소속을 만들지 않는다.
 
@@ -739,9 +739,9 @@ Response 200:
 
 > Sprint 1.5부터 이 endpoint는 user-facing 구성원 생성 API로 제공하지 않는다.
 > 회사 구성원 추가 흐름은 `POST /api/v1/companies/{companyId}/invitations`로 invitation을 만들고, 대상자가 `POST /api/v1/invitations/{invitationId}/accept`를 호출할 때 membership을 생성한다.
-> 기존 membership의 역할, 부서, 상태 변경은 `PATCH /api/v1/company-members/{companyMemberId}`에서 처리한다.
+> 기존 membership의 역할, 부서, 상태 변경은 `PATCH /api/v1/companies/{companyId}/company-members/{companyMemberId}`에서 처리한다.
 
-#### PATCH `/api/v1/company-members/{companyMemberId}`
+#### PATCH `/api/v1/companies/{companyId}/company-members/{companyMemberId}`
 
 Request Body:
 
