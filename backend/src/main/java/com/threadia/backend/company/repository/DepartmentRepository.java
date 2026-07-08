@@ -20,6 +20,8 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
 
 	boolean existsByCompany_IdAndNameAndIdNot(Long companyId, String name, Long departmentId);
 
+	boolean existsByIdAndCompany_Id(Long departmentId, Long companyId);
+
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select department from Department department join fetch department.company where department.id = :departmentId")
 	Optional<Department> findByIdForUpdate(@Param("departmentId") Long departmentId);
