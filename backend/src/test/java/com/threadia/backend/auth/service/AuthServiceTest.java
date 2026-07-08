@@ -247,7 +247,7 @@ class AuthServiceTest {
 		assertThat(newRefreshToken.getRevokedAt()).isNull();
 		assertThat(newRefreshToken.getRotatedAt()).isNull();
 		Duration actualLifetime = Duration.between(newRefreshToken.getCreatedAt(), newRefreshToken.getExpiresAt());
-		assertThat(actualLifetime).isCloseTo(REFRESH_TOKEN_MAX_AGE, Duration.ofSeconds(1));
+		assertThat(actualLifetime).isEqualTo(REFRESH_TOKEN_MAX_AGE);
 	}
 
 	@Test
