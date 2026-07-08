@@ -1,8 +1,8 @@
 > **작성자**: 정철진
 > **작성일**: 2026-07-07
-> **최종 수정**: 2026-07-07
-> **버전**: v1.0
-> **상태**: 작성 중 — 구현 착수 전 기준 문서
+> **최종 수정**: 2026-07-08
+> **버전**: v1.1
+> **상태**: 구현 완료 — 로컬 E2E 검증됨(§7)
 > **태그**: frontend, invitation, s14, sprint-1.5, api-contract, rbac, nextjs
 
 # S14 Invitation 프론트 연동 설계 (WBS 2.5)
@@ -177,13 +177,16 @@ export const invitationService = {
 };
 ```
 
-- `frontend/types/invitation.ts` — `InvitationResponse`를 백엔드 record와 1:1 매핑.
+- `frontend/types/invitation.types.ts` — `InvitationResponse`를 백엔드 record와 1:1 매핑.
 - `frontend/app/(app)/invitations/page.tsx` — 현재 빈 스켈레톤을 실제 수신 화면으로 구현.
+- `frontend/hooks/usePendingInvitationCount.ts` — 신규(§5.4). `listMine()`으로
+  PENDING(미만료) 초대 개수를 세어 nav 배지에 쓴다.
 
 ### 5.2 공용 추출
 
-현재 `members/page.tsx`에 있는 `STATUS_LABEL` / `STATUS_CLASS`(PENDING~EXPIRED)를
-공용 모듈로 분리해 수신·발신 두 화면이 공유한다.
+`STATUS_LABEL` / `STATUS_CLASS`(PENDING~EXPIRED), 에러 코드 매핑(§4),
+`isInvitationExpired`를 `frontend/lib/invitation.ts`로 분리해 수신·발신 두
+화면이 공유한다.
 
 ### 5.3 수정 파일
 
@@ -191,6 +194,24 @@ export const invitationService = {
   listCompany/cancel)을 mock에서 실 API로 교체. 보낸 초대는 `inviteeEmail`/
   `inviteeNickname`으로 표시. 구성원 목록·역할/부서 변경은 mock 유지(§2.1).
   COMPANY_ADMIN만 발신 UI를 노출하도록 role 분기.
+
+### 5.4 nav 진입점 (구현 중 발견해서 추가)
+
+최초 설계에는 없었지만, 구현 후 검증하다가 **`/invitations`로 가는 UI 진입점이
+어디에도 없다는 걸 발견했다** — RailShell과 HubOverlay 둘 다 nav 항목이
+프로젝트/채팅·DM/알림/(회사 관리) 4개뿐이었다. URL을 직접 입력하지 않으면
+아무도 수신 화면에 도달할 수 없는 상태였다.
+
+- `frontend/components/app-shell/RailShell.tsx`, `frontend/components/hub/HubOverlay.tsx`
+  둘 다에 "받은 초대"(`/invitations`, `MailIcon`, `usePendingInvitationCount` 배지)
+  nav 항목을 추가했다.
+- **HubOverlay에도 반드시 필요하다**: 허브는 company-agnostic한 유일한 로그인
+  직후 착지점이라, 아직 어느 회사에도 소속되지 않은 신규 유저의 유일한
+  진입 통로다.
+- **RailShell에도 필요하다**: 이미 한 회사에 소속돼 있어도 §1에서 다룬 것처럼
+  "다른 회사에서 온 새 초대"를 받을 수 있다.
+- 배지 카운트는 status가 `PENDING`이고 `isInvitationExpired`가 아닌 항목 수.
+  조회 실패는 배지를 숨기는 정도로 처리하고 nav 자체를 막지 않는다.
 
 ---
 
@@ -210,11 +231,29 @@ export const invitationService = {
 
 ---
 
-## 7. 검증 계획 (Sprint 1 Frontend DoD 7.1~7.3 기준)
+## 7. 검증 결과 (Sprint 1 Frontend DoD 7.1~7.3 기준)
 
-- 실행: 로컬 백엔드 + seed 회사/COMPANY_ADMIN 기준으로 발신→수신→수락까지 브라우저 확인
-- 정상 케이스: 초대 생성 → 대상자 `/invitations`에서 조회 → 수락 시 membership 생성
-- 실패 케이스: 이미 소속(`ALREADY_COMPANY_MEMBER`), 대기중 중복(`INVITATION_ALREADY_PENDING`),
-  만료(`INVITATION_EXPIRED`) 각각 화면 메시지 확인
-- 보안: access token은 memory 보관(기존 axios 패턴), 초대 응답에 secret 없음 확인
-- 후속조치: 구성원 목록/역할변경 mock 유지 사유를 화면 주석과 이 문서에 기록
+2026-07-08, 로컬 백엔드(Docker MySQL + `gradlew bootRun`) + 신규 seed(회사 2개,
+E2E 테스트 계정 3개)로 브라우저 실행까지 전부 검증했다. `tsc --noEmit`/`eslint`는
+수정·신규 파일 전체 clean.
+
+- [x] **실행**: 로컬 백엔드 기동 후 브라우저에서 실제 로그인 → 화면 진입 확인
+- [x] **정상 케이스**: lookup → 초대 생성(`/1/members` 폼) → `/invitations`에서
+      조회 → 수락 클릭 → 상태 배지 갱신 → DB `company_members`에 실제 membership
+      생성 확인
+- [x] **정상 케이스(취소)**: `/1/members`에서 PENDING 초대 취소 → 상태 "취소됨",
+      DB `invitations.status=CANCELED` 확인
+- [x] **nav 진입점**: §5.4에서 발견한 누락을 수정 — RailShell/HubOverlay에
+      "받은 초대" 링크 추가, 배지 카운트(PENDING 1건)가 실제로 반영되는 것까지
+      브라우저에서 확인
+- [ ] **실패 케이스 화면 메시지**: `ALREADY_COMPANY_MEMBER`/`INVITATION_ALREADY_PENDING`/
+      `INVITATION_EXPIRED`는 `lib/invitation.ts`의 매핑 코드로 처리되나, 이번
+      세션에서 브라우저로 직접 트리거해 문구를 육안 확인하지는 않았다 — 로직상
+      안전하다고 판단했지만 후속 확인 필요
+- [x] **보안**: access token은 기존 axios 패턴대로 memory 보관, 초대 응답에
+      secret 없음
+- [x] **후속조치 기록**: 구성원 목록/역할변경 mock 유지 사유는 화면 주석
+      (`members/page.tsx` 상단)과 이 문서(§2.1, §6)에 기록
+
+테스트 seed(company id 1~2, `e2e-*@threadia.com` 계정 3개)는 로컬 test DB
+한정이며 검증 후 정리한다.
