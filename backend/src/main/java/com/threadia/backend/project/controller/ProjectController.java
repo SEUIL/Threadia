@@ -3,6 +3,7 @@ package com.threadia.backend.project.controller;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,6 +16,7 @@ import com.threadia.backend.config.jwt.JwtAuthenticationException;
 import com.threadia.backend.project.dto.ProjectCreateData;
 import com.threadia.backend.project.dto.ProjectCreateRequest;
 import com.threadia.backend.project.dto.ProjectData;
+import com.threadia.backend.project.dto.ProjectUpdateRequest;
 import com.threadia.backend.project.dto.ProjectsData;
 import com.threadia.backend.project.service.ProjectService;
 
@@ -54,6 +56,15 @@ public class ProjectController {
 			@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
 			@PathVariable Long projectId) {
 		ProjectData data = projectService.detail(extractAccessToken(authorizationHeader), projectId);
+		return ResponseEntity.ok(ApiResponse.of(data));
+	}
+
+	@PatchMapping("/projects/{projectId}")
+	public ResponseEntity<ApiResponse<ProjectData>> update(
+			@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+			@PathVariable Long projectId,
+			@Valid @RequestBody ProjectUpdateRequest request) {
+		ProjectData data = projectService.update(extractAccessToken(authorizationHeader), projectId, request);
 		return ResponseEntity.ok(ApiResponse.of(data));
 	}
 

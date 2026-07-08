@@ -42,6 +42,7 @@ import com.threadia.backend.project.dto.ProjectCreateData;
 import com.threadia.backend.project.dto.ProjectCreateRequest;
 import com.threadia.backend.project.dto.ProjectData;
 import com.threadia.backend.project.dto.ProjectsData;
+import com.threadia.backend.project.dto.ProjectUpdateRequest;
 import com.threadia.backend.project.exception.ProjectConflictException;
 import com.threadia.backend.project.exception.ProjectNotFoundException;
 import com.threadia.backend.project.exception.ProjectValidationException;
@@ -306,6 +307,149 @@ class ProjectServiceTest {
 
 		assertThatThrownBy(() -> projectService.detail("member-token", 404L))
 				.isInstanceOf(ProjectNotFoundException.class);
+	}
+
+	@Test
+	void updateUpdatesProjectForProjectAdmin() {
+		AuthContext authContext = authContext();
+		User projectAdmin = user(1L);
+		Company company = company(10L, projectAdmin);
+		Project project = project(20L, company, projectAdmin, "Threadia MVP", "THD");
+		when(authContextService.fromAccessToken("project-admin-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(projectAdmin);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(project));
+		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false);
+		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L))
+				.thenReturn(Optional.of(projectMember(project, projectAdmin, ProjectMemberRole.PROJECT_ADMIN, ProjectMemberStatus.ACTIVE)));
+
+		ProjectData data = projectService.update(
+				"project-admin-token",
+				20L,
+				new ProjectUpdateRequest(
+						"Threadia MVP Sprint 1",
+						"Sprint 1 범위로 조정된 프로젝트",
+						ProjectStatus.ACTIVE,
+						LocalDate.parse("2026-06-17"),
+						LocalDate.parse("2026-07-31")));
+
+		assertThat(data.project().name()).isEqualTo("Threadia MVP Sprint 1");
+		assertThat(data.project().projectKey()).isEqualTo("THD");
+		assertThat(project.getDescription()).isEqualTo("Sprint 1 범위로 조정된 프로젝트");
+		assertThat(project.getStatus()).isEqualTo(ProjectStatus.ACTIVE);
+		assertThat(project.getUpdatedAt()).isEqualTo(LocalDateTime.now(FIXED_CLOCK));
+	}
+
+	@Test
+	void updateUpdatesProjectForCompanyAdmin() {
+		AuthContext authContext = authContext();
+		User companyAdmin = user(1L);
+		Company company = company(10L, companyAdmin);
+		Project project = project(20L, company, companyAdmin, "Threadia MVP", "THD");
+		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(companyAdmin);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(project));
+		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+
+		ProjectData data = projectService.update(
+				"admin-token",
+				20L,
+				new ProjectUpdateRequest(
+						"Threadia MVP Sprint 1",
+						"Sprint 1 범위로 조정된 프로젝트",
+						ProjectStatus.ACTIVE,
+						null,
+						null));
+
+		assertThat(data.project().name()).isEqualTo("Threadia MVP Sprint 1");
+		assertThat(project.getDescription()).isEqualTo("Sprint 1 범위로 조정된 프로젝트");
+		verify(projectMemberRepository, never()).findByProject_IdAndUser_Id(20L, 1L);
+	}
+
+	@Test
+	void updateRejectsRegularProjectMember() {
+		AuthContext authContext = authContext();
+		User member = user(1L);
+		Company company = company(10L, member);
+		Project project = project(20L, company, member, "Threadia MVP", "THD");
+		when(authContextService.fromAccessToken("member-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(member);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(project));
+		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false);
+		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L))
+				.thenReturn(Optional.of(projectMember(project, member, ProjectMemberRole.MEMBER, ProjectMemberStatus.ACTIVE)));
+
+		assertThatThrownBy(() -> projectService.update(
+				"member-token",
+				20L,
+				new ProjectUpdateRequest("Threadia MVP", null, ProjectStatus.ACTIVE, null, null)))
+				.isInstanceOf(ForbiddenException.class)
+				.hasMessage("프로젝트 관리자 권한이 필요합니다.");
+	}
+
+	@Test
+	void updateRejectsArchivedStatus() {
+		AuthContext authContext = authContext();
+		User companyAdmin = user(1L);
+		Company company = company(10L, companyAdmin);
+		Project project = project(20L, company, companyAdmin, "Threadia MVP", "THD");
+		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(companyAdmin);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(project));
+		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+
+		assertThatThrownBy(() -> projectService.update(
+				"admin-token",
+				20L,
+				new ProjectUpdateRequest("Threadia MVP", null, ProjectStatus.ARCHIVED, null, null)))
+				.isInstanceOf(ProjectValidationException.class)
+				.hasMessage("프로젝트 수정 시 ARCHIVED 상태는 사용할 수 없습니다.");
+	}
+
+	@Test
+	void updateRejectsEndDateBeforeStartDate() {
+		AuthContext authContext = authContext();
+		User companyAdmin = user(1L);
+		Company company = company(10L, companyAdmin);
+		Project project = project(20L, company, companyAdmin, "Threadia MVP", "THD");
+		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(companyAdmin);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(project));
+		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+
+		assertThatThrownBy(() -> projectService.update(
+				"admin-token",
+				20L,
+				new ProjectUpdateRequest(
+						"Threadia MVP",
+						null,
+						ProjectStatus.ACTIVE,
+						LocalDate.parse("2026-07-31"),
+						LocalDate.parse("2026-06-17"))))
+				.isInstanceOf(ProjectValidationException.class)
+				.hasMessage("프로젝트 종료일은 시작일보다 빠를 수 없습니다.");
+	}
+
+	@Test
+	void updateRejectsArchivedProject() {
+		AuthContext authContext = authContext();
+		User companyAdmin = user(1L);
+		Company company = company(10L, companyAdmin);
+		Project project = project(20L, company, companyAdmin, "Threadia MVP", "THD");
+		project.setStatus(ProjectStatus.ARCHIVED);
+		project.setArchivedAt(LocalDateTime.now(FIXED_CLOCK));
+		project.setArchivedBy(companyAdmin);
+		project.setArchiveReason("MVP 종료 후 보관");
+		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(companyAdmin);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(project));
+		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+
+		assertThatThrownBy(() -> projectService.update(
+				"admin-token",
+				20L,
+				new ProjectUpdateRequest("Threadia MVP", null, ProjectStatus.ACTIVE, null, null)))
+				.isInstanceOf(ProjectConflictException.class)
+				.hasMessage("archive된 프로젝트는 수정할 수 없습니다.");
 	}
 
 	private static AuthContext authContext() {

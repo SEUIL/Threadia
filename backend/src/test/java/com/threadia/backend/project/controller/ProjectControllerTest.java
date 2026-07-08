@@ -2,6 +2,7 @@ package com.threadia.backend.project.controller;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -196,14 +197,109 @@ class ProjectControllerTest {
 				.andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
 	}
 
+	@Test
+	void updateReturnsUpdatedProject() throws Exception {
+		when(projectService.update(org.mockito.ArgumentMatchers.eq("admin-token"), org.mockito.ArgumentMatchers.eq(20L), org.mockito.ArgumentMatchers.any()))
+				.thenReturn(new ProjectData(projectResponse(20L, "Threadia MVP Sprint 1", "THD", "ACTIVE")));
+
+		mockMvc.perform(patch("/api/v1/projects/20")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer admin-token")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("""
+							{
+							  "name": "Threadia MVP Sprint 1",
+							  "description": "Sprint 1 범위로 조정된 프로젝트",
+							  "status": "ACTIVE",
+							  "startDate": "2026-06-17",
+							  "endDate": "2026-07-31"
+							}
+							"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.project.id").value(20))
+				.andExpect(jsonPath("$.data.project.name").value("Threadia MVP Sprint 1"))
+				.andExpect(jsonPath("$.data.project.status").value("ACTIVE"));
+	}
+
+	@Test
+	void updateReturnsForbiddenWhenRequesterCannotManageProject() throws Exception {
+		when(projectService.update(org.mockito.ArgumentMatchers.eq("member-token"), org.mockito.ArgumentMatchers.eq(20L), org.mockito.ArgumentMatchers.any()))
+				.thenThrow(new ForbiddenException("프로젝트 관리자 권한이 필요합니다."));
+
+		mockMvc.perform(patch("/api/v1/projects/20")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer member-token")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("""
+							{
+							  "name": "Threadia MVP",
+							  "status": "ACTIVE"
+							}
+							"""))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+	}
+
+	@Test
+	void updateReturnsValidationErrorWhenStatusIsArchived() throws Exception {
+		mockMvc.perform(patch("/api/v1/projects/20")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer admin-token")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("""
+							{
+							  "name": "Threadia MVP",
+							  "status": "ARCHIVED"
+							}
+							"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+	}
+
+	@Test
+	void updateReturnsValidationErrorWhenEndDateIsBeforeStartDate() throws Exception {
+		mockMvc.perform(patch("/api/v1/projects/20")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer admin-token")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("""
+							{
+							  "name": "Threadia MVP",
+							  "status": "ACTIVE",
+							  "startDate": "2026-07-31",
+							  "endDate": "2026-06-17"
+							}
+							"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+	}
+
+	@Test
+	void updateReturnsConflictWhenProjectAlreadyArchived() throws Exception {
+		when(projectService.update(org.mockito.ArgumentMatchers.eq("admin-token"), org.mockito.ArgumentMatchers.eq(20L), org.mockito.ArgumentMatchers.any()))
+				.thenThrow(ProjectConflictException.archivedProjectCannotBeUpdated());
+
+		mockMvc.perform(patch("/api/v1/projects/20")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer admin-token")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("""
+							{
+							  "name": "Threadia MVP",
+							  "status": "ACTIVE"
+							}
+							"""))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.error.code").value("CONFLICT"));
+	}
+
 	private static ProjectResponse projectResponse(Long id, String name, String projectKey) {
+		return projectResponse(id, name, projectKey, "PLANNING");
+	}
+
+	private static ProjectResponse projectResponse(Long id, String name, String projectKey, String status) {
 		return new ProjectResponse(
 				id,
 				10L,
 				name,
 				projectKey,
 				"Threadia MVP 개발 프로젝트",
-				"PLANNING",
+				status,
 				"2026-06-17",
 				"2026-07-31",
 				"2026-07-07T00:00:00Z",

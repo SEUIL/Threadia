@@ -27,6 +27,7 @@ import com.threadia.backend.project.dto.ProjectCreateRequest;
 import com.threadia.backend.project.dto.ProjectData;
 import com.threadia.backend.project.dto.ProjectMemberSummaryResponse;
 import com.threadia.backend.project.dto.ProjectResponse;
+import com.threadia.backend.project.dto.ProjectUpdateRequest;
 import com.threadia.backend.project.dto.ProjectsData;
 import com.threadia.backend.project.exception.ProjectConflictException;
 import com.threadia.backend.project.exception.ProjectNotFoundException;
@@ -130,9 +131,37 @@ public class ProjectService {
 		return new ProjectData(ProjectResponse.from(project));
 	}
 
+	@Transactional
+	public ProjectData update(String accessToken, Long projectId, ProjectUpdateRequest request) {
+		AuthContext authContext = activeAuthContext(accessToken);
+		Project project = project(projectId);
+		requireProjectManage(project, authContext);
+		if (project.getStatus() == ProjectStatus.ARCHIVED) {
+			throw ProjectConflictException.archivedProjectCannotBeUpdated();
+		}
+		validateUpdateRequest(request);
+		LocalDateTime now = now();
+		project.setName(request.name().trim());
+		project.setDescription(request.description());
+		project.setStatus(request.status());
+		project.setStartDate(request.startDate());
+		project.setEndDate(request.endDate());
+		project.setUpdatedAt(now);
+		return new ProjectData(ProjectResponse.from(project));
+	}
+
 	private void validateCreateRequest(ProjectCreateRequest request) {
 		if (request.status() == ProjectStatus.ARCHIVED) {
 			throw ProjectValidationException.archivedStatusNotAllowed();
+		}
+		if (request.startDate() != null && request.endDate() != null && request.startDate().isAfter(request.endDate())) {
+			throw ProjectValidationException.invalidDateRange();
+		}
+	}
+
+	private void validateUpdateRequest(ProjectUpdateRequest request) {
+		if (request.status() == ProjectStatus.ARCHIVED) {
+			throw ProjectValidationException.archivedUpdateStatusNotAllowed();
 		}
 		if (request.startDate() != null && request.endDate() != null && request.startDate().isAfter(request.endDate())) {
 			throw ProjectValidationException.invalidDateRange();
@@ -146,6 +175,18 @@ public class ProjectService {
 		}
 		companyMembershipService.requireActiveMember(companyId, authContext);
 		activeProjectMember(project, authContext);
+	}
+
+	private void requireProjectManage(Project project, AuthContext authContext) {
+		Long companyId = project.getCompany().getId();
+		if (companyMembershipService.hasActiveRole(companyId, authContext, CompanyMemberRole.COMPANY_ADMIN)) {
+			return;
+		}
+		companyMembershipService.requireActiveMember(companyId, authContext);
+		ProjectMember projectMember = activeProjectMember(project, authContext);
+		if (projectMember.getRole() != ProjectMemberRole.PROJECT_ADMIN) {
+			throw new ForbiddenException("프로젝트 관리자 권한이 필요합니다.");
+		}
 	}
 
 	private ProjectMember activeProjectMember(Project project, AuthContext authContext) {
