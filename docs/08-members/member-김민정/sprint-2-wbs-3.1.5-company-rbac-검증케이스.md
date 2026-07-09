@@ -1,7 +1,7 @@
 > **작성자**: 김민정 (WBS 3.1.5 Owner)
 > **작성일**: 2026-07-07
 > **최종 수정**: 2026-07-09
-> **버전**: v2.7
+> **버전**: v2.8
 > **상태**: 검토 요청
 > **태그**: sprint-2, wbs-3.1.5, company, rbac, qa
 
@@ -16,7 +16,7 @@
 
 | WBS | 진척률 | 비고 |
 |---|---|---|
-| 3.1.5 | 100% | §2 검증 케이스 22개(19-A/19-B 포함) 전부 실행 완료(22개 정상 통과). §3 DB 정합성 포인트도 실행 중 확인 완료. #4/#7 버그는 PR #66(fix/company-api-qa, 2026-07-09 merge)로 수정되어 Apidog 재검증까지 완료함(§2.1 #4/#7 참고). 초안에 있던 프로젝트 관리자 지정 케이스는 WBS 3.3.x(Project) 범위라 [`sprint-2-wbs-3.3.5-project-backend-검증케이스.md`](./sprint-2-wbs-3.3.5-project-backend-검증케이스.md)로 이관함 |
+| 3.1.5 | 100% | §2의 3.1.5 범위 케이스(회사·부서·구성원·RBAC, 19-A/19-B 포함) 전부 실행 완료·정상 통과. §3 DB 정합성 포인트도 실행 중 확인 완료. #4/#7 버그는 PR #66(fix/company-api-qa, 2026-07-09 merge)로 수정되어 Apidog 재검증까지 완료함(§2.1 #4/#7 참고). §2.3 #19(프로젝트 관리자 지정)는 3.1.5 범위 밖 3.3.x(Project)라 **확인 불가 · 3.3.5 문서로 이관 예정**(대상 문서 저장소 추가 전까지 pending 유지) |
 
 ---
 
@@ -29,7 +29,7 @@
 | 3.1.3 | 부서 목록/생성/수정/삭제 API 구현 | 김민경 | **100% (완료, 부팀장 merge 인정)** | PR #54 merge(2026-07-08). `DepartmentController`(조회/생성/수정/삭제 전부), `DepartmentService`, `DepartmentRepository`, exception 클래스까지 전부 존재. merge는 **부팀장이자 리뷰어인 정철진(cjfwls39)**이 직접 수행 — GitHub 상 별도 APPROVED review 코멘트는 없으나, 부팀장(리뷰어)의 직접 merge를 리뷰어 merge 조건 충족으로 인정한다. §2.2 실행 완료. **추가(2026-07-09)**: §2.1 #4 순서 버그와 동일한 패턴이 `list()`/`create()`에서 발견되어 이슈 #67로 분리, PR #68(xaphxe 작성)로 수정됨. PR #68도 정철진(cjfwls39)이 직접 merge(`e17c147`) — 순서 버그는 §2.2 #9/#10 재검증으로 해소됐고, 부팀장 merge 기준으로 3.1.3 완료 인정 |
 | 3.1.4 | 회사 구성원 목록과 역할/부서/상태 변경 API 구현 | 여도현 | **100% (완료)** | PR #56 merge(2026-07-08). **Reviewer(황스일/SEUIL)가 review(APPROVED) 후 본인이 직접 merge까지 완료** — 새 규칙에 정확히 부합하는 100% 확정 사례. 타 회사 department 지정 차단, 마지막 활성 COMPANY_ADMIN 변경 차단, LEFT 직접 재활성화 차단까지 구현됨(canonical 문서 경로 동기화 이슈 1건은 review 중 발견되어 반영 완료) |
 
-진척률 갱신 규칙(2026-07-08 변경): 진행중~99%는 각 Owner 본인, **100% 확정은 Reviewer가 해당 PR을 review + merge 완료한 시점**(부팀장이자 리뷰어인 철진의 직접 merge도 리뷰어 merge로 인정). **3.1.1~3.1.4가 모두 100% 확정됐으므로 §2 전체 케이스(§2.1 회사 API·§2.2 부서 API·§2.3/§2.3-A 회사 구성원 API·§2.4 RBAC 공통) 실행이 완료됐다.**
+진척률 갱신 규칙(2026-07-08 변경): 진행중~99%는 각 Owner 본인, **100% 확정은 Reviewer가 해당 PR을 review + merge 완료한 시점**(부팀장이자 리뷰어인 정철진의 직접 merge도 리뷰어 merge로 인정). **3.1.1~3.1.4가 모두 100% 확정됐으므로 §2의 3.1.5 범위 케이스(§2.1 회사 API·§2.2 부서 API·§2.3/§2.3-A 회사 구성원 API·§2.4 RBAC 공통) 실행이 완료됐다.** (§2.3 #19 프로젝트 관리자 지정은 3.3.x(Project) 범위라 확인 불가·이관 예정)
 
 ---
 
@@ -69,8 +69,9 @@
 | 16 | `PATCH /api/v1/companies/{companyId}/company-members/{companyMemberId}` | role/department/status 정상 변경 | 정상 | 200, 변경 반영 | **정상 통과** | Apidog 실행(2026-07-08) 200 확인, `departmentId: 1`로 변경 반영. MEMBER-03 |
 | 17 | `PATCH /api/v1/companies/{companyId}/company-members/{companyMemberId}` | A/P 역할 사용자가 변경 시도 | 실패 | 403 `FORBIDDEN` | **정상 통과** | Apidog 실행(2026-07-08) 403 확인. RBAC-01과 겹치는 케이스 |
 | 18 | `PATCH /api/v1/companies/{companyId}/company-members/{companyMemberId}` | 존재하지 않는 companyMemberId | 실패 | 404 `NOT_FOUND` | **정상 통과** | Apidog 실행(2026-07-08) 404 확인. **(정정)** 이전에 §2.1 #4와 동일 패턴(403 예상)으로 경고했었으나 틀린 예측이었음 — 예측대로 `update()`는 path의 `companyId`(항상 유효)로 권한 체크를 통과한 뒤 `companyMemberForUpdate(companyMemberId, companyId)`에서 존재하지 않는 companyMemberId를 정상적으로 잡아 404를 던지는 구조로 확인 |
+| 19 | `PATCH /api/v1/project-members/{projectMemberId}` (프로젝트 관리자 지정) | PROJECT_ADMIN 최소 1명 유지 위반 시도 | 실패 | 409 `CONFLICT` 계열 (정확한 에러코드는 구현 후 확인) | **확인 불가(차단) · 3.3.x 이관 예정** | 이 케이스는 WBS 3.1.5(Company/RBAC)가 아니라 **3.3.x(Project) 범위**다(MEMBER-04, 3.3.4와 경계). 2026-07-08 기준 `com.threadia.backend.project` 패키지에 Controller가 없어(3.3.2~3.3.4 미착수) 실행 불가. Project Backend 검증 문서(`sprint-2-wbs-3.3.5-project-backend-검증케이스.md`)가 저장소에 추가되면 그 문서 §2.3(#17)로 **이관 예정**이며, 그 전까지 이 문서에 pending으로 남긴다 |
 
-> **범위 정정(2026-07-09)**: 초안에 있던 프로젝트 관리자 지정 케이스(`PATCH /api/v1/project-members/{projectMemberId}`, PROJECT_ADMIN 최소 1명 유지)는 WBS 3.1.5(Company/RBAC) 범위가 아니라 **WBS 3.3.x(Project) 범위**다. 해당 케이스는 [`sprint-2-wbs-3.3.5-project-backend-검증케이스.md`](./sprint-2-wbs-3.3.5-project-backend-검증케이스.md) §2.3(#17)에서 이미 동일하게 추적하므로 이 문서에서는 제외한다.
+> **범위 메모(2026-07-09)**: #19(프로젝트 관리자 지정)는 3.1.5(Company/RBAC) 범위가 아니라 3.3.x(Project) 범위라 확인 불가 상태로 유지한다. Project Backend 검증 문서(`sprint-2-wbs-3.3.5-project-backend-검증케이스.md`)가 저장소에 추가된 뒤 그 문서 §2.3(#17)로 이관 예정이다. (깨진 링크를 남기지 않도록 대상 문서 merge 전까지는 파일명만 표기)
 
 ### 2.3-A Invitation accept 연계 membership 상태 전이 (WBS 2.4 정책, PR #48/#53 반영)
 
@@ -105,7 +106,7 @@
 > **팀 방향(2026-07-07 확인, canonical 문서 미반영)**: Backend 단위 테스트/통합 테스트는 `./gradlew test`가 아니라 **Apidog collection 실행**으로 진행한다. 이 방향은 아직 `docs/00-project/Definition-of-Done.md`, `docs/00-project/검증-방법.md`에는 반영되어 있지 않으므로, 이 문서 §2의 개별 케이스는 Apidog request로 만들어 실행하는 것을 기본으로 하고 결과를 이 표에 기록한다.
 
 1. 3.1.1~3.1.4가 merge된 시점에 §1 표를 갱신한다.
-2. §2의 22개 케이스(19-A, 19-B 포함)를 Apidog collection의 request로 등록하고 순서대로 실행해 결과를 기록한다.
+2. §2의 23개 케이스(19-A, 19-B 포함)를 Apidog collection의 request로 등록하고 순서대로 실행해 결과를 기록한다. (#19는 3.3.x 미구현으로 확인 불가·이관 예정)
 3. §3 DB 확인 포인트를 실제 쿼리로 검증한다.
 4. 결과를 종합해 Reviewer(황스일)에게 재확인을 요청한다.
 5. 실패 케이스가 있으면 완료 처리를 보류하고 해당 owner(여도현/김민경)에게 후속 조치를 요청한다.
