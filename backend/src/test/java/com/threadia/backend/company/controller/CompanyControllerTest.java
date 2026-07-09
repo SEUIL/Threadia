@@ -155,6 +155,20 @@ class CompanyControllerTest {
 	}
 
 	@Test
+	void updateLogoReturnsValidationErrorWhenLogoUrlIsBlank() throws Exception {
+		mockMvc.perform(post("/api/v1/companies/10/logo")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer admin-token")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("""
+							{
+							  "logoUrl": ""
+							}
+							"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+	}
+
+	@Test
 	void unknownUrlReturnsNotFound() throws Exception {
 		mockMvc.perform(get("/api/v1/companies/10/unknown")
 					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))

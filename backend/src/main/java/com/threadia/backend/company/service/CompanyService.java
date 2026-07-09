@@ -92,18 +92,18 @@ public class CompanyService {
 
 	@Transactional(readOnly = true)
 	public CompanyData get(String accessToken, Long companyId) {
-		Company company = company(companyId);
 		AuthContext authContext = authContextService.fromAccessToken(accessToken);
 		authContextService.requireActiveUser(authContext);
+		Company company = company(companyId);
 		companyAccessService.requireActiveMember(companyId, authContext);
 		return new CompanyData(CompanyResponse.from(company));
 	}
 
 	@Transactional
 	public CompanyData update(String accessToken, Long companyId, CompanyUpdateRequest request) {
-		Company company = companyForUpdate(companyId);
 		AuthContext authContext = authContextService.fromAccessToken(accessToken);
 		authContextService.requireActiveUser(authContext);
+		Company company = companyForUpdate(companyId);
 		companyAccessService.requireCompanyAdmin(companyId, authContext);
 		company.setName(request.name());
 		company.setRepresentativeName(request.representativeName());
@@ -116,9 +116,9 @@ public class CompanyService {
 
 	@Transactional
 	public CompanyData updateLogo(String accessToken, Long companyId, CompanyLogoRequest request) {
-		Company company = companyForUpdate(companyId);
 		AuthContext authContext = authContextService.fromAccessToken(accessToken);
 		authContextService.requireActiveUser(authContext);
+		Company company = companyForUpdate(companyId);
 		companyAccessService.requireCompanyAdmin(companyId, authContext);
 		company.setLogoUrl(request.logoUrl());
 		company.setUpdatedAt(now());
@@ -127,9 +127,9 @@ public class CompanyService {
 
 	@Transactional(readOnly = true)
 	public CompanyStatsData stats(String accessToken, Long companyId) {
-		company(companyId);
 		AuthContext authContext = authContextService.fromAccessToken(accessToken);
 		authContextService.requireActiveUser(authContext);
+		company(companyId);
 		companyAccessService.requireCompanyAdmin(companyId, authContext);
 		long memberCount = companyMemberRepository.countByCompany_IdAndStatus(companyId, CompanyMemberStatus.ACTIVE);
 		long departmentCount = companyStatsRepository.countDepartments(companyId);
