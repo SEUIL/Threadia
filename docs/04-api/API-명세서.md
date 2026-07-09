@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-07-08
-> **버전**: Sprint 1.5 invitation 표시 필드 보강 + Sprint 3 기준선 반영 + company member scoped PATCH 동기화 + current-user membership context v1.5
+> **최종 수정**: 2026-07-09
+> **버전**: Sprint 1.5 invitation 표시 필드 보강 + Sprint 3 기준선 반영 + company member scoped PATCH 동기화 + current-user membership context + project detail viewer response v1.6
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -817,6 +817,37 @@ Response 201:
   "meta": { "requestId": "req_..." }
 }
 ```
+
+#### GET `/api/v1/projects/{projectId}`
+
+Response 200:
+
+```json
+{
+  "data": {
+    "project": {
+      "id": 20,
+      "companyId": 10,
+      "name": "Threadia MVP",
+      "projectKey": "THD",
+      "description": "Threadia MVP 개발 프로젝트",
+      "status": "ACTIVE",
+      "startDate": "2026-06-17",
+      "endDate": "2026-07-31",
+      "createdAt": "2026-06-17T00:00:00Z",
+      "updatedAt": "2026-07-09T00:00:00Z"
+    },
+    "viewer": {
+      "companyRole": "MEMBER",
+      "projectRole": "PROJECT_ADMIN",
+      "canManageProject": true
+    }
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+`viewer`는 현재 요청자의 회사/프로젝트 역할과 프로젝트 관리 가능 여부를 나타낸다. 회사 관리자는 `companyRole = "COMPANY_ADMIN"`, 프로젝트 멤버가 아니면 `projectRole = null`일 수 있다. 프로젝트 통계는 이 응답에 포함하지 않고 project member 목록 또는 별도 stats 계약에서 처리한다.
 
 #### PATCH `/api/v1/projects/{projectId}`
 
