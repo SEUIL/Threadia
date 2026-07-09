@@ -15,6 +15,7 @@ import com.threadia.backend.common.response.ApiResponse;
 import com.threadia.backend.company.dto.CompanyCreateData;
 import com.threadia.backend.company.dto.CompanyCreateRequest;
 import com.threadia.backend.company.dto.CompanyData;
+import com.threadia.backend.company.dto.CompanyLogoRequest;
 import com.threadia.backend.company.dto.CompanyStatsData;
 import com.threadia.backend.company.dto.CompanyUpdateRequest;
 import com.threadia.backend.company.service.CompanyService;
@@ -56,6 +57,15 @@ public class CompanyController {
 			@PathVariable Long companyId,
 			@Valid @RequestBody CompanyUpdateRequest request) {
 		CompanyData data = companyService.update(extractAccessToken(authorizationHeader), companyId, request);
+		return ResponseEntity.ok(ApiResponse.of(data));
+	}
+
+	@PostMapping("/{companyId}/logo")
+	public ResponseEntity<ApiResponse<CompanyData>> updateLogo(
+			@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+			@PathVariable Long companyId,
+			@Valid @RequestBody CompanyLogoRequest request) {
+		CompanyData data = companyService.updateLogo(extractAccessToken(authorizationHeader), companyId, request);
 		return ResponseEntity.ok(ApiResponse.of(data));
 	}
 

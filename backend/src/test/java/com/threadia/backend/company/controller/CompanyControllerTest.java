@@ -76,6 +76,17 @@ class CompanyControllerTest {
 	}
 
 	@Test
+	void getReturnsNotFoundWhenCompanyDoesNotExist() throws Exception {
+		when(companyService.get("valid-token", 9999L))
+				.thenThrow(new CompanyNotFoundException(9999L));
+
+		mockMvc.perform(get("/api/v1/companies/9999")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.error.code").value("NOT_FOUND"));
+	}
+
+	@Test
 	void updateReturnsNotFoundWhenCompanyDoesNotExist() throws Exception {
 		when(companyService.update(org.mockito.ArgumentMatchers.eq("admin-token"), org.mockito.ArgumentMatchers.eq(10L), org.mockito.ArgumentMatchers.any()))
 				.thenThrow(new CompanyNotFoundException(10L));
@@ -123,6 +134,34 @@ class CompanyControllerTest {
 	}
 
 	@Test
+	void updateLogoReturnsUpdatedCompany() throws Exception {
+		when(companyService.updateLogo(
+						org.mockito.ArgumentMatchers.eq("admin-token"),
+						org.mockito.ArgumentMatchers.eq(10L),
+						org.mockito.ArgumentMatchers.any()))
+				.thenReturn(new CompanyData(companyResponse("Threadia Inc.", "https://example.com/logo.png")));
+
+		mockMvc.perform(post("/api/v1/companies/10/logo")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer admin-token")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("""
+							{
+							  "logoUrl": "https://example.com/logo.png"
+							}
+							"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.company.id").value(10))
+				.andExpect(jsonPath("$.data.company.logoUrl").value("https://example.com/logo.png"));
+	}
+
+	@Test
+	void unknownUrlReturnsNotFound() throws Exception {
+		mockMvc.perform(get("/api/v1/companies/10/unknown")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+				.andExpect(status().isNotFound());
+	}
+
+	@Test
 	void createReturnsValidationErrorWhenNameIsBlank() throws Exception {
 		mockMvc.perform(post("/api/v1/companies")
 					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
@@ -138,13 +177,17 @@ class CompanyControllerTest {
 	}
 
 	private static CompanyResponse companyResponse(String name) {
+		return companyResponse(name, null);
+	}
+
+	private static CompanyResponse companyResponse(String name, String logoUrl) {
 		return new CompanyResponse(
 				10L,
 				name,
 				"Admin",
 				"workspace",
 				"IT",
-				null,
+				logoUrl,
 				"ACTIVE",
 				"2026-07-07T00:00:00Z",
 				"2026-07-07T00:00:00Z");

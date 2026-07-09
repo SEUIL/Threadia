@@ -17,6 +17,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.threadia.backend.common.error.ErrorBody;
 import com.threadia.backend.common.error.ErrorResponse;
@@ -135,6 +136,12 @@ public class GlobalExceptionHandler {
 	// 무결성 위반 중 "중복 키(unique 제약)"만 409로 변환한다. 예: existsByEmail 확인 이후 저장 사이의
 	// 동시 가입 경합을 uq_users_email이 막아준 경우. NOT NULL/FK 위반 등은 클라이언트가 고칠 수 있는 값 문제가
 	// 아니라 서버/데이터 버그에 가까우므로 409로 위장하지 않고 500(catch-all)으로 흘려보낸다.
+	@ExceptionHandler(NoResourceFoundException.class)
+	public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException ex) {
+		ErrorBody body = ErrorBody.of("NOT_FOUND", "요청한 URL을 찾을 수 없습니다.");
+		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of(body));
+	}
+
 	@ExceptionHandler(DataIntegrityViolationException.class)
 	public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
 		if (isDuplicateKeyViolation(ex)) {

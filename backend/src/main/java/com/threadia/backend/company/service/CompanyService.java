@@ -18,6 +18,7 @@ import com.threadia.backend.company.domain.CompanyMemberStatus;
 import com.threadia.backend.company.dto.CompanyCreateData;
 import com.threadia.backend.company.dto.CompanyCreateRequest;
 import com.threadia.backend.company.dto.CompanyData;
+import com.threadia.backend.company.dto.CompanyLogoRequest;
 import com.threadia.backend.company.dto.CompanyMemberSummaryResponse;
 import com.threadia.backend.company.dto.CompanyResponse;
 import com.threadia.backend.company.dto.CompanyStatsData;
@@ -91,18 +92,19 @@ public class CompanyService {
 
 	@Transactional(readOnly = true)
 	public CompanyData get(String accessToken, Long companyId) {
+		Company company = company(companyId);
 		AuthContext authContext = authContextService.fromAccessToken(accessToken);
 		authContextService.requireActiveUser(authContext);
 		companyAccessService.requireActiveMember(companyId, authContext);
-		return new CompanyData(CompanyResponse.from(company(companyId)));
+		return new CompanyData(CompanyResponse.from(company));
 	}
 
 	@Transactional
 	public CompanyData update(String accessToken, Long companyId, CompanyUpdateRequest request) {
+		Company company = companyForUpdate(companyId);
 		AuthContext authContext = authContextService.fromAccessToken(accessToken);
 		authContextService.requireActiveUser(authContext);
 		companyAccessService.requireCompanyAdmin(companyId, authContext);
-		Company company = companyForUpdate(companyId);
 		company.setName(request.name());
 		company.setRepresentativeName(request.representativeName());
 		company.setDescription(request.description());
@@ -112,12 +114,23 @@ public class CompanyService {
 		return new CompanyData(CompanyResponse.from(company));
 	}
 
-	@Transactional(readOnly = true)
-	public CompanyStatsData stats(String accessToken, Long companyId) {
+	@Transactional
+	public CompanyData updateLogo(String accessToken, Long companyId, CompanyLogoRequest request) {
+		Company company = companyForUpdate(companyId);
 		AuthContext authContext = authContextService.fromAccessToken(accessToken);
 		authContextService.requireActiveUser(authContext);
 		companyAccessService.requireCompanyAdmin(companyId, authContext);
+		company.setLogoUrl(request.logoUrl());
+		company.setUpdatedAt(now());
+		return new CompanyData(CompanyResponse.from(company));
+	}
+
+	@Transactional(readOnly = true)
+	public CompanyStatsData stats(String accessToken, Long companyId) {
 		company(companyId);
+		AuthContext authContext = authContextService.fromAccessToken(accessToken);
+		authContextService.requireActiveUser(authContext);
+		companyAccessService.requireCompanyAdmin(companyId, authContext);
 		long memberCount = companyMemberRepository.countByCompany_IdAndStatus(companyId, CompanyMemberStatus.ACTIVE);
 		long departmentCount = companyStatsRepository.countDepartments(companyId);
 		long projectCount = companyStatsRepository.countProjects(companyId);
