@@ -83,9 +83,10 @@ class DepartmentServiceTest {
 
 		DepartmentsData data = departmentService.list("admin-token", 10L);
 
-		InOrder inOrder = inOrder(authContextService, companyAccessService);
+		InOrder inOrder = inOrder(authContextService, companyRepository, companyAccessService);
 		inOrder.verify(authContextService).fromAccessToken("admin-token");
 		inOrder.verify(authContextService).requireActiveUser(authContext);
+		inOrder.verify(companyRepository).findById(10L);
 		inOrder.verify(companyAccessService).requireCompanyAdmin(10L, authContext);
 		assertThat(data.departments()).hasSize(1);
 		assertThat(data.departments().get(0).name()).isEqualTo("디자인팀");
@@ -108,6 +109,11 @@ class DepartmentServiceTest {
 
 		DepartmentData data = departmentService.create("admin-token", 10L, new DepartmentRequest(" 디자인팀 "));
 
+		InOrder inOrder = inOrder(authContextService, companyRepository, companyAccessService);
+		inOrder.verify(authContextService).fromAccessToken("admin-token");
+		inOrder.verify(authContextService).requireActiveUser(authContext);
+		inOrder.verify(companyRepository).findById(10L);
+		inOrder.verify(companyAccessService).requireCompanyAdmin(10L, authContext);
 		ArgumentCaptor<Department> departmentCaptor = ArgumentCaptor.forClass(Department.class);
 		verify(departmentRepository).save(departmentCaptor.capture());
 		assertThat(departmentCaptor.getValue().getName()).isEqualTo("디자인팀");
