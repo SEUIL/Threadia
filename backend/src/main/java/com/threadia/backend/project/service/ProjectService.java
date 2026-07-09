@@ -13,7 +13,9 @@ import com.threadia.backend.common.auth.AuthContext;
 import com.threadia.backend.common.auth.AuthContextService;
 import com.threadia.backend.common.exception.ForbiddenException;
 import com.threadia.backend.company.domain.Company;
+import com.threadia.backend.company.domain.CompanyMember;
 import com.threadia.backend.company.domain.CompanyMemberRole;
+import com.threadia.backend.company.domain.CompanyMemberStatus;
 import com.threadia.backend.company.exception.CompanyNotFoundException;
 import com.threadia.backend.company.repository.CompanyRepository;
 import com.threadia.backend.company.service.CompanyMembershipService;
@@ -27,9 +29,11 @@ import com.threadia.backend.project.dto.ProjectArchiveRequest;
 import com.threadia.backend.project.dto.ProjectCreateData;
 import com.threadia.backend.project.dto.ProjectCreateRequest;
 import com.threadia.backend.project.dto.ProjectData;
+import com.threadia.backend.project.dto.ProjectDetailData;
 import com.threadia.backend.project.dto.ProjectMemberSummaryResponse;
 import com.threadia.backend.project.dto.ProjectResponse;
 import com.threadia.backend.project.dto.ProjectUpdateRequest;
+import com.threadia.backend.project.dto.ProjectViewerData;
 import com.threadia.backend.project.dto.ProjectsData;
 import com.threadia.backend.project.exception.ProjectConflictException;
 import com.threadia.backend.project.exception.ProjectNotFoundException;
@@ -126,11 +130,11 @@ public class ProjectService {
 	}
 
 	@Transactional(readOnly = true)
-	public ProjectData detail(String accessToken, Long projectId) {
+	public ProjectDetailData detail(String accessToken, Long projectId) {
 		AuthContext authContext = activeAuthContext(accessToken);
 		Project project = project(projectId);
-		requireProjectView(project, authContext);
-		return new ProjectData(ProjectResponse.from(project));
+		ProjectViewerData viewer = projectViewer(project, authContext);
+		return new ProjectDetailData(ProjectResponse.from(project), viewer);
 	}
 
 	@Transactional
@@ -188,13 +192,16 @@ public class ProjectService {
 		}
 	}
 
-	private void requireProjectView(Project project, AuthContext authContext) {
+	private ProjectViewerData projectViewer(Project project, AuthContext authContext) {
 		Long companyId = project.getCompany().getId();
-		if (companyMembershipService.hasActiveRole(companyId, authContext, CompanyMemberRole.COMPANY_ADMIN)) {
-			return;
+		CompanyMember companyMember = activeCompanyMember(companyId, authContext);
+		java.util.Optional<ProjectMember> projectMember = activeProjectMemberOptional(project, authContext);
+		if (companyMember.getRole() != CompanyMemberRole.COMPANY_ADMIN && projectMember.isEmpty()) {
+			throw new ForbiddenException("프로젝트 접근 권한이 없습니다.");
 		}
-		companyMembershipService.requireActiveMember(companyId, authContext);
-		activeProjectMember(project, authContext);
+		return ProjectViewerData.from(
+				companyMember.getRole(),
+				projectMember.map(ProjectMember::getRole).orElse(null));
 	}
 
 	private void requireProjectManage(Project project, AuthContext authContext) {
@@ -210,9 +217,19 @@ public class ProjectService {
 	}
 
 	private ProjectMember activeProjectMember(Project project, AuthContext authContext) {
-		return projectMemberRepository.findByProject_IdAndUser_Id(project.getId(), authContext.userId())
-				.filter(projectMember -> projectMember.getStatus() == ProjectMemberStatus.ACTIVE)
+		return activeProjectMemberOptional(project, authContext)
 				.orElseThrow(() -> new ForbiddenException("프로젝트 접근 권한이 없습니다."));
+	}
+
+	private java.util.Optional<ProjectMember> activeProjectMemberOptional(Project project, AuthContext authContext) {
+		return projectMemberRepository.findByProject_IdAndUser_Id(project.getId(), authContext.userId())
+				.filter(projectMember -> projectMember.getStatus() == ProjectMemberStatus.ACTIVE);
+	}
+
+	private CompanyMember activeCompanyMember(Long companyId, AuthContext authContext) {
+		return companyMembershipService.findMembership(companyId, authContext)
+				.filter(companyMember -> companyMember.getStatus() == CompanyMemberStatus.ACTIVE)
+				.orElseThrow(() -> new ForbiddenException("회사 접근 권한이 없습니다."));
 	}
 
 	private AuthContext activeAuthContext(String accessToken) {

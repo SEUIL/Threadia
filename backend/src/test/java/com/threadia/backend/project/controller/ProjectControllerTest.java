@@ -22,8 +22,10 @@ import com.threadia.backend.common.exception.ForbiddenException;
 import com.threadia.backend.project.dto.ProjectArchiveData;
 import com.threadia.backend.project.dto.ProjectCreateData;
 import com.threadia.backend.project.dto.ProjectData;
+import com.threadia.backend.project.dto.ProjectDetailData;
 import com.threadia.backend.project.dto.ProjectMemberSummaryResponse;
 import com.threadia.backend.project.dto.ProjectResponse;
+import com.threadia.backend.project.dto.ProjectViewerData;
 import com.threadia.backend.project.dto.ProjectsData;
 import com.threadia.backend.project.exception.ProjectConflictException;
 import com.threadia.backend.project.exception.ProjectNotFoundException;
@@ -167,7 +169,9 @@ class ProjectControllerTest {
 	@Test
 	void detailReturnsProject() throws Exception {
 		when(projectService.detail("valid-token", 20L))
-				.thenReturn(new ProjectData(projectResponse(20L, "Threadia MVP", "THD")));
+				.thenReturn(new ProjectDetailData(
+						projectResponse(20L, "Threadia MVP", "THD"),
+						new ProjectViewerData("MEMBER", "PROJECT_ADMIN", true)));
 
 		mockMvc.perform(get("/api/v1/projects/20")
 					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
@@ -175,6 +179,9 @@ class ProjectControllerTest {
 				.andExpect(jsonPath("$.data.project.id").value(20))
 				.andExpect(jsonPath("$.data.project.companyId").value(10))
 				.andExpect(jsonPath("$.data.project.name").value("Threadia MVP"))
+				.andExpect(jsonPath("$.data.viewer.companyRole").value("MEMBER"))
+				.andExpect(jsonPath("$.data.viewer.projectRole").value("PROJECT_ADMIN"))
+				.andExpect(jsonPath("$.data.viewer.canManageProject").value(true))
 				.andExpect(jsonPath("$.meta.requestId").exists());
 	}
 

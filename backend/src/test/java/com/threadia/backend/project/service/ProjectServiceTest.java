@@ -30,7 +30,9 @@ import com.threadia.backend.common.auth.AuthContext;
 import com.threadia.backend.common.auth.AuthContextService;
 import com.threadia.backend.common.exception.ForbiddenException;
 import com.threadia.backend.company.domain.Company;
+import com.threadia.backend.company.domain.CompanyMember;
 import com.threadia.backend.company.domain.CompanyMemberRole;
+import com.threadia.backend.company.domain.CompanyMemberStatus;
 import com.threadia.backend.company.repository.CompanyRepository;
 import com.threadia.backend.company.service.CompanyMembershipService;
 import com.threadia.backend.project.domain.Project;
@@ -42,6 +44,7 @@ import com.threadia.backend.project.dto.ProjectCreateData;
 import com.threadia.backend.project.dto.ProjectCreateRequest;
 import com.threadia.backend.project.dto.ProjectArchiveData;
 import com.threadia.backend.project.dto.ProjectArchiveRequest;
+import com.threadia.backend.project.dto.ProjectDetailData;
 import com.threadia.backend.project.dto.ProjectData;
 import com.threadia.backend.project.dto.ProjectsData;
 import com.threadia.backend.project.dto.ProjectUpdateRequest;
@@ -255,12 +258,16 @@ class ProjectServiceTest {
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
 		when(projectRepository.findById(20L)).thenReturn(Optional.of(project));
-		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+		when(companyMembershipService.findMembership(10L, authContext))
+				.thenReturn(Optional.of(companyMember(company, admin, CompanyMemberRole.COMPANY_ADMIN, CompanyMemberStatus.ACTIVE)));
+		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L)).thenReturn(Optional.empty());
 
-		ProjectData data = projectService.detail("admin-token", 20L);
+		ProjectDetailData data = projectService.detail("admin-token", 20L);
 
 		assertThat(data.project().id()).isEqualTo(20L);
-		verify(projectMemberRepository, never()).findByProject_IdAndUser_Id(20L, 1L);
+		assertThat(data.viewer().companyRole()).isEqualTo("COMPANY_ADMIN");
+		assertThat(data.viewer().projectRole()).isNull();
+		assertThat(data.viewer().canManageProject()).isTrue();
 	}
 
 	@Test
@@ -272,14 +279,38 @@ class ProjectServiceTest {
 		when(authContextService.fromAccessToken("member-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(member);
 		when(projectRepository.findById(20L)).thenReturn(Optional.of(project));
-		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false);
+		when(companyMembershipService.findMembership(10L, authContext))
+				.thenReturn(Optional.of(companyMember(company, member, CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE)));
 		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L))
 				.thenReturn(Optional.of(projectMember(project, member, ProjectMemberRole.MEMBER, ProjectMemberStatus.ACTIVE)));
 
-		ProjectData data = projectService.detail("member-token", 20L);
+		ProjectDetailData data = projectService.detail("member-token", 20L);
 
-		verify(companyMembershipService).requireActiveMember(10L, authContext);
 		assertThat(data.project().id()).isEqualTo(20L);
+		assertThat(data.viewer().companyRole()).isEqualTo("MEMBER");
+		assertThat(data.viewer().projectRole()).isEqualTo("MEMBER");
+		assertThat(data.viewer().canManageProject()).isFalse();
+	}
+
+	@Test
+	void detailReturnsManageViewerForProjectAdmin() {
+		AuthContext authContext = authContext();
+		User projectAdmin = user(1L);
+		Company company = company(10L, projectAdmin);
+		Project project = project(20L, company, projectAdmin, "Threadia MVP", "THD");
+		when(authContextService.fromAccessToken("project-admin-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(projectAdmin);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(project));
+		when(companyMembershipService.findMembership(10L, authContext))
+				.thenReturn(Optional.of(companyMember(company, projectAdmin, CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE)));
+		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L))
+				.thenReturn(Optional.of(projectMember(project, projectAdmin, ProjectMemberRole.PROJECT_ADMIN, ProjectMemberStatus.ACTIVE)));
+
+		ProjectDetailData data = projectService.detail("project-admin-token", 20L);
+
+		assertThat(data.viewer().companyRole()).isEqualTo("MEMBER");
+		assertThat(data.viewer().projectRole()).isEqualTo("PROJECT_ADMIN");
+		assertThat(data.viewer().canManageProject()).isTrue();
 	}
 
 	@Test
@@ -291,8 +322,28 @@ class ProjectServiceTest {
 		when(authContextService.fromAccessToken("member-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(member);
 		when(projectRepository.findById(20L)).thenReturn(Optional.of(project));
-		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false);
+		when(companyMembershipService.findMembership(10L, authContext))
+				.thenReturn(Optional.of(companyMember(company, member, CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE)));
 		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> projectService.detail("member-token", 20L))
+				.isInstanceOf(ForbiddenException.class)
+				.hasMessage("프로젝트 접근 권한이 없습니다.");
+	}
+
+	@Test
+	void detailRejectsRemovedProjectMember() {
+		AuthContext authContext = authContext();
+		User member = user(1L);
+		Company company = company(10L, member);
+		Project project = project(20L, company, member, "Threadia MVP", "THD");
+		when(authContextService.fromAccessToken("member-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(member);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(project));
+		when(companyMembershipService.findMembership(10L, authContext))
+				.thenReturn(Optional.of(companyMember(company, member, CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE)));
+		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L))
+				.thenReturn(Optional.of(projectMember(project, member, ProjectMemberRole.PROJECT_ADMIN, ProjectMemberStatus.REMOVED)));
 
 		assertThatThrownBy(() -> projectService.detail("member-token", 20L))
 				.isInstanceOf(ForbiddenException.class)
@@ -559,6 +610,11 @@ class ProjectServiceTest {
 		Company company = new Company("Threadia Inc.", "Admin", "workspace", "IT", null, "ACTIVE", createdBy, now, now);
 		setId(company, id);
 		return company;
+	}
+
+	private static CompanyMember companyMember(Company company, User user, CompanyMemberRole role, CompanyMemberStatus status) {
+		LocalDateTime now = LocalDateTime.now(FIXED_CLOCK);
+		return new CompanyMember(company, user, null, role, status, now, now, now);
 	}
 
 	private static Project project(Long id, Company company, User createdBy, String name, String projectKey) {

@@ -18,6 +18,7 @@ import com.threadia.backend.project.dto.ProjectArchiveRequest;
 import com.threadia.backend.project.dto.ProjectCreateData;
 import com.threadia.backend.project.dto.ProjectCreateRequest;
 import com.threadia.backend.project.dto.ProjectData;
+import com.threadia.backend.project.dto.ProjectDetailData;
 import com.threadia.backend.project.dto.ProjectUpdateRequest;
 import com.threadia.backend.project.dto.ProjectsData;
 import com.threadia.backend.project.service.ProjectService;
@@ -54,10 +55,10 @@ public class ProjectController {
 	}
 
 	@GetMapping("/projects/{projectId}")
-	public ResponseEntity<ApiResponse<ProjectData>> detail(
+	public ResponseEntity<ApiResponse<ProjectDetailData>> detail(
 			@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
 			@PathVariable Long projectId) {
-		ProjectData data = projectService.detail(extractAccessToken(authorizationHeader), projectId);
+		ProjectDetailData data = projectService.detail(extractAccessToken(authorizationHeader), projectId);
 		return ResponseEntity.ok(ApiResponse.of(data));
 	}
 
