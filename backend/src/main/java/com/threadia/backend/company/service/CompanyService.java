@@ -109,7 +109,6 @@ public class CompanyService {
 		company.setRepresentativeName(request.representativeName());
 		company.setDescription(request.description());
 		company.setIndustryCategory(request.industryCategory());
-		company.setLogoUrl(request.logoUrl());
 		company.setUpdatedAt(now());
 		return new CompanyData(CompanyResponse.from(company));
 	}

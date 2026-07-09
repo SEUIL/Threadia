@@ -108,6 +108,24 @@ class CompanyControllerTest {
 	}
 
 	@Test
+	void updateReturnsValidationErrorWhenLogoUrlIsInvalid() throws Exception {
+		mockMvc.perform(patch("/api/v1/companies/10")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer admin-token")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("""
+							{
+							  "name": "Threadia Corp.",
+							  "representativeName": "Admin",
+							  "description": "updated",
+							  "industryCategory": "IT",
+							  "logoUrl": "not-a-url"
+							}
+							"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+	}
+
+	@Test
 	void statsReturnsCompanyCounts() throws Exception {
 		when(companyService.stats("valid-token", 10L))
 				.thenReturn(new CompanyStatsData(10L, 3L, 2L, 4L, Map.of("ACTIVE", 2L, "PLANNING", 2L)));

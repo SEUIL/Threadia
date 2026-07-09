@@ -159,10 +159,11 @@ class CompanyServiceTest {
 	}
 
 	@Test
-	void updateRequiresCompanyAdminAndUpdatesUrlOnlyLogo() {
+	void updateRequiresCompanyAdminAndDoesNotUpdateLogoUrl() {
 		AuthContext authContext = new AuthContext(1L, "admin@example.com");
 		User admin = user(1L);
 		Company company = company(10L, user(1L));
+		company.setLogoUrl("https://example.com/original-logo.png");
 		when(authContextService.fromAccessToken("valid-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
 		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
@@ -178,7 +179,7 @@ class CompanyServiceTest {
 		inOrder.verify(companyRepository).findByIdForUpdate(10L);
 		inOrder.verify(companyAccessService).requireCompanyAdmin(10L, authContext);
 		assertThat(data.company().name()).isEqualTo("Threadia Corp.");
-		assertThat(data.company().logoUrl()).isEqualTo("https://example.com/logo.png");
+		assertThat(data.company().logoUrl()).isEqualTo("https://example.com/original-logo.png");
 	}
 
 	@Test
