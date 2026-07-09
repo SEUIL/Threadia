@@ -87,6 +87,7 @@ public class ProjectMemberService {
 		projectForUpdate(projectMember.getProject().getId());
 		requireProjectManage(projectMember.getProject(), authContext);
 		validateLastActiveProjectAdmin(projectMember, request.role(), request.status());
+		validateTargetActiveCompanyMember(projectMember, request.role(), request.status());
 		projectMember.setRole(request.role());
 		projectMember.setStatus(request.status());
 		projectMember.setUpdatedAt(now());
@@ -152,6 +153,20 @@ public class ProjectMemberService {
 				ProjectMemberStatus.ACTIVE);
 		if (activeAdminCount <= 1) {
 			throw ProjectMemberConflictException.lastActiveProjectAdmin();
+		}
+	}
+
+	private void validateTargetActiveCompanyMember(
+			ProjectMember projectMember,
+			ProjectMemberRole requestedRole,
+			ProjectMemberStatus requestedStatus) {
+		if (requestedStatus != ProjectMemberStatus.ACTIVE && requestedRole != ProjectMemberRole.PROJECT_ADMIN) {
+			return;
+		}
+		Long companyId = projectMember.getProject().getCompany().getId();
+		Long targetUserId = projectMember.getUser().getId();
+		if (!companyMembershipService.isActiveMember(companyId, targetUserId)) {
+			throw ProjectMemberConflictException.targetUserNotActiveCompanyMember();
 		}
 	}
 

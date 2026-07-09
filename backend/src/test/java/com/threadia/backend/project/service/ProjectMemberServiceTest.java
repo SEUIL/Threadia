@@ -155,6 +155,7 @@ class ProjectMemberServiceTest {
 		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(project));
 		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false);
 		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L)).thenReturn(Optional.of(requester));
+		when(companyMembershipService.isActiveMember(10L, 2L)).thenReturn(true);
 
 		ProjectMemberData data = projectMemberService.update(
 				"project-admin-token",
@@ -180,6 +181,7 @@ class ProjectMemberServiceTest {
 		when(projectMemberRepository.findByIdForUpdate(201L)).thenReturn(Optional.of(target));
 		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(project));
 		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+		when(companyMembershipService.isActiveMember(10L, 2L)).thenReturn(true);
 
 		projectMemberService.update(
 				"admin-token",
@@ -187,6 +189,54 @@ class ProjectMemberServiceTest {
 				new ProjectMemberUpdateRequest(ProjectMemberRole.PROJECT_ADMIN, ProjectMemberStatus.ACTIVE));
 
 		verify(projectMemberRepository, never()).findByProject_IdAndUser_Id(20L, 1L);
+	}
+
+	@Test
+	void updateThrowsConflictWhenActivatingTargetWithoutActiveCompanyMembership() {
+		AuthContext authContext = authContext();
+		User companyAdmin = user(1L, "admin@example.com");
+		User targetUser = user(2L, "member@example.com");
+		Company company = company(10L, companyAdmin);
+		Project project = project(20L, company, companyAdmin);
+		ProjectMember target = projectMember(201L, project, targetUser, ProjectMemberRole.MEMBER, ProjectMemberStatus.REMOVED);
+		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(companyAdmin);
+		when(projectMemberRepository.findByIdForUpdate(201L)).thenReturn(Optional.of(target));
+		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(project));
+		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+		when(companyMembershipService.isActiveMember(10L, 2L)).thenReturn(false);
+
+		assertThatThrownBy(() -> projectMemberService.update(
+				"admin-token",
+				201L,
+				new ProjectMemberUpdateRequest(ProjectMemberRole.MEMBER, ProjectMemberStatus.ACTIVE)))
+				.isInstanceOf(ProjectMemberConflictException.class)
+				.hasMessage("대상 사용자가 활성 회사 구성원이 아닙니다.");
+		assertThat(target.getStatus()).isEqualTo(ProjectMemberStatus.REMOVED);
+	}
+
+	@Test
+	void updateThrowsConflictWhenPromotingTargetWithoutActiveCompanyMembership() {
+		AuthContext authContext = authContext();
+		User companyAdmin = user(1L, "admin@example.com");
+		User targetUser = user(2L, "member@example.com");
+		Company company = company(10L, companyAdmin);
+		Project project = project(20L, company, companyAdmin);
+		ProjectMember target = projectMember(201L, project, targetUser, ProjectMemberRole.MEMBER, ProjectMemberStatus.ACTIVE);
+		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(companyAdmin);
+		when(projectMemberRepository.findByIdForUpdate(201L)).thenReturn(Optional.of(target));
+		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(project));
+		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+		when(companyMembershipService.isActiveMember(10L, 2L)).thenReturn(false);
+
+		assertThatThrownBy(() -> projectMemberService.update(
+				"admin-token",
+				201L,
+				new ProjectMemberUpdateRequest(ProjectMemberRole.PROJECT_ADMIN, ProjectMemberStatus.ACTIVE)))
+				.isInstanceOf(ProjectMemberConflictException.class)
+				.hasMessage("대상 사용자가 활성 회사 구성원이 아닙니다.");
+		assertThat(target.getRole()).isEqualTo(ProjectMemberRole.MEMBER);
 	}
 
 	@Test
