@@ -68,8 +68,8 @@ public class DepartmentService {
 	@Transactional(readOnly = true)
 	public DepartmentsData list(String accessToken, Long companyId) {
 		AuthContext authContext = activeAuthContext(accessToken);
-		companyAccessService.requireCompanyAdmin(companyId, authContext);
 		company(companyId);
+		companyAccessService.requireCompanyAdmin(companyId, authContext);
 		return new DepartmentsData(departmentRepository.findByCompany_IdOrderByNameAsc(companyId)
 				.stream()
 				.map(DepartmentResponse::from)
@@ -79,8 +79,8 @@ public class DepartmentService {
 	@Transactional
 	public DepartmentData create(String accessToken, Long companyId, DepartmentRequest request) {
 		AuthContext authContext = activeAuthContext(accessToken);
-		companyAccessService.requireCompanyAdmin(companyId, authContext);
 		Company company = company(companyId);
+		companyAccessService.requireCompanyAdmin(companyId, authContext);
 		String name = normalizedName(request.name());
 		if (departmentRepository.existsByCompany_IdAndName(companyId, name)) {
 			throw DepartmentConflictException.duplicateName();
