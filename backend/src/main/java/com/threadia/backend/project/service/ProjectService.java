@@ -11,8 +11,11 @@ import org.springframework.transaction.annotation.Transactional;
 import com.threadia.backend.auth.domain.User;
 import com.threadia.backend.common.auth.AuthContext;
 import com.threadia.backend.common.auth.AuthContextService;
+import com.threadia.backend.common.exception.ForbiddenException;
 import com.threadia.backend.company.domain.Company;
+import com.threadia.backend.company.domain.CompanyMember;
 import com.threadia.backend.company.domain.CompanyMemberRole;
+import com.threadia.backend.company.domain.CompanyMemberStatus;
 import com.threadia.backend.company.exception.CompanyNotFoundException;
 import com.threadia.backend.company.repository.CompanyRepository;
 import com.threadia.backend.company.service.CompanyMembershipService;
@@ -21,12 +24,19 @@ import com.threadia.backend.project.domain.ProjectMember;
 import com.threadia.backend.project.domain.ProjectMemberRole;
 import com.threadia.backend.project.domain.ProjectMemberStatus;
 import com.threadia.backend.project.domain.ProjectStatus;
+import com.threadia.backend.project.dto.ProjectArchiveData;
+import com.threadia.backend.project.dto.ProjectArchiveRequest;
 import com.threadia.backend.project.dto.ProjectCreateData;
 import com.threadia.backend.project.dto.ProjectCreateRequest;
+import com.threadia.backend.project.dto.ProjectData;
+import com.threadia.backend.project.dto.ProjectDetailData;
 import com.threadia.backend.project.dto.ProjectMemberSummaryResponse;
 import com.threadia.backend.project.dto.ProjectResponse;
+import com.threadia.backend.project.dto.ProjectUpdateRequest;
+import com.threadia.backend.project.dto.ProjectViewerData;
 import com.threadia.backend.project.dto.ProjectsData;
 import com.threadia.backend.project.exception.ProjectConflictException;
+import com.threadia.backend.project.exception.ProjectNotFoundException;
 import com.threadia.backend.project.exception.ProjectValidationException;
 import com.threadia.backend.project.repository.ProjectMemberRepository;
 import com.threadia.backend.project.repository.ProjectRepository;
@@ -119,6 +129,51 @@ public class ProjectService {
 		return new ProjectCreateData(ProjectResponse.from(project), ProjectMemberSummaryResponse.from(projectMember));
 	}
 
+	@Transactional(readOnly = true)
+	public ProjectDetailData detail(String accessToken, Long projectId) {
+		AuthContext authContext = activeAuthContext(accessToken);
+		Project project = project(projectId);
+		ProjectViewerData viewer = projectViewer(project, authContext);
+		return new ProjectDetailData(ProjectResponse.from(project), viewer);
+	}
+
+	@Transactional
+	public ProjectData update(String accessToken, Long projectId, ProjectUpdateRequest request) {
+		AuthContext authContext = activeAuthContext(accessToken);
+		Project project = project(projectId);
+		requireProjectManage(project, authContext);
+		if (project.getStatus() == ProjectStatus.ARCHIVED) {
+			throw ProjectConflictException.archivedProjectCannotBeUpdated();
+		}
+		validateUpdateRequest(request);
+		LocalDateTime now = now();
+		project.setName(request.name().trim());
+		project.setDescription(request.description());
+		project.setStatus(request.status());
+		project.setStartDate(request.startDate());
+		project.setEndDate(request.endDate());
+		project.setUpdatedAt(now);
+		return new ProjectData(ProjectResponse.from(project));
+	}
+
+	@Transactional
+	public ProjectArchiveData archive(String accessToken, Long projectId, ProjectArchiveRequest request) {
+		AuthContext authContext = authContextService.fromAccessToken(accessToken);
+		User actor = authContextService.requireActiveUser(authContext);
+		Project project = project(projectId);
+		requireProjectManage(project, authContext);
+		if (project.getStatus() == ProjectStatus.ARCHIVED) {
+			throw ProjectConflictException.alreadyArchived();
+		}
+		LocalDateTime now = now();
+		project.setStatus(ProjectStatus.ARCHIVED);
+		project.setArchivedAt(now);
+		project.setArchivedBy(actor);
+		project.setArchiveReason(request.reason());
+		project.setUpdatedAt(now);
+		return new ProjectArchiveData(project.getId(), project.getStatus().name());
+	}
+
 	private void validateCreateRequest(ProjectCreateRequest request) {
 		if (request.status() == ProjectStatus.ARCHIVED) {
 			throw ProjectValidationException.archivedStatusNotAllowed();
@@ -126,6 +181,55 @@ public class ProjectService {
 		if (request.startDate() != null && request.endDate() != null && request.startDate().isAfter(request.endDate())) {
 			throw ProjectValidationException.invalidDateRange();
 		}
+	}
+
+	private void validateUpdateRequest(ProjectUpdateRequest request) {
+		if (request.status() == ProjectStatus.ARCHIVED) {
+			throw ProjectValidationException.archivedUpdateStatusNotAllowed();
+		}
+		if (request.startDate() != null && request.endDate() != null && request.startDate().isAfter(request.endDate())) {
+			throw ProjectValidationException.invalidDateRange();
+		}
+	}
+
+	private ProjectViewerData projectViewer(Project project, AuthContext authContext) {
+		Long companyId = project.getCompany().getId();
+		CompanyMember companyMember = activeCompanyMember(companyId, authContext);
+		java.util.Optional<ProjectMember> projectMember = activeProjectMemberOptional(project, authContext);
+		if (companyMember.getRole() != CompanyMemberRole.COMPANY_ADMIN && projectMember.isEmpty()) {
+			throw new ForbiddenException("프로젝트 접근 권한이 없습니다.");
+		}
+		return ProjectViewerData.from(
+				companyMember.getRole(),
+				projectMember.map(ProjectMember::getRole).orElse(null));
+	}
+
+	private void requireProjectManage(Project project, AuthContext authContext) {
+		Long companyId = project.getCompany().getId();
+		if (companyMembershipService.hasActiveRole(companyId, authContext, CompanyMemberRole.COMPANY_ADMIN)) {
+			return;
+		}
+		companyMembershipService.requireActiveMember(companyId, authContext);
+		ProjectMember projectMember = activeProjectMember(project, authContext);
+		if (projectMember.getRole() != ProjectMemberRole.PROJECT_ADMIN) {
+			throw new ForbiddenException("프로젝트 관리자 권한이 필요합니다.");
+		}
+	}
+
+	private ProjectMember activeProjectMember(Project project, AuthContext authContext) {
+		return activeProjectMemberOptional(project, authContext)
+				.orElseThrow(() -> new ForbiddenException("프로젝트 접근 권한이 없습니다."));
+	}
+
+	private java.util.Optional<ProjectMember> activeProjectMemberOptional(Project project, AuthContext authContext) {
+		return projectMemberRepository.findByProject_IdAndUser_Id(project.getId(), authContext.userId())
+				.filter(projectMember -> projectMember.getStatus() == ProjectMemberStatus.ACTIVE);
+	}
+
+	private CompanyMember activeCompanyMember(Long companyId, AuthContext authContext) {
+		return companyMembershipService.findMembership(companyId, authContext)
+				.filter(companyMember -> companyMember.getStatus() == CompanyMemberStatus.ACTIVE)
+				.orElseThrow(() -> new ForbiddenException("회사 접근 권한이 없습니다."));
 	}
 
 	private AuthContext activeAuthContext(String accessToken) {
@@ -137,6 +241,11 @@ public class ProjectService {
 	private Company company(Long companyId) {
 		return companyRepository.findById(companyId)
 				.orElseThrow(() -> new CompanyNotFoundException(companyId));
+	}
+
+	private Project project(Long projectId) {
+		return projectRepository.findById(projectId)
+				.orElseThrow(() -> new ProjectNotFoundException(projectId));
 	}
 
 	private LocalDateTime now() {
