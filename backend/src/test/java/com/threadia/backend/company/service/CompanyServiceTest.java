@@ -1,7 +1,9 @@
 package com.threadia.backend.company.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -32,11 +34,14 @@ import com.threadia.backend.company.domain.CompanyMemberStatus;
 import com.threadia.backend.company.dto.CompanyCreateData;
 import com.threadia.backend.company.dto.CompanyCreateRequest;
 import com.threadia.backend.company.dto.CompanyData;
+import com.threadia.backend.company.dto.CompanyLogoRequest;
 import com.threadia.backend.company.dto.CompanyStatsData;
 import com.threadia.backend.company.dto.CompanyUpdateRequest;
+import com.threadia.backend.company.exception.CompanyNotFoundException;
 import com.threadia.backend.company.repository.CompanyMemberRepository;
 import com.threadia.backend.company.repository.CompanyRepository;
 import com.threadia.backend.company.repository.CompanyStatsRepository;
+import com.threadia.backend.config.jwt.JwtAuthenticationException;
 
 @ExtendWith(MockitoExtension.class)
 class CompanyServiceTest {
@@ -113,17 +118,52 @@ class CompanyServiceTest {
 
 		CompanyData data = companyService.get("valid-token", 10L);
 
-		InOrder inOrder = inOrder(authContextService, companyAccessService);
+		InOrder inOrder = inOrder(authContextService, companyRepository, companyAccessService);
+		inOrder.verify(authContextService).fromAccessToken("valid-token");
 		inOrder.verify(authContextService).requireActiveUser(authContext);
+		inOrder.verify(companyRepository).findById(10L);
 		inOrder.verify(companyAccessService).requireActiveMember(10L, authContext);
 		assertThat(data.company().id()).isEqualTo(10L);
 	}
 
 	@Test
-	void updateRequiresCompanyAdminAndUpdatesUrlOnlyLogo() {
+	void getThrowsNotFoundAfterAuthenticationWhenCompanyDoesNotExist() {
+		AuthContext authContext = new AuthContext(1L, "member@example.com");
+		User member = user(1L);
+		when(authContextService.fromAccessToken("valid-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(member);
+		when(companyRepository.findById(9999L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> companyService.get("valid-token", 9999L))
+				.isInstanceOf(CompanyNotFoundException.class);
+
+		InOrder inOrder = inOrder(authContextService, companyRepository);
+		inOrder.verify(authContextService).fromAccessToken("valid-token");
+		inOrder.verify(authContextService).requireActiveUser(authContext);
+		inOrder.verify(companyRepository).findById(9999L);
+		verify(companyAccessService, never())
+				.requireActiveMember(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any());
+	}
+
+	@Test
+	void getDoesNotCheckCompanyExistenceWhenTokenIsInvalid() {
+		when(authContextService.fromAccessToken("invalid-token"))
+				.thenThrow(new JwtAuthenticationException("invalid token"));
+
+		assertThatThrownBy(() -> companyService.get("invalid-token", 9999L))
+				.isInstanceOf(JwtAuthenticationException.class);
+
+		verify(companyRepository, never()).findById(org.mockito.ArgumentMatchers.anyLong());
+		verify(companyAccessService, never())
+				.requireActiveMember(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any());
+	}
+
+	@Test
+	void updateRequiresCompanyAdminAndDoesNotUpdateLogoUrl() {
 		AuthContext authContext = new AuthContext(1L, "admin@example.com");
 		User admin = user(1L);
 		Company company = company(10L, user(1L));
+		company.setLogoUrl("https://example.com/original-logo.png");
 		when(authContextService.fromAccessToken("valid-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
 		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
@@ -133,10 +173,35 @@ class CompanyServiceTest {
 				10L,
 				new CompanyUpdateRequest("Threadia Corp.", "Admin", "updated", "IT", "https://example.com/logo.png"));
 
-		InOrder inOrder = inOrder(authContextService, companyAccessService);
+		InOrder inOrder = inOrder(authContextService, companyRepository, companyAccessService);
+		inOrder.verify(authContextService).fromAccessToken("valid-token");
 		inOrder.verify(authContextService).requireActiveUser(authContext);
+		inOrder.verify(companyRepository).findByIdForUpdate(10L);
 		inOrder.verify(companyAccessService).requireCompanyAdmin(10L, authContext);
 		assertThat(data.company().name()).isEqualTo("Threadia Corp.");
+		assertThat(data.company().logoUrl()).isEqualTo("https://example.com/original-logo.png");
+	}
+
+	@Test
+	void updateLogoRequiresCompanyAdminAndUpdatesLogoUrlOnly() {
+		AuthContext authContext = new AuthContext(1L, "admin@example.com");
+		User admin = user(1L);
+		Company company = company(10L, user(1L));
+		when(authContextService.fromAccessToken("valid-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
+		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
+
+		CompanyData data = companyService.updateLogo(
+				"valid-token",
+				10L,
+				new CompanyLogoRequest("https://example.com/logo.png"));
+
+		InOrder inOrder = inOrder(authContextService, companyRepository, companyAccessService);
+		inOrder.verify(authContextService).fromAccessToken("valid-token");
+		inOrder.verify(authContextService).requireActiveUser(authContext);
+		inOrder.verify(companyRepository).findByIdForUpdate(10L);
+		inOrder.verify(companyAccessService).requireCompanyAdmin(10L, authContext);
+		assertThat(data.company().name()).isEqualTo("Threadia Inc.");
 		assertThat(data.company().logoUrl()).isEqualTo("https://example.com/logo.png");
 	}
 
@@ -154,8 +219,10 @@ class CompanyServiceTest {
 
 		CompanyStatsData data = companyService.stats("valid-token", 10L);
 
-		InOrder inOrder = inOrder(authContextService, companyAccessService);
+		InOrder inOrder = inOrder(authContextService, companyRepository, companyAccessService);
+		inOrder.verify(authContextService).fromAccessToken("valid-token");
 		inOrder.verify(authContextService).requireActiveUser(authContext);
+		inOrder.verify(companyRepository).findById(10L);
 		inOrder.verify(companyAccessService).requireCompanyAdmin(10L, authContext);
 		assertThat(data.memberCount()).isEqualTo(3L);
 		assertThat(data.departmentCount()).isEqualTo(2L);
