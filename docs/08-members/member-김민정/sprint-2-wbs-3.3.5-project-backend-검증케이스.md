@@ -17,7 +17,7 @@
 
 | WBS | 진척률 | 비고 |
 |---|---|---|
-| 3.3.5 | 100% (evidence 정리 완료, Reviewer 확인 대기) | Apidog 실행 완료(2026-07-10). §2 검증 케이스 20개 중 19개 실행 완료(전부 정상 통과), #20은 멤버 추가 API 부재(Sprint 3 범위)로 확인 불가 판정. §3 DB 정합성 포인트 4개 전부 쿼리로 확인 완료. **추가로 코드 리뷰에서 Finding F-1(§2.1 하단, list/create의 존재확인/권한확인 순서로 없는 companyId가 404 대신 403) 1건 발견 — 별도 이슈로 3.3.2 owner(김태준)에게 전달 예정.** Reviewer(정철진) 선행자료는 이미 전달받음 — 최종 review만 남음 |
+| 3.3.5 | 90% (1차 검증·evidence 정리 완료, finding 반영·재검증 + Reviewer 머지 대기) | Apidog 실행 완료(2026-07-10). §2 검증 케이스 20개 중 19개 실행 완료(전부 정상 통과), #20은 멤버 추가 API 부재(Sprint 3 범위)로 확인 불가 판정. §3 DB 정합성 포인트 4개 전부 쿼리로 확인 완료. 코드 리뷰에서 Finding F-1(§2.1 하단, list/create의 존재확인/권한확인 순서로 없는 companyId가 404 대신 403) 1건 발견 → 이슈 [#73](https://github.com/SEUIL/Threadia/issues/73)으로 3.3.2 owner(김태준)에게 분리 전달. **100% 확정 조건: #73 수정 반영 후 Apidog 재검증 → 이 문서 갱신 → Reviewer(정철진)가 PR [#74](https://github.com/SEUIL/Threadia/pull/74) review+merge.** |
 
 ---
 
