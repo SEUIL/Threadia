@@ -19,20 +19,25 @@
  * 회사 관리자도 아니면 detail() 자체가 403을 던지므로 pageState "error"로
  * 자연스럽게 처리된다(별도 접근 차단 로직 불필요).
  *
- * ⚠️ 멤버 관리 섹션은 WBS 3.3.4(Project Member API, 역할변경/제거)와 WBS 4.3
- * (Project Invitation, Sprint 3 범위)가 둘 다 아직 없어서 이번 스프린트 안에는
- * 실 연동이 불가능하다. 이전엔 로컬 state로 동작하는 것처럼 보이는 mock을
- * 뒀는데, 실제로는 서버에 아무것도 반영되지 않으면서 화면상으론 정상 동작처럼
- * 보여 사용자/QA를 혼동시킬 위험이 있었다 — 그래서 인터랙션 전부를 제거하고
- * 준비 중 안내로 대체했다. 근거: sprint2-3.4-project-frontend-설계.md,
- * 화면정의서 S12 인용구 메모.
+ * WBS 3.4.3 Phase 8 실 연동: 멤버 역할변경/제거는 WBS 3.3.4(PR #70, Project
+ * Member API)로 실 연동했다. `viewer.canManageProject`인 사용자만 역할 select/
+ * 제거 버튼을 본다 — 이 조건은 서버의 `requireProjectManage`와 동일해서 UI에서
+ * 숨긴 액션은 어차피 서버도 막는다. ACTIVE 상태 멤버만 조회한다(제거된 멤버는
+ * 목록에서 사라짐, 복원 UI 없음).
+ *
+ * ⚠️ 멤버 "추가"(초대)는 WBS 4.3(Project Invitation, Sprint 3 범위)이 아직
+ * 없어서 여전히 제공하지 않는다 — PR #70도 조회/역할변경/제거만 다루고 추가
+ * endpoint 자체가 없다(경계가 코드로 확인됨). 근거:
+ * sprint2-3.4-project-frontend-설계.md, 화면정의서 S12 인용구 메모.
  */
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { projectService } from "@/services/project.service";
+import { projectMemberService } from "@/services/project-member.service";
 import { invitationErrorMessage } from "@/lib/invitation";
 import type { ProjectResponse, ProjectStatus, ProjectViewerData } from "@/types/project.types";
+import type { ProjectMemberResponse } from "@/types/project-member.types";
 
 const STATUS_LABEL: Record<ProjectStatus, string> = {
   PLANNING: "기획중",
@@ -77,13 +82,21 @@ export default function ProjectSettingsPage() {
   const [archiveBusy, setArchiveBusy] = useState(false);
   const [archiveError, setArchiveError] = useState<string | null>(null);
 
+  const [members, setMembers] = useState<ProjectMemberResponse[]>([]);
+  const [memberError, setMemberError] = useState<string | null>(null);
+  const [memberBusyId, setMemberBusyId] = useState<number | null>(null);
+
   const loadPage = useCallback(async () => {
     setPageState("loading");
     setPageError(null);
     try {
-      const { data } = await projectService.detail(params.projectId);
-      setProject(data.data.project);
-      setViewer(data.data.viewer);
+      const [detailRes, membersRes] = await Promise.all([
+        projectService.detail(params.projectId),
+        projectMemberService.list(params.projectId, { status: "ACTIVE" }),
+      ]);
+      setProject(detailRes.data.data.project);
+      setViewer(detailRes.data.data.viewer);
+      setMembers(membersRes.data.data.projectMembers);
       setPageState("ready");
     } catch (error) {
       setPageError(invitationErrorMessage(error, "프로젝트 정보를 불러오지 못했습니다."));
@@ -139,6 +152,33 @@ export default function ProjectSettingsPage() {
       setArchiveError(invitationErrorMessage(error, "프로젝트 아카이빙에 실패했습니다."));
     } finally {
       setArchiveBusy(false);
+    }
+  };
+
+  // role/status 전체를 항상 같이 보낸다(full-replace) — company-member와 동일한 이유.
+  const updateMemberRole = async (member: ProjectMemberResponse, role: ProjectMemberResponse["role"]) => {
+    setMemberError(null);
+    setMemberBusyId(member.id);
+    try {
+      const { data } = await projectMemberService.update(member.id, { role, status: member.status });
+      setMembers((prev) => prev.map((m) => (m.id === member.id ? data.data.projectMember : m)));
+    } catch (error) {
+      setMemberError(invitationErrorMessage(error, "멤버 역할 변경에 실패했습니다."));
+    } finally {
+      setMemberBusyId(null);
+    }
+  };
+
+  const removeMember = async (member: ProjectMemberResponse) => {
+    setMemberError(null);
+    setMemberBusyId(member.id);
+    try {
+      await projectMemberService.remove(member.id);
+      setMembers((prev) => prev.filter((m) => m.id !== member.id));
+    } catch (error) {
+      setMemberError(invitationErrorMessage(error, "멤버 제거에 실패했습니다."));
+    } finally {
+      setMemberBusyId(null);
     }
   };
 
@@ -271,11 +311,49 @@ export default function ProjectSettingsPage() {
         )}
       </section>
 
-      {/* 멤버 관리 — WBS 3.3.4/4.3 미착수로 준비 중 안내만 표시 */}
+      {/* 멤버 관리 — 역할변경/제거는 WBS 3.3.4로 실 연동. 추가(초대)는 WBS 4.3 대기 */}
       <section className="mt-6 rounded-xl border border-border bg-surface p-6">
-        <h2 className="text-sm font-semibold text-foreground">프로젝트 멤버</h2>
-        <p className="mt-2 text-sm text-muted">
-          프로젝트 멤버 관리(역할 변경, 제거, 초대)는 준비 중입니다. Project Member API 연동 후 제공될 예정입니다.
+        <h2 className="text-sm font-semibold text-foreground">프로젝트 멤버 ({members.length})</h2>
+
+        {memberError && <p className="mt-2 text-xs text-destructive">{memberError}</p>}
+
+        <ul className="mt-3 divide-y divide-border">
+          {members.map((member) => (
+            <li key={member.id} className="flex flex-wrap items-center justify-between gap-2 px-1 py-2.5">
+              <div>
+                <p className="text-sm font-medium text-foreground">{member.user.nickname}</p>
+                <p className="text-xs text-muted">{member.user.email}</p>
+              </div>
+              {canManage && (
+                <div className="flex items-center gap-2">
+                  <select
+                    aria-label={`${member.user.nickname} 역할`}
+                    value={member.role}
+                    disabled={memberBusyId === member.id || isArchived}
+                    onChange={(e) => updateMemberRole(member, e.target.value as ProjectMemberResponse["role"])}
+                    className="rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-foreground focus:border-ring focus:outline-none disabled:cursor-not-allowed"
+                  >
+                    <option value="PROJECT_ADMIN">PROJECT_ADMIN</option>
+                    <option value="MEMBER">MEMBER</option>
+                  </select>
+                  <button
+                    onClick={() => removeMember(member)}
+                    disabled={memberBusyId === member.id || isArchived}
+                    className="text-xs font-medium text-destructive transition-colors duration-fast hover:opacity-70 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    제거
+                  </button>
+                </div>
+              )}
+            </li>
+          ))}
+          {members.length === 0 && (
+            <li className="py-2.5 text-center text-xs text-muted">멤버가 없습니다.</li>
+          )}
+        </ul>
+
+        <p className="mt-4 text-xs text-placeholder">
+          멤버 초대는 준비 중입니다. Project Invitation API 연동 후 제공될 예정입니다.
         </p>
       </section>
 
