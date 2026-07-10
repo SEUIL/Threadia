@@ -17,7 +17,7 @@
 
 | WBS | 진척률 | 비고 |
 |---|---|---|
-| 3.4.4 | 90% (evidence 정리 완료, Reviewer 확인 대기) | 검증 완료(2026-07-10). PR #72(`feature/wbs-3.4-project-frontend`, 실 API 연동) 브랜치에서 브라우저(데모 :3000 + 백엔드 :8080 실연동) + 빌드 검증 수행. **§2 22개 중 정상 통과 16, 부분 통과/Finding 4(#1/#5/#8/#19), 확인 불가 2(#4/#18)**. §3 build 통과(TS 에러 0), lint는 PR #72 밖 기존 파일 원인으로 실패. Finding 3건(아래)은 PR #72 owner(정철진)에게 전달 필요. **주의: PR #72는 dev에 미머지(BLOCKED)라 검증은 `feature/wbs-3.4-project-frontend` 브랜치 기준** |
+| 3.4.4 | 90% (1차 검증 완료, finding 반영·재검증 + Reviewer 머지 대기) | 1차 검증 완료(2026-07-10). PR #72(`feature/wbs-3.4-project-frontend`, 실 API 연동) 브랜치에서 브라우저(데모 :3000 + 백엔드 :8080 실연동) + 빌드 검증 수행. **§2 22개 중 정상 통과 16, 부분 통과/Finding 4(#1/#5/#8/#19), 확인 불가 2(#4/#18)**. §3 build 통과(TS 에러 0), lint는 PR #72 밖 기존 파일 원인으로 실패. Finding 3건(아래)은 PR [#72](https://github.com/SEUIL/Threadia/pull/72) 리뷰 코멘트로 owner(정철진)에게 전달함. **100% 확정 조건: PR #72 finding 반영(F-3 등) 후 브라우저 재검증 → 이 문서 갱신 → Reviewer(정철진)가 PR [#75](https://github.com/SEUIL/Threadia/pull/75) review+merge.** 주의: PR #72는 dev에 미머지(BLOCKED)라 검증은 `feature/wbs-3.4-project-frontend` 브랜치 기준 |
 
 ### Finding 요약 (owner 정철진 전달 대상)
 
