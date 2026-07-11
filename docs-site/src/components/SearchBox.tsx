@@ -16,14 +16,12 @@ export default function SearchBox() {
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const trimmedQuery = query.trim();
 
   useEffect(() => {
-    if (!query.trim()) {
-      setResults([]);
-      return;
-    }
+    if (!trimmedQuery) return;
     const controller = new AbortController();
-    fetch(`/api/search?q=${encodeURIComponent(query)}`, {
+    fetch(`/api/search?q=${encodeURIComponent(trimmedQuery)}`, {
       signal: controller.signal,
     })
       .then((res) => res.json())
@@ -33,7 +31,7 @@ export default function SearchBox() {
       })
       .catch(() => {});
     return () => controller.abort();
-  }, [query]);
+  }, [trimmedQuery]);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -51,13 +49,21 @@ export default function SearchBox() {
     router.push(`/${result.slug.map(encodeURIComponent).join("/")}`);
   }
 
+  function onQueryChange(value: string) {
+    setQuery(value);
+    if (!value.trim()) {
+      setResults([]);
+      setOpen(false);
+    }
+  }
+
   return (
     <div className="search-box-wrapper" ref={boxRef}>
       <input
         type="search"
         placeholder="문서 검색"
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={(e) => onQueryChange(e.target.value)}
         onFocus={() => results.length > 0 && setOpen(true)}
         className="search-box"
       />
@@ -73,7 +79,7 @@ export default function SearchBox() {
           ))}
         </ul>
       )}
-      {open && query.trim() && results.length === 0 && (
+      {open && trimmedQuery && results.length === 0 && (
         <ul className="search-results">
           <li className="search-result-empty">검색 결과 없음</li>
         </ul>
