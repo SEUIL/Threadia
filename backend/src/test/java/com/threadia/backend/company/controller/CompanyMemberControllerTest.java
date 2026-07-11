@@ -26,6 +26,7 @@ import com.threadia.backend.company.dto.CompanyMemberResponse;
 import com.threadia.backend.company.dto.CompanyMembersData;
 import com.threadia.backend.company.exception.CompanyMemberConflictException;
 import com.threadia.backend.company.exception.CompanyMemberNotFoundException;
+import com.threadia.backend.company.exception.CompanyNotFoundException;
 import com.threadia.backend.company.exception.DepartmentNotFoundException;
 import com.threadia.backend.company.service.CompanyMemberService;
 
@@ -115,6 +116,17 @@ class CompanyMemberControllerTest {
 					.header(HttpHeaders.AUTHORIZATION, "Bearer member-token"))
 				.andExpect(status().isForbidden())
 				.andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+	}
+
+	@Test
+	void listReturnsNotFoundWhenCompanyDoesNotExist() throws Exception {
+		when(companyMemberService.list("admin-token", 9999L, null, null, null))
+				.thenThrow(new CompanyNotFoundException(9999L));
+
+		mockMvc.perform(get("/api/v1/companies/9999/company-members")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer admin-token"))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.error.code").value("NOT_FOUND"));
 	}
 
 	@Test

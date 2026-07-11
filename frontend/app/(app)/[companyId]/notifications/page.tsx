@@ -19,7 +19,6 @@
  */
 import { useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
 
 type NotificationEvent =
   | "ISSUE_ASSIGNED"
@@ -63,9 +62,6 @@ const MOCK_NOTIFICATIONS: Notification[] = [
 ];
 
 export default function NotificationsPage() {
-  const params = useParams<{ companyId: string }>();
-  const companyId = params.companyId;
-
   const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
 

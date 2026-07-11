@@ -146,12 +146,21 @@ function readDoc(relativePath: string): DocPage {
   };
 }
 
+function toDocMeta(doc: DocPage): DocMeta {
+  return {
+    slug: doc.slug,
+    relativePath: doc.relativePath,
+    title: doc.title,
+    author: doc.author,
+    status: doc.status,
+    tags: doc.tags,
+    section: doc.section,
+  };
+}
+
 export function listDocs(): DocMeta[] {
   const files = walk(DOCS_ROOT, DOCS_ROOT).sort();
-  return files.map((f) => {
-    const { body, ...meta } = readDoc(f);
-    return meta;
-  });
+  return files.map((f) => toDocMeta(readDoc(f)));
 }
 
 export function getDocBySlug(slug: string[]): DocPage | null {

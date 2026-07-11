@@ -17,7 +17,7 @@
  * 연동 전까지는 서로 동기화되지 않는다 — 기존 docs/messages 관계와 동일한
  * 제약이다.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -181,20 +181,6 @@ export default function ProjectGraphPage() {
 
   // 드래그로 옮긴 적 없는 노드는 layoutColumn() 계산 위치를 그대로 쓴다.
   const getPos = (node: GraphNode) => positions[node.id] ?? { x: node.x, y: node.y };
-
-  useEffect(() => {
-    setPositions((prev) => {
-      const next = { ...prev };
-      let changed = false;
-      for (const n of allNodes) {
-        if (!next[n.id]) {
-          next[n.id] = { x: n.x, y: n.y };
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [allNodes]);
 
   const toggleKind = (kind: NodeKind) =>
     setActiveKinds((prev) => (prev.includes(kind) ? prev.filter((k) => k !== kind) : [...prev, kind]));

@@ -1,0 +1,50 @@
+name: backend-ci
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "db/**"
+      - "compose.mysql.yml"
+      - ".github/workflows/backend-ci.yml"
+  push:
+    branches:
+      - main
+      - dev
+    paths:
+      - "backend/**"
+      - "db/**"
+      - "compose.mysql.yml"
+      - ".github/workflows/backend-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Backend test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      THREADIA_DB_URL: jdbc:mysql://localhost:3307/threadia_test
+      THREADIA_DB_USERNAME: threadia
+      THREADIA_DB_PASSWORD: ""
+      THREADIA_JWT_SECRET: public-ci-test-jwt-secret-not-for-production-please-replace
+      THREADIA_COOKIE_SECURE: "false"
+      THREADIA_CORS_ALLOWED_ORIGIN: http://localhost:3000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Run backend tests
+        run: ./gradlew test

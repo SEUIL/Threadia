@@ -451,6 +451,7 @@ function GraphCanvasBody({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [scale, setScale] = useState(1);
   const [selected, setSelected] = useState<Item | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const dragging = useRef<{ x: number; y: number } | null>(null);
 
   // 필터링된 노드/연결선 — 캔버스 크기(bounds)는 전체 items 기준으로 고정해
@@ -486,6 +487,7 @@ function GraphCanvasBody({
 
   const onMouseDown = (e: React.MouseEvent) => {
     dragging.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+    setIsDragging(true);
   };
   const onMouseMove = (e: React.MouseEvent) => {
     if (!dragging.current) return;
@@ -493,6 +495,7 @@ function GraphCanvasBody({
   };
   const onMouseUp = () => {
     dragging.current = null;
+    setIsDragging(false);
   };
 
   const zoom = (delta: number) =>
@@ -520,7 +523,7 @@ function GraphCanvasBody({
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
           width: bounds.maxX,
           height: bounds.maxY,
-          cursor: dragging.current ? "grabbing" : "grab",
+          cursor: isDragging ? "grabbing" : "grab",
         }}
       >
         {/* 연결선 — Threadia의 실제 차별점(쓰레드/그래프 연결)을 레이아웃으로 표현 */}
