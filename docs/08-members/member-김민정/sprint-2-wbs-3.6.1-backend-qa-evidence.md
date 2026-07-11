@@ -73,10 +73,3 @@
 4. §2.2 종합 판정표를 채운다.
 5. 결과를 Reviewer(황스일)에게 재확인 요청한다.
 6. 실패 케이스가 있으면 3.6 전체 완료 처리를 보류하고 해당 라인 owner에게 후속 조치를 요청한다.
-
----
-
-## 5. 남은 작업
-
-- (완료) #78 리뷰 finding 2건 해소: [#81](https://github.com/SEUIL/Threadia/issues/81) → PR [#83](https://github.com/SEUIL/Threadia/pull/83), [#80](https://github.com/SEUIL/Threadia/issues/80) → PR [#84](https://github.com/SEUIL/Threadia/pull/84) 모두 dev 머지·CLOSED. §2.2 Company/RBAC·종합 판정 `통과` 확정
-- 이 3.6.1 문서를 Reviewer(황스일)가 확인+머지하면 완료
