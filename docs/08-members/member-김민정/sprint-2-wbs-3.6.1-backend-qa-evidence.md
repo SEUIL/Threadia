@@ -38,7 +38,8 @@
 
 | 항목 | 확인 방법 | 확인 결과 | 비고 |
 |---|---|---|---|
-| Backend 컴파일/빌드 | `./gradlew build -x test` | **정상 통과** | 2026-07-11 dev 기준 `BUILD SUCCESSFUL`(19s), 컴파일 에러 0. 팀 방향대로 단위/통합 테스트는 `-x test`로 제외하고 컴파일·빌드 성공만 확인(API 검증은 Apidog=§2.2) |
+| Backend 컴파일/빌드 | `./gradlew build -x test` | **정상 통과** | 2026-07-11 dev 기준 `BUILD SUCCESSFUL`(19s), 컴파일 에러 0 |
+| Backend 단위/통합 test | ① `./gradlew test` 근거 인용 ② Apidog(§2.2) | **통과(근거 인용)** | Sprint 2 backend 단위/통합 테스트는 팀 방향(2026-07-07 합의)에 따라 Apidog collection으로 수행하며, 'backend test' 완료 조건은 §2.2 API 정상/실패 케이스(3.1.5 23개 + 3.3.5 20개)로 충족한다. **추가 근거**: 황스일 3.2.5 QA(2026-07-08, [`../황스일/sprint-2-wbs-3.2.5-company-frontend-qa-결과.md`](../황스일/sprint-2-wbs-3.2.5-company-frontend-qa-결과.md) §2)에서 `./gradlew test` **PASS**(backend test 전체 통과) 기록. 각 backend feature PR(#57/#61/#65/#70)도 본문에 `./gradlew test`/`build` 실행을 확인함. 이 Apidog 대체 기준은 canonical 문서(예: `Definition-of-Done.md`) 미반영 상태이므로, 본 PR Reviewer(황스일) 확인으로 근거를 확정한다 |
 | DB 스키마 정합성 | ERD ↔ 실제 schema 대조 | **확인(간접)** | 별도 스키마 검증 테스트 미실행. 대신 3.1.5 §2.4 #20(`DESCRIBE users`로 role 컬럼 부재 확인)·3.3.5 §3(`projects`/`project_members` 관계, soft-delete, company_id NOT NULL, PROJECT_ADMIN 최소 1명 쿼리 확인)에서 DB 직접 조회로 ERD 정합성 확인 |
 | 마이그레이션/시드 | company/invitation 시드 데이터 정상 동작 | **확인(간접)** | 3.1.5 검증 중 seed 회사(companyId=6)·구성원·invitation 데이터로 정상 동작 확인(§2.3-A 19-A/19-B 등 membership 상태 전이 포함) |
 
@@ -48,7 +49,7 @@
 
 | 라인 | 문서 | 케이스 수 | 종합 결과 | 비고 |
 |---|---|---|---|---|
-| Company/RBAC (3.1.5) | [`sprint-2-wbs-3.1.5-company-rbac-검증케이스.md`](./sprint-2-wbs-3.1.5-company-rbac-검증케이스.md) | 23개(19-A, 19-B 포함) | **통과** | 3.1.5 범위 케이스 전부 정상 통과(실패 0건). 실행 중 발견된 #4/#7 버그는 PR #66으로 수정·Apidog 재검증 완료, 동일 패턴 Department 건은 #67/PR #68로 해결. #19(프로젝트 관리자 지정)는 3.1.5 범위 밖 3.3.x라 확인 불가·3.3.5로 이관 |
+| Company/RBAC (3.1.5) | [`sprint-2-wbs-3.1.5-company-rbac-검증케이스.md`](./sprint-2-wbs-3.1.5-company-rbac-검증케이스.md) | 23개(19-A, 19-B 포함) | **통과** | **23개 중 22개 정상 통과 + #19 확인 불가**(실패=버그 0건이므로 종합 결과는 통과). #19(프로젝트 관리자 지정)는 3.1.5 범위 밖 3.3.x라 확인 불가로 3.3.5에 이관되었고, 실제로는 3.3.5 §2.3 #17/#19에서 검증 완료(409). 실행 중 발견된 #4/#7 버그는 PR #66으로 수정·Apidog 재검증, 동일 패턴 Department는 #67/PR #68로 해결 |
 | Project Backend (3.3.5) | [`sprint-2-wbs-3.3.5-project-backend-검증케이스.md`](./sprint-2-wbs-3.3.5-project-backend-검증케이스.md) | 20개 | **통과** | 20개 전부 정상 통과. #20(회사 구성원만 프로젝트 멤버)은 PR #74 리뷰(황스일) 반영해 "비활성 회사 구성원 승격 시도 → 409 CONFLICT"로 재정의·재검증. 코드 리뷰 Finding F-1(list/create 존재확인·권한확인 순서)은 이슈 [#73](https://github.com/SEUIL/Threadia/issues/73) → PR [#76](https://github.com/SEUIL/Threadia/pull/76)(김민경 수정·여도현 review+merge)으로 해결, 재검증(없는 companyId→404) 통과(2026-07-11) |
 
 `종합 결과`는 `통과 / 부분 통과(실패 케이스 있음) / 확인 불가` 중 하나로 표기한다. `부분 통과`면 실패 케이스 번호와 관련 PR을 비고에 남긴다.
