@@ -17,7 +17,7 @@
 
 | WBS | 진척률 | 비고 |
 |---|---|---|
-| 3.3.5 | 95% (검증 완료·F-1 재검증 통과, Reviewer 머지만 대기) | Apidog 실행 완료(2026-07-10). §2 검증 케이스 20개 중 19개 정상 통과, #20은 멤버 추가 API 부재(Sprint 3 범위)로 확인 불가. §3 DB 정합성 포인트 4개 전부 쿼리로 확인 완료. 코드 리뷰 Finding F-1(§2.1 하단, list/create 존재확인/권한확인 순서)은 이슈 [#73](https://github.com/SEUIL/Threadia/issues/73) → PR [#76](https://github.com/SEUIL/Threadia/pull/76)(김민경 수정, 여도현 review+merge)으로 dev 반영, **재검증(없는 companyId → 404) 통과(2026-07-11)로 해결 완료**. **100% 확정 조건: Reviewer(정철진)가 PR [#74](https://github.com/SEUIL/Threadia/pull/74) review+merge.** |
+| 3.3.5 | 95% (검증 완료·F-1/#20 재검증 통과, Reviewer 머지만 대기) | Apidog 실행 완료(2026-07-10~11). §2 검증 케이스 20개 **전부 정상 통과**(#20은 PR #74 리뷰(황스일) 반영해 "비활성 회사 구성원 승격 시도 → 409"로 재정의·재검증). §3 DB 정합성 포인트 4개 전부 쿼리로 확인 완료. 코드 리뷰 Finding F-1(§2.1 하단, list/create 존재확인/권한확인 순서)은 이슈 [#73](https://github.com/SEUIL/Threadia/issues/73) → PR [#76](https://github.com/SEUIL/Threadia/pull/76)(김민경 수정, 여도현 review+merge)으로 dev 반영, **재검증(없는 companyId → 404) 통과(2026-07-11)로 해결 완료**. **100% 확정 조건: Reviewer(정철진)가 PR [#74](https://github.com/SEUIL/Threadia/pull/74) review+merge.** |
 
 ---
 
@@ -73,7 +73,7 @@
 | 17 | `PATCH /api/v1/project-members/{projectMemberId}` | 마지막 `PROJECT_ADMIN`을 `MEMBER`로 강등 시도 | 실패 | 409 `CONFLICT` 계열 (정확한 코드는 구현 후 확인) | **정상 통과** | Apidog 실행(2026-07-10) 409 확인. `projectMemberId=1`(생성자, 유일한 PROJECT_ADMIN) 대상, 별도 seed 불필요. "PROJECT_ADMIN 최소 1명 유지" 완료 조건이 수정(PATCH) 경로에서도 정상 동작함을 확인 — #19(DELETE 경로)와 함께 두 경로 모두 검증 완료 |
 | 18 | `DELETE /api/v1/project-members/{projectMemberId}` | P/C가 일반 멤버 제거 | 정상 | 200, `removed: true` | **정상 통과** | Apidog 실행(2026-07-10) 200, `removed: true` 확인. #16과 동일한 seed row(`projectMemberId=2`)를 그대로 재사용해 삭제 |
 | 19 | `DELETE /api/v1/project-members/{projectMemberId}` | 마지막 `PROJECT_ADMIN` 제거 시도 | 실패 | 409 `CONFLICT` 계열 (정확한 코드는 구현 후 확인) | **정상 통과** | Apidog 실행(2026-07-10) 409 확인. `projectMemberId=1`(생성자, 유일한 PROJECT_ADMIN)은 별도 seed 없이 바로 테스트 가능 — 삭제 경로에서도 "PROJECT_ADMIN 최소 1명 유지" 규칙이 정상 동작 |
-| 20 | `PATCH /api/v1/project-members/{projectMemberId}` | 회사 구성원이 아닌 사용자를 프로젝트 멤버로 지정 시도 | 실패 | 400 `VALIDATION_ERROR` 또는 등록 경로 자체가 차단 (구현 정책 확인 필요) | **확인 불가(범위 밖)** | 멤버 "지정/추가" 자체를 다루는 API가 없어(#15 비고) 이 케이스는 재현할 방법이 없음. DB로 흉내내는 것도 "추가 시도"라는 케이스 의도와 맞지 않아 제외함. **Sprint 3 project invitation(`POST /projects/{projectId}/invitations`) 구현 후 재시도** |
+| 20 | `PATCH /api/v1/project-members/{projectMemberId}` | 비활성 회사 구성원을 프로젝트에서 ACTIVE/PROJECT_ADMIN으로 지정 시도 | 실패 | 409 `CONFLICT` | **정상 통과(재검증, 2026-07-11)** | **케이스 재정의**: 신규 멤버 "추가" API는 Sprint 3 범위라 없지만, 기존 프로젝트 멤버의 회사 membership을 비활성으로 만든 뒤 `PATCH /project-members/{id}`로 ACTIVE/PROJECT_ADMIN 승격을 시도하면 `ProjectMemberService.validateTargetActiveCompanyMember()`(`isActiveMember` 검사)의 실패 경로를 검증할 수 있음(PR #74 리뷰 반영). **재검증**: user 20(projectMemberId=6)의 `company_members.status`를 SUSPENDED로 만든 뒤 `PATCH /api/v1/project-members/6` {role:PROJECT_ADMIN,status:ACTIVE} 실행 → **409 `CONFLICT`**, message "대상 사용자가 활성 회사 구성원이 아닙니다." 확인. 검증 후 회사 membership은 ACTIVE로 원상복구. "회사 구성원만 프로젝트 멤버" 완료 조건 검증됨 |
 
 `확인 결과`는 `정상 통과 / 실패(버그) / 확인 불가` 중 하나로 표기한다. `실패(버그)`면 비고에 재현 방법과 관련 PR 링크를 남긴다.
 
