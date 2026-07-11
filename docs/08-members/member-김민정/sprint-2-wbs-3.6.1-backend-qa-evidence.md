@@ -17,7 +17,7 @@
 
 | WBS | 진척률 | 비고 |
 |---|---|---|
-| 3.6.1 | 88% | 취합 완료(2026-07-11). §2.1 백엔드 빌드 성공. §2.2 종합 판정: Project(3.3.5)=통과, **Company/RBAC=부분 통과** → **종합 부분 통과**. 롤업 대상 QA 문서 둘 다 dev merge(3.1.5 PR #71, 3.3.5 PR [#74](https://github.com/SEUIL/Threadia/pull/74)). roll-up PR [#78](https://github.com/SEUIL/Threadia/pull/78) 리뷰(여도현)에서 Company API defect 2건 신규 발견 → **[#81](https://github.com/SEUIL/Threadia/issues/81)(create logoUrl 검증)은 PR [#83](https://github.com/SEUIL/Threadia/pull/83)(김민경 수정·여도현 merge)으로 dev 반영·CLOSED**, **[#80](https://github.com/SEUIL/Threadia/issues/80)(company-member 순서)은 PR [#84](https://github.com/SEUIL/Threadia/pull/84)(김민정 수정) 리뷰(여도현) 대기**. 남은 것: #80 머지·재검증 후 Company/RBAC 통과 전환 → 종합 통과 확정, 이후 Reviewer(황스일) 머지 |
+| 3.6.1 | 95% | 취합 완료(2026-07-11). §2.1 백엔드 빌드 성공. **§2.2 종합 판정 = 통과**(Company/RBAC·Project 두 라인 모두 통과). 롤업 대상 QA 문서 둘 다 dev merge(3.1.5 PR #71, 3.3.5 PR [#74](https://github.com/SEUIL/Threadia/pull/74)). roll-up PR [#78](https://github.com/SEUIL/Threadia/pull/78) 리뷰(여도현)에서 발견된 Company API defect 2건 **모두 해결·dev 머지 완료**: [#81](https://github.com/SEUIL/Threadia/issues/81)(create logoUrl) → PR [#83](https://github.com/SEUIL/Threadia/pull/83)(김민경 수정·여도현 merge), [#80](https://github.com/SEUIL/Threadia/issues/80)(company-member 순서) → PR [#84](https://github.com/SEUIL/Threadia/pull/84)(김민정 수정·여도현 merge, 없는 companyId→404 재검증). 남은 것: 이 3.6.1 문서를 Reviewer(황스일)가 확인+머지하면 완료 |
 
 ---
 
@@ -28,7 +28,7 @@
 | 3.1 (Company/RBAC Backend, 3.1.1~3.1.4) | **완료** (3.1.1~3.1.4 전부 dev merge) | 상세는 [`sprint-2-wbs-3.1.5-company-rbac-검증케이스.md`](./sprint-2-wbs-3.1.5-company-rbac-검증케이스.md) §1 참고. QA(3.1.5)는 PR #71로 dev 반영 완료. 실행 중 발견된 버그는 PR #66(Company)·#68(Department)로 수정·재검증 완료 |
 | 3.3 (Project Backend, 3.3.1~3.3.4) | **완료** (3.3.1~3.3.4 전부 dev merge) | 상세는 [`sprint-2-wbs-3.3.5-project-backend-검증케이스.md`](./sprint-2-wbs-3.3.5-project-backend-검증케이스.md) §1 참고. QA(3.3.5)는 PR [#74](https://github.com/SEUIL/Threadia/pull/74) **dev merge 완료(2026-07-11, 황스일)** — #20 재검증(비활성 회사 구성원 승격 → 409) 포함. 코드 리뷰 Finding F-1은 이슈 [#73](https://github.com/SEUIL/Threadia/issues/73) → PR [#76](https://github.com/SEUIL/Threadia/pull/76)(김민경 수정·여도현 review+merge)으로 **해결·재검증 통과** |
 
-3.1·3.3 구현은 모두 dev에 merge됐고, 롤업 대상 QA 문서(3.1.5 PR #71, 3.3.5 PR #74)도 dev에 merge됐다. Project 라인(3.3.5)은 F-1(#73→#76)·#20 재검증으로 "통과". 다만 이 roll-up PR #78 리뷰(여도현)에서 Company API backend defect 2건(#80 company-member 순서, #81 create logoUrl 검증)이 신규 발견되어 **Company/RBAC 라인은 "부분 통과", 종합 판정도 "부분 통과"**다. #80/#81 수정·재검증 후 Company/RBAC가 통과로 전환되면 종합 통과가 확정되고, 이후 Reviewer(황스일) 확인+머지로 완료된다.
+3.1·3.3 구현은 모두 dev에 merge됐고, 롤업 대상 QA 문서(3.1.5 PR #71, 3.3.5 PR #74)도 dev에 merge됐다. Project 라인(3.3.5)은 F-1(#73→#76)·#20 재검증으로 "통과". 이 roll-up PR #78 리뷰(여도현)에서 발견된 Company API defect 2건(#80 company-member 순서, #81 create logoUrl 검증)도 각각 PR #84·#83으로 **수정·dev 머지 완료**되어 Company/RBAC 라인도 "통과"로 확정, **종합 판정 = 통과**다. 남은 것은 이 3.6.1 문서를 Reviewer(황스일)가 확인+머지하는 것뿐이다.
 
 ---
 
@@ -49,7 +49,7 @@
 
 | 라인 | 문서 | 케이스 수 | 종합 결과 | 비고 |
 |---|---|---|---|---|
-| Company/RBAC (3.1.5) | [`sprint-2-wbs-3.1.5-company-rbac-검증케이스.md`](./sprint-2-wbs-3.1.5-company-rbac-검증케이스.md) | 23개(19-A, 19-B 포함) + 리뷰 추가 2건 | **부분 통과(리뷰 신규 finding 2건)** | 3.1.5 문서 케이스는 23개 중 22개 정상 통과 + #19 확인 불가(실패 0건, #19는 3.3.5 §2.3 #17/#19에서 409 검증됨). #4/#7 버그는 PR #66, Department는 #67/#68로 해결. **그러나 이 roll-up PR #78 리뷰(여도현)에서 3.1.5 케이스 목록에 없던 Company API backend defect 2건이 신규 발견됨**: (A) `CompanyMemberService.list()/update()`가 존재확인보다 권한확인을 먼저 실행해 없는 companyId가 404 대신 403 → 이슈 [#80](https://github.com/SEUIL/Threadia/issues/80) (Company #66/Dept #68/Project #76이 놓친 자리) → **PR [#84](https://github.com/SEUIL/Threadia/pull/84)(김민정 수정, `./gradlew test` 통과·재검증 404 확인) 여도현 리뷰 대기**, (B) `CompanyCreateRequest.logoUrl`에 `@URL` 없어 invalid logoUrl로 회사 생성 시 400 대신 201 → 이슈 [#81](https://github.com/SEUIL/Threadia/issues/81) → **PR [#83](https://github.com/SEUIL/Threadia/pull/83)(김민경 수정·여도현 merge)으로 dev 반영·해결 완료**. **#80(PR #84) 머지·재검증 후 Company/RBAC 최종 통과 전환 예정** |
+| Company/RBAC (3.1.5) | [`sprint-2-wbs-3.1.5-company-rbac-검증케이스.md`](./sprint-2-wbs-3.1.5-company-rbac-검증케이스.md) | 23개(19-A, 19-B 포함) + 리뷰 추가 2건 | **통과** | 3.1.5 문서 케이스는 23개 중 22개 정상 통과 + #19 확인 불가(실패 0건, #19는 3.3.5 §2.3 #17/#19에서 409 검증됨). #4/#7 버그는 PR #66, Department는 #67/#68로 해결. 이 roll-up PR #78 리뷰(여도현)에서 3.1.5 케이스 목록에 없던 Company API defect 2건이 신규 발견됐으나 **모두 해결·dev 머지 완료**: (A) `CompanyMemberService.list()/update()` 존재확인/권한확인 순서 → 이슈 [#80](https://github.com/SEUIL/Threadia/issues/80) → PR [#84](https://github.com/SEUIL/Threadia/pull/84)(김민정 수정·여도현 merge, 없는 companyId→404 재검증), (B) `CompanyCreateRequest.logoUrl` `@URL` 누락 → 이슈 [#81](https://github.com/SEUIL/Threadia/issues/81) → PR [#83](https://github.com/SEUIL/Threadia/pull/83)(김민경 수정·여도현 merge). 실패(버그) 0건으로 **최종 통과** |
 | Project Backend (3.3.5) | [`sprint-2-wbs-3.3.5-project-backend-검증케이스.md`](./sprint-2-wbs-3.3.5-project-backend-검증케이스.md) | 20개 | **통과** | 20개 전부 정상 통과. #20(회사 구성원만 프로젝트 멤버)은 PR #74 리뷰(황스일) 반영해 "비활성 회사 구성원 승격 시도 → 409 CONFLICT"로 재정의·재검증. 코드 리뷰 Finding F-1(list/create 존재확인·권한확인 순서)은 이슈 [#73](https://github.com/SEUIL/Threadia/issues/73) → PR [#76](https://github.com/SEUIL/Threadia/pull/76)(김민경 수정·여도현 review+merge)으로 해결, 재검증(없는 companyId→404) 통과(2026-07-11) |
 
 `종합 결과`는 `통과 / 부분 통과(실패 케이스 있음) / 확인 불가` 중 하나로 표기한다. `부분 통과`면 실패 케이스 번호와 관련 PR을 비고에 남긴다.
@@ -78,6 +78,5 @@
 
 ## 5. 남은 작업
 
-- (완료) [#81](https://github.com/SEUIL/Threadia/issues/81)(create logoUrl `@URL`) → PR [#83](https://github.com/SEUIL/Threadia/pull/83) dev 반영·CLOSED
-- [#80](https://github.com/SEUIL/Threadia/issues/80)(company-member 존재확인 순서) → PR [#84](https://github.com/SEUIL/Threadia/pull/84) 여도현 리뷰·머지 후 §2.2 Company/RBAC 라인 `통과` 전환
-- 위 반영 후 종합 판정 `통과` 확정, 이 3.6.1 문서를 Reviewer(황스일)가 확인+머지하면 완료
+- (완료) #78 리뷰 finding 2건 해소: [#81](https://github.com/SEUIL/Threadia/issues/81) → PR [#83](https://github.com/SEUIL/Threadia/pull/83), [#80](https://github.com/SEUIL/Threadia/issues/80) → PR [#84](https://github.com/SEUIL/Threadia/pull/84) 모두 dev 머지·CLOSED. §2.2 Company/RBAC·종합 판정 `통과` 확정
+- 이 3.6.1 문서를 Reviewer(황스일)가 확인+머지하면 완료
