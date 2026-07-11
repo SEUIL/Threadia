@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -37,6 +38,7 @@ import com.threadia.backend.company.dto.CompanyMemberUpdateRequest;
 import com.threadia.backend.company.dto.CompanyMembersData;
 import com.threadia.backend.company.exception.CompanyMemberConflictException;
 import com.threadia.backend.company.exception.CompanyMemberNotFoundException;
+import com.threadia.backend.company.exception.CompanyNotFoundException;
 import com.threadia.backend.company.exception.DepartmentNotFoundException;
 import com.threadia.backend.company.repository.CompanyMemberRepository;
 import com.threadia.backend.company.repository.CompanyRepository;
@@ -89,14 +91,28 @@ class CompanyMemberServiceTest {
 
 		CompanyMembersData data = companyMemberService.list("admin-token", 10L, null, null, null);
 
-		InOrder inOrder = inOrder(authContextService, companyAccessService, companyRepository, companyMemberRepository);
+		InOrder inOrder = inOrder(authContextService, companyRepository, companyAccessService, companyMemberRepository);
 		inOrder.verify(authContextService).fromAccessToken("admin-token");
 		inOrder.verify(authContextService).requireActiveUser(authContext);
-		inOrder.verify(companyAccessService).requireCompanyAdmin(10L, authContext);
 		inOrder.verify(companyRepository).findById(10L);
+		inOrder.verify(companyAccessService).requireCompanyAdmin(10L, authContext);
 		inOrder.verify(companyMemberRepository).findByCompanyIdWithFiltersOrderByIdAsc(10L, null, null, null);
 		assertThat(data.companyMembers()).extracting("id").containsExactly(100L, 101L);
 		assertThat(data.companyMembers().get(1).user().email()).isEqualTo("member@example.com");
+	}
+
+	@Test
+	void listThrowsNotFoundBeforePermissionWhenCompanyDoesNotExist() {
+		AuthContext authContext = authContext();
+		User admin = user(1L, "admin@example.com");
+		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
+		when(companyRepository.findById(9999L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> companyMemberService.list("admin-token", 9999L, null, null, null))
+				.isInstanceOf(CompanyNotFoundException.class);
+		verify(companyAccessService, never()).requireCompanyAdmin(9999L, authContext);
+		verifyNoInteractions(companyMemberRepository);
 	}
 
 	@Test
@@ -215,8 +231,10 @@ class CompanyMemberServiceTest {
 	void updateThrowsForbiddenBeforeTargetMemberLookupWhenRequesterIsNotCompanyAdmin() {
 		AuthContext authContext = authContext();
 		User admin = user(1L, "admin@example.com");
+		Company company = company(10L, admin);
 		when(authContextService.fromAccessToken("member-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
+		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
 		doThrow(new ForbiddenException("회사 관리자 권한이 필요합니다."))
 				.when(companyAccessService).requireCompanyAdmin(10L, authContext);
 
@@ -226,7 +244,8 @@ class CompanyMemberServiceTest {
 				101L,
 				new CompanyMemberUpdateRequest(CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE, null)))
 				.isInstanceOf(ForbiddenException.class);
-		verifyNoInteractions(companyRepository, companyMemberRepository, departmentRepository);
+		verify(companyRepository).findByIdForUpdate(10L);
+		verifyNoInteractions(companyMemberRepository, departmentRepository);
 	}
 
 	@Test
@@ -245,6 +264,24 @@ class CompanyMemberServiceTest {
 				999L,
 				new CompanyMemberUpdateRequest(CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE, null)))
 				.isInstanceOf(CompanyMemberNotFoundException.class);
+	}
+
+	@Test
+	void updateThrowsNotFoundBeforePermissionWhenCompanyDoesNotExist() {
+		AuthContext authContext = authContext();
+		User admin = user(1L, "admin@example.com");
+		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
+		when(companyRepository.findByIdForUpdate(9999L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> companyMemberService.update(
+				"admin-token",
+				9999L,
+				101L,
+				new CompanyMemberUpdateRequest(CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE, null)))
+				.isInstanceOf(CompanyNotFoundException.class);
+		verify(companyAccessService, never()).requireCompanyAdmin(9999L, authContext);
+		verifyNoInteractions(companyMemberRepository, departmentRepository);
 	}
 
 	@Test
