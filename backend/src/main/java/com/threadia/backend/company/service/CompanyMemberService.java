@@ -75,8 +75,8 @@ public class CompanyMemberService {
 			Long departmentId,
 			String q) {
 		AuthContext authContext = activeAuthContext(accessToken);
-		companyAccessService.requireCompanyAdmin(companyId, authContext);
 		company(companyId);
+		companyAccessService.requireCompanyAdmin(companyId, authContext);
 		String normalizedQ = normalizeQ(q);
 		return new CompanyMembersData(companyMemberRepository.findByCompanyIdWithFiltersOrderByIdAsc(
 					companyId,
@@ -98,8 +98,8 @@ public class CompanyMemberService {
 	@Transactional
 	public CompanyMemberData update(String accessToken, Long companyId, Long companyMemberId, CompanyMemberUpdateRequest request) {
 		AuthContext authContext = activeAuthContext(accessToken);
-		companyAccessService.requireCompanyAdmin(companyId, authContext);
 		companyForUpdate(companyId);
+		companyAccessService.requireCompanyAdmin(companyId, authContext);
 		CompanyMember companyMember = companyMemberForUpdate(companyMemberId, companyId);
 		validateDepartment(companyId, request.departmentId());
 		validateLeftMemberReactivation(companyMember, request.status());
