@@ -208,6 +208,24 @@ class CompanyControllerTest {
 				.andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
 	}
 
+	@Test
+	void createReturnsValidationErrorWhenLogoUrlIsInvalid() throws Exception {
+		mockMvc.perform(post("/api/v1/companies")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("""
+							{
+							  "name": "Threadia Inc.",
+							  "representativeName": "Admin",
+							  "description": "workspace",
+							  "industryCategory": "IT",
+							  "logoUrl": "not-a-url"
+							}
+							"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+	}
+
 	private static CompanyResponse companyResponse(String name) {
 		return companyResponse(name, null);
 	}
