@@ -21,7 +21,7 @@
 | Frontend | Next.js 16.2.9, Node 22 대상, `frontend/` | `npm ci`, `npm run lint`, `npm run build`를 실행한다 |
 | Docs site | Next.js 16.2.9, Node 22 대상, `docs-site/` | `npm ci`, `npm run lint`, `npm run build`를 실행한다 |
 | DB | MySQL 8.4 local compose, `compose.mysql.yml` | CI에서는 실제 DB password를 주입하지 않고 안전한 dummy/test 환경만 사용한다 |
-| Workflow | 기존 workflow 없음 | CI workflow 3종만 추가하고 deployment workflow는 만들지 않는다 |
+| Workflow | CI workflow 3종과 수동 readiness validation workflow | CI workflow 3종과 repository test/build 전용 수동 readiness validation workflow를 운영하고 actual deployment workflow는 만들지 않는다 |
 
 ## 3. Sprint 2 Day 6 목표
 
@@ -36,6 +36,8 @@
 | `.github/workflows/backend-ci.yml` | backend 변경 PR/push의 최소 test 자동화 | `backend`, `db`, workflow 변경에만 반응한다 |
 | `.github/workflows/frontend-ci.yml` | frontend lint/build 자동화 | `frontend`와 해당 workflow 변경에만 반응한다 |
 | `.github/workflows/docs-site-ci.yml` | docs-site와 canonical docs 변경 확인 | `docs-site`, `docs/00-project`, `docs/02-requirements`, `docs/03-design`, `docs/04-api`, `docs/05-architecture`, 해당 workflow 변경에 반응한다 |
+| `.github/workflows/pre-deploy-readiness.yml` | 선택 ref의 수동 repository readiness validation | GitHub-hosted test/build만 수행하며 deployment와 외부 인프라 접근을 하지 않는다 |
+| `docs/00-project/배포-준비도-수동-점검-Runbook.md` | 수동 readiness와 local follow-up 절차 | GitHub test/build와 local secret/env 및 dry-run 점검을 분리한다 |
 | `.env.example` | repository root/backend/local compose용 placeholder inventory | secret 값 없이 변수명과 placeholder만 제공한다 |
 | `frontend/.env.example` | frontend public API URL placeholder | `NEXT_PUBLIC_API_URL`만 둔다 |
 | `scripts/deploy/README.md` | script 사용 전제와 승인 gate 정리 | 실제 배포 실행 전 승인 필요를 명시한다 |
@@ -55,11 +57,11 @@
 6. deployment workflow 추가와 실제 deployment 실행이다.
 7. production DB migration, RDS endpoint 연결, 운영 secret 주입이다.
 
-## 6. Domain spelling 주의
+## 6. Domain 정책
 
-사용자 제시 domain candidate는 `theadia.com`이다. 다만 기존 문서에는 `threadia.com` 예시가 남아 있다. DNS, OAuth redirect URI, CORS 허용 origin, cookie domain, ACM certificate, GitHub/Amplify custom domain 설정을 변경하기 전에 최종 spelling을 반드시 확정해야 한다.
+최종 domain은 이번 범위에서 선택하지 않는다. 최종 domain은 `threadia`를 포함해야 하며, 구체적인 root domain과 subdomain naming은 별도 승인 follow-up에서 확정한다.
 
-이번 준비 문서와 예시 script는 candidate 기준으로 `app.theadia.com`, `api.theadia.com`, 선택 항목으로 `docs.theadia.com`을 사용한다. 기존 `threadia.com` 예시는 역사적 예시로만 취급한다.
+DNS, OAuth redirect URI, CORS 허용 origin, cookie domain, ACM certificate, GitHub custom domain 설정은 모두 외부 설정이므로 승인 필요 follow-up으로 유지한다.
 
 ## 7. CI 운영 기준
 
@@ -68,6 +70,7 @@
 | Backend CI | `pull_request`, `push` to `main`/`dev`; `backend/**`, `db/**`, backend workflow 변경 | `./gradlew test` in `backend` | 배포하지 않는다 |
 | Frontend CI | `pull_request`, `push` to `main`/`dev`; `frontend/**`, frontend workflow 변경 | `npm ci`, `npm run lint`, `npm run build` in `frontend` | 배포하지 않는다 |
 | Docs-site CI | `pull_request`, `push` to `main`/`dev`; `docs-site/**`, canonical docs, docs-site workflow 변경 | `npm ci`, `npm run lint`, `npm run build` in `docs-site` | 배포하지 않는다 |
+| Manual readiness validation | `workflow_dispatch`; GitHub UI에서 선택한 ref | backend test, frontend lint/build, docs-site lint/build | 배포하지 않는다 |
 
 Backend CI의 JWT 값은 public test placeholder만 사용한다. 실제 `THREADIA_DB_PASSWORD`, OAuth secret, mail password, AWS credential은 workflow YAML에 넣지 않는다.
 
@@ -82,6 +85,8 @@ Backend CI의 JWT 값은 public test placeholder만 사용한다. 실제 `THREAD
 - [ ] Backend CI가 backend/db 변경 PR에서 실행된다.
 - [ ] Frontend CI가 frontend 변경 PR에서 실행된다.
 - [ ] Docs-site CI가 docs-site 또는 canonical docs 변경 PR에서 실행된다.
+- [ ] Manual readiness validation workflow가 선택 ref에서 repository test/build만 실행한다.
+- [ ] 수동 readiness Runbook이 local secret/env 점검과 EC2 skeleton dry-run follow-up을 분리한다.
 - [ ] `.env.example`, `frontend/.env.example`에 secret 값이 없다.
 - [ ] `scripts/deploy/check-env.sh`가 variable value를 출력하지 않는다.
 - [ ] `deploy-backend-ec2.example.sh`는 dry-run이 기본이다.
