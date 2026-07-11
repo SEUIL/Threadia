@@ -29,6 +29,12 @@
  * 없어서 여전히 제공하지 않는다 — PR #70도 조회/역할변경/제거만 다루고 추가
  * endpoint 자체가 없다(경계가 코드로 확인됨). 근거:
  * sprint2-3.4-project-frontend-설계.md, 화면정의서 S12 인용구 메모.
+ *
+ * WBS 3.4.4 QA(PR #72 finding F-3, 김민정) 반영: 프로젝트 상세와 멤버 목록을
+ * `Promise.all`로 묶어서 불러왔더니 멤버 목록 API만 실패해도 페이지 전체가
+ * error로 빠져 프로젝트 정보까지 못 보는 문제가 있었다. 두 호출을 독립된
+ * loading/error 상태로 분리해서, 멤버 목록만 실패해도 나머지 섹션은 그대로
+ * 보이게 고쳤다.
  */
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -83,6 +89,8 @@ export default function ProjectSettingsPage() {
   const [archiveError, setArchiveError] = useState<string | null>(null);
 
   const [members, setMembers] = useState<ProjectMemberResponse[]>([]);
+  const [memberListState, setMemberListState] = useState<LoadState>("loading");
+  const [memberListError, setMemberListError] = useState<string | null>(null);
   const [memberError, setMemberError] = useState<string | null>(null);
   const [memberBusyId, setMemberBusyId] = useState<number | null>(null);
 
@@ -90,13 +98,9 @@ export default function ProjectSettingsPage() {
     setPageState("loading");
     setPageError(null);
     try {
-      const [detailRes, membersRes] = await Promise.all([
-        projectService.detail(params.projectId),
-        projectMemberService.list(params.projectId, { status: "ACTIVE" }),
-      ]);
-      setProject(detailRes.data.data.project);
-      setViewer(detailRes.data.data.viewer);
-      setMembers(membersRes.data.data.projectMembers);
+      const { data } = await projectService.detail(params.projectId);
+      setProject(data.data.project);
+      setViewer(data.data.viewer);
       setPageState("ready");
     } catch (error) {
       setPageError(invitationErrorMessage(error, "프로젝트 정보를 불러오지 못했습니다."));
@@ -104,11 +108,25 @@ export default function ProjectSettingsPage() {
     }
   }, [params.projectId]);
 
+  // 프로젝트 상세와 별개 요청이라, 이 목록만 실패해도 나머지 화면은 그대로 유지한다.
+  const loadMembers = useCallback(async () => {
+    setMemberListState("loading");
+    setMemberListError(null);
+    try {
+      const { data } = await projectMemberService.list(params.projectId, { status: "ACTIVE" });
+      setMembers(data.data.projectMembers);
+      setMemberListState("ready");
+    } catch (error) {
+      setMemberListError(invitationErrorMessage(error, "프로젝트 멤버 목록을 불러오지 못했습니다."));
+      setMemberListState("error");
+    }
+  }, [params.projectId]);
+
   useEffect(() => {
     (async () => {
-      await loadPage();
+      await Promise.all([loadPage(), loadMembers()]);
     })();
-  }, [loadPage]);
+  }, [loadPage, loadMembers]);
 
   const isArchived = project?.status === "ARCHIVED";
   const canManage = viewer?.canManageProject ?? false;
@@ -311,50 +329,65 @@ export default function ProjectSettingsPage() {
         )}
       </section>
 
-      {/* 멤버 관리 — 역할변경/제거는 WBS 3.3.4로 실 연동. 추가(초대)는 WBS 4.3 대기 */}
+      {/* 멤버 관리 — 역할변경/제거는 WBS 3.3.4로 실 연동. 추가(초대)는 WBS 4.3 대기.
+          프로젝트 상세와는 독립된 요청이라 이 섹션만 loading/error를 따로 표시한다. */}
       <section className="mt-6 rounded-xl border border-border bg-surface p-6">
-        <h2 className="text-sm font-semibold text-foreground">프로젝트 멤버 ({members.length})</h2>
+        <h2 className="text-sm font-semibold text-foreground">
+          프로젝트 멤버{memberListState === "ready" && ` (${members.length})`}
+        </h2>
 
-        {memberError && <p className="mt-2 text-xs text-destructive">{memberError}</p>}
+        {memberListState === "loading" && (
+          <p className="mt-3 text-xs text-muted">멤버 목록을 불러오는 중...</p>
+        )}
 
-        <ul className="mt-3 divide-y divide-border">
-          {members.map((member) => (
-            <li key={member.id} className="flex flex-wrap items-center justify-between gap-2 px-1 py-2.5">
-              <div>
-                <p className="text-sm font-medium text-foreground">{member.user.nickname}</p>
-                <p className="text-xs text-muted">{member.user.email}</p>
-              </div>
-              {canManage && (
-                <div className="flex items-center gap-2">
-                  <select
-                    aria-label={`${member.user.nickname} 역할`}
-                    value={member.role}
-                    disabled={memberBusyId === member.id || isArchived}
-                    onChange={(e) => updateMemberRole(member, e.target.value as ProjectMemberResponse["role"])}
-                    className="rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-foreground focus:border-ring focus:outline-none disabled:cursor-not-allowed"
-                  >
-                    <option value="PROJECT_ADMIN">PROJECT_ADMIN</option>
-                    <option value="MEMBER">MEMBER</option>
-                  </select>
-                  <button
-                    onClick={() => removeMember(member)}
-                    disabled={memberBusyId === member.id || isArchived}
-                    className="text-xs font-medium text-destructive transition-colors duration-fast hover:opacity-70 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    제거
-                  </button>
-                </div>
+        {memberListState === "error" && (
+          <p className="mt-3 text-xs text-destructive">{memberListError}</p>
+        )}
+
+        {memberListState === "ready" && (
+          <>
+            {memberError && <p className="mt-2 text-xs text-destructive">{memberError}</p>}
+
+            <ul className="mt-3 divide-y divide-border">
+              {members.map((member) => (
+                <li key={member.id} className="flex flex-wrap items-center justify-between gap-2 px-1 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{member.user.nickname}</p>
+                    <p className="text-xs text-muted">{member.user.email}</p>
+                  </div>
+                  {canManage && (
+                    <div className="flex items-center gap-2">
+                      <select
+                        aria-label={`${member.user.nickname} 역할`}
+                        value={member.role}
+                        disabled={memberBusyId === member.id || isArchived}
+                        onChange={(e) => updateMemberRole(member, e.target.value as ProjectMemberResponse["role"])}
+                        className="rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-foreground focus:border-ring focus:outline-none disabled:cursor-not-allowed"
+                      >
+                        <option value="PROJECT_ADMIN">PROJECT_ADMIN</option>
+                        <option value="MEMBER">MEMBER</option>
+                      </select>
+                      <button
+                        onClick={() => removeMember(member)}
+                        disabled={memberBusyId === member.id || isArchived}
+                        className="text-xs font-medium text-destructive transition-colors duration-fast hover:opacity-70 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        제거
+                      </button>
+                    </div>
+                  )}
+                </li>
+              ))}
+              {members.length === 0 && (
+                <li className="py-2.5 text-center text-xs text-muted">멤버가 없습니다.</li>
               )}
-            </li>
-          ))}
-          {members.length === 0 && (
-            <li className="py-2.5 text-center text-xs text-muted">멤버가 없습니다.</li>
-          )}
-        </ul>
+            </ul>
 
-        <p className="mt-4 text-xs text-placeholder">
-          멤버 초대는 준비 중입니다. Project Invitation API 연동 후 제공될 예정입니다.
-        </p>
+            <p className="mt-4 text-xs text-placeholder">
+              멤버 초대는 준비 중입니다. Project Invitation API 연동 후 제공될 예정입니다.
+            </p>
+          </>
+        )}
       </section>
 
       {/* 아카이빙 */}
