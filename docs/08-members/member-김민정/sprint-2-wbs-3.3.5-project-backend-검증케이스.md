@@ -17,7 +17,7 @@
 
 | WBS | 진척률 | 비고 |
 |---|---|---|
-| 3.3.5 | 90% (1차 검증·evidence 정리 완료, finding 반영·재검증 + Reviewer 머지 대기) | Apidog 실행 완료(2026-07-10). §2 검증 케이스 20개 중 19개 실행 완료(전부 정상 통과), #20은 멤버 추가 API 부재(Sprint 3 범위)로 확인 불가 판정. §3 DB 정합성 포인트 4개 전부 쿼리로 확인 완료. 코드 리뷰에서 Finding F-1(§2.1 하단, list/create의 존재확인/권한확인 순서로 없는 companyId가 404 대신 403) 1건 발견 → 이슈 [#73](https://github.com/SEUIL/Threadia/issues/73)으로 3.3.2 owner(김태준)에게 분리 전달. **100% 확정 조건: #73 수정 반영 후 Apidog 재검증 → 이 문서 갱신 → Reviewer(정철진)가 PR [#74](https://github.com/SEUIL/Threadia/pull/74) review+merge.** |
+| 3.3.5 | 95% (검증 완료·F-1 재검증 통과, Reviewer 머지만 대기) | Apidog 실행 완료(2026-07-10). §2 검증 케이스 20개 중 19개 정상 통과, #20은 멤버 추가 API 부재(Sprint 3 범위)로 확인 불가. §3 DB 정합성 포인트 4개 전부 쿼리로 확인 완료. 코드 리뷰 Finding F-1(§2.1 하단, list/create 존재확인/권한확인 순서)은 이슈 [#73](https://github.com/SEUIL/Threadia/issues/73) → PR [#76](https://github.com/SEUIL/Threadia/pull/76)(김민경 수정, 여도현 review+merge)으로 dev 반영, **재검증(없는 companyId → 404) 통과(2026-07-11)로 해결 완료**. **100% 확정 조건: Reviewer(정철진)가 PR [#74](https://github.com/SEUIL/Threadia/pull/74) review+merge.** |
 
 ---
 
@@ -48,6 +48,8 @@
 | 6 | `POST /api/v1/companies/{companyId}/projects` | 회사 내 중복 `projectKey`로 생성 | 실패 | 409 `CONFLICT` (정확한 코드는 구현 후 확인) | **정상 통과** | Apidog 실행(2026-07-10) — #3과 동일한 `projectKey=QA-1`로 재요청 시 409 확인(의도치 않게 #3을 재실행하면서 함께 확인됨). ERD 기준 unique 제약 정상 동작 |
 
 > **Finding F-1 (코드 리뷰로 발견, 2026-07-10)**: `ProjectService.list()`/`create()`가 **회사 존재 확인(`company(companyId)`)을 권한 확인보다 나중에 실행**한다. `requireActiveMember`/`requireCompanyAdmin`(`CompanyMembershipService`)은 회사 존재 여부를 보지 않고 멤버십만 확인해 403을 던지므로, **존재하지 않는 companyId로 `GET/POST /companies/{companyId}/projects`를 호출하면 404가 아니라 403이 반환**된다(존재확인용 `company(companyId)` 호출이 권한 체크 뒤에 있어 실패 경로에서 도달 불가). Company API #4(PR #66)·Department 이슈([#67](https://github.com/SEUIL/Threadia/issues/67), PR #68)에서 이미 `인증→존재확인→권한확인` 순서로 통일하며 고친 것과 **동일한 패턴이 3.3.2(Project 목록/생성)에만 남아있음**. §2 케이스(#1~#6)는 존재하는 companyId 기준이라 정상 통과했고, 이 순서 문제는 Apidog 블랙박스가 아니라 코드 리뷰에서 발견됨. **참고: `detail()`/`update()`/`archive()`(3.3.3)는 `project(projectId)` 존재확인을 권한확인보다 먼저 실행해 순서가 정상이므로 이 finding 대상이 아님.** 별도 이슈로 분리해 3.3.2 owner(김태준)에게 전달함: [#73](https://github.com/SEUIL/Threadia/issues/73).
+>
+> **해결 완료(2026-07-11)**: 이슈 #73은 3.3.2 owner(김태준) 대상이었으나 **김민경(xaphxe)이 처리**하여 PR [#76](https://github.com/SEUIL/Threadia/pull/76)으로 `list()`/`create()`를 `인증→존재확인→권한확인` 순서로 수정(`ProjectService` `company(companyId)`를 권한확인 앞으로 이동, `ProjectServiceTest`에 순서 검증 추가), **여도현(dhy257)이 review(APPROVED)+merge**하여 dev 반영·이슈 #73 CLOSED. **재검증**: dev 최신 백엔드 재기동 후 Apidog로 `GET`/`POST /api/v1/companies/9999/projects` 실행 → 둘 다 **404 `NOT_FOUND`** 확인(수정 전 403 → 수정 후 404). Company #4(PR #66)·Department #67(PR #68)과 동일 패턴이 Project까지 정리 완료.
 
 ### 2.2 프로젝트 상세/수정/archive (3.3.3 대상, 요구사항 PROJECT-03/04)
 
