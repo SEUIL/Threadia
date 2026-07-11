@@ -101,11 +101,11 @@ class ProjectServiceTest {
 
 		ProjectsData data = projectService.list("admin-token", 10L);
 
-		InOrder inOrder = inOrder(authContextService, companyMembershipService, companyRepository, projectRepository);
+		InOrder inOrder = inOrder(authContextService, companyRepository, companyMembershipService, projectRepository);
 		inOrder.verify(authContextService).fromAccessToken("admin-token");
 		inOrder.verify(authContextService).requireActiveUser(authContext);
-		inOrder.verify(companyMembershipService).hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN);
 		inOrder.verify(companyRepository).findById(10L);
+		inOrder.verify(companyMembershipService).hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN);
 		inOrder.verify(projectRepository).findByCompany_IdOrderByIdAsc(10L);
 		assertThat(data.projects()).extracting("id").containsExactly(20L);
 	}
@@ -124,8 +124,13 @@ class ProjectServiceTest {
 
 		ProjectsData data = projectService.list("member-token", 10L);
 
-		verify(companyMembershipService).requireActiveMember(10L, authContext);
-		verify(projectRepository).findActiveMemberProjectsByCompanyIdAndUserIdOrderByIdAsc(10L, 1L);
+		InOrder inOrder = inOrder(authContextService, companyRepository, companyMembershipService, projectRepository);
+		inOrder.verify(authContextService).fromAccessToken("member-token");
+		inOrder.verify(authContextService).requireActiveUser(authContext);
+		inOrder.verify(companyRepository).findById(10L);
+		inOrder.verify(companyMembershipService).hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN);
+		inOrder.verify(companyMembershipService).requireActiveMember(10L, authContext);
+		inOrder.verify(projectRepository).findActiveMemberProjectsByCompanyIdAndUserIdOrderByIdAsc(10L, 1L);
 		assertThat(data.projects()).extracting("id").containsExactly(21L);
 	}
 
@@ -160,7 +165,11 @@ class ProjectServiceTest {
 						LocalDate.parse("2026-06-17"),
 						LocalDate.parse("2026-07-31")));
 
-		verify(companyMembershipService).requireCompanyAdmin(10L, authContext);
+		InOrder inOrder = inOrder(authContextService, companyRepository, companyMembershipService);
+		inOrder.verify(authContextService).fromAccessToken("admin-token");
+		inOrder.verify(authContextService).requireActiveUser(authContext);
+		inOrder.verify(companyRepository).findById(10L);
+		inOrder.verify(companyMembershipService).requireCompanyAdmin(10L, authContext);
 		ArgumentCaptor<Project> projectCaptor = ArgumentCaptor.forClass(Project.class);
 		verify(projectRepository).save(projectCaptor.capture());
 		assertThat(projectCaptor.getValue().getCompany()).isSameAs(company);
@@ -177,8 +186,10 @@ class ProjectServiceTest {
 	void createRejectsNonCompanyAdmin() {
 		AuthContext authContext = authContext();
 		User member = user(1L);
+		Company company = company(10L, member);
 		when(authContextService.fromAccessToken("member-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(member);
+		when(companyRepository.findById(10L)).thenReturn(Optional.of(company));
 		org.mockito.Mockito.doThrow(new ForbiddenException("회사 관리자 권한이 필요합니다."))
 				.when(companyMembershipService).requireCompanyAdmin(10L, authContext);
 
@@ -213,8 +224,10 @@ class ProjectServiceTest {
 	void createRejectsArchivedStatus() {
 		AuthContext authContext = authContext();
 		User admin = user(1L);
+		Company company = company(10L, admin);
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
+		when(companyRepository.findById(10L)).thenReturn(Optional.of(company));
 
 		assertThatThrownBy(() -> projectService.create(
 				"admin-token",
@@ -230,8 +243,10 @@ class ProjectServiceTest {
 	void createRejectsEndDateBeforeStartDate() {
 		AuthContext authContext = authContext();
 		User admin = user(1L);
+		Company company = company(10L, admin);
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
+		when(companyRepository.findById(10L)).thenReturn(Optional.of(company));
 
 		assertThatThrownBy(() -> projectService.create(
 				"admin-token",

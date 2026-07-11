@@ -79,11 +79,11 @@ public class ProjectService {
 	@Transactional(readOnly = true)
 	public ProjectsData list(String accessToken, Long companyId) {
 		AuthContext authContext = activeAuthContext(accessToken);
+		company(companyId);
 		boolean companyAdmin = companyMembershipService.hasActiveRole(companyId, authContext, CompanyMemberRole.COMPANY_ADMIN);
 		if (!companyAdmin) {
 			companyMembershipService.requireActiveMember(companyId, authContext);
 		}
-		company(companyId);
 		return new ProjectsData((companyAdmin
 				? projectRepository.findByCompany_IdOrderByIdAsc(companyId)
 				: projectRepository.findActiveMemberProjectsByCompanyIdAndUserIdOrderByIdAsc(companyId, authContext.userId()))
@@ -96,9 +96,9 @@ public class ProjectService {
 	public ProjectCreateData create(String accessToken, Long companyId, ProjectCreateRequest request) {
 		AuthContext authContext = authContextService.fromAccessToken(accessToken);
 		User creator = authContextService.requireActiveUser(authContext);
+		Company company = company(companyId);
 		companyMembershipService.requireCompanyAdmin(companyId, authContext);
 		validateCreateRequest(request);
-		Company company = company(companyId);
 		String projectKey = request.projectKey().trim();
 		if (projectRepository.existsByCompany_IdAndProjectKey(companyId, projectKey)) {
 			throw ProjectConflictException.duplicateProjectKey();
