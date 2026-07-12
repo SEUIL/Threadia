@@ -1,7 +1,7 @@
 > **작성자**: 김민정 (WBS 3.4.4 Owner)
 > **작성일**: 2026-07-07
-> **최종 수정**: 2026-07-10
-> **버전**: v1.3
+> **최종 수정**: 2026-07-12
+> **버전**: v1.4
 > **상태**: 검토 요청
 > **태그**: sprint-2, wbs-3.4.4, project, frontend, qa
 
@@ -17,13 +17,13 @@
 
 | WBS | 진척률 | 비고 |
 |---|---|---|
-| 3.4.4 | 90% (1차 검증 완료, finding 반영·재검증 + Reviewer 머지 대기) | 1차 검증 완료(2026-07-10). PR #72(`feature/wbs-3.4-project-frontend`, 실 API 연동) 브랜치에서 브라우저(데모 :3000 + 백엔드 :8080 실연동) + 빌드 검증 수행. **§2 22개 중 정상 통과 16, 부분 통과/Finding 4(#1/#5/#8/#19), 확인 불가 2(#4/#18)**. §3 build 통과(TS 에러 0), lint는 PR #72 밖 기존 파일 원인으로 실패. Finding 3건(아래)은 PR [#72](https://github.com/SEUIL/Threadia/pull/72) 리뷰 코멘트로 owner(정철진)에게 전달함. **100% 확정 조건: PR #72 finding 반영(F-3 등) 후 브라우저 재검증 → 이 문서 갱신 → Reviewer(정철진)가 PR [#75](https://github.com/SEUIL/Threadia/pull/75) review+merge.** 주의: PR #72는 dev에 미머지(BLOCKED)라 검증은 `feature/wbs-3.4-project-frontend` 브랜치 기준 |
+| 3.4.4 | 90% (1차 검증 완료, finding 반영·재검증 + Reviewer 머지 대기) | 1차 검증 완료(2026-07-10). PR #72(`feature/wbs-3.4-project-frontend`, 실 API 연동) 브랜치에서 브라우저(데모 :3000 + 백엔드 :8080 실연동) + 빌드 검증 수행. **§2 22개 중 정상 통과 17, 부분 통과/Finding 3(#1/#5/#8), 확인 불가 2(#4/#18)** (2026-07-12 재검증으로 #19가 부분 통과/Finding → 정상 통과로 이동). §3 build 통과(TS 에러 0), lint는 PR #72 밖 기존 파일 원인으로 실패. Finding 3건(아래)은 PR [#72](https://github.com/SEUIL/Threadia/pull/72) 리뷰 코멘트로 owner(정철진)에게 전달함. **100% 확정 조건: PR #72 finding 반영(F-3 등) 후 브라우저 재검증 → 이 문서 갱신 → Reviewer(정철진)가 PR [#75](https://github.com/SEUIL/Threadia/pull/75) review+merge.** **2026-07-12 갱신: F-3가 PR #72 커밋 [`1ca0e97`](https://github.com/SEUIL/Threadia/commit/1ca0e97)로 수정됨 → 브라우저 재검증 완료(§2.2 #19). 남은 항목은 Reviewer(정철진)의 PR #75 review+merge뿐(F-1/F-2는 owner가 스코프 판단으로 보류, §Finding 요약 참고).** 주의: PR #72는 dev에 미머지(BLOCKED)라 검증은 `feature/wbs-3.4-project-frontend` 브랜치 기준 |
 
 ### Finding 요약 (owner 정철진 전달 대상)
 
-- **F-1 (#1)**: S04 카드에 화면정의서가 요구한 멤버 수/이슈 수/PM이 표시되지 않음. `ProjectResponse`에 해당 필드가 없어 의도적으로 제외(WBS 3.3.4 Project Member/3.5 Issue 이후 채울 예정). 기능 버그는 아니나 화면정의서 기대와 불일치 — 후속 채움 필요.
-- **F-2 (#8)**: S04의 `useCurrentCompanyRole()`이 "P"를 반환하지 않고 항상 "A"로 근사. S04에서 P/A 구분이 존재하지 않음. 생성 권한은 회사 레벨이라 기능 문제는 없으나 역할 표기 한계.
-- **F-3 (#19)**: S12가 프로젝트 상세와 멤버 목록을 `Promise.all`로 함께 로드해, 멤버 목록만 실패해도 페이지 전체가 error로 빠짐(프로젝트 정보까지 못 봄). 멤버 섹션 국소 error 처리 권장.
+- **F-1 (#1)**: S04 카드에 화면정의서가 요구한 멤버 수/이슈 수/PM이 표시되지 않음. `ProjectResponse`에 해당 필드가 없어 의도적으로 제외(WBS 3.3.4 Project Member/3.5 Issue 이후 채울 예정). 기능 버그는 아니나 화면정의서 기대와 불일치 — 후속 채움 필요. **[owner 회신, 2026-07-11] 의도적 보류: 카드별 Member API 개별 호출은 N+1이라 백엔드 목록 응답에 집계 필드 추가로 해결하는 게 낫다고 판단(임시 클라이언트 채움은 재작업 유발). 이슈 수는 Issue API 부재로 여전히 불가.**
+- **F-2 (#8)**: S04의 `useCurrentCompanyRole()`이 "P"를 반환하지 않고 항상 "A"로 근사. S04에서 P/A 구분이 존재하지 않음. 생성 권한은 회사 레벨이라 기능 문제는 없으나 역할 표기 한계. **[owner 회신, 2026-07-11] 버그 아님으로 종결: S04에 "P" 표시 UI 자체가 없고 생성 버튼은 회사 레벨 권한으로 정확히 게이트됨. 훅 주석만 PR #70(3.3.4) 머지 이후 기준으로 갱신(커밋 [`61635a3`](https://github.com/SEUIL/Threadia/commit/61635a3)).**
+- **F-3 (#19)**: S12가 프로젝트 상세와 멤버 목록을 `Promise.all`로 함께 로드해, 멤버 목록만 실패해도 페이지 전체가 error로 빠짐(프로젝트 정보까지 못 봄). 멤버 섹션 국소 error 처리 권장. **[해소, 커밋 [`1ca0e97`](https://github.com/SEUIL/Threadia/commit/1ca0e97)] 두 호출을 독립 loading/error 상태로 분리. 브라우저 재검증(2026-07-12) 결과 멤버 API만 실패 시 멤버 섹션만 국소 error, 프로젝트 정보·아카이빙 섹션은 정상 유지 확인 → §2.2 #19 정상 통과.**
 - **참고 관찰(범위 밖)**: (a) 백엔드 다운 시 로그인으로 리다이렉트(WBS 3.2.x AuthContext). (b) 그래프 페이지(S07) 콘솔 에러 + lint 에러 — 기존 코드, PR #72 밖.
 
 ---
@@ -70,7 +70,7 @@
 | 16 | 멤버 역할 변경 | 정상 흐름 | 변경 반영 | **정상 통과** | 브라우저 확인(2026-07-10, C 역할, `/6/3/settings`) — QA-3(project 3)에 일반 멤버(projectMemberId=6, user 20, MEMBER)를 DB seed 후, 멤버 목록에 2명(PROJECT_ADMIN/MEMBER) 정상 표시. 새 멤버 역할 select를 MEMBER→PROJECT_ADMIN으로 변경 시 실 API(`PATCH /project-members/6`)로 반영 성공, 에러 없음. (멤버 추가 API 부재로 seed는 DB 직접 — §2.3 #16과 동일한 제약) |
 | 17 | 마지막 `PROJECT_ADMIN` 강등/제거 시도 | 실패 | 에러 메시지 표시, 최소 1명 유지 정책 반영 | **정상 통과** | 브라우저 확인(2026-07-10, `/6/3/settings`, 유일한 PROJECT_ADMIN admin 대상) — 역할 select를 MEMBER로 변경 시도 시 백엔드 409(마지막 관리자 강등 불가)가 프론트에 에러 메시지로 표시됨. 3.3.5 §2.3 #17(백엔드 409)과 짝 확인 완료 |
 | 18 | 멤버 목록 API 응답 없음 | empty | empty 상태 UI | 미확인 | - |
-| 19 | 멤버 목록 API 실패 | error | error 상태 표시 | **부분 통과/Finding(코드 확인, 2026-07-10)** | S12는 `projectService.detail`과 `projectMemberService.list`를 `Promise.all`로 함께 로드해서, **멤버 목록만 실패해도 페이지 전체가 error 상태**(`pageError`)로 빠진다. 검증기준이 기대한 "멤버 섹션만 error 표시"가 아니라 페이지 통째 error. 무한 로딩은 아니라 치명적이진 않으나, 멤버 API만 죽었을 때 프로젝트 정보까지 못 보게 되는 UX 이슈 → Finding으로 기록. 브라우저에서 실제 error 화면 재확인 예정 |
+| 19 | 멤버 목록 API 실패 | error | error 상태 표시 | **정상 통과(재검증, 2026-07-12)** | **[1차, 2026-07-10] 부분 통과/Finding(F-3)**: S12가 `projectService.detail`과 `projectMemberService.list`를 `Promise.all`로 함께 로드해 멤버 목록만 실패해도 페이지 전체가 error(`pageError`)로 빠짐(프로젝트 정보까지 못 봄) → owner에게 finding 전달. **[재검증, 2026-07-12] 해소 확인**: PR #72 커밋 [`1ca0e97`](https://github.com/SEUIL/Threadia/commit/1ca0e97)이 두 호출을 독립 loading/error 상태로 분리. `member1@test.com`(회사6/프로젝트3 QA-3, PROJECT_ADMIN)으로 로그인 후 브라우저에서 XHR을 패치해 `GET /projects/3/project-members` 요청만 실패시킴(상세 `GET /projects/3`은 정상) → **멤버 섹션에만 국소 error("서버에 연결할 수 없습니다…") 표시, 프로젝트 정보(설명 "테스트중입니다"·시작/종료일·수정 버튼)와 아카이빙 섹션은 정상 렌더, 페이지 전체 error로 빠지지 않음** 확인. 대조 확인: 수정 전 버전(`git show 1ca0e97^`)으로 되돌려 동일 실패 재현 시 화면 전체가 에러 카드 하나로 붕괴(정보/아카이빙 접근 불가)됨을 확인 → before/after 대비로 fix 검증 완료. 참고: 하드 리로드 시 refresh 토큰 rotation race로 로그인 리다이렉트 관찰(WBS 3.2.x AuthContext 범위, F-3 밖) → SPA 클라이언트 네비게이션으로 우회 검증 |
 | 20 | 프로젝트별 알림 설정(PROJECT scope) 노출 여부 | 정책 확인 | 노출되지 않음(GLOBAL preference만 S11에서 처리) | **정상 통과(코드 확인, 2026-07-10)** | `settings/page.tsx`에 프로젝트별 알림 설정 UI가 존재하지 않음(주석으로도 "PROJECT scope 알림은 여기서 제공 안 함, S11 GLOBAL로 처리" 명시). 실수 노출 없음 = 기대대로 |
 
 ### 2.3 권한별 UI 공통
