@@ -9,42 +9,41 @@
  * 설계 메모 반영:
  *   - 삭제는 물리 삭제가 아니라 아카이빙(`status = ARCHIVED`) — 복원은 MVP 보류
  *     (`PROJECT_RESTORE_DEFERRED`)라 아카이빙 후에는 되돌리는 UI를 두지 않는다.
- *   - PROJECT_ADMIN은 최소 1명 유지해야 한다 — 마지막 1명을 MEMBER로 바꾸거나
- *     제거하려 하면 막는다.
  *   - 프로젝트별(PROJECT scope) 알림 설정은 여기서 제공하지 않는다 — S11의
  *     GLOBAL 설정 기준으로 처리(설계 메모에 명시).
  *
- * ⚠️ MOCK: 프로젝트/프로젝트멤버 API(`GET/PATCH /projects/{projectId}`,
- * `/archive`, `/project-members`, invitation)가 WBS 3.3(Project API) 전체가
- * 아직 없어서 로컬 state로 흉내낸다. WBS 3.2.4(RBAC) 범위에서 다른 화면은
- * useCurrentCompanyRole()로 실 연동했지만, 이 화면은 "이 프로젝트의 P인지"
- * (Project Member API, WBS 3.3.4)가 있어야 의미가 있는데 프로젝트 자체가
- * mock이라 role 연동의 실효가 없다 — Project API 착수 후 재작업 대상으로
- * 남겨둔다. S12는 P/C만 접근 가능한 화면이라 A라면 접근 자체를 막아야
- * 하지만, 실제 auth 가드가 없는 지금은 화면 하단에 안내 텍스트로만 남겨둔다.
+ * WBS 3.4.3 실 연동: project.service 사용(PR #65). `GET /projects/{projectId}`가
+ * 내려주는 `viewer.canManageProject`로 실제 프로젝트 레벨 권한을 그대로 쓴다 —
+ * 이 화면이 WBS 3.2.4의 useCurrentCompanyRole()(회사 role만 아는 보수적 근사치)
+ * 대신 진짜 프로젝트 단위 RBAC를 쓰는 첫 화면이다. 프로젝트 멤버도 아니고
+ * 회사 관리자도 아니면 detail() 자체가 403을 던지므로 pageState "error"로
+ * 자연스럽게 처리된다(별도 접근 차단 로직 불필요).
+ *
+ * WBS 3.4.3 Phase 8 실 연동: 멤버 역할변경/제거는 WBS 3.3.4(PR #70, Project
+ * Member API)로 실 연동했다. `viewer.canManageProject`인 사용자만 역할 select/
+ * 제거 버튼을 본다 — 이 조건은 서버의 `requireProjectManage`와 동일해서 UI에서
+ * 숨긴 액션은 어차피 서버도 막는다. ACTIVE 상태 멤버만 조회한다(제거된 멤버는
+ * 목록에서 사라짐, 복원 UI 없음).
+ *
+ * ⚠️ 멤버 "추가"(초대)는 WBS 4.3(Project Invitation, Sprint 3 범위)이 아직
+ * 없어서 여전히 제공하지 않는다 — PR #70도 조회/역할변경/제거만 다루고 추가
+ * endpoint 자체가 없다(경계가 코드로 확인됨). 근거:
+ * sprint2-3.4-project-frontend-설계.md, 화면정의서 S12 인용구 메모.
+ *
+ * WBS 3.4.4 QA(PR #72 finding F-3, 김민정) 반영: 프로젝트 상세와 멤버 목록을
+ * `Promise.all`로 묶어서 불러왔더니 멤버 목록 API만 실패해도 페이지 전체가
+ * error로 빠져 프로젝트 정보까지 못 보는 문제가 있었다. 두 호출을 독립된
+ * loading/error 상태로 분리해서, 멤버 목록만 실패해도 나머지 섹션은 그대로
+ * 보이게 고쳤다.
  */
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-
-type ProjectStatus = "PLANNING" | "ACTIVE" | "PAUSED" | "COMPLETED" | "ARCHIVED";
-type ProjectMemberRole = "PROJECT_ADMIN" | "MEMBER";
-
-type ProjectInfo = {
-  name: string;
-  projectKey: string;
-  description: string;
-  startDate: string | null;
-  endDate: string | null;
-  status: ProjectStatus;
-};
-
-type ProjectMember = {
-  id: string;
-  name: string;
-  email: string;
-  role: ProjectMemberRole;
-};
+import { projectService } from "@/services/project.service";
+import { projectMemberService } from "@/services/project-member.service";
+import { invitationErrorMessage } from "@/lib/invitation";
+import type { ProjectResponse, ProjectStatus, ProjectViewerData } from "@/types/project.types";
+import type { ProjectMemberResponse } from "@/types/project-member.types";
 
 const STATUS_LABEL: Record<ProjectStatus, string> = {
   PLANNING: "기획중",
@@ -54,85 +53,172 @@ const STATUS_LABEL: Record<ProjectStatus, string> = {
   ARCHIVED: "보관됨",
 };
 
-const MOCK_PROJECT: ProjectInfo = {
-  name: "Threadia MVP",
-  projectKey: "THR",
-  description: "Threadia 6주 MVP 데모 프로젝트",
-  startDate: "2026-06-15",
-  endDate: "2026-07-31",
-  status: "ACTIVE",
+type LoadState = "loading" | "ready" | "error";
+
+type ProjectDraft = {
+  name: string;
+  description: string;
+  startDate: string | null;
+  endDate: string | null;
 };
 
-const MOCK_MEMBERS: ProjectMember[] = [
-  { id: "u1", name: "정철진", email: "cjfwls39@threadia.com", role: "PROJECT_ADMIN" },
-  { id: "u2", name: "김민정", email: "minjeong@threadia.com", role: "PROJECT_ADMIN" },
-  { id: "u3", name: "여도현", email: "dohyun@threadia.com", role: "MEMBER" },
-  { id: "u4", name: "황스일", email: "seil@threadia.com", role: "MEMBER" },
-];
+function toDraft(project: ProjectResponse): ProjectDraft {
+  return {
+    name: project.name,
+    description: project.description ?? "",
+    startDate: project.startDate,
+    endDate: project.endDate,
+  };
+}
 
 export default function ProjectSettingsPage() {
   const params = useParams<{ companyId: string; projectId: string }>();
 
-  const [project, setProject] = useState<ProjectInfo>(MOCK_PROJECT);
-  const [draft, setDraft] = useState<ProjectInfo>(MOCK_PROJECT);
-  const [editing, setEditing] = useState(false);
+  const [pageState, setPageState] = useState<LoadState>("loading");
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [project, setProject] = useState<ProjectResponse | null>(null);
+  const [viewer, setViewer] = useState<ProjectViewerData | null>(null);
 
-  const [members, setMembers] = useState<ProjectMember[]>(MOCK_MEMBERS);
-  const [memberError, setMemberError] = useState<string | null>(null);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [pendingInvites, setPendingInvites] = useState<string[]>([]);
+  const [draft, setDraft] = useState<ProjectDraft | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [archiveBusy, setArchiveBusy] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
 
-  const adminCount = members.filter((m) => m.role === "PROJECT_ADMIN").length;
-  const isArchived = project.status === "ARCHIVED";
+  const [members, setMembers] = useState<ProjectMemberResponse[]>([]);
+  const [memberListState, setMemberListState] = useState<LoadState>("loading");
+  const [memberListError, setMemberListError] = useState<string | null>(null);
+  const [memberError, setMemberError] = useState<string | null>(null);
+  const [memberBusyId, setMemberBusyId] = useState<number | null>(null);
+
+  const loadPage = useCallback(async () => {
+    setPageState("loading");
+    setPageError(null);
+    try {
+      const { data } = await projectService.detail(params.projectId);
+      setProject(data.data.project);
+      setViewer(data.data.viewer);
+      setPageState("ready");
+    } catch (error) {
+      setPageError(invitationErrorMessage(error, "프로젝트 정보를 불러오지 못했습니다."));
+      setPageState("error");
+    }
+  }, [params.projectId]);
+
+  // 프로젝트 상세와 별개 요청이라, 이 목록만 실패해도 나머지 화면은 그대로 유지한다.
+  const loadMembers = useCallback(async () => {
+    setMemberListState("loading");
+    setMemberListError(null);
+    try {
+      const { data } = await projectMemberService.list(params.projectId, { status: "ACTIVE" });
+      setMembers(data.data.projectMembers);
+      setMemberListState("ready");
+    } catch (error) {
+      setMemberListError(invitationErrorMessage(error, "프로젝트 멤버 목록을 불러오지 못했습니다."));
+      setMemberListState("error");
+    }
+  }, [params.projectId]);
+
+  useEffect(() => {
+    (async () => {
+      await Promise.all([loadPage(), loadMembers()]);
+    })();
+  }, [loadPage, loadMembers]);
+
+  const isArchived = project?.status === "ARCHIVED";
+  const canManage = viewer?.canManageProject ?? false;
 
   const startEdit = () => {
-    setDraft(project);
+    if (!project) return;
+    setDraft(toDraft(project));
+    setEditError(null);
     setEditing(true);
   };
 
-  const saveEdit = () => {
-    // TODO: PATCH /api/v1/projects/{projectId}
-    setProject(draft);
-    setEditing(false);
-  };
-
-  const setMemberRole = (id: string, role: ProjectMemberRole) => {
-    const target = members.find((m) => m.id === id);
-    if (target?.role === "PROJECT_ADMIN" && role === "MEMBER" && adminCount <= 1) {
-      setMemberError("PROJECT_ADMIN은 최소 1명 유지해야 합니다.");
-      return;
+  const saveEdit = async () => {
+    if (!draft || !project || project.status === "ARCHIVED") return;
+    setEditBusy(true);
+    setEditError(null);
+    try {
+      const { data } = await projectService.update(params.projectId, {
+        name: draft.name,
+        description: draft.description || null,
+        status: project.status,
+        startDate: draft.startDate,
+        endDate: draft.endDate,
+      });
+      setProject(data.data.project);
+      setEditing(false);
+    } catch (error) {
+      setEditError(invitationErrorMessage(error, "프로젝트 정보 수정에 실패했습니다."));
+    } finally {
+      setEditBusy(false);
     }
-    setMemberError(null);
-    // TODO: PATCH /api/v1/project-members/{projectMemberId}
-    setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, role } : m)));
   };
 
-  const removeMember = (id: string) => {
-    const target = members.find((m) => m.id === id);
-    if (target?.role === "PROJECT_ADMIN" && adminCount <= 1) {
-      setMemberError("PROJECT_ADMIN은 최소 1명 유지해야 합니다.");
-      return;
+  const archiveProject = async () => {
+    setArchiveBusy(true);
+    setArchiveError(null);
+    try {
+      await projectService.archive(params.projectId);
+      setProject((prev) => (prev ? { ...prev, status: "ARCHIVED" } : prev));
+      setShowArchiveConfirm(false);
+    } catch (error) {
+      setArchiveError(invitationErrorMessage(error, "프로젝트 아카이빙에 실패했습니다."));
+    } finally {
+      setArchiveBusy(false);
     }
+  };
+
+  // role/status 전체를 항상 같이 보낸다(full-replace) — company-member와 동일한 이유.
+  const updateMemberRole = async (member: ProjectMemberResponse, role: ProjectMemberResponse["role"]) => {
     setMemberError(null);
-    // TODO: DELETE /api/v1/project-members/{projectMemberId}
-    setMembers((prev) => prev.filter((m) => m.id !== id));
+    setMemberBusyId(member.id);
+    try {
+      const { data } = await projectMemberService.update(member.id, { role, status: member.status });
+      setMembers((prev) => prev.map((m) => (m.id === member.id ? data.data.projectMember : m)));
+    } catch (error) {
+      setMemberError(invitationErrorMessage(error, "멤버 역할 변경에 실패했습니다."));
+    } finally {
+      setMemberBusyId(null);
+    }
   };
 
-  const inviteMember = () => {
-    const email = inviteEmail.trim().toLowerCase();
-    if (!email) return;
-    // TODO: POST /api/v1/projects/{projectId}/invitations — accept 전엔 membership 미생성
-    setPendingInvites((prev) => [...prev, email]);
-    setInviteEmail("");
+  const removeMember = async (member: ProjectMemberResponse) => {
+    setMemberError(null);
+    setMemberBusyId(member.id);
+    try {
+      await projectMemberService.remove(member.id);
+      setMembers((prev) => prev.filter((m) => m.id !== member.id));
+    } catch (error) {
+      setMemberError(invitationErrorMessage(error, "멤버 제거에 실패했습니다."));
+    } finally {
+      setMemberBusyId(null);
+    }
   };
 
-  const archiveProject = () => {
-    // TODO: POST /api/v1/projects/{projectId}/archive
-    setProject((prev) => ({ ...prev, status: "ARCHIVED" }));
-    setShowArchiveConfirm(false);
-  };
+  if (pageState === "loading") {
+    return <div className="mx-auto max-w-3xl px-6 py-10 text-sm text-muted">불러오는 중...</div>;
+  }
+
+  if (pageState === "error" || !project) {
+    return (
+      <div className="mx-auto max-w-3xl px-6 py-10">
+        <Link
+          href={`/${params.companyId}/projects`}
+          className="text-sm text-muted transition-colors duration-fast hover:text-primary"
+        >
+          ← 프로젝트 목록
+        </Link>
+        <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive-subtle px-4 py-6 text-center text-sm text-destructive">
+          {pageError}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
@@ -162,7 +248,7 @@ export default function ProjectSettingsPage() {
       <section className="mt-6 rounded-xl border border-border bg-surface p-6">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-foreground">프로젝트 정보</h2>
-          {!editing && !isArchived && (
+          {canManage && !editing && !isArchived && (
             <button
               onClick={startEdit}
               className="rounded-md px-3 py-1.5 text-sm font-medium text-primary transition-colors duration-fast hover:bg-primary-subtle"
@@ -172,20 +258,23 @@ export default function ProjectSettingsPage() {
           )}
         </div>
 
-        {editing ? (
+        {editing && draft ? (
           <div className="mt-4 flex flex-col gap-3">
+            {editError && <p className="text-xs text-destructive">{editError}</p>}
             <input
               aria-label="프로젝트 이름"
               value={draft.name}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none"
+              disabled={editBusy}
+              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none disabled:opacity-50"
             />
             <textarea
               aria-label="프로젝트 설명"
               value={draft.description}
               onChange={(e) => setDraft({ ...draft, description: e.target.value })}
               rows={2}
-              className="resize-none rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none"
+              disabled={editBusy}
+              className="resize-none rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none disabled:opacity-50"
             />
             <div className="flex gap-2">
               <input
@@ -193,26 +282,30 @@ export default function ProjectSettingsPage() {
                 type="date"
                 value={draft.startDate ?? ""}
                 onChange={(e) => setDraft({ ...draft, startDate: e.target.value || null })}
-                className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none"
+                disabled={editBusy}
+                className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none disabled:opacity-50"
               />
               <input
                 aria-label="종료일"
                 type="date"
                 value={draft.endDate ?? ""}
                 onChange={(e) => setDraft({ ...draft, endDate: e.target.value || null })}
-                className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none"
+                disabled={editBusy}
+                className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none disabled:opacity-50"
               />
             </div>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setEditing(false)}
-                className="rounded-md px-3 py-1.5 text-sm font-medium text-muted hover:bg-primary-subtle"
+                disabled={editBusy}
+                className="rounded-md px-3 py-1.5 text-sm font-medium text-muted hover:bg-primary-subtle disabled:opacity-50"
               >
                 취소
               </button>
               <button
                 onClick={saveEdit}
-                className="rounded-md btn-gradient px-3 py-1.5 text-sm font-semibold text-primary-foreground"
+                disabled={editBusy}
+                className="rounded-md btn-gradient px-3 py-1.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
               >
                 저장
               </button>
@@ -236,96 +329,89 @@ export default function ProjectSettingsPage() {
         )}
       </section>
 
-      {/* 멤버 관리 */}
+      {/* 멤버 관리 — 역할변경/제거는 WBS 3.3.4로 실 연동. 추가(초대)는 WBS 4.3 대기.
+          프로젝트 상세와는 독립된 요청이라 이 섹션만 loading/error를 따로 표시한다. */}
       <section className="mt-6 rounded-xl border border-border bg-surface p-6">
-        <h2 className="text-sm font-semibold text-foreground">프로젝트 멤버 ({members.length})</h2>
+        <h2 className="text-sm font-semibold text-foreground">
+          프로젝트 멤버{memberListState === "ready" && ` (${members.length})`}
+        </h2>
 
-        {memberError && <p className="mt-2 text-xs text-destructive">{memberError}</p>}
+        {memberListState === "loading" && (
+          <p className="mt-3 text-xs text-muted">멤버 목록을 불러오는 중...</p>
+        )}
 
-        <ul className="mt-3 divide-y divide-border">
-          {members.map((member) => (
-            <li
-              key={member.id}
-              className="flex flex-wrap items-center justify-between gap-2 px-1 py-2.5"
-            >
-              <div>
-                <p className="text-sm font-medium text-foreground">{member.name}</p>
-                <p className="text-xs text-muted">{member.email}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <select
-                  aria-label={`${member.name} 역할`}
-                  value={member.role}
-                  disabled={isArchived}
-                  onChange={(e) => setMemberRole(member.id, e.target.value as ProjectMemberRole)}
-                  className="rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-foreground focus:border-ring focus:outline-none disabled:cursor-not-allowed"
-                >
-                  <option value="PROJECT_ADMIN">PROJECT_ADMIN</option>
-                  <option value="MEMBER">MEMBER</option>
-                </select>
-                <button
-                  onClick={() => removeMember(member.id)}
-                  disabled={isArchived}
-                  className="text-xs font-medium text-destructive transition-colors duration-fast hover:opacity-70 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  제거
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+        {memberListState === "error" && (
+          <p className="mt-3 text-xs text-destructive">{memberListError}</p>
+        )}
 
-        {!isArchived && (
+        {memberListState === "ready" && (
           <>
-            <div className="mt-4 flex gap-2">
-              <input
-                aria-label="초대할 이메일"
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && inviteMember()}
-                placeholder="example@threadia.com"
-                className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-placeholder focus:border-ring focus:outline-none"
-              />
-              <button
-                onClick={inviteMember}
-                className="rounded-lg btn-gradient px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast"
-              >
-                초대
-              </button>
-            </div>
-            {pendingInvites.length > 0 && (
-              <ul className="mt-2 flex flex-col gap-1">
-                {pendingInvites.map((email) => (
-                  <li key={email} className="text-xs text-muted">
-                    {email} — 대기 중 (수락 시 멤버로 추가됩니다)
-                  </li>
-                ))}
-              </ul>
-            )}
+            {memberError && <p className="mt-2 text-xs text-destructive">{memberError}</p>}
+
+            <ul className="mt-3 divide-y divide-border">
+              {members.map((member) => (
+                <li key={member.id} className="flex flex-wrap items-center justify-between gap-2 px-1 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{member.user.nickname}</p>
+                    <p className="text-xs text-muted">{member.user.email}</p>
+                  </div>
+                  {canManage && (
+                    <div className="flex items-center gap-2">
+                      <select
+                        aria-label={`${member.user.nickname} 역할`}
+                        value={member.role}
+                        disabled={memberBusyId === member.id || isArchived}
+                        onChange={(e) => updateMemberRole(member, e.target.value as ProjectMemberResponse["role"])}
+                        className="rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-foreground focus:border-ring focus:outline-none disabled:cursor-not-allowed"
+                      >
+                        <option value="PROJECT_ADMIN">PROJECT_ADMIN</option>
+                        <option value="MEMBER">MEMBER</option>
+                      </select>
+                      <button
+                        onClick={() => removeMember(member)}
+                        disabled={memberBusyId === member.id || isArchived}
+                        className="text-xs font-medium text-destructive transition-colors duration-fast hover:opacity-70 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        제거
+                      </button>
+                    </div>
+                  )}
+                </li>
+              ))}
+              {members.length === 0 && (
+                <li className="py-2.5 text-center text-xs text-muted">멤버가 없습니다.</li>
+              )}
+            </ul>
+
+            <p className="mt-4 text-xs text-placeholder">
+              멤버 초대는 준비 중입니다. Project Invitation API 연동 후 제공될 예정입니다.
+            </p>
           </>
         )}
       </section>
 
       {/* 아카이빙 */}
-      {!isArchived && (
+      {canManage && !isArchived && (
         <section className="mt-6 rounded-xl border border-destructive/30 bg-surface p-6">
           <h2 className="text-sm font-semibold text-destructive">프로젝트 아카이빙</h2>
           <p className="mt-1 text-xs text-muted">
             아카이빙된 프로젝트는 복원할 수 없습니다. 신중하게 진행해 주세요.
           </p>
+          {archiveError && <p className="mt-2 text-xs text-destructive">{archiveError}</p>}
           {showArchiveConfirm ? (
             <div className="mt-3 flex items-center gap-2">
               <span className="text-sm text-foreground">정말 아카이빙할까요?</span>
               <button
                 onClick={() => setShowArchiveConfirm(false)}
-                className="rounded-md px-3 py-1.5 text-sm font-medium text-muted hover:bg-primary-subtle"
+                disabled={archiveBusy}
+                className="rounded-md px-3 py-1.5 text-sm font-medium text-muted hover:bg-primary-subtle disabled:opacity-50"
               >
                 취소
               </button>
               <button
                 onClick={archiveProject}
-                className="rounded-md bg-destructive px-3 py-1.5 text-sm font-semibold text-on-primary hover:opacity-90"
+                disabled={archiveBusy}
+                className="rounded-md bg-destructive px-3 py-1.5 text-sm font-semibold text-on-primary hover:opacity-90 disabled:opacity-50"
               >
                 아카이빙
               </button>
@@ -340,10 +426,6 @@ export default function ProjectSettingsPage() {
           )}
         </section>
       )}
-
-      <p className="mt-6 text-xs text-placeholder">
-        프로젝트 {params.projectId} · 이 화면은 P/C만 접근 가능합니다(auth 연동 전이라 접근 제한은 미적용).
-      </p>
     </div>
   );
 }

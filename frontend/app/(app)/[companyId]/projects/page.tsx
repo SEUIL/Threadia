@@ -4,37 +4,32 @@
  * S04 — 프로젝트 목록
  *
  * 접근 사용자: A/P/C. 화면정의서(docs/03-design/화면정의서.md §S04) 기준
- * 프로젝트 카드 목록(이름/상태/PM/멤버 수/이슈 수) + 새 프로젝트 생성(C만) +
- * 카드 클릭 시 S05 칸반 보드로 이동.
+ * 프로젝트 카드 목록 + 새 프로젝트 생성(C만) + 카드 클릭 시 그래프 뷰로 이동.
  *
  * 설계 메모 반영:
  *   - A는 "+ 새 프로젝트" 버튼을 보지 않는다.
- *   - C는 회사 전체 프로젝트, A/P는 소속 프로젝트만 보는 게 원칙이지만
- *     실제 필터링은 백엔드 `GET /companies/{companyId}/projects` 응답이
- *     이미 역할별로 걸러서 내려주므로 프론트는 받은 목록을 그대로 렌더링하면 된다.
- *     지금은 mock이라 별도 필터링 없이 전체를 보여준다.
+ *   - C는 회사 전체 프로젝트, A/P는 소속 프로젝트만 보는 게 원칙이고, 실제
+ *     필터링은 백엔드 `GET /companies/{companyId}/projects` 응답이 이미
+ *     역할별로 걸러서 내려준다(PR #61) — 프론트는 받은 목록을 그대로 렌더링한다.
  *
- * ⚠️ MOCK: 프로젝트 API(`GET/POST /companies/{companyId}/projects`)가 아직
- * 없어서(WBS 3.3) 로컬 state로 흉내낸다. role은 WBS 3.2.4 기준
- * useCurrentCompanyRole()로 실 연동했다(hooks/useCurrentCompanyRole.ts 참고,
- * "P"는 Project Member API 부재로 항상 "A"로 처리됨).
+ * WBS 3.4.1 실 연동: project.service 사용. role은 여전히 WBS 3.2.4의
+ * useCurrentCompanyRole()(hooks/useCurrentCompanyRole.ts 참고, "P"는 Project
+ * Member API 부재로 항상 "A")을 그대로 쓴다 — 프로젝트 생성 권한은 회사 레벨
+ * (COMPANY_ADMIN)이라 이 훅의 한계와 무관하다.
+ *
+ * ⚠️ 화면정의서 S04 "주요 데이터"는 "프로젝트명, 상태, 멤버 수, 이슈 수, PM"인데
+ * `ProjectResponse`(PR #61)에는 멤버 수/이슈 수/PM 이름이 없다 — WBS 3.3.4
+ * (Project Member API, 미착수)/3.5(Issue, capacity 후보) 이후 채워질 예정이라
+ * 카드에서는 뺐다. 근거: sprint2-3.4-project-frontend-설계.md,
+ * 화면정의서 S04 인용구 메모.
  */
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCurrentCompanyRole } from "@/hooks/useCurrentCompanyRole";
-
-type ProjectStatus = "PLANNING" | "ACTIVE" | "PAUSED" | "COMPLETED" | "ARCHIVED";
-
-type Project = {
-  id: string;
-  name: string;
-  projectKey: string;
-  status: ProjectStatus;
-  pmName: string;
-  memberCount: number;
-  issueCount: number;
-};
+import { projectService } from "@/services/project.service";
+import { invitationErrorMessage } from "@/lib/invitation";
+import type { ProjectResponse, ProjectStatus } from "@/types/project.types";
 
 const STATUS_LABEL: Record<ProjectStatus, string> = {
   PLANNING: "기획중",
@@ -52,49 +47,63 @@ const STATUS_CLASS: Record<ProjectStatus, string> = {
   ARCHIVED: "bg-border text-muted",
 };
 
-const MOCK_PROJECTS: Project[] = [
-  { id: "p1", name: "Threadia MVP", projectKey: "THR", status: "ACTIVE", pmName: "정철진", memberCount: 6, issueCount: 42 },
-  { id: "p2", name: "사내 디자인 시스템", projectKey: "DSY", status: "ACTIVE", pmName: "김민정", memberCount: 3, issueCount: 18 },
-  { id: "p3", name: "온보딩 자동화", projectKey: "ONB", status: "PLANNING", pmName: "여도현", memberCount: 4, issueCount: 5 },
-  { id: "p4", name: "레거시 정리", projectKey: "LGC", status: "PAUSED", pmName: "황스일", memberCount: 2, issueCount: 11 },
-  { id: "p5", name: "2025 회고", projectKey: "RTR", status: "COMPLETED", pmName: "정철진", memberCount: 6, issueCount: 30 },
-];
+type LoadState = "loading" | "ready" | "error";
 
 export default function ProjectsPage() {
   const params = useParams<{ companyId: string }>();
   const companyId = params.companyId;
   const role = useCurrentCompanyRole();
 
-  const [projects, setProjects] = useState<Project[]>(MOCK_PROJECTS);
+  const [listState, setListState] = useState<LoadState>("loading");
+  const [listError, setListError] = useState<string | null>(null);
+  const [projects, setProjects] = useState<ProjectResponse[]>([]);
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "ALL">("ALL");
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newKey, setNewKey] = useState("");
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const loadProjects = useCallback(async () => {
+    setListState("loading");
+    setListError(null);
+    try {
+      const { data } = await projectService.list(companyId);
+      setProjects(data.data.projects);
+      setListState("ready");
+    } catch (error) {
+      setListError(invitationErrorMessage(error, "프로젝트 목록을 불러오지 못했습니다."));
+      setListState("error");
+    }
+  }, [companyId]);
+
+  useEffect(() => {
+    (async () => {
+      await loadProjects();
+    })();
+  }, [loadProjects]);
 
   const visibleProjects = projects.filter(
     (p) => statusFilter === "ALL" || p.status === statusFilter
   );
 
-  const createProject = () => {
+  const createProject = async () => {
     const name = newName.trim();
     const key = newKey.trim().toUpperCase();
     if (!name || !key) return;
-    // TODO: POST /api/v1/companies/{companyId}/projects
-    setProjects((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        name,
-        projectKey: key,
-        status: "PLANNING",
-        pmName: "정철진",
-        memberCount: 1,
-        issueCount: 0,
-      },
-    ]);
-    setNewName("");
-    setNewKey("");
-    setCreating(false);
+    setCreateBusy(true);
+    setCreateError(null);
+    try {
+      const { data } = await projectService.create(companyId, { name, projectKey: key });
+      setProjects((prev) => [...prev, data.data.project]);
+      setNewName("");
+      setNewKey("");
+      setCreating(false);
+    } catch (error) {
+      setCreateError(invitationErrorMessage(error, "프로젝트 생성에 실패했습니다."));
+    } finally {
+      setCreateBusy(false);
+    }
   };
 
   return (
@@ -123,13 +132,15 @@ export default function ProjectsPage() {
       {creating && (
         <section className="mt-4 rounded-xl border border-border bg-surface p-5">
           <h2 className="text-sm font-semibold text-foreground">새 프로젝트</h2>
+          {createError && <p className="mt-2 text-xs text-destructive">{createError}</p>}
           <div className="mt-3 flex flex-wrap gap-2">
             <input
               aria-label="프로젝트 이름"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="프로젝트 이름"
-              className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-placeholder focus:border-ring focus:outline-none"
+              disabled={createBusy}
+              className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-placeholder focus:border-ring focus:outline-none disabled:opacity-50"
             />
             <input
               aria-label="프로젝트 키"
@@ -137,17 +148,20 @@ export default function ProjectsPage() {
               onChange={(e) => setNewKey(e.target.value)}
               placeholder="키 (예: THR)"
               maxLength={10}
-              className="w-32 rounded-lg border border-border bg-surface px-3 py-2 text-sm uppercase text-foreground placeholder:text-placeholder focus:border-ring focus:outline-none"
+              disabled={createBusy}
+              className="w-32 rounded-lg border border-border bg-surface px-3 py-2 text-sm uppercase text-foreground placeholder:text-placeholder focus:border-ring focus:outline-none disabled:opacity-50"
             />
             <button
               onClick={createProject}
-              className="rounded-lg btn-gradient px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast"
+              disabled={createBusy}
+              className="rounded-lg btn-gradient px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast disabled:opacity-50"
             >
               생성
             </button>
             <button
               onClick={() => setCreating(false)}
-              className="rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors duration-fast hover:bg-primary-subtle"
+              disabled={createBusy}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors duration-fast hover:bg-primary-subtle disabled:opacity-50"
             >
               취소
             </button>
@@ -173,36 +187,52 @@ export default function ProjectsPage() {
         ))}
       </div>
 
+      {listState === "loading" && (
+        <div className="mt-6 rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted">
+          불러오는 중...
+        </div>
+      )}
+
+      {listState === "error" && (
+        <div className="mt-6 rounded-xl border border-destructive/30 bg-destructive-subtle px-4 py-6 text-center text-sm text-destructive">
+          {listError}
+        </div>
+      )}
+
       {/* 프로젝트 카드 목록 */}
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {visibleProjects.map((project) => (
-          <Link
-            key={project.id}
-            href={`/${companyId}/${project.id}/graph`}
-            className="flex flex-col gap-3 rounded-xl bg-surface p-5 shadow-sm transition-all duration-fast hover:-translate-y-0.5 hover:bg-primary-subtle hover:shadow-md"
-          >
-            <div className="flex items-start justify-between">
-              <div>
-                <span className="text-xs font-mono text-muted">{project.projectKey}</span>
-                <h3 className="text-sm font-semibold text-foreground">{project.name}</h3>
+      {listState === "ready" && (
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {visibleProjects.map((project) => (
+            <Link
+              key={project.id}
+              href={`/${companyId}/${project.id}/graph`}
+              className="flex flex-col gap-3 rounded-xl bg-surface p-5 shadow-sm transition-all duration-fast hover:-translate-y-0.5 hover:bg-primary-subtle hover:shadow-md"
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <span className="text-xs font-mono text-muted">{project.projectKey}</span>
+                  <h3 className="text-sm font-semibold text-foreground">{project.name}</h3>
+                </div>
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_CLASS[project.status]}`}>
+                  {STATUS_LABEL[project.status]}
+                </span>
               </div>
-              <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_CLASS[project.status]}`}>
-                {STATUS_LABEL[project.status]}
-              </span>
+              {(project.startDate || project.endDate) && (
+                <div className="flex items-center gap-1 text-xs text-muted">
+                  <span>{project.startDate ?? "-"}</span>
+                  <span>~</span>
+                  <span>{project.endDate ?? "-"}</span>
+                </div>
+              )}
+            </Link>
+          ))}
+          {visibleProjects.length === 0 && (
+            <div className="col-span-full rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted">
+              해당 상태의 프로젝트가 없습니다.
             </div>
-            <div className="flex items-center gap-4 text-xs text-muted">
-              <span>PM {project.pmName}</span>
-              <span>멤버 {project.memberCount}명</span>
-              <span>이슈 {project.issueCount}개</span>
-            </div>
-          </Link>
-        ))}
-        {visibleProjects.length === 0 && (
-          <div className="col-span-full rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted">
-            해당 상태의 프로젝트가 없습니다.
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
