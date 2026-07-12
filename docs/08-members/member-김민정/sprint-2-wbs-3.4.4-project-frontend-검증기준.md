@@ -1,7 +1,7 @@
 > **작성자**: 김민정 (WBS 3.4.4 Owner)
 > **작성일**: 2026-07-07
 > **최종 수정**: 2026-07-12
-> **버전**: v1.4
+> **버전**: v1.5
 > **상태**: 검토 요청
 > **태그**: sprint-2, wbs-3.4.4, project, frontend, qa
 
@@ -17,7 +17,7 @@
 
 | WBS | 진척률 | 비고 |
 |---|---|---|
-| 3.4.4 | 90% (1차 검증 완료, finding 반영·재검증 + Reviewer 머지 대기) | 1차 검증 완료(2026-07-10). PR #72(`feature/wbs-3.4-project-frontend`, 실 API 연동) 브랜치에서 브라우저(데모 :3000 + 백엔드 :8080 실연동) + 빌드 검증 수행. **§2 22개 중 정상 통과 17, 부분 통과/Finding 3(#1/#5/#8), 확인 불가 2(#4/#18)** (2026-07-12 재검증으로 #19가 부분 통과/Finding → 정상 통과로 이동). §3 build 통과(TS 에러 0), lint는 PR #72 밖 기존 파일 원인으로 실패. Finding 3건(아래)은 PR [#72](https://github.com/SEUIL/Threadia/pull/72) 리뷰 코멘트로 owner(정철진)에게 전달함. **100% 확정 조건: PR #72 finding 반영(F-3 등) 후 브라우저 재검증 → 이 문서 갱신 → Reviewer(정철진)가 PR [#75](https://github.com/SEUIL/Threadia/pull/75) review+merge.** **2026-07-12 갱신: F-3가 PR #72 커밋 [`1ca0e97`](https://github.com/SEUIL/Threadia/commit/1ca0e97)로 수정됨 → 브라우저 재검증 완료(§2.2 #19). 남은 항목은 Reviewer(정철진)의 PR #75 review+merge뿐(F-1/F-2는 owner가 스코프 판단으로 보류, §Finding 요약 참고).** 주의: PR #72는 dev에 미머지(BLOCKED)라 검증은 `feature/wbs-3.4-project-frontend` 브랜치 기준 |
+| 3.4.4 | 95% (검증·finding 조치 확인 완료, PR #72 dev 머지됨 · Reviewer의 PR #75 머지만 대기) | 1차 검증 완료(2026-07-10). PR #72(`feature/wbs-3.4-project-frontend`, 실 API 연동) 브랜치에서 브라우저(데모 :3000 + 백엔드 :8080 실연동) + 빌드 검증 수행. **§2 22개 중 정상 통과 17, 부분 통과/Finding 3(#1/#5/#8), 확인 불가 2(#4/#18)** (2026-07-12 재검증으로 #19가 부분 통과/Finding → 정상 통과로 이동). §3 build 통과(TS 에러 0), lint는 PR #72 밖 기존 파일 원인으로 실패. Finding 3건(아래)은 PR [#72](https://github.com/SEUIL/Threadia/pull/72) 리뷰 코멘트로 owner(정철진)에게 전달함. **100% 확정 조건: PR #72 finding 반영(F-3 등) 후 브라우저 재검증 → 이 문서 갱신 → Reviewer(정철진)가 PR [#75](https://github.com/SEUIL/Threadia/pull/75) review+merge.** **2026-07-12 갱신: F-3가 PR #72 커밋 [`1ca0e97`](https://github.com/SEUIL/Threadia/commit/1ca0e97)로 수정됨 → 브라우저 재검증 완료(§2.2 #19). 남은 항목은 Reviewer(정철진)의 PR #75 review+merge뿐(F-1/F-2는 owner가 스코프 판단으로 보류, §Finding 요약 참고).** **2026-07-12 추가: PR #72가 Reviewer(김민정) 승인 후 dev에 머지됨(머지 커밋 [`dd61591`](https://github.com/SEUIL/Threadia/commit/dd61591)). 이 문서 검증은 머지 전 `feature/wbs-3.4-project-frontend` 브랜치 기준이며 해당 반영본이 그대로 dev에 들어감. 3.4.4 100% 확정은 이 문서(PR #75)를 Reviewer(정철진)가 review+merge하면 완료.** |
 
 ### Finding 요약 (owner 정철진 전달 대상)
 
@@ -32,11 +32,11 @@
 
 | WBS | 작업 | Owner | Reviewer | 선행 | 진척률(시트 기준) | 비고(2026-07-10 갱신) |
 |---|---|---|---|---|---|---|
-| 3.4.1 | S04 프로젝트 목록 API 연결 | 정철진 | 김민정 | 3.3.2 | 50% (진행중) | 선행 3.3.2 **완료**(dev merge). PR #72(`feature/wbs-3.4-project-frontend`)로 mock이 아니라 **실 API 연동 구현 확인**(§2.1 브라우저 검증). PR 미머지(BLOCKED) 상태라 시트 진척률은 진행중 유지 |
-| 3.4.2 | 프로젝트 생성 entry와 권한별 UI 구현 | 정철진 | 김민정 | 3.3.2, 3.1.4 | 50% (진행중) | 선행 3.3.2·3.1.4 **모두 완료**. PR #72로 생성 entry·권한별 UI(C만 생성 버튼) 실 연동 확인(§2.1 #6/#7/#10). PR 미머지 |
-| 3.4.3 | S12 프로젝트 설정/상세/수정/archive 화면 구현 | 정철진 | 김민정 | 3.3.3, 3.3.4 | 50% (진행중) | 선행 3.3.3·3.3.4 **모두 완료**. PR #72로 설정/상세/수정/archive/멤버관리 실 연동 확인(§2.2). PR 미머지 |
+| 3.4.1 | S04 프로젝트 목록 API 연결 | 정철진 | 김민정 | 3.3.2 | 50% (진행중) | 선행 3.3.2 **완료**(dev merge). PR #72(`feature/wbs-3.4-project-frontend`)로 mock이 아니라 **실 API 연동 구현 확인**(§2.1 브라우저 검증). PR #72 dev 머지 완료(2026-07-12, `dd61591`). 시트 진척률 갱신은 Owner(정철진)/팀장 소관이라 여기선 사실만 반영 |
+| 3.4.2 | 프로젝트 생성 entry와 권한별 UI 구현 | 정철진 | 김민정 | 3.3.2, 3.1.4 | 50% (진행중) | 선행 3.3.2·3.1.4 **모두 완료**. PR #72로 생성 entry·권한별 UI(C만 생성 버튼) 실 연동 확인(§2.1 #6/#7/#10). PR #72 dev 머지 완료(`dd61591`) |
+| 3.4.3 | S12 프로젝트 설정/상세/수정/archive 화면 구현 | 정철진 | 김민정 | 3.3.3, 3.3.4 | 50% (진행중) | 선행 3.3.3·3.3.4 **모두 완료**. PR #72로 설정/상세/수정/archive/멤버관리 실 연동 확인(§2.2). PR #72 dev 머지 완료(`dd61591`) |
 
-진척률 갱신 규칙: 진행중~99%는 Owner(정철진) 본인, 100% 확정은 팀장(황스일). 3.4.1~3.4.3은 3.3.x(Project Backend)에 의존하는데 **3.3.1~3.3.4가 모두 dev에 merge되어 선행 조건은 충족**됐다([`sprint-2-wbs-3.3.5-project-backend-검증케이스.md`](./sprint-2-wbs-3.3.5-project-backend-검증케이스.md) §1 참고). 구현(PR #72)은 완료됐으나 미머지 상태라 시트 진척률(50%)은 그대로 두고, 이 문서는 PR #72 브랜치 기준 검증 결과를 기록한다.
+진척률 갱신 규칙: 진행중~99%는 Owner(정철진) 본인, 100% 확정은 팀장(황스일). 3.4.1~3.4.3은 3.3.x(Project Backend)에 의존하는데 **3.3.1~3.3.4가 모두 dev에 merge되어 선행 조건은 충족**됐다([`sprint-2-wbs-3.3.5-project-backend-검증케이스.md`](./sprint-2-wbs-3.3.5-project-backend-검증케이스.md) §1 참고). 구현(PR #72)은 2026-07-12 dev에 머지됐다(`dd61591`). 시트 진척률(50%) 갱신은 Owner(정철진)/팀장 소관이라 이 문서에서는 바꾸지 않고, 검증 결과(머지 전 PR #72 브랜치 = dev 반영본 기준)만 기록한다.
 
 ---
 
