@@ -1,9 +1,9 @@
-# Threadia API 명세서 v2.3
+# Threadia API 명세서 v2.4
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-07-09
-> **버전**: Sprint 1.5 invitation 표시 필드 보강 + Sprint 3 기준선 반영 + company member scoped PATCH 동기화 + current-user membership context + project detail viewer response v1.6
+> **최종 수정**: 2026-07-13
+> **버전**: Sprint 1.5 invitation 표시 필드 보강 + Sprint 3 기준선 반영 + company member scoped PATCH 동기화 + current-user membership context + project detail viewer response v1.6 + WBS 3.5 candidate Issue/Kanban 최소 계약
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -306,15 +306,17 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 
 > **Phase A Sprint 1 구현 범위**: 이 섹션은 후속 MVP reference다. Sprint 1 구현 target은 Auth API와 인증 DB에 한정한다.
 
+> **WBS 3.5 candidate 구현 계약**: `GET/POST /api/v1/projects/{projectId}/issues`, `PATCH /api/v1/issues/{issueId}/status`만 후보 구현 범위다. `POST` 요청은 `title`만 받고 새 이슈는 `BACKLOG`로 생성한다. 세 endpoint의 이슈 응답 객체는 `id`, `issueKey`, `title`, `status`만 포함한다. `description`, `priority`, `assigneeUserId`, `sprintId`, `dueDate`, `sourceType` 등 full Issue contract 필드와 이슈 상세 수정은 이번 후보 구현에서 제외한다.
+
 
 | Method | Endpoint | 권한 | 설명 |
 |---|---|---|---|
-| GET | `/api/v1/projects/{projectId}/issues` | A/P/C | 이슈 목록/칸반 조회 |
-| POST | `/api/v1/projects/{projectId}/issues` | A/P/C | 이슈 생성 |
+| GET | `/api/v1/projects/{projectId}/issues` | A/P/C | WBS 3.5 candidate 이슈 목록/칸반 조회. 응답은 최소 이슈 객체만 제공 |
+| POST | `/api/v1/projects/{projectId}/issues` | A/P/C | WBS 3.5 candidate title-only 이슈 생성. `BACKLOG`로 생성 |
 | POST | `/api/v1/projects/{projectId}/issues/from-message` | A/P/C | 프로젝트 메시지에서 이슈 생성 |
 | GET | `/api/v1/issues/{issueId}` | A/P/C | 이슈 상세 조회 |
-| PATCH | `/api/v1/issues/{issueId}` | A 제한/P/C | 이슈 수정 |
-| PATCH | `/api/v1/issues/{issueId}/status` | A 제한/P/C | 이슈 상태 변경 |
+| PATCH | `/api/v1/issues/{issueId}` | A 제한/P/C | full Issue contract 기준 이슈 수정. WBS 3.5 candidate 제외 |
+| PATCH | `/api/v1/issues/{issueId}/status` | A 제한/P/C | WBS 3.5 candidate 이슈 상태 변경 |
 | POST | `/api/v1/issues/{issueId}/trash` | P/C 또는 등록자 | 이슈 휴지통 이동 |
 | POST | `/api/v1/issues/{issueId}/restore` | P/C 또는 등록자 | 이슈 복원 |
 | GET | `/api/v1/projects/{projectId}/documents` | A/P/C | 문서 목록 |
@@ -330,7 +332,7 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 | GET | `/api/v1/issues/{issueId}/documents` | A/P/C | 이슈 기준 연결 문서 |
 | GET | `/api/v1/documents/{documentId}/issues` | A/P/C | 문서 기준 연결 이슈 |
 
-이슈/문서 영구 삭제는 Sprint 3 decision-needed다. 참조 무결성, audit, 보존 기간, 권한 기준이 확정되기 전까지 full endpoint contract를 추가하지 않는다.
+이슈/문서 영구 삭제는 Sprint 3 decision-needed다. 참조 무결성, audit, 보존 기간, 권한 기준이 확정되기 전까지 full endpoint contract를 추가하지 않는다. WBS 3.5 candidate의 최소 이슈 계약은 이슈 상세, 담당자, 우선순위, 마감일, Sprint, from-message, 문서, thread, notification 연결을 확정하거나 구현하지 않는다.
 
 문서 optimistic locking은 Sprint 3 decision-needed다. `DOCUMENT_VERSION_CONFLICT`는 boundary error code로만 둔다. request body의 `version` 또는 `revision` 필드, conflict response body, UI 해소 방식은 아직 확정 계약이 아니다.
 
@@ -471,7 +473,7 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 
 ## 13. 요청/응답 JSON 예시
 
-이 섹션은 v2.2의 endpoint, 권한, 보류 범위를 유지한 상태에서 구현자가 참고할 수 있는 JSON 예시를 보강한다.
+이 섹션은 v2.4의 endpoint, 권한, 보류 범위를 유지한 상태에서 구현자가 참고할 수 있는 JSON 예시를 보강한다.
 
 - `v1.4`의 예시는 형식 참고용으로만 사용한다.
 - 실제 계약 기준은 이 문서의 endpoint 표와 v2.2에서 확정한 정책이다.
@@ -1160,19 +1162,37 @@ Response 200:
 
 ### 13.6 Issue / Document / Graph
 
+#### GET `/api/v1/projects/{projectId}/issues`
+
+> **WBS 3.5 candidate**: 목록의 각 이슈 객체는 `id`, `issueKey`, `title`, `status`만 포함한다.
+
+Response 200:
+
+```json
+{
+  "data": {
+    "issues": [
+      {
+        "id": 1000,
+        "issueKey": "THD-1",
+        "title": "로그인 API 구현",
+        "status": "BACKLOG"
+      }
+    ]
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
 #### POST `/api/v1/projects/{projectId}/issues`
+
+> **WBS 3.5 candidate**: `title`만 허용하며, `description`, `priority`, `assigneeUserId`, `sprintId`, `dueDate`는 받지 않는다. 생성 상태는 항상 `BACKLOG`다.
 
 Request Body:
 
 ```json
 {
-  "title": "로그인 API 구현",
-  "description": "이메일/비밀번호 로그인 API를 구현한다.",
-  "status": "TODO",
-  "priority": "HIGH",
-  "assigneeUserId": 2,
-  "sprintId": 300,
-  "dueDate": "2026-06-21"
+  "title": "로그인 API 구현"
 }
 ```
 
@@ -1183,11 +1203,9 @@ Response 201:
   "data": {
     "issue": {
       "id": 1000,
-      "projectId": 20,
+      "issueKey": "THD-1",
       "title": "로그인 API 구현",
-      "status": "TODO",
-      "priority": "HIGH",
-      "sourceType": "MANUAL"
+      "status": "BACKLOG"
     }
   },
   "meta": { "requestId": "req_..." }
@@ -1211,6 +1229,8 @@ Request Body:
 
 #### PATCH `/api/v1/issues/{issueId}`
 
+> full Issue contract 수정 예시는 WBS 3.5 candidate 범위 밖의 reference다.
+
 Request Body:
 
 ```json
@@ -1225,10 +1245,28 @@ Request Body:
 
 #### PATCH `/api/v1/issues/{issueId}/status`
 
+> **WBS 3.5 candidate**: 응답 이슈 객체는 `id`, `issueKey`, `title`, `status`만 포함한다.
+
 Request Body:
 
 ```json
 { "status": "IN_PROGRESS" }
+```
+
+Response 200:
+
+```json
+{
+  "data": {
+    "issue": {
+      "id": 1000,
+      "issueKey": "THD-1",
+      "title": "로그인 API 구현",
+      "status": "IN_PROGRESS"
+    }
+  },
+  "meta": { "requestId": "req_..." }
+}
 ```
 
 #### POST `/api/v1/issues/{issueId}/trash`
