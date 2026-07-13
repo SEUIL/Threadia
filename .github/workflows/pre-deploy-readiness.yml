@@ -79,6 +79,7 @@ jobs:
       THREADIA_COOKIE_SECURE: "false"
       THREADIA_CORS_ALLOWED_ORIGIN: http://127.0.0.1:3001
       THREADIA_E2E_REQUIRE_OAUTH: "false"
+      MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
 
     services:
       mysql:
