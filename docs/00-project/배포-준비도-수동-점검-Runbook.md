@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀<br>
 > **작성일**: 2026-07-11<br>
-> **최종 수정**: 2026-07-11<br>
-> **버전**: v0.1<br>
+> **최종 수정**: 2026-07-13<br>
+> **버전**: v0.2<br>
 > **상태**: 작성 중<br>
 > **태그**: deploy, readiness, ci, runbook, manual
 
@@ -17,9 +17,9 @@
 
 1. GitHub Actions에서 `pre-deploy-readiness` workflow를 선택한다.
 2. GitHub UI의 ref selector에서 점검할 branch, tag 또는 commit을 선택한다. workflow input은 사용하지 않는다.
-3. 세 job이 모두 통과하는지 확인하고, 실행 URL과 선택 ref 및 결과를 배포 작업 기록에 남긴다.
+3. 네 job이 모두 통과하는지 확인하고, 실행 URL과 선택 ref 및 결과를 배포 작업 기록에 남긴다.
 
-성공한 workflow는 선택한 ref가 GitHub-hosted runner에서 clean 상태로 repository test/build를 통과했다는 의미뿐이다. Backend는 `./gradlew test`를, Frontend와 docs-site는 각각 `npm ci`, `npm run lint`, `npm run build`를 실행한다.
+성공한 workflow는 선택한 ref가 GitHub-hosted runner에서 clean 상태로 repository test/build와 anonymous frontend smoke를 통과했다는 의미뿐이다. Backend는 `./gradlew test`를, Frontend와 docs-site는 각각 `npm ci`, `npm run lint`, `npm run build`를 실행한다. Frontend smoke job은 disposable MySQL service에 `db/schema.sql`을 적용하고, CI-only fixture 환경에서 Spring Boot `/actuator/health`와 Playwright의 frontend web-server readiness를 확인한 뒤 managed Chromium으로 `npm run test:smoke -- --workers=1`을 실행한다. OAuth callback과 SMTP delivery는 점검하지 않으며, 실패 시에만 backend 로그와 Playwright report를 artifact로 보관한다.
 
 remote workflow 실행은 이 변경을 포함한 향후 commit/push가 승인된 뒤에만 가능하다. required status checks 적용은 별도 승인 대상인 GitHub ruleset 설정이며, 이 Runbook의 workflow 성공이나 local 검증으로 변경되지 않는다.
 
@@ -58,7 +58,7 @@ scripts/deploy/deploy-backend-ec2.example.sh
 
 배포 준비도 기록에는 아래 항목을 남긴다.
 
-- 선택한 Git ref와 `pre-deploy-readiness` 실행 URL 및 세 job 결과
+- 선택한 Git ref와 `pre-deploy-readiness` 실행 URL 및 네 job 결과
 - local `check-env.sh`의 성공 또는 누락 변수명만 포함한 결과
 - local EC2 skeleton dry-run 결과와 미해결 follow-up
 - 모든 미해결 항목의 항목명, 담당자, 목표일, 승인 상태와 후속 조치

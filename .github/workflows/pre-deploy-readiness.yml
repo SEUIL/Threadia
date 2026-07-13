@@ -64,6 +64,94 @@ jobs:
       - name: Run build
         run: npm run build
 
+  frontend-smoke:
+    name: Frontend smoke
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:8080
+      THREADIA_DB_URL: jdbc:mysql://127.0.0.1:3306/threadia_smoke
+      THREADIA_DB_USERNAME: threadia_smoke
+      THREADIA_DB_PASSWORD: threadia_smoke_password
+      THREADIA_JWT_SECRET: ci-only-smoke-jwt-secret-not-for-production
+      THREADIA_COOKIE_SECURE: "false"
+      THREADIA_CORS_ALLOWED_ORIGIN: http://127.0.0.1:3001
+      THREADIA_E2E_REQUIRE_OAUTH: "false"
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: threadia_smoke
+          MYSQL_USER: threadia_smoke
+          MYSQL_PASSWORD: threadia_smoke_password
+          MYSQL_ROOT_PASSWORD: threadia_smoke_root_password
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uthreadia_smoke -pthreadia_smoke_password"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+        ports:
+          - 3306:3306
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Initialize MySQL schema
+        run: MYSQL_PWD="$THREADIA_DB_PASSWORD" mysql --host=127.0.0.1 --port=3306 --user="$THREADIA_DB_USERNAME" threadia_smoke < ../db/schema.sql
+
+      - name: Start backend
+        working-directory: backend
+        run: nohup ./gradlew bootRun > backend-smoke.log 2>&1 &
+
+      - name: Wait for backend health
+        run: |
+          for attempt in {1..60}; do
+            if curl --fail --silent --show-error http://127.0.0.1:8080/actuator/health > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run frontend smoke after Playwright web-server readiness
+        run: npm run test:smoke -- --workers=1
+
+      - name: Upload smoke failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-smoke-failure-artifacts
+          path: |
+            backend/backend-smoke.log
+            frontend/test-results
+            frontend/playwright-report
+          if-no-files-found: warn
+          retention-days: 7
+
   docs-site-lint-and-build:
     name: Docs-site lint and build
     runs-on: ubuntu-latest
