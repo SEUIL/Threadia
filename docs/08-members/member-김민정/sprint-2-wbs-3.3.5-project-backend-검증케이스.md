@@ -1,8 +1,8 @@
 > **작성자**: 김민정 (WBS 3.3.5 Owner)
 > **작성일**: 2026-07-07
-> **최종 수정**: 2026-07-10
-> **버전**: v1.6
-> **상태**: 검토 요청
+> **최종 수정**: 2026-07-13
+> **버전**: v1.7
+> **상태**: 완료
 > **태그**: sprint-2, wbs-3.3.5, project, qa
 
 # Sprint 2 WBS 3.3.5 Project Backend 검증 케이스
@@ -17,7 +17,7 @@
 
 | WBS | 진척률 | 비고 |
 |---|---|---|
-| 3.3.5 | 95% (검증 완료·F-1/#20 재검증 통과, Reviewer 머지만 대기) | Apidog 실행 완료(2026-07-10~11). §2 검증 케이스 20개 **전부 정상 통과**(#20은 PR #74 리뷰(황스일) 반영해 "비활성 회사 구성원 승격 시도 → 409"로 재정의·재검증). §3 DB 정합성 포인트 4개 전부 쿼리로 확인 완료. 코드 리뷰 Finding F-1(§2.1 하단, list/create 존재확인/권한확인 순서)은 이슈 [#73](https://github.com/SEUIL/Threadia/issues/73) → PR [#76](https://github.com/SEUIL/Threadia/pull/76)(김민경 수정, 여도현 review+merge)으로 dev 반영, **재검증(없는 companyId → 404) 통과(2026-07-11)로 해결 완료**. **100% 확정 조건: Reviewer(정철진)가 PR [#74](https://github.com/SEUIL/Threadia/pull/74) review+merge.** |
+| 3.3.5 | 100% | Apidog 실행 완료(2026-07-10~11). §2 검증 케이스 20개 **전부 정상 통과**(#20은 PR #74 리뷰(황스일) 반영해 "비활성 회사 구성원 승격 시도 → 409"로 재정의·재검증). §3 DB 정합성 포인트 4개 전부 쿼리로 확인 완료. 코드 리뷰 Finding F-1(§2.1 하단, list/create 존재확인/권한확인 순서)은 이슈 [#73](https://github.com/SEUIL/Threadia/issues/73) → PR [#76](https://github.com/SEUIL/Threadia/pull/76)(김민경 수정, 여도현 review+merge)으로 dev 반영, **재검증(없는 companyId → 404) 통과(2026-07-11)로 해결 완료**. **100% 확정**: Reviewer(황스일)가 PR [#74](https://github.com/SEUIL/Threadia/pull/74)를 review+merge 완료(2026-07-11, 머지 커밋 `4c24f86`) — 2026-07-13 git log로 재확인 |
 
 ---
 
