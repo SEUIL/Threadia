@@ -29,6 +29,7 @@ import com.threadia.backend.company.exception.DepartmentNotFoundException;
 import com.threadia.backend.config.jwt.JwtAuthenticationException;
 import com.threadia.backend.invitation.exception.InvitationConflictException;
 import com.threadia.backend.invitation.exception.InvitationNotFoundException;
+import com.threadia.backend.issue.exception.IssueNotFoundException;
 import com.threadia.backend.project.exception.ProjectMemberConflictException;
 import com.threadia.backend.project.exception.ProjectMemberNotFoundException;
 import com.threadia.backend.project.exception.ProjectConflictException;
@@ -102,6 +103,7 @@ public class GlobalExceptionHandler {
 			DepartmentNotFoundException.class,
 			ProjectMemberNotFoundException.class,
 			ProjectNotFoundException.class,
+			IssueNotFoundException.class,
 			com.threadia.backend.invitation.exception.CompanyNotFoundException.class})
 	public ResponseEntity<ErrorResponse> handleCompanyNotFound(RuntimeException ex) {
 		ErrorBody body = ErrorBody.of("NOT_FOUND", ex.getMessage());
