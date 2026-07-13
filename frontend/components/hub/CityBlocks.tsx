@@ -22,6 +22,18 @@
  *
  * 좌표 기준: OfficeFloor(기본 position [0,0,0]) 바닥 범위 x:[-1,6] z:[1,-7].
  */
+ /*
+  메모 : 76f73da 커밋이후 작업
+  - 내부 도로 위치값 및 길이를 사용자가 브라우저를 직접 육안으로 관찰하며 조정함
+  - 이후 작업 각각 도로가 겹치는 부분 마다 알맞은 교차로 에셋을 배치하여 자연스럽게
+    도로가 연결되는 효과를 주어야함
+
+  깨달은점
+  - 앞으로 3D 모델 작업시 위치값을 표시하는 무언가를 먼저 브라우저에 배치할것
+  - ex)동서남북 표시 & 중앙 표시
+  - 정확한 위치지시를 함에도 AI가 못알아 듣는 경우가 너무 많음
+    따라서 아예 방향지시기를 임시로 두어 그걸 기준으로 작업하는게 맞을듯함
+  */
 import { useGLTF } from "@react-three/drei";
 import { RoadStraightRun } from "@/components/hub/RoadStraightRun";
 
@@ -80,11 +92,11 @@ export function CityBlocks() {
   // 내부 가로 도로: 서쪽 변(x=NW.x)에서 동쪽 변(x=NE.x)까지 +x로 관통.
   const westX = LOOP_CORNERS[0].x;
   const eastX = LOOP_CORNERS[1].x;
-  const horizontalCount = Math.round(eastX - westX) + 1;
+  const horizontalCount = Math.round(eastX - westX);
   // 내부 세로 도로: 북쪽 변(z=NW.z)에서 남쪽 변(z=SW.z)까지 -z로 관통.
   const northZ = LOOP_CORNERS[0].z;
   const southZ = LOOP_CORNERS[3].z;
-  const verticalCount = Math.round(northZ - southZ) + 1;
+  const verticalCount = Math.round(northZ - southZ);
 
   return (
     <group>
@@ -110,22 +122,22 @@ export function CityBlocks() {
       {/* 내부 가로 관통 도로 (중앙 정렬, offset 0) */}
       <RoadStraightRun
         count={horizontalCount}
-        position={[westX, INTERIOR_Y, INTERIOR_STREET_Z]}
+        position={[westX + 0.5, INTERIOR_Y, INTERIOR_STREET_Z]}
         rotationY={0}
         lateralOffset={0}
       />
       {/* 내부 세로 관통 도로 (중앙 정렬, offset 0) */}
       <RoadStraightRun
         count={verticalCount}
-        position={[INTERIOR_STREET_X, INTERIOR_Y, northZ]}
+        position={[INTERIOR_STREET_X, INTERIOR_Y, northZ - 0.5]}
         rotationY={Math.PI / 2}
         lateralOffset={0}
       />
       {/* 내부 세로 관통 도로 2번째 — 오피스 출입문(남쪽 벽) 기준 오른쪽(동쪽)으로
           하나 더, 같은 방식(중앙 정렬, offset 0)으로 평행하게 추가. */}
       <RoadStraightRun
-        count={verticalCount - 5}
-        position={[- INTERIOR_STREET_X * 0.9, INTERIOR_Y, -northZ * 1.55]}
+        count={verticalCount - 4}
+        position={[-INTERIOR_STREET_X +1, INTERIOR_Y, -northZ * 1.55]}
         rotationY={Math.PI * 2}
         lateralOffset={0}
       />
