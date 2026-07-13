@@ -1,7 +1,7 @@
 > **작성자**: 김민정 (WBS 3.0 Owner)
 > **작성일**: 2026-07-07
 > **최종 수정**: 2026-07-13
-> **버전**: v1.5
+> **버전**: v1.6
 > **상태**: 검토 요청
 > **태그**: sprint-2, wbs-3.0, foundation, qa, gate
 
@@ -39,7 +39,7 @@
 | 라인 | WBS | 완료 조건 (시트 원문) | 확인 결과 | 비고 |
 |---|---|---|---|---|
 | Company/RBAC Backend | 3.1 | 회사/부서/구성원 API와 membership 기반 권한 검사 기준이 동작 | **충족** | [`sprint-2-wbs-3.1.5-company-rbac-검증케이스.md`](./sprint-2-wbs-3.1.5-company-rbac-검증케이스.md) self-report 100%(케이스 전부 통과, #4/#7 버그 PR #66로 수정·재검증). QA 문서 PR #71이 dev에 머지됨(`5a20d65`) |
-| Company Frontend | 3.2 | 로그인 후 S03/S04 진입, 권한별 메뉴 노출, 회사 관리 route 확인 가능 | **충족** | [`황스일/sprint-2-wbs-3.2.5-company-frontend-qa-결과.md`](../황스일/sprint-2-wbs-3.2.5-company-frontend-qa-결과.md) 1차 결론(2026-07-08)은 `/hub` WebGL context 생성 실패로 보류였으나, fallback 처리 커밋 `1c36c8a`가 dev에 반영돼 있음을 확인. 2026-07-13 `member1@test.com`(A 역할)으로 브라우저 재검증 — WebGL 정상 지원 시 `<canvas>` 정상 렌더(콘솔 에러 0건), `HTMLCanvasElement.getContext` 패치로 미지원 재현 시 "3D 허브를 표시할 수 없습니다" fallback이 정확히 노출되고 좌측 레일도 유지됨을 확인(상세는 [`sprint-2-wbs-3.6.2-frontend-qa-evidence.md`](./sprint-2-wbs-3.6.2-frontend-qa-evidence.md) §2.2 참고). **3.2.5 문서 자체는 황스일 소유라 이 재검증 결과를 반영해달라는 제안만 남기고 직접 수정하지 않음** |
+| Company Frontend | 3.2 | 로그인 후 S03/S04 진입, 권한별 메뉴 노출, 회사 관리 route 확인 가능 | **충족** | [`황스일/sprint-2-wbs-3.2.5-company-frontend-qa-결과.md`](../황스일/sprint-2-wbs-3.2.5-company-frontend-qa-결과.md)는 2026-07-08 결론 그대로 `검토 중` 상태이며, `/hub` WebGL context 생성 실패를 이유로 3.0 확정을 보류시켜 두고 있다(해당 문서는 황스일 소유라 이 PR에서 직접 수정하지 않음). 이 판정은 그 문서를 근거로 삼지 않고, **아래는 이번 PR 작성자(김민정)가 2026-07-13에 직접 실행한 재검증 evidence**다: fallback 처리 커밋 `1c36c8a`가 dev에 반영돼 있음을 `git log`로 확인 → 프론트 dev 서버(`localhost:3000`) 기동, `member1@test.com`(A 역할)으로 로그인 후 `/hub` 진입 → (1) WebGL 정상 지원 환경: `<canvas>` 정상 렌더, 브라우저 콘솔 에러 0건(THREE.WebGLRenderer 관련 에러 없음). (2) `HTMLCanvasElement.prototype.getContext`를 패치해 `webgl`/`webgl2` 컨텍스트가 `null`을 반환하도록 강제한 뒤 `/hub` 재진입: `<canvas>`가 렌더되지 않고 "3D 허브를 표시할 수 없습니다. 이 브라우저 또는 환경에서 WebGL을 사용할 수 없습니다..." fallback 문구가 노출되며, 좌측 레일(회사/프로젝트/DM/알림 메뉴)은 그대로 유지됨을 확인. 두 경로 모두 에러로 화면이 깨지지 않는다. **후속 조치 제안**: 황스일이 3.2.5 문서를 이 evidence로 갱신하거나, 별도 evidence 문서(PR)로 남겨줄 것을 요청함 |
 | Project Backend | 3.3 | 프로젝트 생성/조회/수정/archive와 멤버 조회 skeleton 동작 | **충족** | [`sprint-2-wbs-3.3.5-project-backend-검증케이스.md`](./sprint-2-wbs-3.3.5-project-backend-검증케이스.md) self-report 100%(케이스 20개 전부 통과, Finding F-1은 PR #76으로 해결·재검증). QA 문서 PR #74가 Reviewer(황스일) review+merge로 dev에 머지됨(`4c24f86`, `gh pr view 74`로 확인) |
 | Project Frontend | 3.4 | 프로젝트 목록 진입, 생성/수정/아카이빙 UI 확인 가능 | **충족** | [`sprint-2-wbs-3.4.4-project-frontend-검증기준.md`](./sprint-2-wbs-3.4.4-project-frontend-검증기준.md) self-report 100%(§2 22개 중 정상 통과 17, Finding F-3는 PR #72 커밋 `1ca0e97`로 해소·재검증 완료). 구현 PR #72(`dd61591`)와 QA 문서 PR #75(`80db72f`, 머지자 `cjfwls39`=정철진) 둘 다 dev에 머지됨 |
 
