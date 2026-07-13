@@ -36,6 +36,10 @@ class MysqlSchemaValidationTests {
 			"projects",
 			"project_members"
 	);
+	private static final List<String> ISSUE_TABLES = List.of(
+			"issues",
+			"issue_status_history"
+	);
 
 	@Autowired
 	private DataSource dataSource;
@@ -157,6 +161,53 @@ class MysqlSchemaValidationTests {
 		assertForeignKey("project_members", "fk_pm_user", "user_id", "users", "id");
 	}
 
+	@Test
+	void appliesSchemaSqlAndCreatesIssueTables() {
+		applySchemaSql();
+
+		Set<String> existingTables = jdbcTemplate.queryForList("""
+				SELECT table_name
+				FROM information_schema.tables
+				WHERE table_schema = DATABASE()
+				  AND table_name IN ('issues', 'issue_status_history')
+				""", String.class)
+				.stream()
+				.collect(Collectors.toSet());
+
+		assertThat(existingTables).containsExactlyInAnyOrderElementsOf(ISSUE_TABLES);
+	}
+
+	@Test
+	void appliesSchemaSqlAndCreatesIssueReferenceConstraints() {
+		applySchemaSql();
+
+		assertRequiredColumn("issues", "project_id", "bigint");
+		assertRequiredColumn("issues", "issue_key", "varchar");
+		assertRequiredColumn("issues", "reporter_user_id", "bigint");
+		assertRequiredColumn("issues", "title", "varchar");
+		assertEnumColumn("issues", "status", "BACKLOG", "BACKLOG", "TODO", "IN_PROGRESS", "IN_REVIEW", "DONE");
+		assertNullableColumn("issues", "trashed_at", "datetime");
+		assertRequiredColumn("issues", "created_at", "datetime");
+		assertRequiredColumn("issues", "updated_at", "datetime");
+		assertIndex("issues", "uq_issues_project_key", "project_id", "issue_key");
+		assertIndex("issues", "idx_issues_project_status", "project_id", "status");
+		assertUniqueConstraint("issues", "uq_issues_project_key");
+		assertForeignKey("issues", "fk_issues_project", "project_id", "projects", "id");
+		assertForeignKey("issues", "fk_issues_reporter", "reporter_user_id", "users", "id");
+		assertCheckConstraint("chk_issues_source");
+		assertCheckConstraint("chk_issues_trash_pair");
+
+		assertRequiredColumn("issue_status_history", "issue_id", "bigint");
+		assertRequiredColumn("issue_status_history", "changed_by_user_id", "bigint");
+		assertNullableEnumColumn("issue_status_history", "from_status", "BACKLOG", "TODO", "IN_PROGRESS", "IN_REVIEW", "DONE");
+		assertEnumColumn("issue_status_history", "to_status", null, "BACKLOG", "TODO", "IN_PROGRESS", "IN_REVIEW", "DONE");
+		assertRequiredColumn("issue_status_history", "changed_at", "datetime");
+		assertIndex("issue_status_history", "idx_ish_issue_changed", "issue_id", "changed_at");
+		assertIndex("issue_status_history", "idx_ish_changed_by", "changed_by_user_id");
+		assertForeignKey("issue_status_history", "fk_ish_issue", "issue_id", "issues", "id");
+		assertForeignKey("issue_status_history", "fk_ish_changed_by", "changed_by_user_id", "users", "id");
+	}
+
 	private void applySchemaSql() {
 		Path schemaPath = Path.of("..", "db", "schema.sql").toAbsolutePath().normalize();
 
@@ -205,6 +256,14 @@ class MysqlSchemaValidationTests {
 			assertThat(String.valueOf(column.get("COLUMN_DEFAULT")).replace("'", ""))
 					.isEqualTo(defaultValue);
 		}
+	}
+
+	private void assertNullableEnumColumn(String tableName, String columnName, String... enumValues) {
+		Map<String, Object> column = columnMetadata(tableName, columnName);
+
+		assertThat(column.get("DATA_TYPE")).isEqualTo("enum");
+		assertThat(column.get("IS_NULLABLE")).isEqualTo("YES");
+		assertThat((String) column.get("COLUMN_TYPE")).contains(enumValues);
 	}
 
 	private Map<String, Object> columnMetadata(String tableName, String columnName) {

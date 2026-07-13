@@ -1,8 +1,8 @@
 > **작성자**: 김민정 (WBS 3.4.4 Owner)
 > **작성일**: 2026-07-07
-> **최종 수정**: 2026-07-12
-> **버전**: v1.5
-> **상태**: 검토 요청
+> **최종 수정**: 2026-07-13
+> **버전**: v1.6
+> **상태**: 완료
 > **태그**: sprint-2, wbs-3.4.4, project, frontend, qa
 
 # Sprint 2 WBS 3.4.4 Project Frontend 브라우저/빌드 검증 기준
@@ -17,7 +17,7 @@
 
 | WBS | 진척률 | 비고 |
 |---|---|---|
-| 3.4.4 | 95% (검증·finding 조치 확인 완료, PR #72 dev 머지됨 · Reviewer의 PR #75 머지만 대기) | 1차 검증 완료(2026-07-10). PR #72(`feature/wbs-3.4-project-frontend`, 실 API 연동) 브랜치에서 브라우저(데모 :3000 + 백엔드 :8080 실연동) + 빌드 검증 수행. **§2 22개 중 정상 통과 17, 부분 통과/Finding 3(#1/#5/#8), 확인 불가 2(#4/#18)** (2026-07-12 재검증으로 #19가 부분 통과/Finding → 정상 통과로 이동). §3 build 통과(TS 에러 0), lint는 PR #72 밖 기존 파일 원인으로 실패. Finding 3건(아래)은 PR [#72](https://github.com/SEUIL/Threadia/pull/72) 리뷰 코멘트로 owner(정철진)에게 전달함. **100% 확정 조건: PR #72 finding 반영(F-3 등) 후 브라우저 재검증 → 이 문서 갱신 → Reviewer(정철진)가 PR [#75](https://github.com/SEUIL/Threadia/pull/75) review+merge.** **2026-07-12 갱신: F-3가 PR #72 커밋 [`1ca0e97`](https://github.com/SEUIL/Threadia/commit/1ca0e97)로 수정됨 → 브라우저 재검증 완료(§2.2 #19). 남은 항목은 Reviewer(정철진)의 PR #75 review+merge뿐(F-1/F-2는 owner가 스코프 판단으로 보류, §Finding 요약 참고).** **2026-07-12 추가: PR #72가 Reviewer(김민정) 승인 후 dev에 머지됨(머지 커밋 [`dd61591`](https://github.com/SEUIL/Threadia/commit/dd61591)). 이 문서 검증은 머지 전 `feature/wbs-3.4-project-frontend` 브랜치 기준이며 해당 반영본이 그대로 dev에 들어감. 3.4.4 100% 확정은 이 문서(PR #75)를 Reviewer(정철진)가 review+merge하면 완료.** |
+| 3.4.4 | 100% | 1차 검증 완료(2026-07-10). PR #72(`feature/wbs-3.4-project-frontend`, 실 API 연동) 브랜치에서 브라우저(데모 :3000 + 백엔드 :8080 실연동) + 빌드 검증 수행. **§2 22개 중 정상 통과 17, 부분 통과/Finding 3(#1/#5/#8), 확인 불가 2(#4/#18)** (2026-07-12 재검증으로 #19가 부분 통과/Finding → 정상 통과로 이동). §3 build 통과(TS 에러 0), lint는 PR #72 밖 기존 파일 원인으로 실패. Finding 3건(아래)은 PR [#72](https://github.com/SEUIL/Threadia/pull/72) 리뷰 코멘트로 owner(정철진)에게 전달했고, F-3는 PR #72 커밋 [`1ca0e97`](https://github.com/SEUIL/Threadia/commit/1ca0e97)로 수정돼 브라우저 재검증 완료(§2.2 #19). F-1/F-2는 owner가 스코프 판단으로 보류/종결(§Finding 요약 참고). PR #72는 Reviewer(김민정) 승인 후 2026-07-12 dev에 머지됐다(머지 커밋 [`dd61591`](https://github.com/SEUIL/Threadia/commit/dd61591)) — 이 문서의 검증은 머지 전 `feature/wbs-3.4-project-frontend` 브랜치 기준이며 해당 반영본이 그대로 dev에 들어갔다. **100% 확정(2026-07-13)**: 이 문서(PR [#75](https://github.com/SEUIL/Threadia/pull/75))는 지정 Reviewer(정철진, `cjfwls39`)가 2026-07-12 직접 머지했다(머지 커밋 `80db72f`). `gh pr view 75`로 확인한 결과 **formal GitHub approve review는 0건**이라 정식 review 기록은 없다 — 3.3.5 문서 §1에서 이미 적용된 "지정 Reviewer의 직접 merge = Reviewer merge 인정" 관행을 그대로 적용해 100%로 본다 |
 
 ### Finding 요약 (owner 정철진 전달 대상)
 
