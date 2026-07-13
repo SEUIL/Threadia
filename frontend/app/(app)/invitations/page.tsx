@@ -16,13 +16,9 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { invitationService } from "@/services/invitation.service";
-import {
-  INVITATION_STATUS_CLASS,
-  INVITATION_STATUS_LABEL,
-  formatExpiresAt,
-  invitationErrorMessage,
-  isInvitationExpired,
-} from "@/lib/invitation";
+import { invitationErrorMessage, isInvitationExpired } from "@/lib/invitation";
+import { InvitationEnvelope } from "@/components/invitations/InvitationEnvelope";
+import { InvitationLetter } from "@/components/invitations/InvitationLetter";
 import type { InvitationResponse } from "@/types/invitation.types";
 
 type LoadState = "loading" | "ready" | "error";
@@ -36,6 +32,9 @@ export default function InvitationsPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   // accept 성공 후 안내 배너. AuthContext.companies가 즉시 안 바뀌므로(주석 참고) 필요하다.
   const [acceptNotice, setAcceptNotice] = useState<string | null>(null);
+  // 이번 방문에서 사용자가 봉투를 연 초대 id. 백엔드에 열람 여부를 저장하지 않으므로
+  // 페이지를 다시 들어오면 초기화된다 — 아직 PENDING인 초대는 다시 봉투로 떨어진다.
+  const [openedIds, setOpenedIds] = useState<Set<number>>(new Set());
 
   const fetchInvitations = useCallback(async () => {
     setLoadState("loading");
@@ -88,6 +87,12 @@ export default function InvitationsPage() {
     }
   };
 
+  // 아직 대응 가능(PENDING·미만료)하고, 이번 방문에서 아직 안 연 초대만 봉투 더미로.
+  const isPileable = (invitation: InvitationResponse) =>
+    invitation.status === "PENDING" && !isInvitationExpired(invitation) && !openedIds.has(invitation.id);
+  const pile = invitations.filter(isPileable);
+  const opened = invitations.filter((invitation) => !isPileable(invitation));
+
   return (
     <div className="mx-auto max-w-2xl px-6 py-10">
       <Link
@@ -120,58 +125,44 @@ export default function InvitationsPage() {
       )}
 
       {loadState === "ready" && (
-        <ul className="mt-6 flex flex-col gap-3">
-          {invitations.map((invitation) => {
-            const expired = isInvitationExpired(invitation);
-            const canRespond = invitation.status === "PENDING" && !expired;
-            const busy = actionId === invitation.id;
-            return (
-              <li
-                key={invitation.id}
-                className="rounded-xl border border-border bg-surface p-5"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{invitation.companyName}</p>
-                    <p className="mt-1 text-xs text-muted">
-                      {invitation.inviterNickname} 님이 {invitation.role === "COMPANY_ADMIN" ? "관리자" : "구성원"}(으)로 초대했습니다
-                    </p>
-                    <p className="mt-1 text-xs text-muted">{formatExpiresAt(invitation.expiresAt)}</p>
-                  </div>
-                  <span
-                    className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${INVITATION_STATUS_CLASS[invitation.status]}`}
-                  >
-                    {expired ? INVITATION_STATUS_LABEL.EXPIRED : INVITATION_STATUS_LABEL[invitation.status]}
-                  </span>
-                </div>
-
-                {canRespond && (
-                  <div className="mt-4 flex justify-end gap-2">
-                    <button
-                      onClick={() => respond(invitation, "decline")}
-                      disabled={busy}
-                      className="rounded-md px-3 py-1.5 text-sm font-medium text-muted transition-colors duration-fast hover:bg-primary-subtle disabled:opacity-50"
-                    >
-                      거절
-                    </button>
-                    <button
-                      onClick={() => respond(invitation, "accept")}
-                      disabled={busy}
-                      className="rounded-md btn-gradient px-3 py-1.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-                    >
-                      수락
-                    </button>
-                  </div>
-                )}
-              </li>
-            );
-          })}
-          {invitations.length === 0 && (
-            <li className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted">
-              받은 초대가 없습니다.
-            </li>
+        <>
+          {pile.length > 0 && (
+            <div className="relative mt-8 h-40">
+              {pile.map((invitation, index) => (
+                <InvitationEnvelope
+                  key={invitation.id}
+                  invitation={invitation}
+                  index={index}
+                  onOpen={(id) => setOpenedIds((prev) => new Set(prev).add(id))}
+                />
+              ))}
+            </div>
           )}
-        </ul>
+
+          <ul className="mt-6 flex flex-col gap-3">
+            {opened.map((invitation) => {
+              const expired = isInvitationExpired(invitation);
+              const canRespond = invitation.status === "PENDING" && !expired;
+              const busy = actionId === invitation.id;
+              return (
+                <InvitationLetter
+                  key={invitation.id}
+                  invitation={invitation}
+                  expired={expired}
+                  canRespond={canRespond}
+                  busy={busy}
+                  onAccept={() => respond(invitation, "accept")}
+                  onDecline={() => respond(invitation, "decline")}
+                />
+              );
+            })}
+            {invitations.length === 0 && (
+              <li className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted">
+                받은 초대가 없습니다.
+              </li>
+            )}
+          </ul>
+        </>
       )}
     </div>
   );
