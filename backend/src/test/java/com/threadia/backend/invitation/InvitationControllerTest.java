@@ -30,17 +30,22 @@ class InvitationControllerTest {
 	private MockMvc mockMvc;
 
 	@MockitoBean
-	private CompanyInvitationService companyInvitationService;
+	private ReceivedInvitationService receivedInvitationService;
+
+	@MockitoBean
+	private InvitationActionService invitationActionService;
 
 	@Test
 	void listMyInvitationsReturnsReceivedInvitations() throws Exception {
-		when(companyInvitationService.listMine("valid-token"))
-				.thenReturn(new CompanyInvitationsData(List.of(invitation(10L, "PENDING"))));
+		when(receivedInvitationService.listMine("valid-token"))
+				.thenReturn(new CompanyInvitationsData(List.of(invitation(10L, "COMPANY", "PENDING"), invitation(11L, "PROJECT", "PENDING"))));
 
 		mockMvc.perform(get("/api/v1/users/me/invitations")
 					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.invitations[0].id").value(10))
+				.andExpect(jsonPath("$.data.invitations[1].scopeType").value("PROJECT"))
+				.andExpect(jsonPath("$.data.invitations[1].projectId").value(10))
 				.andExpect(jsonPath("$.data.invitations[0].companyName").value("Threadia"))
 				.andExpect(jsonPath("$.data.invitations[0].inviterUserId").value(1))
 				.andExpect(jsonPath("$.data.invitations[0].inviterNickname").value("admin"))
@@ -51,7 +56,7 @@ class InvitationControllerTest {
 
 	@Test
 	void acceptInvitationReturnsAcceptedStatus() throws Exception {
-		when(companyInvitationService.accept("valid-token", 10L))
+		when(invitationActionService.accept("valid-token", 10L))
 				.thenReturn(new InvitationActionData(10L, "ACCEPTED", true));
 
 		mockMvc.perform(post("/api/v1/invitations/10/accept")
@@ -64,7 +69,7 @@ class InvitationControllerTest {
 
 	@Test
 	void declineInvitationReturnsDeclinedStatus() throws Exception {
-		when(companyInvitationService.decline("valid-token", 10L))
+		when(invitationActionService.decline("valid-token", 10L))
 				.thenReturn(new InvitationActionData(10L, "DECLINED", false));
 
 		mockMvc.perform(post("/api/v1/invitations/10/decline")
@@ -76,7 +81,7 @@ class InvitationControllerTest {
 
 	@Test
 	void cancelInvitationReturnsCanceledStatus() throws Exception {
-		when(companyInvitationService.cancel("valid-token", 10L))
+		when(invitationActionService.cancel("valid-token", 10L))
 				.thenReturn(new InvitationActionData(10L, "CANCELED", false));
 
 		mockMvc.perform(post("/api/v1/invitations/10/cancel")
@@ -88,7 +93,7 @@ class InvitationControllerTest {
 
 	@Test
 	void acceptInvitationReturnsConflictWhenInvitationIsExpired() throws Exception {
-		when(companyInvitationService.accept("valid-token", 10L))
+		when(invitationActionService.accept("valid-token", 10L))
 				.thenThrow(InvitationConflictException.expired());
 
 		mockMvc.perform(post("/api/v1/invitations/10/accept")
@@ -99,7 +104,7 @@ class InvitationControllerTest {
 
 	@Test
 	void acceptInvitationReturnsForbiddenWhenRequesterIsNotInvitee() throws Exception {
-		when(companyInvitationService.accept("valid-token", 10L))
+		when(invitationActionService.accept("valid-token", 10L))
 				.thenThrow(new ForbiddenException("초대 대상자만 처리할 수 있습니다."));
 
 		mockMvc.perform(post("/api/v1/invitations/10/accept")
@@ -123,13 +128,13 @@ class InvitationControllerTest {
 				.andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
 	}
 
-	private static InvitationResponse invitation(Long id, String status) {
+	private static InvitationResponse invitation(Long id, String scopeType, String status) {
 		return new InvitationResponse(
 				id,
-				"COMPANY",
+				scopeType,
 				1L,
 				"Threadia",
-				null,
+				"PROJECT".equals(scopeType) ? 10L : null,
 				1L,
 				"admin",
 				2L,
