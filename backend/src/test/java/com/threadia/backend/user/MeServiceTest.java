@@ -2,7 +2,6 @@ package com.threadia.backend.user;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
@@ -10,7 +9,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Field;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +32,9 @@ import com.threadia.backend.config.jwt.JwtTokenService;
 @ExtendWith(MockitoExtension.class)
 class MeServiceTest {
 
+	private static final Clock FIXED_CLOCK = Clock.fixed(Instant.parse("2026-07-14T12:34:56Z"), ZoneOffset.UTC);
+	private static final LocalDateTime FIXED_UPDATED_AT = LocalDateTime.of(2026, 7, 14, 12, 34, 56);
+
 	@Mock
 	private JwtTokenService jwtTokenService;
 
@@ -40,7 +45,7 @@ class MeServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		meService = new MeService(jwtTokenService, userRepository);
+		meService = new MeService(jwtTokenService, userRepository, FIXED_CLOCK);
 	}
 
 	@Test
@@ -90,7 +95,7 @@ class MeServiceTest {
 		when(jwtTokenService.parseAccessToken("valid-token"))
 				.thenReturn(new AuthenticatedUser(1L, "user@example.com"));
 		when(userRepository.updateActiveProfile(eq(1L), eq(true), eq("new-nick"), eq(false), isNull(),
-				any(LocalDateTime.class))).thenReturn(1);
+				eq(FIXED_UPDATED_AT))).thenReturn(1);
 		when(userRepository.findById(1L)).thenReturn(Optional.of(user(
 				"user@example.com", "new-nick", "https://example.com/concurrent-avatar.png", UserStatus.ACTIVE)));
 		ProfileUpdateRequest request = new ProfileUpdateRequest();
@@ -101,7 +106,7 @@ class MeServiceTest {
 		assertThat(data.user().nickname()).isEqualTo("new-nick");
 		assertThat(data.user().avatarUrl()).isEqualTo("https://example.com/concurrent-avatar.png");
 		verify(userRepository).updateActiveProfile(eq(1L), eq(true), eq("new-nick"), eq(false), isNull(),
-				any(LocalDateTime.class));
+				eq(FIXED_UPDATED_AT));
 		verify(userRepository).findById(1L);
 	}
 
@@ -110,7 +115,7 @@ class MeServiceTest {
 		when(jwtTokenService.parseAccessToken("valid-token"))
 				.thenReturn(new AuthenticatedUser(1L, "user@example.com"));
 		when(userRepository.updateActiveProfile(eq(1L), eq(false), isNull(), eq(true),
-				eq("https://example.com/new.png"), any(LocalDateTime.class))).thenReturn(1);
+				eq("https://example.com/new.png"), eq(FIXED_UPDATED_AT))).thenReturn(1);
 		when(userRepository.findById(1L)).thenReturn(Optional.of(user(
 				"user@example.com", "concurrent-nick", "https://example.com/new.png", UserStatus.ACTIVE)));
 		ProfileUpdateRequest request = new ProfileUpdateRequest();
@@ -121,7 +126,7 @@ class MeServiceTest {
 		assertThat(data.user().nickname()).isEqualTo("concurrent-nick");
 		assertThat(data.user().avatarUrl()).isEqualTo("https://example.com/new.png");
 		verify(userRepository).updateActiveProfile(eq(1L), eq(false), isNull(), eq(true),
-				eq("https://example.com/new.png"), any(LocalDateTime.class));
+				eq("https://example.com/new.png"), eq(FIXED_UPDATED_AT));
 	}
 
 	@Test
@@ -129,7 +134,7 @@ class MeServiceTest {
 		when(jwtTokenService.parseAccessToken("valid-token"))
 				.thenReturn(new AuthenticatedUser(1L, "user@example.com"));
 		when(userRepository.updateActiveProfile(eq(1L), eq(true), eq("new-nick"), eq(true),
-				eq("https://example.com/new.png"), any(LocalDateTime.class))).thenReturn(1);
+				eq("https://example.com/new.png"), eq(FIXED_UPDATED_AT))).thenReturn(1);
 		when(userRepository.findById(1L)).thenReturn(Optional.of(user(
 				"user@example.com", "new-nick", "https://example.com/new.png", UserStatus.ACTIVE)));
 		ProfileUpdateRequest request = new ProfileUpdateRequest();
@@ -147,7 +152,7 @@ class MeServiceTest {
 		when(jwtTokenService.parseAccessToken("valid-token"))
 				.thenReturn(new AuthenticatedUser(1L, "user@example.com"));
 		when(userRepository.updateActiveProfile(eq(1L), eq(false), isNull(), eq(true), isNull(),
-				any(LocalDateTime.class))).thenReturn(1);
+				eq(FIXED_UPDATED_AT))).thenReturn(1);
 		when(userRepository.findById(1L)).thenReturn(Optional.of(user("user@example.com", "nick", null, UserStatus.ACTIVE)));
 		ProfileUpdateRequest request = new ProfileUpdateRequest();
 		request.setAvatarUrl(null);
@@ -156,7 +161,7 @@ class MeServiceTest {
 
 		assertThat(data.user().avatarUrl()).isNull();
 		verify(userRepository).updateActiveProfile(eq(1L), eq(false), isNull(), eq(true), isNull(),
-				any(LocalDateTime.class));
+				eq(FIXED_UPDATED_AT));
 	}
 
 	@Test
@@ -166,14 +171,14 @@ class MeServiceTest {
 		ProfileUpdateRequest request = new ProfileUpdateRequest();
 		request.setNickname("new-nick");
 		when(userRepository.updateActiveProfile(eq(1L), eq(true), eq("new-nick"), eq(false), isNull(),
-				any(LocalDateTime.class))).thenReturn(0);
+				eq(FIXED_UPDATED_AT))).thenReturn(0);
 
 		assertThatThrownBy(() -> meService.updateProfile("race-token", request))
 				.isInstanceOf(AuthenticationFailedException.class);
 		verify(userRepository, never()).findById(1L);
 
 		when(userRepository.updateActiveProfile(eq(1L), eq(true), eq("new-nick"), eq(false), isNull(),
-				any(LocalDateTime.class))).thenReturn(1);
+				eq(FIXED_UPDATED_AT))).thenReturn(1);
 		when(userRepository.findById(1L)).thenReturn(Optional.of(user("user@example.com", "new-nick", null, UserStatus.SUSPENDED)));
 		assertThatThrownBy(() -> meService.updateProfile("race-token", request))
 				.isInstanceOf(AuthenticationFailedException.class);
