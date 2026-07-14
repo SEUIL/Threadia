@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-02
-> **최종 수정**: 2026-07-07
-> **버전**: v0.4 WBS 3.7.5 연결 문서 수정 gate 반영
+> **최종 수정**: 2026-07-13
+> **버전**: v0.5 WBS 3.7.5 S15 공식 WBS 정합화 반영
 > **상태**: 작성 중
 > **태그**: sprint-2, plan, company, project, rbac, platform-admin
 
@@ -56,7 +56,7 @@ Minimum Issue/Kanban은 capacity candidate only다. 일정 여유가 생겨도 W
 
 | 제외 항목 | 제외 이유 |
 |---|---|
-| WBS 본시트 추가 임의 변경 | 이번 작업에서 승인된 `3.7~3.7.5` 추가와 `4.9` 조정 외 추가 시트 변경은 별도 작업으로 분리한다 |
+| WBS 본시트 변경 | 이번 정합화는 WBS Sheet를 변경하지 않는다. `4.9`는 S15 제거의 역사적 맥락으로만 참조하고, 공식 S15 WBS는 `4.10`으로 둔다 |
 | Sprint 2 문서 상태 고정 금지 | 이 문서는 Sprint 2 planning draft이며, WBS 기준 정렬 후에도 `작성 중` 상태를 유지한다 |
 | `sprint-2-해야할일.md` | Sprint 2 문서 수를 늘리지 않기 위해 생성하지 않는다 |
 | `sprint-2-프로젝트-기반구축.md` | 프로젝트 기반구축은 이 상세계획과 backlog 안에서 다룬다 |
@@ -86,7 +86,7 @@ Minimum Issue/Kanban은 capacity candidate only다. 일정 여유가 생겨도 W
 3. 각 backlog item은 owner, reviewer, support 기준으로 review 가능해야 한다.
 4. secret, DB password, token, private data는 문서와 evidence에 기록하지 않는다.
 5. 변경 검증은 canonical DoD와 검증 방법 문서를 따른다.
-6. `3.7`은 구현 착수가 아니라 `4.9`에서 분리한 `DEFER-01`의 후속 WBS 작성 전 planning gate로 운영한다.
+6. `3.7`은 구현 착수가 아니라 `4.9`에서 제거된 `DEFER-01`의 역사적 맥락을 유지하면서 공식 S15 WBS `4.10`으로 이어지는 planning gate로 운영한다.
 7. `3.7.5`는 triage에서 끝내지 않고 실제 수정이 필요한 연결 canonical 문서 반영과 미수정 사유 기록까지 포함한다.
 
 ## 8. 주요 의존성과 blocker
