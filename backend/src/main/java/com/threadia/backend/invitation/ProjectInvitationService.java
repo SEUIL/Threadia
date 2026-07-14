@@ -207,9 +207,12 @@ public class ProjectInvitationService {
 	}
 
 	private User activeInvitee(Long userId) {
-		return userRepository.findById(userId)
-				.filter(user -> user.getStatus() == UserStatus.ACTIVE)
+		User invitee = userRepository.findById(userId)
 				.orElseThrow(() -> new UserNotFoundException(String.valueOf(userId)));
+		if (invitee.getStatus() != UserStatus.ACTIVE) {
+			throw InvitationConflictException.targetUserNotActiveCompanyMember();
+		}
+		return invitee;
 	}
 
 	private Project projectForUpdate(Long projectId) {

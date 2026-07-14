@@ -1,6 +1,7 @@
 package com.threadia.backend.invitation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -26,6 +27,7 @@ import com.threadia.backend.auth.domain.User;
 import com.threadia.backend.auth.domain.UserStatus;
 import com.threadia.backend.auth.repository.UserRepository;
 import com.threadia.backend.common.exception.ForbiddenException;
+import com.threadia.backend.common.exception.UserNotFoundException;
 import com.threadia.backend.company.domain.Company;
 import com.threadia.backend.company.domain.CompanyMemberRole;
 import com.threadia.backend.company.domain.CompanyMemberStatus;
@@ -138,6 +140,36 @@ class ProjectInvitationServiceTest {
 		assertThatThrownBy(() -> service.create("token", 10L, new ProjectInvitationRequest(2L, ProjectMemberRole.MEMBER)))
 				.isInstanceOf(InvitationConflictException.class)
 				.hasMessageContaining("활성 회사 구성원");
+		verify(invitationRepository, never()).save(any());
+	}
+
+	@Test
+	void createRejectsExistingInactiveInviteeWithCanonicalConflictBeforeMembershipCheck() {
+		User requester = user(1L);
+		User invitee = user(2L, UserStatus.SUSPENDED);
+		Project project = project(requester);
+		stubCompanyAdmin(requester, project);
+		when(userRepository.findById(2L)).thenReturn(Optional.of(invitee));
+
+		Throwable thrown = catchThrowable(() -> service.create("token", 10L, new ProjectInvitationRequest(2L, ProjectMemberRole.MEMBER)));
+		assertThat(thrown).isInstanceOf(InvitationConflictException.class);
+		InvitationConflictException conflict = (InvitationConflictException) thrown;
+		assertThat(conflict.getCode()).isEqualTo("TARGET_NOT_ACTIVE_COMPANY_MEMBER");
+		assertThat(conflict).hasMessage("대상 사용자가 활성 회사 구성원이 아닙니다.");
+		verify(companyMemberRepository, never()).existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE);
+		verify(invitationRepository, never()).save(any());
+	}
+
+	@Test
+	void createRejectsMissingInviteeWith404UserNotFound() {
+		User requester = user(1L);
+		Project project = project(requester);
+		stubCompanyAdmin(requester, project);
+		when(userRepository.findById(2L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service.create("token", 10L, new ProjectInvitationRequest(2L, ProjectMemberRole.MEMBER)))
+				.isInstanceOf(UserNotFoundException.class);
+		verify(companyMemberRepository, never()).existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE);
 		verify(invitationRepository, never()).save(any());
 	}
 
@@ -374,7 +406,11 @@ class ProjectInvitationServiceTest {
 	}
 
 	private static User user(Long id) {
-		User user = new User("user" + id + "@example.com", "hashed", "user" + id, null, UserStatus.ACTIVE, now(), now());
+		return user(id, UserStatus.ACTIVE);
+	}
+
+	private static User user(Long id, UserStatus status) {
+		User user = new User("user" + id + "@example.com", "hashed", "user" + id, null, status, now(), now());
 		setId(user, id);
 		return user;
 	}
