@@ -36,7 +36,12 @@ import { OrbitControls } from "@react-three/drei";
 import Link from "next/link";
 import { OfficeFloor } from "@/components/hub/OfficeFloor";
 import { CityBlocks } from "@/components/hub/CityBlocks";
-import { HubBuildings, type Plot } from "@/components/hub/HubBuildings";
+import {
+  HubBuildings,
+  SUBURBAN_MODELS,
+  TREE_MODELS,
+  type Plot,
+} from "@/components/hub/HubBuildings";
 import { DebugDirections } from "@/components/hub/DebugDirections";
 import { HubOverlay } from "@/components/hub/HubOverlay";
 import { HubSceneErrorBoundary } from "@/components/hub/HubSceneErrorBoundary";
@@ -57,6 +62,23 @@ const SHOW_DEBUG_DIRECTIONS = true;
 const NORTH_ZONE_PLOTS: Plot[] = [
   { xMin: -6, xMax: 6, zMin: -12, zMax: -8 }, // V 서쪽
   { xMin: 7, xMax: 13, zMin: -12, zMax: -8 }, // V 동쪽
+];
+
+// 동쪽 구역(동 마커 자리) — V 도로 동쪽, H2~H1 사이 중앙 밴드만. 북동쪽(z<-8)은
+// 북쪽 구역, 남동쪽(z>2)은 아래 남쪽 구역에서 다룬다.
+const EAST_ZONE_PLOTS: Plot[] = [
+  { xMin: 7, xMax: 13, zMin: -7, zMax: 1 }, // 중앙-동쪽(H2~H1)
+];
+
+// 서쪽 구역(서 마커 자리) — 서쪽 외곽변~오피스 서벽, H2~H1 사이 중앙 밴드.
+const WEST_ZONE_PLOTS: Plot[] = [
+  { xMin: -6, xMax: -1.5, zMin: -7, zMax: 1 }, // 중앙-서쪽(오피스 서쪽)
+];
+
+// 남쪽 구역(남 마커 자리) — H1~남쪽 외곽변 사이 전폭. V 도로로 서/동 분할.
+const SOUTH_ZONE_PLOTS: Plot[] = [
+  { xMin: -6, xMax: 6, zMin: 2, zMax: 5 }, // V 서쪽
+  { xMin: 7, xMax: 13, zMin: 2, zMax: 5 }, // V 동쪽
 ];
 
 function NoCompanyNotice() {
@@ -152,6 +174,22 @@ export default function HubPage() {
               <OfficeFloor />
               <CityBlocks />
               <HubBuildings plots={NORTH_ZONE_PLOTS} seed={1} />
+              <HubBuildings plots={EAST_ZONE_PLOTS} seed={2} />
+              <HubBuildings
+                plots={WEST_ZONE_PLOTS}
+                models={SUBURBAN_MODELS}
+                treeModels={TREE_MODELS}
+                treeChance={0.35}
+                seed={3}
+              />
+              <HubBuildings
+                plots={SOUTH_ZONE_PLOTS}
+                models={SUBURBAN_MODELS}
+                treeModels={TREE_MODELS}
+                treeChance={0.35}
+                spacing={1.5}
+                seed={4}
+              />
               {SHOW_DEBUG_DIRECTIONS && <DebugDirections />}
             </Suspense>
             {/* minDistance/maxDistance/maxPolarAngle: 격자 도심의 "끝"이나 바닥 밑이
