@@ -36,6 +36,8 @@ import { OrbitControls } from "@react-three/drei";
 import Link from "next/link";
 import { OfficeFloor } from "@/components/hub/OfficeFloor";
 import { CityBlocks } from "@/components/hub/CityBlocks";
+import { HubBuildings, type Plot } from "@/components/hub/HubBuildings";
+import { DebugDirections } from "@/components/hub/DebugDirections";
 import { HubOverlay } from "@/components/hub/HubOverlay";
 import { HubSceneErrorBoundary } from "@/components/hub/HubSceneErrorBoundary";
 import { isWebGLAvailable } from "@/components/hub/webglSupport";
@@ -47,6 +49,15 @@ const SCENE_BACKGROUND = "#c9d2d6";
 // fog 근/원 거리 — 이 밖은 SCENE_BACKGROUND로 완전히 덮인다(격자 "끝"이 안 보이게).
 const FOG_NEAR = 25;
 const FOG_FAR = 70;
+// ⚠️ 개발용 임시 방향지시물(중앙+동서남북). 3D 배치 작업이 끝나면 false로 끈다.
+const SHOW_DEBUG_DIRECTIONS = true;
+
+// 북쪽 구역(H2 도로 z=-7.5 ~ 북쪽 외곽변 z=-12.5). V 도로(x=6.5)가 가로질러서
+// 서/동 두 블록으로 나눈다(도로·오피스와 안 겹치게 여백 둠).
+const NORTH_ZONE_PLOTS: Plot[] = [
+  { xMin: -6, xMax: 6, zMin: -12, zMax: -8 }, // V 서쪽
+  { xMin: 7, xMax: 13, zMin: -12, zMax: -8 }, // V 동쪽
+];
 
 function NoCompanyNotice() {
   return (
@@ -140,6 +151,8 @@ export default function HubPage() {
             <Suspense fallback={null}>
               <OfficeFloor />
               <CityBlocks />
+              <HubBuildings plots={NORTH_ZONE_PLOTS} seed={1} />
+              {SHOW_DEBUG_DIRECTIONS && <DebugDirections />}
             </Suspense>
             {/* minDistance/maxDistance/maxPolarAngle: 격자 도심의 "끝"이나 바닥 밑이
                 보이지 않게 카메라 범위를 제한한다. minDistance=5는

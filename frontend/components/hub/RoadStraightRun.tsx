@@ -30,25 +30,31 @@ export function RoadStraightRun({
   position = [0, 0, 0],
   rotationY = 0,
   lateralOffset = 0,
+  skipIndices = [],
 }: {
   count: number;
   position?: [number, number, number];
   rotationY?: number;
   /** 진행 방향(로컬 +X) 기준 좌우로 도로를 밀 때 쓴다 — 커브랑 옆으로 안 맞을 때 조정. */
   lateralOffset?: number;
+  /** 이 인덱스의 타일은 렌더하지 않는다 — 교차로 에셋이 들어갈 자리를 비울 때 쓴다. */
+  skipIndices?: number[];
 }) {
   const { scene } = useGLTF(MODEL_PATH);
+  const skip = new Set(skipIndices);
 
   return (
     <group position={position} rotation={[0, rotationY, 0]}>
-      {Array.from({ length: count }, (_, i) => (
-        <primitive
-          key={i}
-          object={scene.clone()}
-          position={[i * TILE_SPACING, 0, lateralOffset]}
-          rotation={[0, ROTATION_Y, 0]}
-        />
-      ))}
+      {Array.from({ length: count }, (_, i) => i)
+        .filter((i) => !skip.has(i))
+        .map((i) => (
+          <primitive
+            key={i}
+            object={scene.clone()}
+            position={[i * TILE_SPACING, 0, lateralOffset]}
+            rotation={[0, ROTATION_Y, 0]}
+          />
+        ))}
     </group>
   );
 }
