@@ -18,6 +18,17 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Lo
 
 	Optional<ProjectMember> findByProject_IdAndUser_Id(Long projectId, Long userId);
 
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+			select projectMember
+			from ProjectMember projectMember
+			where projectMember.project.id = :projectId
+			  and projectMember.user.id = :userId
+			""")
+	Optional<ProjectMember> findByProject_IdAndUser_IdForUpdate(
+			@Param("projectId") Long projectId,
+			@Param("userId") Long userId);
+
 	@Query("""
 			select projectMember
 			from ProjectMember projectMember
