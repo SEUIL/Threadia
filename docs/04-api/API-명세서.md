@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-07-13
-> **버전**: Sprint 1.5 invitation 표시 필드 보강 + Sprint 3 기준선 반영 + company member scoped PATCH 동기화 + current-user membership context + project detail viewer response v1.6 + WBS 3.5 candidate Issue/Kanban 최소 계약
+> **최종 수정**: 2026-07-14
+> **버전**: Sprint 1.5 invitation 표시 필드 보강 + Sprint 3 기준선 반영 + company member scoped PATCH 동기화 + current-user membership context + project detail viewer response v1.6 + WBS 3.5 candidate Issue/Kanban 최소 계약 + WBS 4.2.1 profile Backend PATCH
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -207,7 +207,7 @@ POST /api/v1/auth/refresh
 | Method | Endpoint | 권한 | 설명 | 상태 |
 |---|---|---|---|---|
 | GET | `/api/v1/users/me/company-memberships` | A/P/C | 현재 사용자의 ACTIVE 회사 membership context 조회 | Sprint 3 frontend/RBAC context |
-| PATCH | `/api/v1/users/me/profile` | A/P/C | nickname, avatarUrl 수정 | MVP, Sprint 1 구현 제외 |
+| PATCH | `/api/v1/users/me/profile` | A/P/C | nickname, avatarUrl 부분 수정 | WBS 4.2.1 Backend 구현 |
 
 ```json
 {
@@ -644,12 +644,29 @@ ACTIVE membership이 없으면 `companyMemberships`는 빈 배열이다.
 
 #### PATCH `/api/v1/users/me/profile`
 
+현재 인증된 `ACTIVE` 사용자 본인의 `nickname`, `avatarUrl`만 부분 수정한다. `/api/v1/auth/me`는 read-only minimal Auth context를 유지하고, `GET /api/v1/users/me/company-memberships`와 결합하지 않는다. email, status, password는 이 endpoint에서 수정할 수 없다.
+
+- `nickname`과 `avatarUrl` 중 하나 이상을 포함해야 한다. 빈 객체는 `400 VALIDATION_ERROR`다.
+- `nickname`을 포함하면 `null`일 수 없고 2~100자여야 한다.
+- `avatarUrl`을 포함하면 최대 500자다. URL 형식 validation은 하지 않는다.
+- 포함하지 않은 필드는 기존 값을 보존한다. `"avatarUrl": null`은 avatar를 명시적으로 제거한다.
+- 지원하지 않는 request field는 기존 Jackson request parsing 정책에 따라 거부한다.
+- Authorization 헤더 누락/형식 오류/유효하지 않은 token, 존재하지 않거나 `ACTIVE`가 아닌 사용자는 기존 `401 UNAUTHORIZED` error envelope을 반환한다.
+
 Request Body:
 
 ```json
 {
   "nickname": "김민정",
   "avatarUrl": "https://.../profile.png"
+}
+```
+
+avatar만 제거하는 Request Body:
+
+```json
+{
+  "avatarUrl": null
 }
 ```
 
