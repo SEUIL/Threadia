@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-02
-> **최종 수정**: 2026-07-07
-> **버전**: v0.4 WBS 3.7.5 연결 문서 수정 gate 반영
+> **최종 수정**: 2026-07-13
+> **버전**: v0.5 WBS 3.7.5 S15 공식 WBS 정합화 반영
 > **상태**: 작성 중
 > **태그**: sprint-2, backlog, company, project, rbac, platform-admin
 
@@ -131,7 +131,7 @@
 - 프로젝트는 반드시 회사에 속한다.
 - 프로젝트 삭제는 hard delete가 아니라 archive 기준을 따른다.
 - project member와 company member 관계가 ERD 기준과 충돌하지 않는다.
-- project invitation은 Backlog 4.2 reference로 다루며, Sprint 2 완료 조건에 넣을지는 별도 review에서 결정한다.
+- project invitation과 project-member 생성·변경은 WBS `4.3`의 Sprint 3 candidate이며, Sprint 2 완료 조건 밖에 둔다.
 
 **검증 방법**
 
@@ -251,7 +251,7 @@
 | S15 기능 분해 | `DEFER-01/F/S15`를 문의/신고, 사용자 정지, 회사 비활성화, 시스템 설정, 운영 로그 단위로 나눈다 |
 | ERD/API 영향도 | `platform_admins`, `support_cases`, audit log와 기존 `users`, `companies`, `company_members`, `project_members` 영향 범위를 구분한다 |
 | 화면/권한 flow | A/P/C 권한과 분리된 platform admin entry, action, 처리 flow를 초안 수준으로 정리한다 |
-| Go/No-Go handoff | S15 구현 착수 여부, 선행 WBS, 수정할 canonical 문서 목록, 4.9 분리 결과를 정리한다 |
+| Go/No-Go handoff | S15 구현 착수 여부, 선행 WBS, 수정할 canonical 문서 목록, `4.9`에서의 역사적 제거 맥락과 공식 S15 WBS `4.10` 연결 결과를 정리한다 |
 | 연결 문서 수정 반영 | 실제 수정이 필요한 canonical 문서에 S15 planning gate 결과를 반영하고, 수정하지 않는 문서는 사유를 남긴다 |
 
 **완료 조건**
@@ -259,14 +259,14 @@
 - `users.role` 단일 권한 모델을 만들지 않고 `platform_admins` 분리 기준을 유지한다.
 - `support_cases`로 문의와 신고를 통합하고, 관리자 조치에는 reason과 audit log가 필요하다는 원칙을 유지한다.
 - 사용자 정지와 회사 비활성화는 hard delete가 아니라 상태 변경 기준으로 분리한다.
-- 4.9의 플랫폼 관리자 보류 항목은 `3.7` planning gate로 이동한 상태가 WBS와 Sprint 2 문서에서 일치한다.
+- `4.9`에서 플랫폼 관리자 보류 항목을 제거한 역사적 맥락과 `3.7` planning gate 이후 공식 S15 WBS `4.10`이 WBS와 Sprint 2 문서에서 일치한다.
 - 3.7.5에서 `기능-분해표`, `요구사항-정의서`, `사용자-시나리오`, `기능-시나리오-API-ERD-추적표`, `화면정의서`, `ERD`, `API-명세서`, `보류-기능-최종표`, `기획문서-변경이력` 중 실제 수정 대상을 반영한다.
 - ERD/API/화면 구현 상세 확정은 후속 구현 WBS 대상으로 남기되, planning gate 결과와 충돌하는 문서 문구는 3.7.5에서 정합화한다.
 
 **검증 방법**
 
 - WBS `3.7~3.7.5`와 Sprint 2 문서의 owner, reviewer, support, 선행 WBS, 완료 조건이 일치하는지 확인한다.
-- `4.9`에 `DEFER-01/F/S15` 구현 항목이 남아 있지 않은지 확인한다.
+- `4.9`의 역사적 제거 맥락과 공식 S15 WBS `4.10` 참조가 혼동되지 않는지 확인한다.
 - 연결 문서 수정 반영 결과와 미수정 사유를 PR 또는 handoff 기록으로 확인한다.
 
 **의존성**
