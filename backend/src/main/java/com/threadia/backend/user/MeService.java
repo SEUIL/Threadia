@@ -1,6 +1,9 @@
 package com.threadia.backend.user;
 
+import java.time.LocalDateTime;
+
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.threadia.backend.auth.domain.User;
 import com.threadia.backend.auth.domain.UserStatus;
@@ -28,6 +31,26 @@ public class MeService {
 	 */
 	public MeData getMe(String accessToken) {
 		AuthenticatedUser authUser = jwtTokenService.parseAccessToken(accessToken);
+		User user = userRepository.findById(authUser.userId())
+				.filter(u -> u.getStatus() == UserStatus.ACTIVE)
+				.orElseThrow(() -> new AuthenticationFailedException("인증에 실패했습니다."));
+		return new MeData(UserResponse.from(user));
+	}
+
+	@Transactional
+	public MeData updateProfile(String accessToken, ProfileUpdateRequest request) {
+		AuthenticatedUser authUser = jwtTokenService.parseAccessToken(accessToken);
+		LocalDateTime updatedAt = LocalDateTime.now();
+		int updatedRows = userRepository.updateActiveProfile(
+				authUser.userId(),
+				request.hasNickname(),
+				request.getNickname(),
+				request.hasAvatarUrl(),
+				request.getAvatarUrl(),
+				updatedAt);
+		if (updatedRows == 0) {
+			throw new AuthenticationFailedException("인증에 실패했습니다.");
+		}
 		User user = userRepository.findById(authUser.userId())
 				.filter(u -> u.getStatus() == UserStatus.ACTIVE)
 				.orElseThrow(() -> new AuthenticationFailedException("인증에 실패했습니다."));
