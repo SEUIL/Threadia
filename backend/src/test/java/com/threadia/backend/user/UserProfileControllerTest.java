@@ -136,6 +136,16 @@ class UserProfileControllerTest {
 	}
 
 	@Test
+	void nickname가_공백만_포함하면_400_VALIDATION_ERROR를_반환한다() throws Exception {
+		mockMvc.perform(patch("/api/v1/users/me/profile")
+				.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"nickname\":\"  \"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+	}
+
+	@Test
 	void Authorization_누락_형식오류_유효하지않은토큰_비활성사용자는_401을_반환한다() throws Exception {
 		mockMvc.perform(patch("/api/v1/users/me/profile")
 				.contentType(MediaType.APPLICATION_JSON)

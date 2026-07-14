@@ -60,7 +60,7 @@ public class ProfileUpdateRequest {
 	@AssertTrue(message = "nickname은 null일 수 없습니다.")
 	@JsonIgnore
 	public boolean isNicknameValid() {
-		return !nicknameProvided || nickname != null;
+		return !nicknameProvided || (nickname != null && !nickname.isBlank());
 	}
 
 	@AssertTrue(message = "nickname 또는 avatarUrl 중 하나는 필요합니다.")
