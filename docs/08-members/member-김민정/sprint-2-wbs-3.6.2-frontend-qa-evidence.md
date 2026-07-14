@@ -1,8 +1,8 @@
 > **작성자**: 김민정 (WBS 3.6.2 Owner)
 > **작성일**: 2026-07-07
 > **최종 수정**: 2026-07-13
-> **버전**: v1.3
-> **상태**: 검토 요청
+> **버전**: v1.4
+> **상태**: 검토 중
 > **태그**: sprint-2, wbs-3.6.2, frontend, qa, ci
 
 # Sprint 2 WBS 3.6.2 Frontend route/build/browser QA Evidence 정리
@@ -17,7 +17,7 @@
 
 | WBS | 진척률 | 비고 |
 |---|---|---|
-| 3.6.2 | 100% (재검증 완료, Reviewer 확인 대기) | 취합 완료(2026-07-13). 두 blocking 이슈 모두 해소 확인: **PR #72**(3.4.4) Finding F-3가 커밋 [`1ca0e97`](https://github.com/SEUIL/Threadia/commit/1ca0e97)로 해소되고 dev 머지 완료(`dd61591`) — 브라우저 재검증(2026-07-12) 완료, 3.4.4 문서 95%로 갱신됨. F-1/F-2는 owner 스코프 판단으로 보류/종결. **`/hub` WebGL fallback**(3.2.5)도 커밋 [`1c36c8a`](https://github.com/SEUIL/Threadia/commit/1c36c8a)가 dev에 반영되어 있음을 확인하고, `member1@test.com`(A 역할)으로 브라우저 재검증(2026-07-13) — WebGL 정상 지원 시 `<canvas>` 정상 렌더(에러 없음), WebGL 미지원 재현(`HTMLCanvasElement.getContext` 패치) 시 "3D 허브를 표시할 수 없습니다" fallback이 정확히 노출되고 좌측 레일(HubOverlay)도 유지됨을 확인. §2.2 두 라인 모두 **통과**로 갱신, 종합 판정 **통과** 확정. **남은 것: Reviewer(정철진) 확인 요청** |
+| 3.6.2 | 100% (재검증 완료, Reviewer 확인 대기) | 취합 완료(2026-07-13). 두 blocking 이슈 모두 해소 확인: **PR #72**(3.4.4) Finding F-3가 커밋 [`1ca0e97`](https://github.com/SEUIL/Threadia/commit/1ca0e97)로 해소되고 dev 머지 완료(`dd61591`) — 브라우저 재검증(2026-07-12) 완료, 3.4.4 문서 95%로 갱신됨. F-1/F-2는 owner 스코프 판단으로 보류/종결. **`/hub` WebGL fallback**(3.2.5)도 커밋 [`1c36c8a`](https://github.com/SEUIL/Threadia/commit/1c36c8a)가 dev에 반영되어 있음을 확인하고, `member1@test.com`(A 역할)으로 브라우저 재검증(2026-07-13) — WebGL 정상 지원 시 `<canvas>` 정상 렌더(에러 없음), WebGL 미지원 재현(`HTMLCanvasElement.getContext` 패치) 시 "3D 허브를 표시할 수 없습니다" fallback이 정확히 노출되고 좌측 레일(HubOverlay)도 유지됨을 확인. §2.2 두 라인 모두 **통과**로 갱신, 종합 판정 **통과** 확정. **2026-07-13 정철진 PR #92 코멘트 반영**: §2.1 lint가 1차 검증(2026-07-10~11) 시점엔 실패였으나 이후 커밋 `325dba5`(2026-07-11)로 해소됐음을 지적받아, dev 최신 상태에서 직접 재검증(exit 0, 에러/경고 0건) 후 정상 통과로 정정. **남은 것: Reviewer(정철진) 확인 요청** |
 
 ---
 
@@ -38,7 +38,7 @@
 
 | 항목 | 확인 방법 | 확인 결과 | 비고 |
 |---|---|---|---|
-| lint | `npm run lint` | **실패(PR 밖 원인)** | error 2 + warning 1, 전부 PR #72/#62 변경 파일 밖 기존 이슈(`graph/page.tsx` set-state-in-effect, `notifications/page.tsx` unused var, `design-sample/.../layouts` refs). 3.4.4·3.2.5 검증에서 동일 확인. repo "error 0" 미충족이나 이번 프론트 PR 책임 아님 |
+| lint | `npm run lint` | **정상 통과(재검증, 2026-07-13)** | 1차(2026-07-10~11, 3.4.4·3.2.5 검증 시): error 2 + warning 1, `graph/page.tsx`/`notifications/page.tsx`/`design-sample/.../layouts` 기존 이슈로 실패. **정철진(cjfwls39)이 PR #92 코멘트로 지적**: 커밋 [`325dba5`](https://github.com/SEUIL/Threadia/commit/325dba5)("fix(frontend): CI lint 경고 정리", 2026-07-11)로 두 파일의 lint 경고가 이미 해소돼 dev에 반영됨. **재검증(2026-07-13)**: dev 최신 상태에서 `npm run lint` 직접 실행 → exit code 0, error/warning 0건으로 완전히 클린함을 확인. 1차 검증 시점(2026-07-10~11)의 실패 기록은 그 이후 반영된 수정으로 이미 stale해진 정보였음 |
 | typecheck | `npm run typecheck` (script 있으면) | **script 없음 → build로 대체** | `package.json`에 typecheck script 부재. `next build`가 타입체크 포함(통과), 황스일 3.2.5 검증에서도 `npx tsc --noEmit` PASS 확인 |
 | build | `npm run build` | **정상 통과** | 2026-07-11(3.4.4 검증 시) `next build` 성공, TS 에러 0, 전 route 빌드(PR #72의 `projects`·`settings` 포함), `backlog` TS 에러 재발 없음. 황스일 3.2.5 검증에서도 `npm run build` PASS |
 
@@ -46,7 +46,7 @@
 
 | 라인 | 문서 | 케이스 수 | 종합 결과 | 비고 |
 |---|---|---|---|---|
-| Company Frontend (3.2.5) | [`황스일/sprint-2-wbs-3.2.5-company-frontend-qa-결과.md`](../황스일/sprint-2-wbs-3.2.5-company-frontend-qa-결과.md) | 브라우저 11 + 명령/API 검증 (황스일 문서 구조) | **통과(재검증, 2026-07-13)** | 1차(2026-07-11): 브라우저 11개 중 10 PASS, `/hub` S03 허브 진입만 WebGL context 생성 실패로 FAIL(황스일 §4 #3). **재검증(2026-07-13)**: `/hub` WebGL fallback 커밋 `1c36c8a`가 dev에 반영된 것을 확인 후, `member1@test.com`으로 브라우저 재현 — WebGL 정상 지원 시 `<canvas>` 정상 렌더(콘솔 에러 0건), `HTMLCanvasElement.getContext`를 패치해 WebGL 미지원을 재현하면 "3D 허브를 표시할 수 없습니다" fallback이 정확히 노출되고 좌측 레일(HubOverlay)도 그대로 유지됨을 확인. API/RBAC·build·tsc는 1차와 동일 PASS, lint는 기존 파일 원인 FAIL(3.4.4와 동일 사유, 이 PR 밖) |
+| Company Frontend (3.2.5) | [`황스일/sprint-2-wbs-3.2.5-company-frontend-qa-결과.md`](../황스일/sprint-2-wbs-3.2.5-company-frontend-qa-결과.md) | 브라우저 11 + 명령/API 검증 (황스일 문서 구조) | **통과(재검증, 2026-07-13)** | 1차(2026-07-11): 브라우저 11개 중 10 PASS, `/hub` S03 허브 진입만 WebGL context 생성 실패로 FAIL(황스일 §4 #3). **재검증(2026-07-13)**: `/hub` WebGL fallback 커밋 `1c36c8a`가 dev에 반영된 것을 확인 후, `member1@test.com`으로 브라우저 재현 — WebGL 정상 지원 시 `<canvas>` 정상 렌더(콘솔 에러 0건), `HTMLCanvasElement.getContext`를 패치해 WebGL 미지원을 재현하면 "3D 허브를 표시할 수 없습니다" fallback이 정확히 노출되고 좌측 레일(HubOverlay)도 그대로 유지됨을 확인. API/RBAC·build·tsc는 1차와 동일 PASS, lint는 2026-07-13 재검증(§2.1)에서 정상 통과로 갱신됨(3.4.4와 동일 사유). **3.2.5 문서 자체(황스일 소유)에는 아직 "lint FAIL(PR #62 밖 기존 이슈)"이 그대로 남아있음** — WebGL fallback 미반영(§Foundation 3.0 문서 참고)과 같은 종류의 stale 기록이라 별도로 갱신 제안 필요 |
 | Project Frontend (3.4.4) | [`sprint-2-wbs-3.4.4-project-frontend-검증기준.md`](./sprint-2-wbs-3.4.4-project-frontend-검증기준.md) | 22개 | **통과(재검증, 2026-07-12)** | 1차(2026-07-10): 정상 통과 16 / 부분·Finding 4(#1/#5/#8/#19) / 확인 불가 2(#4/#18). **재검증(2026-07-12)**: Finding F-3(#19, 멤버목록 Promise.all 결합)가 커밋 `1ca0e97`로 해소되고 dev 머지 완료(`dd61591`) — 브라우저로 before/after 대비 확인, 정상 통과 17로 상향. F-1(#1, 카드 데이터 축소)·F-2(#8, P 역할 부재)는 owner가 스코프 판단으로 보류/종결(기능 버그 아님). 확인 불가 2건(#4/#18)은 그대로 |
 
 `종합 결과`는 `통과 / 부분 통과(실패 케이스 있음) / 확인 불가` 중 하나로 표기한다. `부분 통과`면 실패 케이스 번호와 관련 PR을 비고에 남긴다.
