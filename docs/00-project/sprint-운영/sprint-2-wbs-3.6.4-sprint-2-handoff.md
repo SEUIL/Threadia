@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-13
 > **최종 수정**: 2026-07-14
-> **버전**: v0.2 WBS 3.6.4 Sprint 2 QA handoff draft
+> **버전**: v0.3 WBS 3.6.4 Sprint 2 QA handoff draft
 > **상태**: 검토 중
 > **태그**: sprint-2, wbs, handoff, qa, traceability
 
@@ -32,7 +32,7 @@
 
 ## 4. WBS 3.5 candidate 상태
 
-WBS 3.5 candidate는 시작하지 않았다. 이는 scope 결정이 아니라 evidence-limited 상태 기록이다. F-003이 남아 있어 reviewable Foundation closure가 입증되지 않았고, capacity-gate evidence도 없다.
+WBS 3.5 candidate 구현과 MySQL 검증 evidence는 PR #90/#91 merge로 반영됐다. 다만 F-003 S04 integrated PASS blocker가 남아 있으므로 reviewable Foundation closure와 capacity-gate evidence는 아직 없다.
 
 `3.7.1`부터 `3.7.5`, `4.1`은 이 handoff의 실행 지시가 아닌 별도 governance를 따르는 미래 gate로만 참조한다.
 
@@ -51,7 +51,7 @@ AWS, OIDC, CodeDeploy는 이 QA handoff의 범위 밖이며, 별도 승인 없�
 - [ ] 3.6.1 historical/self-report와 3.6.2의 current worktree, isolated worktree, historical QA-05 evidence provenance를 구분한다.
 - [ ] current worktree Playwright smoke가 BLOCKED이며, isolated worktree smoke PASS 3 tests, 26.9s가 current-worktree PASS나 browser console error 판정이 아님을 확인한다.
 - [ ] F-001과 F-002가 사용자 승인 scope boundary이며, F-003이 현재 S04 integrated PASS blocker이고 F-004가 dedicated artifact/reviewer follow-up임을 확인한다.
-- [ ] WBS 3.5 candidate가 시작하지 않았으며, F-003 잔존으로 reviewable Foundation closure가 입증되지 않고 capacity-gate evidence도 없다는 근거를 확인한다.
+- [ ] WBS 3.5 candidate 구현과 MySQL 검증 evidence가 PR #90/#91 merge로 반영됐고, F-003 잔존으로 reviewable Foundation closure와 capacity-gate evidence가 아직 없음을 확인한다.
 - [ ] 7/22 Backlog 진입 조건이 repository-local canonical criteria 미식별로 `NOT READY`이고, 일정·우선순위·Sprint 3 scope 결정이 아님을 확인한다.
 
 ## 8. 입력 문서
