@@ -30,6 +30,22 @@ public interface IssueRepository extends JpaRepository<Issue, Long> {
 			""")
 	List<Issue> findActiveByProjectIdInDisplayOrder(@Param("projectId") Long projectId);
 
+	@Query("""
+			select issue from Issue issue where issue.project.id = :projectId
+			and (:status is null or issue.status = :status) and (:sprintId is null or issue.sprint.id = :sprintId)
+			and (:assigneeId is null or issue.assignee.id = :assigneeId) and (:includeTrashed = true or issue.trashedAt is null)
+			order by case issue.status when com.threadia.backend.issue.domain.IssueStatus.BACKLOG then 0 when com.threadia.backend.issue.domain.IssueStatus.TODO then 1 when com.threadia.backend.issue.domain.IssueStatus.IN_PROGRESS then 2 when com.threadia.backend.issue.domain.IssueStatus.IN_REVIEW then 3 when com.threadia.backend.issue.domain.IssueStatus.DONE then 4 end, issue.id asc
+			""")
+	List<Issue> findByFiltersInDisplayOrder(@Param("projectId") Long projectId, @Param("status") com.threadia.backend.issue.domain.IssueStatus status, @Param("sprintId") Long sprintId, @Param("assigneeId") Long assigneeId, @Param("includeTrashed") boolean includeTrashed);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select issue from Issue issue where issue.id in :ids")
+	List<Issue> findAllByIdInForUpdate(@Param("ids") List<Long> ids);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select issue from Issue issue where issue.sprint.id = :sprintId")
+	List<Issue> findBySprintIdForUpdate(@Param("sprintId") Long sprintId);
+
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("""
 			select issue
