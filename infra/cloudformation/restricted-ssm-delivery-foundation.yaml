@@ -18,6 +18,18 @@ Parameters:
     Default: 30
     MinValue: 7
     MaxValue: 365
+  HelperArtifactKey:
+    Type: String
+    Description: Approved immutable S3 key for the root-owned release helper.
+    AllowedPattern: '^releases/[0-9a-f]{40}/[0-9]+-[0-9]+/apply-release$'
+  HelperArtifactVersionId:
+    Type: String
+    Description: Exact approved S3 VersionId for the release helper artifact.
+    AllowedPattern: '^[A-Za-z0-9._+=/-]{1,1000}[A-Za-z0-9._+=/-]{0,24}$'
+  HelperArtifactSha256:
+    Type: String
+    Description: Approved SHA-256 digest for the exact release helper artifact version.
+    AllowedPattern: '^[a-f0-9]{64}$'
 
 Resources:
   GitHubOidcProvider:
@@ -99,6 +111,7 @@ Resources:
                 Action: ssm:SendCommand
                 Resource:
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${ReleaseCommandDocument}
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${HelperMaintenanceCommandDocument}
                   - !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${ExistingEc2InstanceId}
               - Sid: ReadOnlyOwnCommandInvocationStatus
                 Effect: Allow
@@ -178,11 +191,11 @@ Resources:
       TargetType: /AWS::EC2::Instance
       Content:
         schemaVersion: '2.2'
-        description: Download and atomically activate one immutable Threadia release through the fixed host helper (document revision 2).
+        description: Download and atomically activate one immutable Threadia release through the fixed host helper.
         parameters:
           ArtifactKey:
             type: String
-            allowedPattern: '^releases/[0-9a-f]{40}/[0-9]+-[0-9]+/threadia-release-[0-9a-f]{40}-[0-9]+-[0-9]+\.tar\.gz$'
+            allowedPattern: '^releases/[0-9a-f]{40}/[0-9]+-[0-9]+/threadia-release-[0-9a-f]{40}-[0-9]+-[0-9]+\\.tar\\.gz$'
           ArtifactVersionId:
             type: String
             allowedPattern: '^[A-Za-z0-9._+=/-]{1,1000}[A-Za-z0-9._+=/-]{0,24}$'
@@ -196,13 +209,75 @@ Resources:
           - action: aws:runShellScript
             name: ApplyImmutableRelease
             inputs:
-              timeoutSeconds: '540'
               runCommand:
                 - !Sub >-
                   AWS_REGION='${AWS::Region}' AWS_DEFAULT_REGION='${AWS::Region}'
                   /usr/local/lib/threadia-release/apply-release
-                  '${ArtifactBucket}' '{{ ArtifactKey }}' '{{ ArtifactVersionId }}'
-                  '{{ ArtifactSha256 }}' '{{ ReleaseId }}'
+                   '${ArtifactBucket}' '{{ ArtifactKey }}' '{{ ArtifactVersionId }}'
+                   '{{ ArtifactSha256 }}' '{{ ReleaseId }}'
+  HelperMaintenanceCommandDocument:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Command
+      DocumentFormat: YAML
+      TargetType: /AWS::EC2::Instance
+      Content:
+        schemaVersion: '2.2'
+        description: Atomically install the CloudFormation-pinned release helper without service or Parameter Store access.
+        mainSteps:
+          - action: aws:runShellScript
+            name: InstallPinnedReleaseHelper
+            inputs:
+              runCommand:
+                - !Sub |
+                    set -euo pipefail
+                    readonly TARGET=/usr/local/lib/threadia-release/apply-release
+                    readonly HOST_LOCK=/run/threadia-release-maintenance.lock
+                    success=false
+                    backup_ready=false
+                    [[ "$(id -u)" -eq 0 ]]
+                    for command in aws sha256sum bash install mv mktemp flock cp; do
+                      command -v "$command" >/dev/null 2>&1
+                    done
+                    exec 9>"$HOST_LOCK"
+                    flock -n 9 || { printf '%s\n' 'another release or helper maintenance operation is active' >&2; exit 1; }
+                    readonly DOWNLOAD="$(mktemp /usr/local/lib/threadia-release/.apply-release.download.XXXXXX)"
+                    readonly STAGED="$(mktemp /usr/local/lib/threadia-release/.apply-release.install.XXXXXX)"
+                    readonly BACKUP="$(mktemp /usr/local/lib/threadia-release/.apply-release.backup.XXXXXX)"
+
+                    cleanup() {
+                      rm -f "$DOWNLOAD" "$STAGED" "$BACKUP"
+                    }
+
+                    restore() {
+                      local status="$1"
+                      trap - ERR INT TERM EXIT
+                      if [[ "$success" != true && "$backup_ready" == true && -f "$BACKUP" ]]; then
+                        mv -Tf "$BACKUP" "$TARGET"
+                      fi
+                      cleanup
+                      exit "$status"
+                    }
+
+                    trap 'restore "$?"' ERR EXIT
+                    trap 'restore 130' INT
+                    trap 'restore 143' TERM
+                    umask 027
+                    [[ -f "$TARGET" ]]
+                    aws s3api get-object --region '${AWS::Region}' --bucket '${ArtifactBucket}' --key '${HelperArtifactKey}' --version-id '${HelperArtifactVersionId}' "$DOWNLOAD" >/dev/null
+                    [[ "$(sha256sum "$DOWNLOAD" | cut -d ' ' -f1)" == '${HelperArtifactSha256}' ]]
+                    bash -n "$DOWNLOAD"
+                    install -o root -g root -m 0750 "$DOWNLOAD" "$STAGED"
+                    [[ "$(sha256sum "$STAGED" | cut -d ' ' -f1)" == '${HelperArtifactSha256}' ]]
+                    bash -n "$STAGED"
+                    cp -p "$TARGET" "$BACKUP"
+                    backup_ready=true
+                    mv -Tf "$STAGED" "$TARGET"
+                    [[ "$(sha256sum "$TARGET" | cut -d ' ' -f1)" == '${HelperArtifactSha256}' ]]
+                    bash -n "$TARGET"
+                    success=true
+                    trap - ERR INT TERM EXIT
+                    cleanup
 
 Outputs:
   ArtifactBucketName:
@@ -211,6 +286,8 @@ Outputs:
     Value: !GetAtt GitHubDeployRole.Arn
   ReleaseCommandDocumentName:
     Value: !Ref ReleaseCommandDocument
+  HelperMaintenanceCommandDocumentName:
+    Value: !Ref HelperMaintenanceCommandDocument
   RuntimeParameterNames:
     Description: Exact SecureString names that the approved platform owner must create and rotate outside this template.
     Value: /threadia/restricted-nonprod/runtime/{THREADIA_DB_URL,THREADIA_DB_USERNAME,THREADIA_DB_PASSWORD,THREADIA_JWT_SECRET,THREADIA_COOKIE_SECURE,THREADIA_CORS_ALLOWED_ORIGIN}
