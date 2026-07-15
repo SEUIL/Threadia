@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-07-14  
 > **최종 수정**: 2026-07-15
-> **버전**: v0.5
+> **버전**: v0.6
 > **상태**: 검토 중  
 > **태그**: aws, github-actions, oidc, ssm, s3, ec2, parameter-store
 
@@ -27,6 +27,8 @@ EC2 S3 read는 release prefix와 Network stack이 export한 exact S3 Gateway End
 
 Release helper maintenance는 JAR release와 별도 channel이다. manual-only artifact workflow는 `scripts/ssm-delivery/apply-release`만 immutable `releases/<commit>/<run>-<attempt>/apply-release`에 publish하고 strict VersionId, key, SHA-256 triple을 approval evidence로 남긴다. artifact publish는 host를 mutate하지 않아 별도 concurrency group을 사용할 수 있다. reviewer는 triple을 CloudFormation Change Set의 restrictive parameter에 pin한다. release와 maintenance invoke는 동일 GitHub concurrency group 및 `/run/threadia-release-maintenance.lock` non-blocking `flock`으로 직렬화한다. fixed SSM document는 SSM input parameter 없이 해당 triple만 내려받아 digest와 `bash -n`을 검증하고, current helper를 unique sibling backup으로 copy한 뒤 root:root `0750` staged sibling을 atomic rename한다. ERR, INT, TERM, EXIT가 success 전에 발생하면 original을 atomic restore하며 target을 먼저 이동하지 않는다. invoke workflow는 configured document와 exact host만 대상으로 `--parameters` 없이 command status를 bounded polling하고 terminal evidence를 summary에 기록하며, service와 Parameter Store에는 접근하지 않는다.
 
+Service-unit maintenance는 release helper maintenance와 분리된 manual-only channel이다. artifact workflow는 `scripts/ssm-delivery/threadia-backend.service`만 immutable `releases/<commit>/<run>-<attempt>/threadia-backend.service`에 publish하고 mail-health sentinel, `systemd-analyze verify`, exact VersionId/key/SHA-256 triple을 approval evidence로 남긴다. reviewer는 triple을 별도 CloudFormation parameter에 pin한다. parameterless fixed document는 exact host에서 shared `/run/threadia-release-maintenance.lock`을 잡고 pinned S3 object를 download해 digest, sentinel, staged unit을 검증한다. current service unit을 unique backup으로 copy한 뒤 atomic install, daemon reload, restart 및 120초 local health polling을 수행한다. failure trap은 backup restore 뒤 daemon reload/restart와 rollback health까지 검증한다. invoke workflow는 same host, configured service-unit document만 `--parameters` 없이 bounded polling하며 이 channel은 DB, Parameter Store, release artifact, secret 계약을 변경하지 않는다.
+
 ## 3. Runtime SecureString 계약
 
 platform owner는 아래 exact Parameter Store `SecureString`을 release 전에 생성하고 rotation 책임을 가진다. template, workflow, manifest, log, repository에는 값과 RDS master secret을 넣지 않는다.
@@ -44,10 +46,10 @@ EC2 instance role은 위 ARN의 `ssm:GetParameter(s)`만 받을 수 있으며 `G
 
 workflow는 pinned action SHA를 사용하고 setup-java가 제공한 Linux x86_64 runtime을 executable bit 보존 방식으로 release archive에 포함한다. AMI에 Java를 설치하지 않는다. host는 SSM Agent, AWS CLI, Python 3, tar, curl, systemd, `threadia` user, `/usr/local/lib/threadia-release/apply-release`, `threadia-backend.service`만 사전에 갖춰야 한다. `bootstrap-host.sh`는 이 reviewed local artifact만 root-owned path에 설치하며 package manager 또는 network access를 사용하지 않는다. helper는 bundled runtime이 Linux x86_64 host에서 실행되는지, immutable archive와 JAR checksum이 맞는지 확인하고 새 release directory를 만든 뒤 runtime env와 active symlink를 atomic하게 교체한다. systemd는 activated release의 absolute runtime path만 실행하고 restricted runtime에서만 mail health를 `MANAGEMENT_HEALTH_MAIL_ENABLED=false`로 비활성화한다. global backend application properties는 변경하지 않는다. restart 후 helper는 최대 120초 동안 service active 상태와 local `/actuator/health`를 polling한다. service가 inactive가 되거나 readiness timeout이 발생하면 직전 runtime env와 active symlink를 함께 복구하고 이전 service를 restart하며, 이전 상태가 없으면 새 env와 symlink를 삭제하고 service를 중지한다.
 
-Helper maintenance는 `apply-release`만 갱신한다. fresh release 전에 installed `threadia-backend.service` revision이 `Environment=MANAGEMENT_HEALTH_MAIL_ENABLED=false`를 포함하는지 확인하고, 누락 시 maintenance channel로 service unit을 변경하지 않는다. remediation은 별도 승인된 bootstrap path로만 수행한다.
+Helper maintenance는 `apply-release`만 갱신한다. service unit remediation은 helper channel을 확장하지 않고, approved service-unit maintenance channel에서만 수행한다. 두 channel은 같은 host lock과 GitHub host-change concurrency group을 공유한다.
 
 한 대의 EC2 restart에 따른 짧은 downtime은 이 개인 포트폴리오 환경에서 허용한다. release는 DB migration을 실행하지 않으며 application artifact와 해당 release가 교체한 runtime env만 rollback한다.
 
 ## 5. Legacy와 승인 경계
 
-기존 `delivery-foundation*` CodeDeploy source는 기록 보존을 위해 유지하지만 신규 active path에서 사용하지 않는다. Network Change Set은 endpoint route/egress/policy만, SSM delivery Change Set은 deterministic artifact bucket, exact OIDC subject, fixed document와 runtime policy만 검토한다. delivery operator는 Change Set create/describe/delete와 exact CloudFormation role pass만 허용하며 Execute 권한이 없다. 두 승인 window는 분리한다. 이 repository revision은 AWS/GitHub resource, role, parameter, endpoint, stack, DB user를 생성하거나 변경하지 않는다.
+기존 `delivery-foundation*` CodeDeploy source는 기록 보존을 위해 유지하지만 신규 active path에서 사용하지 않는다. Network Change Set은 endpoint route/egress/policy만, SSM delivery Change Set은 deterministic artifact bucket, exact OIDC subject, fixed document와 runtime policy만 검토한다. delivery operator는 Change Set create/describe/delete와 exact CloudFormation role pass만 허용하며 Execute 권한이 없다. 두 승인 window는 분리한다. 이 repository revision은 service-unit channel을 정의할 뿐 AWS/GitHub resource, role, parameter, endpoint, stack, DB user를 생성하거나 변경하지 않는다.
