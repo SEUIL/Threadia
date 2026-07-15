@@ -88,6 +88,7 @@ for required in (
     "AWS::SSM::Document",
     "DocumentType: Command",
     "TargetType: /AWS::EC2::Instance",
+    "UpdateMethod: NewVersion",
     "aws:runShellScript",
     "ArtifactVersionId",
     "ArtifactSha256",
