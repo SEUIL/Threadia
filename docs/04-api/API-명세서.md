@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
 > **최종 수정**: 2026-07-15
-> **버전**: v2.7 WBS 4.4.1 Issue/Sprint Backend review 계약 보완
+> **버전**: v2.8 WBS 4.6.1 Documents/Graph Backend 계약 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -343,6 +343,10 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 이슈 상태 변경은 같은 상태에 대해 200 no-op이며 history를 남기지 않는다. trashed 이슈의 상태/내용 변경은 `409 CONFLICT`다. trash/restore는 등록자 또는 P/C가 실행하며 idempotent 200이고 trash reason은 받지 않는다. `includeTrashed=true`은 active와 trashed를 함께 반환한다. 이슈의 `projectId`, `issueKey`, reporter, source 필드는 immutable이고 source는 `MANUAL`만 생성한다. 담당자와 Sprint는 같은 프로젝트의 ACTIVE project member 및 non-COMPLETED Sprint로 검증한다. COMPANY_ADMIN은 관리 action은 가능하지만 ACTIVE project member가 아니면 담당자가 될 수 없다.
 
 Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PLANNED다. P/C만 생성·수정·시작·완료·일괄 배정할 수 있고 수정은 PLANNED에만 허용한다. 프로젝트별 ACTIVE Sprint는 하나이며 서버 UTC로 `startedAt`/`completedAt`을 기록한다. `GET /api/v1/sprints/{sprintId}`는 Sprint metadata만 반환하며 배정 이슈를 포함하지 않는다. 배정 이슈는 `GET /api/v1/projects/{projectId}/issues?sprintId={sprintId}`로 별도 조회한다. `unassignedOnly=true`는 Sprint가 없는 이슈만 반환하며 `sprintId`와 함께 전달하면 `400 VALIDATION_ERROR`다. 배정은 같은 프로젝트의 non-trashed issue만 대상으로 하고 status를 바꾸지 않는다. 완료 시 DONE을 제외한 모든 배정 issue는 원자적으로 `BACKLOG`로 이동하고 Sprint를 clear한다. notification/event 발행은 하지 않는다.
+
+문서 정책: 문서 `type`은 `DOC` 또는 `MEETING_NOTE`이고, `title`은 trim 후 최대 200자이며 `content`는 Markdown 원문이다. 목록은 `type`, `q`, `includeTrashed`(기본 `false`)를 지원하며 기존 표시 순서(id 오름차순)를 유지한다. 문서 조회/생성은 A/P/C, 수정·trash·restore는 작성자 또는 P/C가 수행한다. trash/restore는 idempotent다. 문서와 이슈가 모두 요청 `projectId`에 속해야 link를 만들 수 있고, 중복 link 또는 어느 한 endpoint가 trashed이면 `409 CONFLICT`다. trashed endpoint의 기존 link는 project link list, 기본 graph, reverse read에서 숨긴다.
+
+그래프는 `DOCUMENT`, `ISSUE` node만 반환한다. trashed 문서·이슈와 그 endpoint를 참조하는 edge는 반환하지 않는다. `GET /documents/{documentId}/issues`는 canonical full `IssueResponse` 객체 목록, `GET /issues/{issueId}/documents`는 문서 목록을 반환한다.
 
 문서 optimistic locking은 Sprint 3 decision-needed다. `DOCUMENT_VERSION_CONFLICT`는 boundary error code로만 둔다. request body의 `version` 또는 `revision` 필드, conflict response body, UI 해소 방식은 아직 확정 계약이 아니다.
 
@@ -1409,6 +1413,36 @@ Request Body:
 }
 ```
 
+`title`, `type`, `content`는 모두 필수다. `title`은 trim 후 1~200자이며, `content`는 Markdown 원문이다. Response 201의 `data.document`는 `id`, `projectId`, `authorUserId`, `title`, `type`, `content`, `trashedAt`, `restoredAt`, `createdAt`, `updatedAt`을 반환한다. 시간 필드는 ISO-8601 UTC `Z` 문자열이다.
+
+#### GET `/api/v1/projects/{projectId}/documents`
+
+Query parameter: `type=DOC|MEETING_NOTE`, `q`, `includeTrashed=false`. 응답은 `data.documents` 배열이며, 기본 조회는 trashed 문서를 제외한다.
+
+#### GET `/api/v1/documents/{documentId}`
+
+Response 200은 `data.document`에 `id`, `projectId`, `authorUserId`, `title`, `type`, `content`, `trashedAt`, `restoredAt`, `createdAt`, `updatedAt`을 반환한다. 시간 필드는 ISO-8601 UTC `Z` 문자열이다.
+
+```json
+{
+  "data": {
+    "document": {
+      "id": 5000,
+      "projectId": 20,
+      "authorUserId": 1,
+      "title": "로그인 API 설계 메모",
+      "type": "DOC",
+      "content": "# 로그인 API\n\n요청과 응답을 정리한다.",
+      "trashedAt": null,
+      "restoredAt": null,
+      "createdAt": "2026-07-15T00:00:00Z",
+      "updatedAt": "2026-07-15T00:00:00Z"
+    }
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
 #### PATCH `/api/v1/documents/{documentId}`
 
 > 문서 optimistic locking은 Sprint 3 decision-needed다. 이 예시는 현재 문서 수정 body 기준이며 `version` 또는 `revision` 필드를 확정하지 않는다.
@@ -1418,31 +1452,20 @@ Request Body:
 ```json
 {
   "title": "로그인 API 설계 메모 v2",
+  "type": "DOC",
   "content": "검증 기준과 에러 응답 예시를 추가한다."
 }
 ```
 
+`title`, `type`, `content`는 모두 필수이고, 지정하지 않은 필드를 보존하는 partial update는 제공하지 않는다. Response 200은 생성과 같은 `data.document` shape를 반환한다.
+
 #### POST `/api/v1/documents/{documentId}/trash`
 
-Request Body:
-
-```json
-{ "reason": "문서 통합으로 인한 보관" }
-```
+Request body는 없다. Response 200은 `data.document`의 전체 문서 shape를 반환하며, 최초 trash에서 `trashedAt`은 UTC `Z` 시각이 된다. 이미 trashed인 문서를 다시 trash해도 같은 응답 shape로 성공한다.
 
 #### POST `/api/v1/documents/{documentId}/restore`
 
-Response 200:
-
-```json
-{
-  "data": {
-    "documentId": 5000,
-    "trashedAt": null
-  },
-  "meta": { "requestId": "req_..." }
-}
-```
+Request body는 없다. Response 200은 `data.document`의 전체 문서 shape를 반환하며, restore 후 `trashedAt`은 `null`이다. 이미 active인 문서를 다시 restore해도 같은 응답 shape로 성공한다.
 
 #### GET `/api/v1/projects/{projectId}/documents/graph`
 
@@ -1452,11 +1475,11 @@ Response 200:
 {
   "data": {
     "nodes": [
-      { "id": "document-5000", "type": "DOCUMENT", "label": "로그인 API 설계 메모" },
-      { "id": "issue-1000", "type": "ISSUE", "label": "로그인 API 구현" }
+      { "id": 5000, "type": "DOCUMENT", "title": "로그인 API 설계 메모", "issueKey": null, "status": null },
+      { "id": 1000, "type": "ISSUE", "title": "로그인 API 구현", "issueKey": "THD-1", "status": "BACKLOG" }
     ],
     "edges": [
-      { "source": "document-5000", "target": "issue-1000", "type": "DOCUMENT_ISSUE" }
+      { "linkId": 7000, "sourceDocumentId": 5000, "targetIssueId": 1000 }
     ]
   },
   "meta": { "requestId": "req_..." }
@@ -1470,8 +1493,45 @@ Request Body:
 ```json
 {
   "documentId": 5000,
-  "issueId": 1000,
-  "linkType": "RELATED"
+  "issueId": 1000
+}
+```
+
+Response 201:
+
+```json
+{
+  "data": {
+    "link": {
+      "id": 7000,
+      "projectId": 20,
+      "documentId": 5000,
+      "issueId": 1000,
+      "createdByUserId": 1
+    }
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+#### GET `/api/v1/projects/{projectId}/document-issue-links`
+
+Response 200:
+
+```json
+{
+  "data": {
+    "links": [
+      {
+        "id": 7000,
+        "projectId": 20,
+        "documentId": 5000,
+        "issueId": 1000,
+        "createdByUserId": 1
+      }
+    ]
+  },
+  "meta": { "requestId": "req_..." }
 }
 ```
 
@@ -1485,6 +1545,14 @@ Response 200:
   "meta": { "requestId": "req_..." }
 }
 ```
+
+#### GET `/api/v1/issues/{issueId}/documents`
+
+Response 200은 `data.documents`에 연결된 untrashed 문서만 반환한다.
+
+#### GET `/api/v1/documents/{documentId}/issues`
+
+Response 200은 `data.issues`에 연결된 untrashed 이슈만 반환한다. 이슈 객체는 현재 canonical `IssueResponse` full shape를 사용한다.
 
 ### 13.7 Thread / Message / DM
 
