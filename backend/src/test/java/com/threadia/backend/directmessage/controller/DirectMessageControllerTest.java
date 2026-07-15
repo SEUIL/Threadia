@@ -1,0 +1,77 @@
+package com.threadia.backend.directmessage.controller;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+import com.threadia.backend.common.auth.UserResponse;
+import com.threadia.backend.directmessage.dto.DirectMessageData;
+import com.threadia.backend.directmessage.dto.DirectMessageReadData;
+import com.threadia.backend.directmessage.dto.DirectMessageResponse;
+import com.threadia.backend.directmessage.dto.DirectMessageRoomCreationResult;
+import com.threadia.backend.directmessage.dto.DirectMessageRoomData;
+import com.threadia.backend.directmessage.dto.DirectMessageRoomResponse;
+import com.threadia.backend.directmessage.dto.DirectMessageRoomsData;
+import com.threadia.backend.directmessage.dto.DirectMessageUnreadCountData;
+import com.threadia.backend.directmessage.dto.DirectMessagesData;
+import com.threadia.backend.directmessage.dto.DirectMessageSendRequest;
+import com.threadia.backend.directmessage.exception.DirectMessageRoomNotFoundException;
+import com.threadia.backend.directmessage.service.DirectMessageService;
+
+@AutoConfigureMockMvc(addFilters = false)
+@WebMvcTest(DirectMessageController.class)
+class DirectMessageControllerTest {
+	@Autowired MockMvc mockMvc;
+	@MockitoBean DirectMessageService directMessageService;
+	@Test void exposesAllSixRestEndpointsWithExpectedEnvelopes() throws Exception {
+		DirectMessageRoomResponse room = new DirectMessageRoomResponse(30L, 10L, new UserResponse(2L, "other@example.com", "other", null), 1, LocalDateTime.parse("2026-07-15T00:00:00"));
+		when(directMessageService.listRooms("token", 10L)).thenReturn(new DirectMessageRoomsData(List.of(room)));
+		when(directMessageService.getOrCreateRoom(eq("token"), eq(10L), any())).thenReturn(new DirectMessageRoomCreationResult(new DirectMessageRoomData(room), true));
+		when(directMessageService.listMessages("token", 30L)).thenReturn(new DirectMessagesData(List.of(new DirectMessageResponse(40L, 30L, new UserResponse(2L, "other@example.com", "other", null), "hello", LocalDateTime.parse("2026-07-15T00:00:00")))));
+		when(directMessageService.send(eq("token"), eq(30L), any())).thenReturn(new DirectMessageData(new DirectMessageResponse(41L, 30L, new UserResponse(1L, "me@example.com", "me", null), "reply", LocalDateTime.parse("2026-07-15T00:00:01"))));
+		when(directMessageService.markRead(eq("token"), eq(30L), any())).thenReturn(new DirectMessageReadData(30L, 40L, 0, LocalDateTime.parse("2026-07-15T00:00:02")));
+		when(directMessageService.unreadCount("token")).thenReturn(new DirectMessageUnreadCountData(1));
+		mockMvc.perform(get("/api/v1/companies/10/direct-messages/rooms").header(HttpHeaders.AUTHORIZATION, "Bearer token")).andExpect(status().isOk()).andExpect(jsonPath("$.data.rooms[0].otherUser.id").value(2));
+		mockMvc.perform(post("/api/v1/companies/10/direct-messages/rooms").header(HttpHeaders.AUTHORIZATION, "Bearer token").contentType(MediaType.APPLICATION_JSON).content("{\"otherUserId\":2}")).andExpect(status().isCreated()).andExpect(jsonPath("$.data.room.id").value(30));
+		mockMvc.perform(get("/api/v1/direct-messages/rooms/30/messages").header(HttpHeaders.AUTHORIZATION, "Bearer token")).andExpect(status().isOk()).andExpect(jsonPath("$.data.messages[0].content").value("hello"));
+		mockMvc.perform(post("/api/v1/direct-messages/rooms/30/messages").header(HttpHeaders.AUTHORIZATION, "Bearer token").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"reply\"}")).andExpect(status().isCreated()).andExpect(jsonPath("$.data.message.id").value(41));
+		mockMvc.perform(post("/api/v1/direct-messages/rooms/30/mark-read").header(HttpHeaders.AUTHORIZATION, "Bearer token").contentType(MediaType.APPLICATION_JSON).content("{\"lastReadDirectMessageId\":40}")).andExpect(status().isOk()).andExpect(jsonPath("$.data.lastReadDirectMessageId").value(40));
+		mockMvc.perform(get("/api/v1/direct-messages/unread-count").header(HttpHeaders.AUTHORIZATION, "Bearer token")).andExpect(status().isOk()).andExpect(jsonPath("$.data.unreadCount").value(1));
+	}
+	@Test void validatesRequestBodiesAndMapsParticipantRoomToNotFound() throws Exception {
+		mockMvc.perform(post("/api/v1/direct-messages/rooms/30/messages").header(HttpHeaders.AUTHORIZATION, "Bearer token").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"\"}")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+		mockMvc.perform(post("/api/v1/direct-messages/rooms/30/mark-read").header(HttpHeaders.AUTHORIZATION, "Bearer token").contentType(MediaType.APPLICATION_JSON).content("{\"lastReadDirectMessageId\":40,\"readAt\":\"client-time\"}")).andExpect(status().isBadRequest());
+		when(directMessageService.listMessages("token", 404L)).thenThrow(new DirectMessageRoomNotFoundException(404L));
+		mockMvc.perform(get("/api/v1/direct-messages/rooms/404/messages").header(HttpHeaders.AUTHORIZATION, "Bearer token")).andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("NOT_FOUND"));
+	}
+	@Test void trimsContentBeforeValidatingTheMaximumLength() throws Exception {
+		String normalized = "x".repeat(10000); String padded = " " + normalized + " ";
+		when(directMessageService.send(eq("token"), eq(30L), any())).thenReturn(new DirectMessageData(new DirectMessageResponse(41L, 30L, new UserResponse(1L, "me@example.com", "me", null), normalized, LocalDateTime.parse("2026-07-15T00:00:01"))));
+		mockMvc.perform(post("/api/v1/direct-messages/rooms/30/messages").header(HttpHeaders.AUTHORIZATION, "Bearer token").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"" + padded + "\"}"))
+				.andExpect(status().isCreated()).andExpect(jsonPath("$.data.message.content").value(normalized));
+		ArgumentCaptor<DirectMessageSendRequest> requestCaptor = ArgumentCaptor.forClass(DirectMessageSendRequest.class);
+		verify(directMessageService).send(eq("token"), eq(30L), requestCaptor.capture());
+		assertThat(requestCaptor.getValue().content()).isEqualTo(normalized);
+		mockMvc.perform(post("/api/v1/direct-messages/rooms/30/messages").header(HttpHeaders.AUTHORIZATION, "Bearer token").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"   \"}"))
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+	}
+}
