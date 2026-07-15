@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
 > **최종 수정**: 2026-07-15
-> **버전**: v2.8 WBS 4.6.1 Documents/Graph 및 WBS 4.7.3.1 1:1 Direct Message Backend 계약 반영
+> **버전**: v2.9 WBS 4.6.1 Documents/Graph, Issue #108 project-scoped exact-email invitation candidate lookup, WBS 4.7.3.1 1:1 Direct Message Backend 계약 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -262,6 +262,7 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 | PATCH | `/api/v1/projects/{projectId}` | P/C | 프로젝트 정보 수정 |
 | POST | `/api/v1/projects/{projectId}/archive` | P/C | 프로젝트 아카이빙 |
 | GET | `/api/v1/projects/{projectId}/project-members` | A/P/C | 프로젝트 멤버 목록 |
+| GET | `/api/v1/projects/{projectId}/invitable-members?email={email}` | P/C | Issue #108 프로젝트 invitation 후보 exact email 조회. 초대 가능한 사용자 1명만 최소 응답으로 반환 |
 | POST | `/api/v1/projects/{projectId}/invitations` | P/C | WBS 4.3.1 프로젝트 invitation 생성. 대상은 같은 회사 ACTIVE 구성원으로 제한하고 수락 전 membership 미생성 |
 | GET | `/api/v1/projects/{projectId}/invitations` | P/C | WBS 4.3.1 프로젝트 invitation 목록 조회 |
 | PATCH | `/api/v1/project-members/{projectMemberId}` | P/C | 프로젝트 멤버 역할/상태 변경 |
@@ -285,6 +286,7 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 | Method | Endpoint | 권한 | 설명 |
 |---|---|---|---|
 | GET | `/api/v1/users/lookup?email={email}` | C | 등록 사용자 exact email lookup. Sprint 1.5 company invitation 대상 확인용. 입력 email은 `trim + lowercase` 정규화 후 조회 |
+| GET | `/api/v1/projects/{projectId}/invitable-members?email={email}` | P/C | Issue #108 PROJECT invitation 후보 exact email lookup. 입력 email 정규화, 프로젝트 권한 및 생성 가능 조건 검증 후 최소 사용자 응답 반환 |
 | POST | `/api/v1/companies/{companyId}/invitations` | C | 회사 invitation 생성 |
 | GET | `/api/v1/companies/{companyId}/invitations` | C | 회사 invitation 목록 조회 |
 | POST | `/api/v1/projects/{projectId}/invitations` | P/C | WBS 4.3.1 프로젝트 invitation 생성 |
@@ -303,6 +305,9 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 - WBS 4.3.1 PROJECT invitation은 대상자가 존재해야 하며, 존재하지만 `ACTIVE` user가 아니거나 해당 프로젝트 회사의 `ACTIVE` company member가 아니면 `409 TARGET_NOT_ACTIVE_COMPANY_MEMBER`를 반환한다. 대상 user가 아예 없으면 `404 NOT_FOUND`를 반환한다. 생성자는 자기 자신을 초대할 수 없으며 `409 INVITATION_SELF_NOT_ALLOWED`를 반환한다.
 - WBS 4.3.1 PROJECT invitation은 이미 ACTIVE 프로젝트 멤버인 대상자에게 생성하거나 수락할 수 없으며 `409 ALREADY_PROJECT_MEMBER`를 반환한다.
 - `(project, invitee, PROJECT, PENDING)` 중복 key는 하나의 대기 초대만 허용한다. 만료되지 않은 중복 생성은 `409 INVITATION_ALREADY_PENDING`을 반환하고, 만료된 대기 초대는 lazy expiration 후 새 초대를 생성할 수 있다.
+- Issue #108 project-scoped 후보 조회는 부분 일치, 목록, pagination을 제공하지 않고 정규화된 email exact match만 허용한다. 서버는 email 조회 전에 요청자의 ACTIVE 상태와 해당 프로젝트 P/C 권한을 확인해 비권한자의 사용자 directory 열람을 막는다. C는 해당 프로젝트 회사의 ACTIVE `COMPANY_ADMIN`, P는 정확히 해당 프로젝트의 ACTIVE `PROJECT_ADMIN`이어야 한다.
+- 후보 조회는 PROJECT invitation 생성과 같은 eligibility를 적용한다. 대상은 ACTIVE user이면서 해당 프로젝트 회사의 ACTIVE company member여야 하고, 자기 자신, ACTIVE 프로젝트 멤버, 만료되지 않은 PROJECT `PENDING` invitation 대상은 각각 기존 `409` conflict code로 거절한다. 만료된 `PENDING` invitation은 조회 중 lazy expiration한 뒤 후보를 반환하며, 실제 생성 시 `POST /projects/{projectId}/invitations`가 eligibility를 다시 검증한다.
+- 기존 `GET /api/v1/users/lookup`의 C-only global lookup과 회사 구성원 목록 계약은 변경하지 않는다. project-scoped 후보 조회 성공 응답은 기존 4필드 `UserResponse`만 제공한다.
 - 회사 invitation role은 `COMPANY_ADMIN` 또는 `MEMBER`만 허용한다. WBS 4.3.1 PROJECT invitation role은 `PROJECT_ADMIN` 또는 `MEMBER`만 허용한다.
 - PROJECT invitation 수락 시 기존 프로젝트 membership이 없으면 새 row를 생성하고 `membershipCreated=true`를 반환한다. 기존 row가 `REMOVED`이면 그 row의 ID와 생성 시각을 보존한 채 초대 role과 `ACTIVE` 상태로 재활성화하며 `membershipCreated=false`를 반환한다.
 - 공통 accept/decline/cancel endpoint는 request body의 scope 파라미터를 받지 않는다. access token과 `ACTIVE` 사용자 인증을 invitation ID 조회와 저장된 `scopeType` dispatch보다 먼저 검증하므로, 미인증 호출자는 invitation 존재 여부를 추론할 수 없다. invitation에 저장된 `scopeType`으로 COMPANY 또는 PROJECT 처리를 dispatch한다. PROJECT cancel은 같은 회사의 ACTIVE `COMPANY_ADMIN` 또는 ACTIVE `PROJECT_ADMIN`이 수행할 수 있다. `INVITE-01~04` company invitation 의미는 유지한다.
@@ -1094,6 +1099,30 @@ Response 200:
   "meta": { "requestId": "req_..." }
 }
 ```
+
+#### GET `/api/v1/projects/{projectId}/invitable-members?email=member@threadia.com`
+
+> **Issue #108 구현 계약**: 해당 프로젝트 회사의 ACTIVE C 또는 정확히 해당 프로젝트의 ACTIVE P만 호출할 수 있다. 권한을 먼저 검증한 뒤 `trim + lowercase` 정규화 email로 exact match하며, 목록 또는 부분 검색은 제공하지 않는다.
+
+Response 200:
+
+```json
+{
+  "data": {
+    "user": {
+      "id": 2,
+      "email": "member@threadia.com",
+      "nickname": "팀원",
+      "avatarUrl": null
+    }
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+- 대상 user가 없으면 `404 NOT_FOUND`, 대상이 ACTIVE user 또는 같은 회사 ACTIVE member가 아니면 `409 TARGET_NOT_ACTIVE_COMPANY_MEMBER`를 반환한다.
+- self, ACTIVE 프로젝트 멤버, live pending PROJECT invitation은 각각 `409 INVITATION_SELF_NOT_ALLOWED`, `409 ALREADY_PROJECT_MEMBER`, `409 INVITATION_ALREADY_PENDING`을 반환한다.
+- 만료된 pending invitation은 lazy expiration 후 후보 조회를 허용한다. 후보 조회와 invitation 생성 사이에 상태가 바뀔 수 있으므로 생성 endpoint가 모든 eligibility를 다시 검증한다.
 
 #### POST `/api/v1/projects/{projectId}/invitations`
 
