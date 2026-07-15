@@ -1,6 +1,7 @@
 package com.threadia.backend.invitation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Field;
@@ -26,6 +27,9 @@ import com.threadia.backend.invitation.domain.Invitation;
 import com.threadia.backend.invitation.domain.InvitationScopeType;
 import com.threadia.backend.invitation.domain.InvitationStatus;
 import com.threadia.backend.invitation.repository.InvitationRepository;
+import com.threadia.backend.project.domain.Project;
+import com.threadia.backend.project.domain.ProjectStatus;
+import com.threadia.backend.project.repository.ProjectRepository;
 
 @ExtendWith(MockitoExtension.class)
 class ReceivedInvitationServiceTest {
@@ -35,6 +39,7 @@ class ReceivedInvitationServiceTest {
 	@Mock private JwtTokenService jwtTokenService;
 	@Mock private UserRepository userRepository;
 	@Mock private InvitationRepository invitationRepository;
+	@Mock private ProjectRepository projectRepository;
 
 	@Test
 	void listMineReturnsCompanyAndProjectInvitationsAndExpiresStalePendingInvitation() {
@@ -42,10 +47,11 @@ class ReceivedInvitationServiceTest {
 		Invitation companyInvitation = invitation(1L, user, InvitationScopeType.COMPANY);
 		Invitation projectInvitation = invitation(2L, user, InvitationScopeType.PROJECT);
 		projectInvitation.setExpiresAt(now().minusSeconds(1));
-		ReceivedInvitationService service = new ReceivedInvitationService(jwtTokenService, userRepository, invitationRepository, CLOCK);
+		ReceivedInvitationService service = newService();
 		when(jwtTokenService.parseAccessToken("token")).thenReturn(new AuthenticatedUser(2L, user.getEmail()));
 		when(userRepository.findById(2L)).thenReturn(Optional.of(user));
 		when(invitationRepository.findByInvitee_IdOrderByCreatedAtDesc(2L)).thenReturn(List.of(projectInvitation, companyInvitation));
+		when(projectRepository.findAllById(List.of(10L))).thenReturn(List.of(project(10L, "Threadia 웹")));
 
 		var data = service.listMine("token");
 
@@ -53,6 +59,58 @@ class ReceivedInvitationServiceTest {
 				.containsExactly("PROJECT", "COMPANY");
 		assertThat(data.invitations().get(0).status()).isEqualTo("EXPIRED");
 		assertThat(projectInvitation.getStatus()).isEqualTo(InvitationStatus.EXPIRED);
+	}
+
+	@Test
+	void listMineFillsProjectNameOnlyForProjectScope() {
+		User user = user(2L);
+		Invitation companyInvitation = invitation(1L, user, InvitationScopeType.COMPANY);
+		Invitation projectInvitation = invitation(2L, user, InvitationScopeType.PROJECT);
+		ReceivedInvitationService service = newService();
+		when(jwtTokenService.parseAccessToken("token")).thenReturn(new AuthenticatedUser(2L, user.getEmail()));
+		when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+		when(invitationRepository.findByInvitee_IdOrderByCreatedAtDesc(2L)).thenReturn(List.of(projectInvitation, companyInvitation));
+		when(projectRepository.findAllById(List.of(10L))).thenReturn(List.of(project(10L, "Threadia 웹")));
+
+		var data = service.listMine("token");
+
+		// 초대 대상자는 아직 프로젝트 member가 아니라 프로젝트 상세를 못 읽는다 —
+		// 어느 프로젝트 초대인지 보여주려면 이 필드가 채워져 있어야 한다.
+		assertThat(data.invitations().get(0).projectName()).isEqualTo("Threadia 웹");
+		assertThat(data.invitations().get(1).projectName()).isNull();
+	}
+
+	/**
+	 * 회사 초대만 받은 사용자가 대부분이라 이 경로가 깨지면 영향이 크다.
+	 * projectId가 null인데 Map.of()에 get(null)을 하면 NPE가 나 목록 전체가 500이 된다.
+	 */
+	@Test
+	void listMineWithOnlyCompanyInvitationsDoesNotQueryProjectsAndSucceeds() {
+		User user = user(2L);
+		ReceivedInvitationService service = newService();
+		when(jwtTokenService.parseAccessToken("token")).thenReturn(new AuthenticatedUser(2L, user.getEmail()));
+		when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+		when(invitationRepository.findByInvitee_IdOrderByCreatedAtDesc(2L))
+				.thenReturn(List.of(invitation(1L, user, InvitationScopeType.COMPANY)));
+
+		var data = service.listMine("token");
+
+		assertThat(data.invitations()).hasSize(1);
+		assertThat(data.invitations().get(0).projectName()).isNull();
+		verifyNoInteractions(projectRepository);
+	}
+
+	private ReceivedInvitationService newService() {
+		return new ReceivedInvitationService(jwtTokenService, userRepository, invitationRepository, projectRepository, CLOCK);
+	}
+
+	private static Project project(Long id, String name) {
+		Company company = new Company("Threadia", "대표", null, "IT", null, "ACTIVE", null, now(), now());
+		setId(company, 1L);
+		Project project = new Project(
+				company, name, "THR", null, ProjectStatus.ACTIVE, null, null, null, null, null, null, now(), now());
+		setId(project, id);
+		return project;
 	}
 
 	private static User user(Long id) {
