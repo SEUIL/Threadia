@@ -1048,6 +1048,7 @@ Response 201:
       "companyId": 10,
       "companyName": "Threadia",
       "projectId": null,
+      "projectName": null,
       "inviterUserId": 1,
       "inviterNickname": "초대자1",
       "inviteeUserId": 2,
@@ -1076,6 +1077,7 @@ Response 200:
         "companyId": 10,
         "companyName": "Threadia",
         "projectId": null,
+        "projectName": null,
         "inviterUserId": 1,
         "inviterNickname": "초대자1",
         "inviteeUserId": 2,
@@ -1142,6 +1144,7 @@ Response 201:
       "companyId": 10,
       "companyName": "Threadia",
       "projectId": 20,
+      "projectName": "Threadia 웹",
       "inviterUserId": 1,
       "inviterNickname": "초대자1",
       "inviteeUserId": 2,
@@ -1172,6 +1175,7 @@ Response 200:
         "companyId": 10,
         "companyName": "Threadia",
         "projectId": 20,
+        "projectName": "Threadia 웹",
         "inviterUserId": 1,
         "inviterNickname": "초대자1",
         "inviteeUserId": 2,
@@ -1203,6 +1207,7 @@ Response 200:
         "companyId": 10,
         "companyName": "Threadia",
         "projectId": null,
+        "projectName": null,
         "inviterUserId": 1,
         "inviterNickname": "초대자1",
         "inviteeUserId": 2,
@@ -1218,6 +1223,7 @@ Response 200:
         "companyId": 10,
         "companyName": "Threadia",
         "projectId": 20,
+        "projectName": "Threadia 웹",
         "inviterUserId": 1,
         "inviterNickname": "초대자1",
         "inviteeUserId": 2,
@@ -1233,7 +1239,9 @@ Response 200:
 }
 ```
 
-`companyName`, `inviterUserId`, `inviterNickname`, `inviteeEmail`, `inviteeNickname`은 초대 화면 표시용 필드다. Action 처리와 권한 검증에는 `id`, `scopeType`, `companyId`, `projectId`, `inviteeUserId`를 사용한다.
+`companyName`, `projectName`, `inviterUserId`, `inviterNickname`, `inviteeEmail`, `inviteeNickname`은 초대 화면 표시용 필드다. Action 처리와 권한 검증에는 `id`, `scopeType`, `companyId`, `projectId`, `inviteeUserId`를 사용한다.
+
+`projectName`은 PROJECT scope에서만 채우고 COMPANY scope는 `null`이다. 초대 대상자는 아직 프로젝트 member가 아니라 `GET /api/v1/projects/{projectId}`가 `403`이므로, 이 필드가 없으면 수신 화면이 어느 프로젝트 초대인지 표시할 수 없다.
 
 #### POST `/api/v1/invitations/{invitationId}/accept`
 
