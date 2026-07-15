@@ -1,0 +1,6 @@
+[
+  {"ParameterKey":"NetworkStackName","ParameterValue":"REPLACE_WITH_APPROVED_RESTRICTED_NETWORK_STACK_NAME"},
+  {"ParameterKey":"ExistingEc2InstanceId","ParameterValue":"REPLACE_WITH_APPROVED_DELIVERY_HOST_INSTANCE_ID"},
+  {"ParameterKey":"ExistingEc2RoleName","ParameterValue":"REPLACE_WITH_APPROVED_RESTRICTED_COMPUTE_EC2_ROLE_NAME"},
+  {"ParameterKey":"ArtifactNoncurrentVersionRetentionDays","ParameterValue":"30"}
+]
