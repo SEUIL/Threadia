@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-07
-> **최종 수정**: 2026-07-07
-> **버전**: v0.4 Level 3 실행 row 반영
+> **최종 수정**: 2026-07-14
+> **버전**: v0.5 WBS 4.2 Level 3 실행 row 분리 반영
 > **상태**: 검토 중
 > **태그**: sprint-3, backlog, wbs, platform-admin, extension
 
@@ -18,7 +18,7 @@
 1. 기간, capacity, Owner, Reviewer, 지원 담당은 일단 공란으로 둔다.
 2. 기존 `4.x`를 Sprint 3 root와 병목 방지형 Level 2 parent row로 재작성한다.
 3. 너무 작은 작업 row로 과분할하지 않는다. WBS row는 PR, 문서 변경 묶음, API/화면 vertical slice, QA gate처럼 검증 가능한 단위로 둔다.
-4. Level 3 row는 `4.7`, `4.9`, `4.10`, `4.11`, `4.12`, `4.13`처럼 decision, 정책, 구현, 검증 순서가 실제로 갈리는 parent에만 둔다.
+4. Level 3 row는 `4.2`, `4.7`, `4.9`, `4.10`, `4.11`, `4.12`, `4.13`처럼 decision, 정책, 구현, 검증 순서가 실제로 갈리는 parent에만 둔다.
 5. 쉬운 작업은 Owner 1명만 배정하고 지원 담당은 공란으로 둔다. 어려운 작업이나 cross-domain 작업에만 지원 담당 1명을 둔다.
 6. `decision-needed` 항목은 구현 row와 분리한다.
 7. `선행 WBS ID`, `의존 유형`, `착수 가능 조건`, `병렬 그룹`, `의존성`을 채워 팀원이 자율적으로 착수 여부를 판단할 수 있게 한다.
@@ -54,10 +54,12 @@
 
 ## 4. 선택적 Level 3 실행 row
 
-Level 3 row는 전체 `4.x`를 기계적으로 쪼갠 것이 아니라, 실제 착수 순서와 검증 기준이 달라지는 parent에만 추가한다. 요구사항추적표 primary WBS ID는 parent row를 유지한다.
+Level 3 row는 전체 `4.x`를 기계적으로 쪼갠 것이 아니라, 실제 착수 순서와 검증 기준이 달라지는 parent에만 추가한다. `4.2.1`과 `4.2.2`는 각각 Backend API와 그 API에 의존하는 Frontend 계획 범위를 분리한다. 요구사항추적표 primary WBS ID는 child row가 아니라 parent `4.2`를 유지한다.
 
 | Parent | Level 3 row | 작업명 | 성격 |
 |---|---|---|---|
+| `4.2` | `4.2.1` | Backend: `PATCH /api/v1/users/me/profile` partial nickname/avatarUrl 수정 지원, 기존 `GET /api/v1/auth/me`와 `GET /api/v1/users/me/company-memberships`는 분리된 verified context contract로 유지 | Backend-only, `4.1` 선행, Sprint 3 후보 |
+| `4.2` | `4.2.2` | Frontend: mock role 제거, 프로필 UI, S03/S04 API 연동, 브라우저 검증 | Frontend-only, `4.2.1` 의존, planned only, 0% |
 | `4.7` | `4.7.1` | thread core 구현 | Sprint 3 후보 |
 | `4.7` | `4.7.2` | project chat 구현 | Sprint 3 후보 |
 | `4.7` | `4.7.3` | 1:1 DM 구현 | Sprint 3 후보 |
@@ -134,4 +136,4 @@ Level 3 row는 전체 `4.x`를 기계적으로 쪼갠 것이 아니라, 실제 �
 2. S15는 `3.7~3.7.5` Sprint 2 planning gate와 Go/No-Go handoff를 전제로 `4.10`에서 상세 확정과 구현을 추적한다.
 3. optimistic locking, DM room model, MySQL 우선 검색, S3 presigned URL은 현재 권장안이며 구현 중 변경될 수 있다.
 4. permanent delete는 참조 무결성과 audit 정책이 확정되지 않으면 구현 row로 넘어가면 안 된다.
-5. 요구사항추적표 primary WBS ID는 기능 ID별 단일 값을 원칙으로 한다. Level 3 row를 추가해도 `LINK-02`와 `DOC-02` primary는 `4.6`, `DEFER-04` primary는 `4.12`, `NOTI-01` primary는 `4.8`이다.
+5. 요구사항추적표 primary WBS ID는 기능 ID별 단일 값을 원칙으로 한다. Level 3 row를 추가해도 Profile/Hub 관련 primary는 `4.2`, `LINK-02`와 `DOC-02` primary는 `4.6`, `DEFER-04` primary는 `4.12`, `NOTI-01` primary는 `4.8`이다. `4.2.1`과 `4.2.2`는 parent `4.2`의 실행 분리 row이며 parent 완료를 의미하지 않는다.

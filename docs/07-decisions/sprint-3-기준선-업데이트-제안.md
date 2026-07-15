@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-07
-> **최종 수정**: 2026-07-07
-> **버전**: v0.4 Level 3 실행 row 반영
+> **최종 수정**: 2026-07-14
+> **버전**: v0.5 WBS 4.2 Level 3 실행 row 분리 반영
 > **상태**: 검토 중
 > **태그**: decision, sprint-3, baseline, proposal, changelog
 
@@ -17,7 +17,7 @@
 |---|---|
 | canonical 확정 문서 | Gate 2 승인에 따라 Sprint 3 기준선 반영을 완료했다. |
 | Google Sheets `요구사항추적표` | Gate 1 승인에 따라 scope/status/boundary를 정리했다. |
-| Google Sheets `WBS` | Gate 3에 따라 Sprint 3 4.x 구조로 rewrite했고, `4.7`, `4.9`, `4.10`, `4.11`, `4.12`, `4.13` 하위 Level 3 실행 row를 추가했다. |
+| Google Sheets `WBS` | Gate 3에 따라 Sprint 3 4.x 구조로 rewrite했고, 기존 선택 parent 하위 Level 3 실행 row를 관리한다. `4.2.1~4.2.2`도 Backend/Frontend 실행 분리 기준으로 Google Sheets에 추가한다. |
 | `docs/07-decisions/기획문서-변경이력.md` | Gate 3/4 완료, 요구사항추적표 primary WBS backfill 정책, Sprint 3 WBS Level 3 실행 row 추가를 변경이력에 반영한다. |
 | `docs/01-planning/` | raw archive이므로 수정하지 않는다. |
 
@@ -32,7 +32,7 @@
 | API 기준 | `docs/04-api/API-명세서.md` |
 | 보류 기준 | `docs/07-decisions/보류-기능-최종표.md` |
 | 변경이력 기준 | `docs/07-decisions/기획문서-변경이력.md` |
-| Google Sheets `WBS` 현재 4.x | Gate 3 완료 기준 `4` root와 `4.1~4.14` Sprint 3 parent 구조, 선택적 `4.x.y` Level 3 실행 row |
+| Google Sheets `WBS` 현재 4.x | Gate 3 완료 기준 `4` root와 `4.1~4.14` Sprint 3 parent 구조, 기존 선택적 `4.x.y` Level 3 실행 row. `4.2.1~4.2.2`는 Backend/Frontend 실행 분리 기준으로 추가한다. |
 | Google Sheets `요구사항추적표` 현재 상태 | Gate 1 scope/status/boundary 정리와 Gate 4 WBS ID backfill 완료 |
 
 ## 3. 기준선 업데이트 원칙
@@ -45,7 +45,7 @@
 6. 새 요구사항 ID는 이 제안에서 임의 생성하지 않는다.
 7. Project invitation은 Sprint 3 `PROJECT-MEMBER-01~02` 후보로 다루고, 기존 `INVITE-01~04` 회사 invitation row를 덮어쓰지 않는다.
 8. WBS parent row는 작은 작업으로 과분할하지 않고 PR/검증 가능한 굵은 실행 단위로 둔다.
-9. Level 3 row는 decision, 정책, 구현, 검증 순서가 실제로 갈리는 parent에만 추가한다.
+9. Level 3 row는 decision, 정책, 구현, 검증 순서가 실제로 갈리는 parent에만 추가한다. `4.2`는 Backend API와 그 API에 의존하는 Frontend 계획 범위를 child row로 분리한다.
 10. 요구사항추적표 primary WBS ID는 Level 3 row가 추가돼도 parent row를 유지한다.
 11. 쉬운 작업은 Owner 1명과 지원 담당 공란을 기본으로 한다. 어려운 작업, cross-domain 작업, 보안/감사/인프라 위험이 있는 작업에만 지원 담당 1명을 둔다.
 12. `선행 WBS ID`, `의존 유형`, `착수 가능 조건`, `병렬 그룹`, `의존성`을 채워 병목과 대기 상태를 줄인다.
@@ -58,7 +58,7 @@
 | 기획문서 변경이력 반영 상태 | 이 문서 8장과 `docs/07-decisions/기획문서-변경이력.md` | Level 3 entry 반영 완료 |
 | canonical 문서별 수정 영향도 | 이 문서 5장 | Gate 2 반영 완료 |
 | 요구사항추적표 1차 변경 draft | 이 문서 6장 | Gate 1 반영 완료 |
-| WBS 4.x rewrite 기준 | `sprint-3-backlog.md`와 Google Sheets `WBS` 4.x parent/Level 3 실행 row | Gate 3 및 Level 3 row 반영 완료 |
+| WBS 4.x rewrite 기준 | `sprint-3-backlog.md`와 Google Sheets `WBS` 4.x parent/Level 3 실행 row | Gate 3 및 기존 Level 3 row 반영 완료, `4.2.1~4.2.2`는 Backend/Frontend 실행 분리 기준으로 Google Sheets와 문서에 반영 |
 
 ## 5. canonical 문서 영향도
 
@@ -141,6 +141,7 @@ Level 3 row는 전체 parent를 기계적으로 쪼개지 않고 실행 순서�
 
 | Parent | Level 3 row 범위 | 기준 |
 |---|---|---|
+| `4.2` | `4.2.1~4.2.2` | `4.2.1`은 Backend-only로 `PATCH /api/v1/users/me/profile`의 partial nickname/avatarUrl 수정을 지원하고, 기존 `GET /api/v1/auth/me`와 `GET /api/v1/users/me/company-memberships`를 분리된 verified context contract로 유지한다. `4.2.2`는 `4.2.1`에 의존하는 Frontend-only planned row로 mock role 제거, 프로필 UI, S03/S04 API 연동, 브라우저 검증을 다루며 0%로 둔다. |
 | `4.7` | `4.7.1~4.7.4` | thread core, project chat, 1:1 DM, group DM/read receipt decision 분리 |
 | `4.9` | `4.9.1~4.9.3` | activity feed, search decision, dashboard aggregate 분리 |
 | `4.10` | `4.10.1~4.10.4` | support cases, enforcement, system settings decision, audit/operation logs 분리 |
@@ -148,7 +149,7 @@ Level 3 row는 전체 parent를 기계적으로 쪼개지 않고 실행 순서�
 | `4.12` | `4.12.1~4.12.3` | version/revision policy, conflict API/backend, conflict UI/검증 분리 |
 | `4.13` | `4.13.1~4.13.3` | retention/audit policy, project restore, permanent delete 구현 분리 |
 
-요구사항추적표 primary WBS ID는 기능 ID별 단일 값을 원칙으로 하며, Level 3 row가 추가돼도 parent 기준을 유지한다. `DOC-02`와 `LINK-02`의 primary는 `4.6`, document optimistic locking boundary는 `4.12`, `LINK-01/LINK-03` primary는 `4.5`, `NOTI-01` primary는 `4.8`로 둔다. `NOTI-02/03`과 `PROJECT_NOTIFICATION_SCOPE_DEFERRED`는 현재 계약/reference 또는 API boundary로 유지하고 primary WBS backfill 대상이 아니다.
+요구사항추적표 primary WBS ID는 기능 ID별 단일 값을 원칙으로 하며, Level 3 row가 추가돼도 parent 기준을 유지한다. Profile/Hub 관련 primary는 `4.2`로 두고 `4.2.1`과 `4.2.2`는 parent 실행 분리와 의존성만 표현하며 parent 완료를 뜻하지 않는다. `DOC-02`와 `LINK-02`의 primary는 `4.6`, document optimistic locking boundary는 `4.12`, `LINK-01/LINK-03` primary는 `4.5`, `NOTI-01` primary는 `4.8`로 둔다. `NOTI-02/03`과 `PROJECT_NOTIFICATION_SCOPE_DEFERRED`는 현재 계약/reference 또는 API boundary로 유지하고 primary WBS backfill 대상이 아니다.
 
 ## 8. 기획문서 변경이력 반영 상태
 
@@ -179,7 +180,7 @@ Level 3 row는 전체 parent를 기계적으로 쪼개지 않고 실행 순서�
 |---|---|
 | scope 분류 | Sprint 3 항목이 committed 후보, decision-needed, 유지 보류/제외 중 하나로 분류된다. |
 | 요구사항추적표 | Sprint 3 scope/status/boundary가 canonical 문서와 충돌하지 않는다. |
-| WBS | Gate 3 완료 기준 WBS 4.x parent row가 Sprint 3 backlog의 4.1~4.14 구조와 일치하고, 선택 parent 하위 Level 3 실행 row가 backlog의 child row 표와 일치한다. |
+| WBS | Gate 3 완료 기준 WBS 4.x parent row가 Sprint 3 backlog의 4.1~4.14 구조와 일치하고, `4.2.1` Backend-only 및 `4.2.1` 의존 `4.2.2` Frontend-only planned row를 포함한 선택 parent 하위 Level 3 실행 row가 backlog의 child row 표와 일치한다. |
 | WBS backfill | Gate 4 완료 기준 요구사항추적표 primary WBS ID가 실제 WBS row와 상호 참조된다. |
 | 보류표 | Sprint 3로 승격한 항목이 보류로만 남지 않는다. |
 | S15 | `users.role` 단일 권한 모델을 만들지 않고 `platform_admins` 분리 기준을 유지한다. |
