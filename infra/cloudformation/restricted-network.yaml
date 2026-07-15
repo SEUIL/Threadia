@@ -1,0 +1,267 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Private network layer for the additive restricted Threadia foundation.
+
+Parameters:
+  Owner:
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    AllowedPattern: '^[A-Za-z0-9][A-Za-z0-9._+@/-]{1,63}$'
+  VpcCidr:
+    Type: String
+    Default: 10.20.0.0/16
+  ComputeSubnetCidr:
+    Type: String
+    Default: 10.20.0.0/24
+  PrivateDbSubnetACidr:
+    Type: String
+    Default: 10.20.10.0/24
+  PrivateDbSubnetBCidr:
+    Type: String
+    Default: 10.20.11.0/24
+  S3ManagedPrefixListId:
+    Type: String
+    Description: Approved ap-northeast-2 S3 managed prefix list ID used only for HTTPS egress.
+    AllowedPattern: '^pl-[0-9a-f]+$'
+    ConstraintDescription: Use the approved regional S3 managed prefix list ID beginning with pl-.
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+  ComputeSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !Ref ComputeSubnetCidr
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+  ComputeRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+  ComputeSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref ComputeRouteTable
+      SubnetId: !Ref ComputeSubnet
+  PrivateDbSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !Ref PrivateDbSubnetACidr
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+  PrivateDbSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: !Ref PrivateDbSubnetBCidr
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+  Ec2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: No ingress; Compute stack adds only approved egress.
+      SecurityGroupEgress:
+        - CidrIp: 127.0.0.1/32
+          IpProtocol: '-1'
+          Description: Suppress default egress until Compute explicitly adds it.
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+  SsmEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Private SSM endpoint HTTPS from the restricted EC2 group only.
+      SecurityGroupEgress:
+        - CidrIp: 127.0.0.1/32
+          IpProtocol: '-1'
+          Description: Suppress default egress.
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+  SsmEndpointIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt SsmEndpointSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId: !GetAtt Ec2SecurityGroup.GroupId
+      Description: HTTPS from restricted EC2 only.
+  Ec2HttpsToS3GatewayEndpoint:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !GetAtt Ec2SecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      DestinationPrefixListId: !Ref S3ManagedPrefixListId
+      Description: HTTPS to the approved regional S3 managed prefix list only.
+  SsmEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      PrivateDnsEnabled: true
+      SecurityGroupIds: [!GetAtt SsmEndpointSecurityGroup.GroupId]
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssm
+      SubnetIds: [!Ref ComputeSubnet]
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+      VpcEndpointType: Interface
+      VpcId: !Ref Vpc
+  SsmMessagesEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      PrivateDnsEnabled: true
+      SecurityGroupIds: [!GetAtt SsmEndpointSecurityGroup.GroupId]
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssmmessages
+      SubnetIds: [!Ref ComputeSubnet]
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+      VpcEndpointType: Interface
+      VpcId: !Ref Vpc
+  Ec2MessagesEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      PrivateDnsEnabled: true
+      SecurityGroupIds: [!GetAtt SsmEndpointSecurityGroup.GroupId]
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ec2messages
+      SubnetIds: [!Ref ComputeSubnet]
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+      VpcEndpointType: Interface
+      VpcId: !Ref Vpc
+  S3GatewayEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowOnlyVersionedArtifactRead
+            Effect: Allow
+            Principal: '*'
+            Action: [s3:GetObject, s3:GetObjectVersion]
+            Resource: !Sub arn:${AWS::Partition}:s3:::threadia-restricted-${AWS::AccountId}-${AWS::Region}-artifacts/releases/*
+      RouteTableIds:
+        - !Ref ComputeRouteTable
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcEndpointType: Gateway
+      VpcId: !Ref Vpc
+
+Outputs:
+  VpcId:
+    Value: !Ref Vpc
+    Export:
+      Name: !Sub ${AWS::StackName}-VpcId
+  VpcCidr:
+    Value: !Ref VpcCidr
+    Export:
+      Name: !Sub ${AWS::StackName}-VpcCidr
+  ComputeSubnetId:
+    Value: !Ref ComputeSubnet
+    Export:
+      Name: !Sub ${AWS::StackName}-ComputeSubnetId
+  PrivateDbSubnetAId:
+    Value: !Ref PrivateDbSubnetA
+    Export:
+      Name: !Sub ${AWS::StackName}-PrivateDbSubnetAId
+  PrivateDbSubnetBId:
+    Value: !Ref PrivateDbSubnetB
+    Export:
+      Name: !Sub ${AWS::StackName}-PrivateDbSubnetBId
+  Ec2SecurityGroupId:
+    Value: !GetAtt Ec2SecurityGroup.GroupId
+    Export:
+      Name: !Sub ${AWS::StackName}-Ec2SecurityGroupId
+  SsmEndpointSecurityGroupId:
+    Value: !GetAtt SsmEndpointSecurityGroup.GroupId
+    Export:
+      Name: !Sub ${AWS::StackName}-SsmEndpointSecurityGroupId
+  S3GatewayEndpointId:
+    Value: !Ref S3GatewayEndpoint
+    Export:
+      Name: !Sub ${AWS::StackName}-S3GatewayEndpointId
