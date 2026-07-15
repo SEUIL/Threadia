@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
 > **최종 수정**: 2026-07-14
-> **버전**: Sprint 1.5 invitation 표시 필드 보강 + Sprint 3 기준선 반영 + company member scoped PATCH 동기화 + current-user membership context + project detail viewer response v1.6 + WBS 3.5 candidate Issue/Kanban 최소 계약 + WBS 4.2.1 profile Backend PATCH
+> **버전**: Sprint 1.5 invitation 표시 필드 보강 + Sprint 3 기준선 반영 + company member scoped PATCH 동기화 + current-user membership context + project detail viewer response v1.6 + WBS 3.5 candidate Issue/Kanban 최소 계약 + WBS 4.2.1 profile Backend PATCH + WBS 4.3.1 PROJECT invitation Backend 계약 동기화
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -73,9 +73,12 @@ pagination이 필요한 목록 응답은 `page`를 포함한다. endpoint별 응
 | 409 | ALREADY_COMPANY_MEMBER | 이미 회사 소속 구성원 |
 | 409 | COMPANY_MEMBER_SUSPENDED | 정지된 회사 구성원은 초대 수락으로 복구할 수 없음 |
 | 409 | ALREADY_PROJECT_MEMBER | 이미 프로젝트 소속 구성원 |
+| 409 | TARGET_NOT_ACTIVE_COMPANY_MEMBER | 대상 사용자가 활성 회사 구성원이 아님 |
+| 409 | INVITATION_SELF_NOT_ALLOWED | 자기 자신에게 초대할 수 없음 |
 | 409 | INVITATION_ALREADY_PENDING | 동일 scope와 대상 사용자에 대한 대기 중 초대가 이미 있음 |
 | 409 | INVITATION_EXPIRED | 초대가 만료됨 |
 | 409 | INVITATION_CANCELED | 초대가 취소됨 |
+| 409 | INVITATION_INVALID_STATUS | 처리할 수 없는 초대 상태 |
 | 409 | DOCUMENT_VERSION_CONFLICT | 문서 수정 optimistic locking 충돌. Sprint 3 decision-needed boundary code |
 
 ### 사용자 요약 DTO
@@ -259,7 +262,8 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 | PATCH | `/api/v1/projects/{projectId}` | P/C | 프로젝트 정보 수정 |
 | POST | `/api/v1/projects/{projectId}/archive` | P/C | 프로젝트 아카이빙 |
 | GET | `/api/v1/projects/{projectId}/project-members` | A/P/C | 프로젝트 멤버 목록 |
-| POST | `/api/v1/projects/{projectId}/invitations` | P/C | Sprint 3 프로젝트 초대 후보. 대상은 같은 회사 ACTIVE 구성원으로 제한하고 수락 전 membership 미생성 |
+| POST | `/api/v1/projects/{projectId}/invitations` | P/C | WBS 4.3.1 프로젝트 invitation 생성. 대상은 같은 회사 ACTIVE 구성원으로 제한하고 수락 전 membership 미생성 |
+| GET | `/api/v1/projects/{projectId}/invitations` | P/C | WBS 4.3.1 프로젝트 invitation 목록 조회 |
 | PATCH | `/api/v1/project-members/{projectMemberId}` | P/C | 프로젝트 멤버 역할/상태 변경 |
 | DELETE | `/api/v1/project-members/{projectMemberId}` | P/C | 프로젝트 멤버 제거 |
 | GET | `/api/v1/projects/{projectId}/sprints` | A/P/C | Sprint 목록 |
@@ -274,7 +278,7 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 
 ---
 
-## 6-A. Invitation, Sprint 1.5
+## 6-A. Invitation, Sprint 1.5 및 WBS 4.3.1
 
 > **Sprint 1.5 구현 범위**: 등록 사용자 대상 app-internal invitation만 다룬다. 실제 email 발송, invitation token link, 미가입 사용자 초대, signup/onboarding auto-accept, resend는 포함하지 않는다.
 
@@ -283,20 +287,25 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 | GET | `/api/v1/users/lookup?email={email}` | C | 등록 사용자 exact email lookup. Sprint 1.5 company invitation 대상 확인용. 입력 email은 `trim + lowercase` 정규화 후 조회 |
 | POST | `/api/v1/companies/{companyId}/invitations` | C | 회사 invitation 생성 |
 | GET | `/api/v1/companies/{companyId}/invitations` | C | 회사 invitation 목록 조회 |
-| GET | `/api/v1/users/me/invitations` | A/P/C | 내가 받은 invitation 목록 조회 |
-| POST | `/api/v1/invitations/{invitationId}/accept` | A/P/C | invitation 수락, membership 생성 |
-| POST | `/api/v1/invitations/{invitationId}/decline` | A/P/C | invitation 거절 |
-| POST | `/api/v1/invitations/{invitationId}/cancel` | C | 보낸 company invitation 취소. Project invitation cancel은 Sprint 3 후보에서 P/C 기준으로 처리 |
+| POST | `/api/v1/projects/{projectId}/invitations` | P/C | WBS 4.3.1 프로젝트 invitation 생성 |
+| GET | `/api/v1/projects/{projectId}/invitations` | P/C | WBS 4.3.1 프로젝트 invitation 목록 조회 |
+| GET | `/api/v1/users/me/invitations` | A/P/C | 내가 받은 COMPANY 및 PROJECT invitation 목록 조회 |
+| POST | `/api/v1/invitations/{invitationId}/accept` | A/P/C | 저장된 scope에 따라 COMPANY 또는 PROJECT invitation 수락, membership 생성 또는 재활성화 |
+| POST | `/api/v1/invitations/{invitationId}/decline` | A/P/C | 저장된 scope에 따라 COMPANY 또는 PROJECT invitation 거절 |
+| POST | `/api/v1/invitations/{invitationId}/cancel` | C 또는 P/C | 저장된 scope에 따라 COMPANY는 C, PROJECT는 P/C 권한으로 invitation 취소 |
 
 ### Invitation 정책
 
 - `status`는 `PENDING`, `ACCEPTED`, `DECLINED`, `CANCELED`, `EXPIRED` 중 하나다.
-- 기본 만료 기간은 생성 시각 기준 7일이며 `expiresAt`은 null로 내려주지 않는다.
+- 기본 만료 기간은 생성 시각 기준 UTC 7일이며 `expiresAt`은 null로 내려주지 않는다.
 - read/accept/decline/cancel 시 lazy expiration을 확인한다. 필수 batch scheduler는 Sprint 1.5 범위가 아니다.
-- 이미 회사 멤버면 `409 ALREADY_COMPANY_MEMBER`를 반환한다. 단, 기존 회사 membership이 `SUSPENDED` 상태이면 invitation accept로 복구하지 않고 `409 COMPANY_MEMBER_SUSPENDED`를 반환한다. 프로젝트 멤버 중복 검증과 `ALREADY_PROJECT_MEMBER`는 Sprint 3 project invitation 후보에서 처리한다.
-- 동일 scope와 대상 사용자에 대한 대기 중 초대가 있으면 `409 INVITATION_ALREADY_PENDING`을 반환한다.
-- 회사 invitation role은 `COMPANY_ADMIN` 또는 `MEMBER`만 허용한다. 프로젝트 invitation role 검증은 Sprint 3 후보에서 `PROJECT_ADMIN` 또는 `MEMBER` 기준으로 처리한다.
-- 프로젝트 invitation 대상 제한은 Sprint 3 후보 기준이다. 구현 시 대상자는 해당 프로젝트가 속한 회사의 `ACTIVE` company member여야 하며, 조건을 만족하지 않으면 `400 VALIDATION_ERROR`로 거절한다. `INVITE-01~04` company invitation 의미는 유지한다.
+- 이미 회사 멤버면 `409 ALREADY_COMPANY_MEMBER`를 반환한다. 단, 기존 회사 membership이 `SUSPENDED` 상태이면 invitation accept로 복구하지 않고 `409 COMPANY_MEMBER_SUSPENDED`를 반환한다.
+- WBS 4.3.1 PROJECT invitation은 대상자가 존재해야 하며, 존재하지만 `ACTIVE` user가 아니거나 해당 프로젝트 회사의 `ACTIVE` company member가 아니면 `409 TARGET_NOT_ACTIVE_COMPANY_MEMBER`를 반환한다. 대상 user가 아예 없으면 `404 NOT_FOUND`를 반환한다. 생성자는 자기 자신을 초대할 수 없으며 `409 INVITATION_SELF_NOT_ALLOWED`를 반환한다.
+- WBS 4.3.1 PROJECT invitation은 이미 ACTIVE 프로젝트 멤버인 대상자에게 생성하거나 수락할 수 없으며 `409 ALREADY_PROJECT_MEMBER`를 반환한다.
+- `(project, invitee, PROJECT, PENDING)` 중복 key는 하나의 대기 초대만 허용한다. 만료되지 않은 중복 생성은 `409 INVITATION_ALREADY_PENDING`을 반환하고, 만료된 대기 초대는 lazy expiration 후 새 초대를 생성할 수 있다.
+- 회사 invitation role은 `COMPANY_ADMIN` 또는 `MEMBER`만 허용한다. WBS 4.3.1 PROJECT invitation role은 `PROJECT_ADMIN` 또는 `MEMBER`만 허용한다.
+- PROJECT invitation 수락 시 기존 프로젝트 membership이 없으면 새 row를 생성하고 `membershipCreated=true`를 반환한다. 기존 row가 `REMOVED`이면 그 row의 ID와 생성 시각을 보존한 채 초대 role과 `ACTIVE` 상태로 재활성화하며 `membershipCreated=false`를 반환한다.
+- 공통 accept/decline/cancel endpoint는 request body의 scope 파라미터를 받지 않는다. access token과 `ACTIVE` 사용자 인증을 invitation ID 조회와 저장된 `scopeType` dispatch보다 먼저 검증하므로, 미인증 호출자는 invitation 존재 여부를 추론할 수 없다. invitation에 저장된 `scopeType`으로 COMPANY 또는 PROJECT 처리를 dispatch한다. PROJECT cancel은 같은 회사의 ACTIVE `COMPANY_ADMIN` 또는 ACTIVE `PROJECT_ADMIN`이 수행할 수 있다. `INVITE-01~04` company invitation 의미는 유지한다.
 - Sprint 1.5의 invitation-related notification은 필요 시 내부 `notification_events` 원장 기록을 남길 수 있으나 완료 조건에는 포함하지 않는다. Push 알림, 별도 Invitation notification preference, S11 사용자 알림 UI 필수 구현은 Sprint 1.5 범위가 아니다.
 - `activity_events`는 활동 원장, `notification_events`는 알림 사건 원본으로 별도 운영하고 통합 저장소로 합치지 않는다. 필요 시 activity 이벤트에서 notification 이벤트를 생성하는 연계만 허용한다.
 
@@ -905,7 +914,7 @@ Response 200:
 #### Deprecated/Internal Note: POST `/api/v1/projects/{projectId}/project-members`
 
 > Sprint 1.5에서는 이 endpoint와 프로젝트 멤버 invitation 흐름을 user-facing API로 제공하지 않는다.
-> 프로젝트 멤버 추가 흐름은 Sprint 3 candidate에서 `POST /api/v1/projects/{projectId}/invitations`로 invitation을 만들고, 대상자가 `POST /api/v1/invitations/{invitationId}/accept`를 호출할 때 membership을 생성한다. `INVITE-01~04` company invitation과는 분리한다.
+> 프로젝트 멤버 추가 흐름은 WBS 4.3.1 구현에서 `POST /api/v1/projects/{projectId}/invitations`로 PROJECT scope invitation을 만들고, 대상자가 `POST /api/v1/invitations/{invitationId}/accept`를 호출할 때 membership을 생성하거나 기존 REMOVED membership을 재활성화한다. `INVITE-01~04` company invitation과는 분리한다.
 > 기존 프로젝트 membership의 역할과 상태 변경은 `PATCH /api/v1/project-members/{projectMemberId}`에서 처리한다.
 
 #### PATCH `/api/v1/project-members/{projectMemberId}`
@@ -1071,9 +1080,9 @@ Response 200:
 }
 ```
 
-#### Sprint 3 Candidate: POST `/api/v1/projects/{projectId}/invitations`
+#### POST `/api/v1/projects/{projectId}/invitations`
 
-> Sprint 1.5 구현 범위에서는 제외한다. 현재 기준선에서는 Sprint 3 `PROJECT-MEMBER-01~02` 후보로 둔다.
+> **WBS 4.3.1 구현 계약**: P/C가 `inviteeUserId`와 `PROJECT_ADMIN | MEMBER` role로 PROJECT invitation을 생성한다. request body에 `scopeType`은 받지 않으며, scope는 endpoint로 결정된다.
 
 Request Body:
 
@@ -1109,7 +1118,40 @@ Response 201:
 }
 ```
 
+#### GET `/api/v1/projects/{projectId}/invitations`
+
+> P/C만 PROJECT scope invitation 목록을 조회한다. 목록은 생성 시각 내림차순이며, 조회 시 만료된 `PENDING` invitation은 lazy expiration으로 `EXPIRED` 상태가 된다.
+
+Response 200:
+
+```json
+{
+  "data": {
+    "invitations": [
+      {
+        "id": 601,
+        "scopeType": "PROJECT",
+        "companyId": 10,
+        "companyName": "Threadia",
+        "projectId": 20,
+        "inviterUserId": 1,
+        "inviterNickname": "초대자1",
+        "inviteeUserId": 2,
+        "inviteeEmail": "member@threadia.com",
+        "inviteeNickname": "사용자1",
+        "role": "MEMBER",
+        "status": "PENDING",
+        "expiresAt": "2026-06-24T10:00:00Z"
+      }
+    ]
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
 #### GET `/api/v1/users/me/invitations`
+
+> 받은 COMPANY와 PROJECT invitation을 모두 생성 시각 내림차순으로 반환한다. 조회 시 만료된 `PENDING` invitation은 lazy expiration으로 `EXPIRED` 상태가 된다.
 
 Response 200:
 
@@ -1131,6 +1173,21 @@ Response 200:
         "role": "MEMBER",
         "status": "PENDING",
         "expiresAt": "2026-06-24T10:00:00Z"
+      },
+      {
+        "id": 601,
+        "scopeType": "PROJECT",
+        "companyId": 10,
+        "companyName": "Threadia",
+        "projectId": 20,
+        "inviterUserId": 1,
+        "inviterNickname": "초대자1",
+        "inviteeUserId": 2,
+        "inviteeEmail": "member@threadia.com",
+        "inviteeNickname": "사용자1",
+        "role": "MEMBER",
+        "status": "PENDING",
+        "expiresAt": "2026-06-24T10:00:00Z"
       }
     ]
   },
@@ -1138,9 +1195,11 @@ Response 200:
 }
 ```
 
-`companyName`, `inviterNickname`, `inviteeEmail`, `inviteeNickname`은 초대 화면 표시용 필드다. Action 처리와 권한 검증에는 `id`, `companyId`, `projectId`, `inviterUserId`, `inviteeUserId`를 사용한다.
+`companyName`, `inviterUserId`, `inviterNickname`, `inviteeEmail`, `inviteeNickname`은 초대 화면 표시용 필드다. Action 처리와 권한 검증에는 `id`, `scopeType`, `companyId`, `projectId`, `inviteeUserId`를 사용한다.
 
 #### POST `/api/v1/invitations/{invitationId}/accept`
+
+> 저장된 `scopeType`이 COMPANY면 기존 회사 invitation 정책을 적용한다. PROJECT면 초대 대상자만 수락할 수 있고, 수락 시에도 대상자는 해당 프로젝트 회사의 ACTIVE company member여야 한다.
 
 Response 200:
 
@@ -1157,22 +1216,26 @@ Response 200:
 
 #### POST `/api/v1/invitations/{invitationId}/decline`
 
+> 저장된 `scopeType`의 초대 대상자만 거절할 수 있다.
+
 Response 200:
 
 ```json
 {
-  "data": { "invitationId": 501, "status": "DECLINED" },
+  "data": { "invitationId": 501, "status": "DECLINED", "membershipCreated": false },
   "meta": { "requestId": "req_..." }
 }
 ```
 
 #### POST `/api/v1/invitations/{invitationId}/cancel`
 
+> 저장된 `scopeType`이 COMPANY면 C, PROJECT면 P/C 권한으로 PENDING invitation만 취소할 수 있다.
+
 Response 200:
 
 ```json
 {
-  "data": { "invitationId": 501, "status": "CANCELED" },
+  "data": { "invitationId": 501, "status": "CANCELED", "membershipCreated": false },
   "meta": { "requestId": "req_..." }
 }
 ```

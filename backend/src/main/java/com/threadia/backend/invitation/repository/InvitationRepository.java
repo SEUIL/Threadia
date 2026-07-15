@@ -22,9 +22,19 @@ public interface InvitationRepository extends JpaRepository<Invitation, Long> {
 			InvitationScopeType scopeType,
 			InvitationStatus status);
 
+	List<Invitation> findAllByProjectIdAndInvitee_IdAndScopeTypeAndStatus(
+			Long projectId,
+			Long inviteeUserId,
+			InvitationScopeType scopeType,
+			InvitationStatus status);
+
 	List<Invitation> findByCompany_IdAndScopeTypeOrderByCreatedAtDesc(Long companyId, InvitationScopeType scopeType);
 
+	List<Invitation> findByProjectIdAndScopeTypeOrderByCreatedAtDesc(Long projectId, InvitationScopeType scopeType);
+
 	List<Invitation> findByInvitee_IdAndScopeTypeOrderByCreatedAtDesc(Long inviteeUserId, InvitationScopeType scopeType);
+
+	List<Invitation> findByInvitee_IdOrderByCreatedAtDesc(Long inviteeUserId);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select invitation from Invitation invitation where invitation.id = :invitationId")

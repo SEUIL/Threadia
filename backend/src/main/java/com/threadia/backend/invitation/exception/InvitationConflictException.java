@@ -13,6 +13,18 @@ public class InvitationConflictException extends RuntimeException {
 		return new InvitationConflictException("ALREADY_COMPANY_MEMBER", "이미 회사 구성원입니다.");
 	}
 
+	public static InvitationConflictException alreadyProjectMember() {
+		return new InvitationConflictException("ALREADY_PROJECT_MEMBER", "이미 프로젝트 구성원입니다.");
+	}
+
+	public static InvitationConflictException targetUserNotActiveCompanyMember() {
+		return new InvitationConflictException("TARGET_NOT_ACTIVE_COMPANY_MEMBER", "대상 사용자가 활성 회사 구성원이 아닙니다.");
+	}
+
+	public static InvitationConflictException selfInvitation() {
+		return new InvitationConflictException("INVITATION_SELF_NOT_ALLOWED", "자기 자신에게 초대할 수 없습니다.");
+	}
+
 	public static InvitationConflictException alreadyPending() {
 		return new InvitationConflictException("INVITATION_ALREADY_PENDING", "이미 대기 중인 초대가 있습니다.");
 	}

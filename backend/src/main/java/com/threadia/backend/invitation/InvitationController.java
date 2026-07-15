@@ -19,17 +19,21 @@ public class InvitationController {
 
 	private static final String BEARER_PREFIX = "Bearer ";
 
-	private final CompanyInvitationService companyInvitationService;
+	private final ReceivedInvitationService receivedInvitationService;
+	private final InvitationActionService invitationActionService;
 
-	public InvitationController(CompanyInvitationService companyInvitationService) {
-		this.companyInvitationService = companyInvitationService;
+	public InvitationController(
+			ReceivedInvitationService receivedInvitationService,
+			InvitationActionService invitationActionService) {
+		this.receivedInvitationService = receivedInvitationService;
+		this.invitationActionService = invitationActionService;
 	}
 
 	@GetMapping("/users/me/invitations")
 	public ResponseEntity<ApiResponse<CompanyInvitationsData>> listMine(
 			@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
 		String accessToken = extractAccessToken(authorizationHeader);
-		return ResponseEntity.ok(ApiResponse.of(companyInvitationService.listMine(accessToken)));
+		return ResponseEntity.ok(ApiResponse.of(receivedInvitationService.listMine(accessToken)));
 	}
 
 	@PostMapping("/invitations/{invitationId}/accept")
@@ -37,7 +41,7 @@ public class InvitationController {
 			@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
 			@PathVariable Long invitationId) {
 		String accessToken = extractAccessToken(authorizationHeader);
-		return ResponseEntity.ok(ApiResponse.of(companyInvitationService.accept(accessToken, invitationId)));
+		return ResponseEntity.ok(ApiResponse.of(invitationActionService.accept(accessToken, invitationId)));
 	}
 
 	@PostMapping("/invitations/{invitationId}/decline")
@@ -45,7 +49,7 @@ public class InvitationController {
 			@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
 			@PathVariable Long invitationId) {
 		String accessToken = extractAccessToken(authorizationHeader);
-		return ResponseEntity.ok(ApiResponse.of(companyInvitationService.decline(accessToken, invitationId)));
+		return ResponseEntity.ok(ApiResponse.of(invitationActionService.decline(accessToken, invitationId)));
 	}
 
 	@PostMapping("/invitations/{invitationId}/cancel")
@@ -53,7 +57,7 @@ public class InvitationController {
 			@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
 			@PathVariable Long invitationId) {
 		String accessToken = extractAccessToken(authorizationHeader);
-		return ResponseEntity.ok(ApiResponse.of(companyInvitationService.cancel(accessToken, invitationId)));
+		return ResponseEntity.ok(ApiResponse.of(invitationActionService.cancel(accessToken, invitationId)));
 	}
 
 	private static String extractAccessToken(String authorizationHeader) {
