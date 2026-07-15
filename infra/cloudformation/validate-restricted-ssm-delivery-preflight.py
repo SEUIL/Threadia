@@ -237,7 +237,8 @@ for action, sha in (
     ("aws-actions/configure-aws-credentials", "7474bc4690e29a8392af63c5b98e7449536d5c3a"),
 ):
     assert f"uses: {action}@{sha}" in workflow
-assert "cp -a \"$JAVA_HOME\" \"$stage/runtime\"" in workflow
+assert "cp -aL \"$JAVA_HOME\" \"$stage/runtime\"" in workflow
+assert "test ! -L \"$stage/runtime\"" in workflow
 assert "tar -C \"$stage\" -czf \"$archive\" app.jar app.jar.sha256 manifest.json runtime" in workflow
 release_job = workflow.split("  release:", 1)[1]
 assert "    if: github.ref == 'refs/heads/main'" in release_job
