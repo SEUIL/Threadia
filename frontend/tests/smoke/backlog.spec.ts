@@ -135,6 +135,17 @@ async function mockApi(page: Page, options: { canManage: boolean; sprints: MockS
       return;
     }
 
+    const updateMatch = url.pathname.match(/^\/api\/v1\/issues\/(\d+)$/);
+    if (request.method() === "PATCH" && updateMatch) {
+      const issueId = Number(updateMatch[1]);
+      const body = request.postDataJSON();
+      const target = issues.find((item) => item.id === issueId);
+      if (target && body.sprintId === null) target.sprintId = null;
+      calls.push(`PATCH ${url.pathname} ${JSON.stringify(body)}`);
+      await json(apiResponse({ issue: target }));
+      return;
+    }
+
     await route.abort();
   });
 
@@ -171,6 +182,21 @@ test("이슈를 스프린트에 배정하면 issueIds 배열로 보낸다", asyn
   await expect.poll(() => mock.calls).toContain('assign:300:{"issueIds":[2]}');
   // 재조회 결과가 반영돼 백로그에서 빠진다.
   await expect(page.getByRole("heading", { name: "백로그 (0)" })).toBeVisible();
+});
+
+test("진행 중 스프린트 이슈를 백로그로 옮기면 PATCH 후 재조회 결과를 보여준다", async ({ page }) => {
+  const mock = await mockApi(page, {
+    canManage: true,
+    sprints: [{ id: 300, name: "Sprint 1", status: "ACTIVE", summary: null }],
+    issues: [issue({ id: 1, issueKey: "THR-1", title: "배정된 이슈", status: "TODO", sprintId: 300 })],
+  });
+
+  await page.goto("/1/10/backlog");
+  await page.getByRole("button", { name: "백로그로" }).click();
+
+  await expect.poll(() => mock.calls).toContain('PATCH /api/v1/issues/1 {"sprintId":null}');
+  await expect(page.getByRole("heading", { name: "백로그 (1)" })).toBeVisible();
+  await expect(page.getByText("배정된 이슈가 없습니다.", { exact: true })).toBeVisible();
 });
 
 test("스프린트를 종료하면 서버 정리 결과를 재조회로 반영하고 요약을 보여준다", async ({ page }) => {

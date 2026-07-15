@@ -26,9 +26,7 @@
  *     정리하지 않고 재조회만 하며, 종료된 스프린트는 이슈 목록 대신 summary를 보여준다
  *     — 어차피 배정 이슈가 남지 않기 때문이다.
  *
- * ⚠️ 이슈를 스프린트에서 빼는 API가 없다(배정은 POST /sprints/{id}/issues뿐이고
- * PATCH /issues/{id}의 수정 가능 필드에 sprintId가 없다). 스프린트 종료 말고는
- * 되돌릴 경로가 없어서 mock에 있던 "백로그로" 버튼은 뺐다. 별도 이슈로 올릴 예정.
+ * PATCH /issues/{id}에 sprintId: null을 보내면 이슈를 백로그로 되돌린다.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -176,6 +174,9 @@ export default function BacklogPage() {
       "스프린트 배정에 실패했습니다."
     );
 
+  const moveToBacklog = (issue: IssueResponse) =>
+    runAction(issue.id, () => issueService.update(issue.id, { sprintId: null }), "백로그 이동에 실패했습니다.");
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
       <Link
@@ -309,7 +310,18 @@ export default function BacklogPage() {
                             <span className="mr-2 font-mono text-xs text-muted">{issue.issueKey}</span>
                             {issue.title}
                           </span>
-                          <span className="text-xs text-muted">{issue.status}</span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-muted">{issue.status}</span>
+                            {canManageSprint && (
+                              <button
+                                onClick={() => moveToBacklog(issue)}
+                                disabled={busyId === issue.id}
+                                className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors duration-fast hover:bg-primary-subtle disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                백로그로
+                              </button>
+                            )}
+                          </div>
                         </li>
                       ))}
                       {sprintIssues.length === 0 && (
