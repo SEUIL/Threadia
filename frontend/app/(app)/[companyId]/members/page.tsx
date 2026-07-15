@@ -41,7 +41,7 @@ import {
   INVITATION_STATUS_LABEL,
   invitationErrorMessage,
 } from "@/lib/invitation";
-import type { InvitationResponse, InvitationRole } from "@/types/invitation.types";
+import type { CompanyInvitationRole, InvitationResponse } from "@/types/invitation.types";
 import type { CompanyMemberRole, CompanyMemberResponse, DepartmentResponse } from "@/types/company.types";
 
 type LoadState = "loading" | "ready" | "error";
@@ -66,7 +66,7 @@ export default function MembersPage() {
   const [invitationsError, setInvitationsError] = useState<string | null>(null);
 
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<InvitationRole>("MEMBER");
+  const [inviteRole, setInviteRole] = useState<CompanyInvitationRole>("MEMBER");
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [lookupBusy, setLookupBusy] = useState(false);
   // lookup 성공한 등록 사용자 — 확인 modal용
@@ -249,7 +249,7 @@ export default function MembersPage() {
             <select
               aria-label="초대 역할"
               value={inviteRole}
-              onChange={(e) => setInviteRole(e.target.value as InvitationRole)}
+              onChange={(e) => setInviteRole(e.target.value as CompanyInvitationRole)}
               className="rounded-lg border border-border bg-surface px-2 py-2 text-sm text-foreground focus:border-ring focus:outline-none"
             >
               <option value="MEMBER">MEMBER</option>

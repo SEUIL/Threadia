@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -266,7 +267,7 @@ class ProjectInvitationServiceTest {
 		User requester = user(1L);
 		Project project = project(requester);
 		stubRequester(requester);
-		when(projectRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(project));
+		stubProjectLookup(project);
 		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 1L, CompanyMemberStatus.ACTIVE)).thenReturn(true);
 		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndRoleAndStatus(1L, 1L, CompanyMemberRole.COMPANY_ADMIN, CompanyMemberStatus.ACTIVE)).thenReturn(false);
 		when(projectMemberRepository.findByProject_IdAndUser_Id(10L, 1L)).thenReturn(Optional.empty());
@@ -285,22 +286,43 @@ class ProjectInvitationServiceTest {
 
 		assertThatThrownBy(() -> service.findInvitableMember("token", 10L, "ghost@example.com"))
 				.isInstanceOf(UserNotFoundException.class);
-		verify(companyMemberRepository, never()).existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE);
 	}
 
 	@Test
-	void findInvitableMemberRejectsInactiveUserWithCanonicalConflict() {
+	void findInvitableMemberRejectsInactiveUserAsNotFound() {
 		User requester = user(1L);
 		User invitee = user(2L, UserStatus.SUSPENDED);
 		Project project = project(requester);
 		stubCompanyAdmin(requester, project);
 		when(userRepository.findByEmail(invitee.getEmail())).thenReturn(Optional.of(invitee));
 
-		Throwable thrown = catchThrowable(() -> service.findInvitableMember("token", 10L, invitee.getEmail()));
+		// 비활성 사용자도 "찾을 수 없음"으로 통일한다 — 계정 상태를 노출하지 않는다.
+		assertThatThrownBy(() -> service.findInvitableMember("token", 10L, invitee.getEmail()))
+				.isInstanceOf(UserNotFoundException.class);
+	}
 
-		assertThat(thrown).isInstanceOf(InvitationConflictException.class);
-		assertThat(((InvitationConflictException) thrown).getCode()).isEqualTo("TARGET_NOT_ACTIVE_COMPANY_MEMBER");
-		verify(companyMemberRepository, never()).existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE);
+	/**
+	 * ★ enumeration 방지의 핵심: 미가입 email과 "가입했지만 다른 회사" email이
+	 * 호출자 입장에서 구분되지 않아야 한다. 둘이 갈리면 PROJECT_ADMIN이 임의의
+	 * email로 서비스 가입 여부를 알아낼 수 있다.
+	 */
+	@Test
+	void findInvitableMemberMakesUnregisteredAndOutsideCompanyIndistinguishable() {
+		User requester = user(1L);
+		User outsider = user(2L);
+		Project project = project(requester);
+		stubCompanyAdmin(requester, project);
+		when(userRepository.findByEmail("ghost@example.com")).thenReturn(Optional.empty());
+		when(userRepository.findByEmail(outsider.getEmail())).thenReturn(Optional.of(outsider));
+		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE))
+				.thenReturn(false);
+
+		Throwable unregistered = catchThrowable(() -> service.findInvitableMember("token", 10L, "ghost@example.com"));
+		Throwable outsideCompany = catchThrowable(() -> service.findInvitableMember("token", 10L, outsider.getEmail()));
+
+		assertThat(unregistered).isInstanceOf(UserNotFoundException.class);
+		assertThat(outsideCompany).isInstanceOf(UserNotFoundException.class);
+		assertThat(outsideCompany.getClass()).isEqualTo(unregistered.getClass());
 	}
 
 	@Test
@@ -318,7 +340,7 @@ class ProjectInvitationServiceTest {
 	}
 
 	@Test
-	void findInvitableMemberRejectsUserOutsideActiveProjectCompany() {
+	void findInvitableMemberRejectsUserOutsideActiveProjectCompanyAsNotFound() {
 		User requester = user(1L);
 		User invitee = user(2L);
 		Project project = project(requester);
@@ -326,10 +348,28 @@ class ProjectInvitationServiceTest {
 		when(userRepository.findByEmail(invitee.getEmail())).thenReturn(Optional.of(invitee));
 		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE)).thenReturn(false);
 
-		Throwable thrown = catchThrowable(() -> service.findInvitableMember("token", 10L, invitee.getEmail()));
+		// 회사 밖 사용자는 존재 여부조차 노출하지 않는다(위 enumeration 테스트 참고).
+		assertThatThrownBy(() -> service.findInvitableMember("token", 10L, invitee.getEmail()))
+				.isInstanceOf(UserNotFoundException.class);
+	}
 
-		assertThat(thrown).isInstanceOf(InvitationConflictException.class);
-		assertThat(((InvitationConflictException) thrown).getCode()).isEqualTo("TARGET_NOT_ACTIVE_COMPANY_MEMBER");
+	@Test
+	void findInvitableMemberDoesNotLockProjectRow() {
+		User requester = user(1L);
+		User invitee = user(2L);
+		Project project = project(requester);
+		stubCompanyAdmin(requester, project);
+		when(userRepository.findByEmail(invitee.getEmail())).thenReturn(Optional.of(invitee));
+		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE)).thenReturn(true);
+		when(projectMemberRepository.existsByProject_IdAndUser_IdAndStatus(10L, 2L, ProjectMemberStatus.ACTIVE)).thenReturn(false);
+		when(invitationRepository.findAllByProjectIdAndInvitee_IdAndScopeTypeAndStatus(10L, 2L, InvitationScopeType.PROJECT, InvitationStatus.PENDING)).thenReturn(List.of());
+
+		service.findInvitableMember("token", 10L, invitee.getEmail());
+
+		// 아무것도 쓰지 않는 조회라 비관적 락을 잡지 않는다 — 초대 화면에서 이메일을
+		// 칠 때마다 호출되는 경로여서 같은 프로젝트의 쓰기 작업과 경합하면 안 된다.
+		verify(projectRepository).findById(10L);
+		verify(projectRepository, never()).findByIdForUpdate(10L);
 	}
 
 	@Test
@@ -550,14 +590,24 @@ class ProjectInvitationServiceTest {
 
 	private void stubCompanyAdmin(User requester, Project project) {
 		stubRequester(requester);
-		when(projectRepository.findByIdForUpdate(project.getId())).thenReturn(Optional.of(project));
+		stubProjectLookup(project);
 		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, requester.getId(), CompanyMemberStatus.ACTIVE)).thenReturn(true);
 		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndRoleAndStatus(1L, requester.getId(), CompanyMemberRole.COMPANY_ADMIN, CompanyMemberStatus.ACTIVE)).thenReturn(true);
 	}
 
+	/**
+	 * 쓰기 경로(create/list 등)는 프로젝트 행을 잠그고(findByIdForUpdate),
+	 * 조회 전용인 findInvitableMember는 락 없이 읽는다(findById). 어느 쪽을 쓰든
+	 * 같은 helper로 stub할 수 있게 둘 다 열어두고, 쓰이지 않은 쪽은 lenient로 넘긴다.
+	 */
+	private void stubProjectLookup(Project project) {
+		lenient().when(projectRepository.findByIdForUpdate(project.getId())).thenReturn(Optional.of(project));
+		lenient().when(projectRepository.findById(project.getId())).thenReturn(Optional.of(project));
+	}
+
 	private void stubProjectAdmin(User requester, Project project) {
 		stubRequester(requester);
-		when(projectRepository.findByIdForUpdate(project.getId())).thenReturn(Optional.of(project));
+		stubProjectLookup(project);
 		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, requester.getId(), CompanyMemberStatus.ACTIVE)).thenReturn(true);
 		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndRoleAndStatus(1L, requester.getId(), CompanyMemberRole.COMPANY_ADMIN, CompanyMemberStatus.ACTIVE)).thenReturn(false);
 		when(projectMemberRepository.findByProject_IdAndUser_Id(project.getId(), requester.getId()))
