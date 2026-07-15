@@ -36,12 +36,19 @@ class DirectMessageEntityMappingTests {
 		assertRelation(DirectMessageRoomUserState.class, "user", User.class, "user_id", "fk_dmrus_user", false);
 		assertRelation(DirectMessageRoomUserState.class, "lastReadDirectMessage", DirectMessage.class, "last_read_direct_message_id", "fk_dmrus_last_read", true);
 	}
-	@Test void readPointerOnlyAdvancesMonotonically() {
+	@Test void readPointerAdvancesByCreatedAtThenId() {
 		User first = user(1L); User second = user(2L); Company company = new Company("company", null, null, null, null, "ACTIVE", first, LocalDateTime.now(), LocalDateTime.now()); setId(company, 10L);
 		DirectMessageRoom room = new DirectMessageRoom(company, first, second, LocalDateTime.now()); setId(room, 30L);
-		DirectMessage newer = new DirectMessage(room, second, "newer", LocalDateTime.now()); setId(newer, 50L); DirectMessage older = new DirectMessage(room, second, "older", LocalDateTime.now()); setId(older, 40L);
-		DirectMessageRoomUserState state = new DirectMessageRoomUserState(room, first, LocalDateTime.now()); state.advanceTo(newer, LocalDateTime.now()); state.advanceTo(older, LocalDateTime.now());
-		assertThat(state.getLastReadDirectMessage()).isSameAs(newer);
+		LocalDateTime laterCreatedAt = LocalDateTime.parse("2026-07-15T00:00:02");
+		DirectMessage laterWithLowerId = new DirectMessage(room, second, "later", laterCreatedAt); setId(laterWithLowerId, 40L);
+		DirectMessage earlierWithHigherId = new DirectMessage(room, second, "earlier", LocalDateTime.parse("2026-07-15T00:00:01")); setId(earlierWithHigherId, 50L);
+		DirectMessage sameTimeWithHigherId = new DirectMessage(room, second, "same-time", laterCreatedAt); setId(sameTimeWithHigherId, 60L);
+		DirectMessageRoomUserState state = new DirectMessageRoomUserState(room, first, LocalDateTime.now());
+		state.advanceTo(laterWithLowerId, LocalDateTime.now());
+		state.advanceTo(earlierWithHigherId, LocalDateTime.now());
+		assertThat(state.getLastReadDirectMessage()).isSameAs(laterWithLowerId);
+		state.advanceTo(sameTimeWithHigherId, LocalDateTime.now());
+		assertThat(state.getLastReadDirectMessage()).isSameAs(sameTimeWithHigherId);
 	}
 	private static User user(Long id) { User user = new User("user" + id + "@example.com", "hash", "user", null, com.threadia.backend.auth.domain.UserStatus.ACTIVE, LocalDateTime.now(), LocalDateTime.now()); setId(user, id); return user; }
 	private static void setId(Object target, Long id) { try { Field field = target.getClass().getDeclaredField("id"); field.setAccessible(true); field.set(target, id); } catch (ReflectiveOperationException exception) { throw new AssertionError(exception); } }

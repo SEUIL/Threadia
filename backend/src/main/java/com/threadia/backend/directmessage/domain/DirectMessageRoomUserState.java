@@ -33,6 +33,13 @@ public class DirectMessageRoomUserState {
 	public DirectMessage getLastReadDirectMessage() { return lastReadDirectMessage; }
 	public LocalDateTime getLastReadAt() { return lastReadAt; }
 	public void advanceTo(DirectMessage directMessage, LocalDateTime now) {
-		if (lastReadDirectMessage == null || directMessage.getId() > lastReadDirectMessage.getId()) { lastReadDirectMessage = directMessage; lastReadAt = now; updatedAt = now; }
+		if (lastReadDirectMessage == null
+				|| directMessage.getCreatedAt().isAfter(lastReadDirectMessage.getCreatedAt())
+				|| (directMessage.getCreatedAt().isEqual(lastReadDirectMessage.getCreatedAt())
+						&& directMessage.getId() > lastReadDirectMessage.getId())) {
+			lastReadDirectMessage = directMessage;
+			lastReadAt = now;
+			updatedAt = now;
+		}
 	}
 }
