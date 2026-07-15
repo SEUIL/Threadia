@@ -298,6 +298,12 @@ assert '[[ -n "${AWS_REGION:-}" ]] || fail "AWS_REGION is required"' in release_
 assert '[[ "$AWS_REGION" =~ ^[a-z]{2}(-[a-z0-9]+)+-[0-9]+$ ]] || fail "invalid AWS_REGION"' in release_helper
 assert 'aws s3api get-object --region "$AWS_REGION"' in release_helper
 assert 'aws ssm get-parameters --region "$AWS_REGION"' in release_helper
+runtime_env_writer = release_helper.split(
+    "python3 - \"$parameters_json\" \"$new_env\" <<'PY'\n", 1
+)[1].split("\nPY\n", 1)[0]
+compile(runtime_env_writer, "runtime-env-writer", "exec")
+assert "escaped_value = value.replace(" in runtime_env_writer
+assert "value.replace(chr(92)" not in runtime_env_writer
 assert 'previous_env="$stage/runtime.env.previous"' in release_helper
 assert 'cp -a "$RUNTIME_ENV" "$previous_env"' in release_helper
 assert 'install -o root -g threadia -m 0640 "$previous_env" "$RUNTIME_ENV"' in release_helper
