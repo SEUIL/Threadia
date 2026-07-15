@@ -38,6 +38,40 @@ const INVITATION_ERROR_MESSAGE: Record<string, string> = {
 };
 
 /**
+ * 초대가 어디로 오는지 한 줄로 — COMPANY면 회사명, PROJECT면 "회사명 · 프로젝트명".
+ *
+ * PROJECT 초대는 회사명만 보여주면 어느 프로젝트인지 알 수 없다(회사에 프로젝트가
+ * 여러 개일 수 있다). projectName은 PROJECT scope에서만 채워지는데, 서버가 못 주는
+ * 경우까지 대비해 fallback을 둔다.
+ */
+export function invitationScopeLabel(invitation: InvitationResponse): string {
+  if (invitation.scopeType === "COMPANY") return invitation.companyName;
+  return invitation.projectName
+    ? `${invitation.companyName} · ${invitation.projectName}`
+    : `${invitation.companyName} · 프로젝트`;
+}
+
+/**
+ * scope에 맞는 role 표기. 같은 "MEMBER"라도 회사 구성원과 프로젝트 멤버는 다르고,
+ * PROJECT_ADMIN은 회사 초대에 존재하지 않는다.
+ */
+export function invitationRoleLabel(invitation: InvitationResponse): string {
+  if (invitation.scopeType === "COMPANY") {
+    return invitation.role === "COMPANY_ADMIN" ? "회사 관리자" : "회사 구성원";
+  }
+  return invitation.role === "PROJECT_ADMIN" ? "프로젝트 관리자" : "프로젝트 멤버";
+}
+
+/** 수락 후 안내 — scope에 따라 무엇이 반영됐는지가 다르다. */
+export function invitationAcceptedMessage(invitation: InvitationResponse): string {
+  if (invitation.scopeType === "COMPANY") {
+    return `${invitation.companyName} 소속이 반영됐습니다. 새 회사는 재로그인 후 확인할 수 있습니다.`;
+  }
+  const project = invitation.projectName ?? "프로젝트";
+  return `${project} 프로젝트에 참여했습니다.`;
+}
+
+/**
  * axios 오류에서 공통 에러 body를 꺼내 사용자 메시지로 변환한다.
  * invitation 409 코드는 위 매핑을 우선하고, 그 외에는 서버 message → 기본 문구 순.
  */
