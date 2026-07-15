@@ -176,10 +176,9 @@ Resources:
       DocumentType: Command
       DocumentFormat: YAML
       TargetType: /AWS::EC2::Instance
-      UpdateMethod: NewVersion
       Content:
         schemaVersion: '2.2'
-        description: Download and atomically activate one immutable Threadia release through the fixed host helper.
+        description: Download and atomically activate one immutable Threadia release through the fixed host helper (document revision 2).
         parameters:
           ArtifactKey:
             type: String

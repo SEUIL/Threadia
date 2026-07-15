@@ -88,7 +88,6 @@ for required in (
     "AWS::SSM::Document",
     "DocumentType: Command",
     "TargetType: /AWS::EC2::Instance",
-    "UpdateMethod: NewVersion",
     "aws:runShellScript",
     "ArtifactVersionId",
     "ArtifactSha256",
@@ -141,10 +140,11 @@ fixed_command_document = next(
 )
 assert fixed_command_document["Action"] == [
     "ssm:CreateDocument",
-    "ssm:DescribeDocument",
-    "ssm:GetDocument",
-    "ssm:UpdateDocument",
-    "ssm:DeleteDocument",
+        "ssm:DescribeDocument",
+        "ssm:GetDocument",
+        "ssm:UpdateDocument",
+        "ssm:UpdateDocumentDefaultVersion",
+        "ssm:DeleteDocument",
     "ssm:AddTagsToResource",
     "ssm:RemoveTagsFromResource",
 ]
