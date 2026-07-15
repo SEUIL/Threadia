@@ -1,0 +1,66 @@
+name: restricted-ssm-service-unit-artifact
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish-service-unit:
+    name: Publish immutable service unit artifact
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: restricted-ssm-service-unit-artifact
+      cancel-in-progress: false
+    timeout-minutes: 10
+    environment: restricted-nonprod
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+      THREADIA_ARTIFACT_BUCKET: ${{ vars.THREADIA_ARTIFACT_BUCKET }}
+    steps:
+      - name: Checkout
+        # actions/checkout v4.3.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Validate and identify service unit artifact
+        id: service_unit
+        run: |
+          set -euo pipefail
+          service_unit=scripts/ssm-delivery/threadia-backend.service
+          test -f "$service_unit"
+          grep -Fx 'Environment=MANAGEMENT_HEALTH_MAIL_ENABLED=false' "$service_unit"
+          verify_root="$(mktemp -d)"
+          trap 'rm -rf "$verify_root"' EXIT
+          mkdir -p "$verify_root/etc/systemd/system" "$verify_root/opt/threadia/current/runtime/bin" "$verify_root/usr/lib/systemd/system"
+          install -m 0644 "$service_unit" "$verify_root/etc/systemd/system/threadia-backend.service"
+          install -m 0755 /bin/true "$verify_root/opt/threadia/current/runtime/bin/java"
+          for unit in sysinit.target basic.target network.target network-online.target multi-user.target; do
+            printf '[Unit]\nDescription=%s\n' "$unit" > "$verify_root/usr/lib/systemd/system/$unit"
+          done
+          systemd-analyze verify --root="$verify_root" "$verify_root/etc/systemd/system/threadia-backend.service"
+          key="releases/${GITHUB_SHA}/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/threadia-backend.service"
+          digest="$(sha256sum "$service_unit" | cut -d ' ' -f1)"
+          [[ "$digest" =~ ^[a-f0-9]{64}$ ]]
+          printf 'key=%s\ndigest=%s\ncommit=%s\nrun=%s-%s\n' "$key" "$digest" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+      - name: Configure AWS credentials through OIDC
+        # aws-actions/configure-aws-credentials v4.3.1
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Upload immutable service unit artifact
+        id: upload
+        run: |
+          set -euo pipefail
+          version_id="$(aws s3api put-object --region "$AWS_REGION" --bucket "$THREADIA_ARTIFACT_BUCKET" --key "${{ steps.service_unit.outputs.key }}" --body scripts/ssm-delivery/threadia-backend.service --server-side-encryption AES256 --query VersionId --output text)"
+          [[ -n "$version_id" && "$version_id" != None && "$version_id" != null && "$version_id" =~ ^[A-Za-z0-9._+=/-]{1,1000}[A-Za-z0-9._+=/-]{0,24}$ ]]
+          printf 'version_id=%s\n' "$version_id" >> "$GITHUB_OUTPUT"
+      - name: Record approval evidence
+        run: |
+          set -euo pipefail
+          printf 'service_unit_key=%s\nservice_unit_version_id=%s\nservice_unit_sha256=%s\ncommit=%s\nrun=%s\n' \
+            "${{ steps.service_unit.outputs.key }}" "${{ steps.upload.outputs.version_id }}" "${{ steps.service_unit.outputs.digest }}" \
+            "${{ steps.service_unit.outputs.commit }}" "${{ steps.service_unit.outputs.run }}"

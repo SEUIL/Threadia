@@ -30,6 +30,8 @@ trust_sources = {
 workflow = (BASE.parent.parent / ".github/workflows/restricted-ssm-release.yml").read_text(encoding="utf-8")
 helper_artifact_workflow = (BASE.parent.parent / ".github/workflows/restricted-ssm-helper-artifact.yml").read_text(encoding="utf-8")
 helper_maintenance_workflow = (BASE.parent.parent / ".github/workflows/restricted-ssm-helper-maintenance.yml").read_text(encoding="utf-8")
+service_unit_artifact_workflow = (BASE.parent.parent / ".github/workflows/restricted-ssm-service-unit-artifact.yml").read_text(encoding="utf-8")
+service_unit_maintenance_workflow = (BASE.parent.parent / ".github/workflows/restricted-ssm-service-unit-maintenance.yml").read_text(encoding="utf-8")
 release_helper = (BASE.parent.parent / "scripts/ssm-delivery/apply-release").read_text(encoding="utf-8")
 service_unit = (BASE.parent.parent / "scripts/ssm-delivery/threadia-backend.service").read_text(encoding="utf-8")
 bootstrap = (BASE.parent.parent / "scripts/ssm-delivery/bootstrap-host.sh").read_text(encoding="utf-8")
@@ -105,6 +107,7 @@ assert "StringLike:" not in template.split("GitHubDeployRole:", 1)[1].split("Exi
 github_role = template.split("GitHubDeployRole:", 1)[1].split("ExistingEc2DeliveryPolicy:", 1)[0]
 assert "${ReleaseCommandDocument}" in github_role
 assert "${HelperMaintenanceCommandDocument}" in github_role
+assert "${ServiceUnitMaintenanceCommandDocument}" in github_role
 assert "${ExistingEc2InstanceId}" in github_role
 assert "ssm:GetParametersByPath" not in template
 assert "secretsmanager:" not in template.lower()
@@ -116,8 +119,12 @@ assert f"allowedPattern: '{version_pattern}'" in template
 assert "HelperArtifactKey:" in template
 assert "HelperArtifactVersionId:" in template
 assert "HelperArtifactSha256:" in template
+assert "ServiceUnitArtifactKey:" in template
+assert "ServiceUnitArtifactVersionId:" in template
+assert "ServiceUnitArtifactSha256:" in template
 assert "HelperMaintenanceCommandDocument:" in template
-helper_document = template.split("HelperMaintenanceCommandDocument:", 1)[1].split("Outputs:", 1)[0]
+assert "ServiceUnitMaintenanceCommandDocument:" in template
+helper_document = template.split("HelperMaintenanceCommandDocument:", 1)[1].split("ServiceUnitMaintenanceCommandDocument:", 1)[0]
 assert "parameters:" not in helper_document
 assert "{{ " not in helper_document
 assert "aws:runShellScript" in helper_document
@@ -148,6 +155,41 @@ assert "trap 'restore 143' TERM" in helper_document
 assert "success=true" in helper_document and "trap - ERR INT TERM EXIT" in helper_document
 for prohibited in ("systemctl", "get-parameter", "get_parameter", "secretsmanager", "restart "):
     assert prohibited not in helper_document, f"helper document: prohibited {prohibited}"
+service_unit_document = template.split("ServiceUnitMaintenanceCommandDocument:", 1)[1].split("Outputs:", 1)[0]
+assert "parameters:" not in service_unit_document
+assert "{{ " not in service_unit_document
+assert "aws:runShellScript" in service_unit_document
+assert "readonly TARGET=/etc/systemd/system/threadia-backend.service" in service_unit_document
+assert "readonly HOST_LOCK=/run/threadia-release-maintenance.lock" in service_unit_document
+assert 'exec 9>"$HOST_LOCK"' in service_unit_document
+assert 'flock -n 9 || {' in service_unit_document
+assert service_unit_document.index('exec 9>"$HOST_LOCK"') < service_unit_document.index('readonly DOWNLOAD=')
+assert 'readonly STAGING_DIR="$(mktemp -d /etc/systemd/system/.threadia-backend.service.XXXXXX)"' in service_unit_document
+assert 'readonly DOWNLOAD="$STAGING_DIR/threadia-backend.service.download"' in service_unit_document
+assert 'readonly STAGED="$STAGING_DIR/threadia-backend.service"' in service_unit_document
+assert 'readonly BACKUP="$STAGING_DIR/threadia-backend.service.backup"' in service_unit_document
+assert "aws s3api get-object" in service_unit_document
+assert "--key '${ServiceUnitArtifactKey}'" in service_unit_document
+assert "--version-id '${ServiceUnitArtifactVersionId}'" in service_unit_document
+assert service_unit_document.count("'${ServiceUnitArtifactSha256}'") == 3
+assert "grep -Fx 'Environment=MANAGEMENT_HEALTH_MAIL_ENABLED=false'" in service_unit_document
+assert "systemd-analyze verify \"$STAGED\"" in service_unit_document
+assert 'cp -p "$TARGET" "$BACKUP"' in service_unit_document
+assert 'mv -Tf "$STAGED" "$TARGET"' in service_unit_document
+assert 'mv -Tf "$BACKUP" "$TARGET"' in service_unit_document
+assert "systemctl daemon-reload" in service_unit_document
+assert "systemctl restart \"$SERVICE_NAME\"" in service_unit_document
+assert "http://127.0.0.1:8080/actuator/health" in service_unit_document
+assert "readonly READINESS_TIMEOUT_SECONDS=120" in service_unit_document
+assert "trap 'restore \"$?\"' ERR EXIT" in service_unit_document
+assert "trap 'restore 130' INT" in service_unit_document
+assert "trap 'restore 143' TERM" in service_unit_document
+assert "success=true" in service_unit_document and "trap - ERR INT TERM EXIT" in service_unit_document
+assert 'cleanup() {' in service_unit_document
+assert 'rm -rf "$STAGING_DIR"' in service_unit_document
+assert "systemd-analyze verify \"$DOWNLOAD\"" not in service_unit_document
+for prohibited in ("get-parameter", "get_parameter", "secretsmanager", "yum ", "apt ", "AWS-RunShellScript"):
+    assert prohibited not in service_unit_document, f"service unit document: prohibited {prohibited}"
 assert f'[[ "$version_id" =~ {version_pattern} ]] || fail "invalid version ID"' in release_helper
 
 compiled_version_pattern = re.compile(version_pattern)
@@ -170,15 +212,17 @@ fixed_command_document = next(
     for statement in service_policy["Statement"]
     if statement["Sid"] == "AllowManageFixedCommandDocument"
 )
-assert fixed_command_document["Action"] == [
+document_lifecycle_actions = [
     "ssm:CreateDocument",
     "ssm:DescribeDocument",
     "ssm:GetDocument",
     "ssm:UpdateDocument",
+    "ssm:UpdateDocumentDefaultVersion",
     "ssm:DeleteDocument",
     "ssm:AddTagsToResource",
     "ssm:RemoveTagsFromResource",
 ]
+assert fixed_command_document["Action"] == document_lifecycle_actions
 assert fixed_command_document["Resource"] == "arn:aws:ssm:ap-northeast-2:<AWS_ACCOUNT_ID>:document/threadia-restricted-ssm-delivery-ReleaseCommandDocument-*"
 helper_maintenance_document = next(
     statement
@@ -187,6 +231,13 @@ helper_maintenance_document = next(
 )
 assert helper_maintenance_document["Action"] == fixed_command_document["Action"]
 assert helper_maintenance_document["Resource"] == "arn:aws:ssm:ap-northeast-2:<AWS_ACCOUNT_ID>:document/threadia-restricted-ssm-delivery-HelperMaintenanceCommandDocument-*"
+service_unit_maintenance_document = next(
+    statement
+    for statement in service_policy["Statement"]
+    if statement["Sid"] == "AllowManageFixedServiceUnitMaintenanceCommandDocument"
+)
+assert service_unit_maintenance_document["Action"] == document_lifecycle_actions
+assert service_unit_maintenance_document["Resource"] == "arn:aws:ssm:ap-northeast-2:<AWS_ACCOUNT_ID>:document/threadia-restricted-ssm-delivery-ServiceUnitMaintenanceCommandDocument-*"
 assert "restricted-ssm-delivery-GitHubDeployRole-*" in service_text
 operator_text = json.dumps(operator_policy)
 assert "threadia-restricted-ssm-delivery" in operator_text
@@ -211,7 +262,7 @@ assert operator_actions == {
 pass_role = next(statement for statement in operator_policy["Statement"] if statement["Action"] == "iam:PassRole")
 assert pass_role["Resource"] == "arn:aws:iam::<AWS_ACCOUNT_ID>:role/ThreadiaRestrictedSsmDeliveryCloudFormationServiceRole"
 assert pass_role["Condition"] == {"StringEquals": {"iam:PassedToService": "cloudformation.amazonaws.com"}}
-assert isinstance(parameters, list) and len(parameters) == 7
+assert isinstance(parameters, list) and len(parameters) == 10
 assert all(not re.search(r"(?<![0-9])[0-9]{12}(?![0-9])", json.dumps(item)) for item in parameters)
 assert {item["ParameterKey"] for item in parameters} == {
     "NetworkStackName",
@@ -221,6 +272,9 @@ assert {item["ParameterKey"] for item in parameters} == {
     "HelperArtifactKey",
     "HelperArtifactVersionId",
     "HelperArtifactSha256",
+    "ServiceUnitArtifactKey",
+    "ServiceUnitArtifactVersionId",
+    "ServiceUnitArtifactSha256",
 }
 assert trust_sources["restricted-ssm-delivery-operator-role-trust-policy.json"]["Statement"][0]["Principal"] == {"AWS": "arn:aws:iam::<AWS_ACCOUNT_ID>:user/ThreadiaBootstrapOperator"}
 assert trust_sources["restricted-ssm-delivery-bootstrap-assume-policy.json"]["Statement"][0]["Resource"] == "arn:aws:iam::<AWS_ACCOUNT_ID>:role/ThreadiaRestrictedSsmDeliveryOperatorRole"
@@ -248,7 +302,7 @@ assert 'aws s3api put-object --region "$AWS_REGION"' in release_job
 assert 'aws ssm send-command --region "$AWS_REGION"' in release_job
 assert 'aws ssm get-command-invocation --region "$AWS_REGION"' in release_job
 assert "--cli-connect-timeout 5 --cli-read-timeout 10" in release_job
-for source in (helper_artifact_workflow, helper_maintenance_workflow):
+for source in (helper_artifact_workflow, helper_maintenance_workflow, service_unit_artifact_workflow, service_unit_maintenance_workflow):
     assert "on:\n  workflow_dispatch:" in source
     assert "push:" not in source
     assert "if: github.ref == 'refs/heads/main'" in source
@@ -269,6 +323,25 @@ assert "helper_version_id=" in helper_artifact_workflow
 assert "helper_sha256=" in helper_artifact_workflow
 assert "commit=" in helper_artifact_workflow and "run=" in helper_artifact_workflow
 
+assert 'service_unit=scripts/ssm-delivery/threadia-backend.service' in service_unit_artifact_workflow
+assert 'key="releases/${GITHUB_SHA}/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/threadia-backend.service"' in service_unit_artifact_workflow
+assert "sha256sum \"$service_unit\"" in service_unit_artifact_workflow
+assert '[[ "$digest" =~ ^[a-f0-9]{64}$ ]]' in service_unit_artifact_workflow
+assert "grep -Fx 'Environment=MANAGEMENT_HEALTH_MAIL_ENABLED=false' \"$service_unit\"" in service_unit_artifact_workflow
+assert 'verify_root="$(mktemp -d)"' in service_unit_artifact_workflow
+assert 'mkdir -p "$verify_root/etc/systemd/system" "$verify_root/opt/threadia/current/runtime/bin" "$verify_root/usr/lib/systemd/system"' in service_unit_artifact_workflow
+assert 'install -m 0644 "$service_unit" "$verify_root/etc/systemd/system/threadia-backend.service"' in service_unit_artifact_workflow
+assert 'install -m 0755 /bin/true "$verify_root/opt/threadia/current/runtime/bin/java"' in service_unit_artifact_workflow
+assert 'systemd-analyze verify --root="$verify_root" "$verify_root/etc/systemd/system/threadia-backend.service"' in service_unit_artifact_workflow
+assert "aws s3api put-object" in service_unit_artifact_workflow
+assert "--body scripts/ssm-delivery/threadia-backend.service" in service_unit_artifact_workflow
+assert "--query VersionId --output text" in service_unit_artifact_workflow
+assert '[[ -n "$version_id" && "$version_id" != None && "$version_id" != null && "$version_id" =~ ^[A-Za-z0-9._+=/-]{1,1000}[A-Za-z0-9._+=/-]{0,24}$ ]]' in service_unit_artifact_workflow
+assert "aws ssm" not in service_unit_artifact_workflow
+assert "service_unit_key=" in service_unit_artifact_workflow
+assert "service_unit_version_id=" in service_unit_artifact_workflow
+assert "service_unit_sha256=" in service_unit_artifact_workflow
+
 assert "THREADIA_SSM_HELPER_MAINTENANCE_DOCUMENT_NAME" in helper_maintenance_workflow
 assert "THREADIA_DELIVERY_INSTANCE_ID" in helper_maintenance_workflow
 assert "    concurrency:\n      group: restricted-ssm-host-change\n      cancel-in-progress: false" in helper_maintenance_workflow
@@ -286,6 +359,24 @@ assert "terminal_status=%s" in helper_maintenance_workflow
 assert "StandardErrorContent:StandardErrorContent" in helper_maintenance_workflow
 assert "StandardOutputContent:StandardOutputContent" in helper_maintenance_workflow
 assert "cut -c1-4000" in helper_maintenance_workflow
+
+assert "THREADIA_SSM_SERVICE_UNIT_MAINTENANCE_DOCUMENT_NAME" in service_unit_maintenance_workflow
+assert "THREADIA_DELIVERY_INSTANCE_ID" in service_unit_maintenance_workflow
+assert "    concurrency:\n      group: restricted-ssm-host-change\n      cancel-in-progress: false" in service_unit_maintenance_workflow
+service_maintenance_command = service_unit_maintenance_workflow.split("aws ssm send-command", 1)[1].split("--query", 1)[0]
+assert "--document-name \"$THREADIA_SSM_SERVICE_UNIT_MAINTENANCE_DOCUMENT_NAME\"" in service_maintenance_command
+assert "--instance-ids \"$THREADIA_DELIVERY_INSTANCE_ID\"" in service_maintenance_command
+assert "--parameters" not in service_maintenance_command
+assert "aws ssm get-command-invocation" in service_unit_maintenance_workflow
+assert "--cli-connect-timeout 5 --cli-read-timeout 10" in service_unit_maintenance_workflow
+assert "for attempt in $(seq 1 60); do" in service_unit_maintenance_workflow
+assert '"$GITHUB_STEP_SUMMARY"' in service_unit_maintenance_workflow
+assert "document_name=%s" in service_unit_maintenance_workflow
+assert "instance_id=%s" in service_unit_maintenance_workflow
+assert "terminal_status=%s" in service_unit_maintenance_workflow
+assert "StandardErrorContent:StandardErrorContent" in service_unit_maintenance_workflow
+assert "StandardOutputContent:StandardOutputContent" in service_unit_maintenance_workflow
+assert "cut -c1-4000" in service_unit_maintenance_workflow
 assert "java " not in release_helper.split("for command", 1)[1].split("umask", 1)[0]
 assert "runtime/bin/java" in release_helper and "ExecStart=/opt/threadia/current/runtime/bin/java" in service_unit
 assert "yum " not in bootstrap and "apt " not in bootstrap and "http" not in bootstrap
@@ -320,9 +411,9 @@ assert "curl install uname flock" in release_helper
 assert 'exec 9>"$HOST_LOCK"' in release_helper
 assert 'flock -n 9 || fail "another release or helper maintenance operation is active"' in release_helper
 assert "Environment=MANAGEMENT_HEALTH_MAIL_ENABLED=false" in runbook
-assert "별도 승인된 bootstrap path" in runbook
+assert "Service-unit maintenance는 helper maintenance와 별도 channel" in runbook
 assert "Helper maintenance는 `apply-release`만 갱신한다." in architecture
-assert "별도 승인된 bootstrap path" in architecture
+assert "Service-unit maintenance는 release helper maintenance와 분리된 manual-only channel" in architecture
 assert (BASE.parent.parent / "scripts/ssm-delivery/apply-release").stat().st_mode & 0o111
 assert (BASE.parent.parent / "scripts/ssm-delivery/bootstrap-host.sh").stat().st_mode & 0o111
 assert not (BASE.parent.parent / "scripts/ssm-delivery/threadia-backend.service").stat().st_mode & 0o111

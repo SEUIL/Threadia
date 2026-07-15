@@ -5,5 +5,8 @@
   {"ParameterKey":"ArtifactNoncurrentVersionRetentionDays","ParameterValue":"30"},
   {"ParameterKey":"HelperArtifactKey","ParameterValue":"releases/REPLACE_WITH_APPROVED_COMMIT_SHA/REPLACE_WITH_APPROVED_RUN_ID-REPLACE_WITH_APPROVED_RUN_ATTEMPT/apply-release"},
   {"ParameterKey":"HelperArtifactVersionId","ParameterValue":"REPLACE_WITH_APPROVED_S3_VERSION_ID"},
-  {"ParameterKey":"HelperArtifactSha256","ParameterValue":"REPLACE_WITH_APPROVED_HELPER_SHA256"}
+  {"ParameterKey":"HelperArtifactSha256","ParameterValue":"REPLACE_WITH_APPROVED_HELPER_SHA256"},
+  {"ParameterKey":"ServiceUnitArtifactKey","ParameterValue":"releases/REPLACE_WITH_APPROVED_COMMIT_SHA/REPLACE_WITH_APPROVED_RUN_ID-REPLACE_WITH_APPROVED_RUN_ATTEMPT/threadia-backend.service"},
+  {"ParameterKey":"ServiceUnitArtifactVersionId","ParameterValue":"REPLACE_WITH_APPROVED_S3_VERSION_ID"},
+  {"ParameterKey":"ServiceUnitArtifactSha256","ParameterValue":"REPLACE_WITH_APPROVED_SERVICE_UNIT_SHA256"}
 ]
