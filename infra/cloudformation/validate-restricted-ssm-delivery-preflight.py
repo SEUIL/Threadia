@@ -179,11 +179,44 @@ for action, sha in (
     assert f"uses: {action}@{sha}" in workflow
 assert "cp -a \"$JAVA_HOME\" \"$stage/runtime\"" in workflow
 assert "tar -C \"$stage\" -czf \"$archive\" app.jar app.jar.sha256 manifest.json runtime" in workflow
+release_job = workflow.split("  release:", 1)[1]
+assert "    if: github.ref == 'refs/heads/main'" in release_job
+assert "    concurrency:\n      group: restricted-ssm-release\n      cancel-in-progress: false" in release_job
+assert "    timeout-minutes: 30" in release_job
+assert 'aws s3api put-object --region "$AWS_REGION"' in release_job
+assert 'aws ssm send-command --region "$AWS_REGION"' in release_job
+assert 'aws ssm get-command-invocation --region "$AWS_REGION"' in release_job
+assert "--cli-connect-timeout 5 --cli-read-timeout 10" in release_job
 assert "java " not in release_helper.split("for command", 1)[1].split("umask", 1)[0]
 assert "runtime/bin/java" in release_helper and "ExecStart=/opt/threadia/current/runtime/bin/java" in service_unit
 assert "yum " not in bootstrap and "apt " not in bootstrap and "http" not in bootstrap
 document_parameters = template.split("parameters:", 1)[1].split("mainSteps:", 1)[0]
 assert all(name in document_parameters for name in ("ArtifactKey:", "ArtifactVersionId:", "ArtifactSha256:", "ReleaseId:"))
 assert "Command:" not in document_parameters and "runCommand:" not in document_parameters
+assert "AWS_REGION:" not in document_parameters and "AWS_DEFAULT_REGION:" not in document_parameters
+assert "AWS_REGION='${AWS::Region}' AWS_DEFAULT_REGION='${AWS::Region}'\n                  /usr/local/lib/threadia-release/apply-release" in template
+assert "timeoutSeconds: '540'" in template
+assert '[[ -n "${AWS_REGION:-}" ]] || fail "AWS_REGION is required"' in release_helper
+assert '[[ "$AWS_REGION" =~ ^[a-z]{2}(-[a-z0-9]+)+-[0-9]+$ ]] || fail "invalid AWS_REGION"' in release_helper
+assert 'aws s3api get-object --region "$AWS_REGION"' in release_helper
+assert 'aws ssm get-parameters --region "$AWS_REGION"' in release_helper
+assert 'previous_env="$stage/runtime.env.previous"' in release_helper
+assert 'cp -a "$RUNTIME_ENV" "$previous_env"' in release_helper
+assert 'install -o root -g threadia -m 0640 "$previous_env" "$RUNTIME_ENV"' in release_helper
+assert 'rm -f "$RUNTIME_ENV"' in release_helper
+assert 'ln -sfn "$previous_target" "$ACTIVE_LINK.rollback"' in release_helper
+assert 'rm -f "$ACTIVE_LINK"' in release_helper
+assert "readonly READINESS_TIMEOUT_SECONDS=120" in release_helper
+assert "readiness_deadline=$((SECONDS + READINESS_TIMEOUT_SECONDS))" in release_helper
+assert 'systemctl is-active --quiet "$SERVICE_NAME"' in release_helper
+assert "http://127.0.0.1:8080/actuator/health" in release_helper
+assert "readonly RELEASE_LOCK_FILE=/run/lock/threadia-release.lock" in release_helper
+assert 'exec 9>"$RELEASE_LOCK_FILE"' in release_helper
+assert 'flock -n 9 || fail "another release is already active"' in release_helper
+assert "flock" in bootstrap
+assert "Environment=MANAGEMENT_HEALTH_MAIL_ENABLED=false" in service_unit
+assert (BASE.parent.parent / "scripts/ssm-delivery/apply-release").stat().st_mode & 0o111
+assert (BASE.parent.parent / "scripts/ssm-delivery/bootstrap-host.sh").stat().st_mode & 0o111
+assert not (BASE.parent.parent / "scripts/ssm-delivery/threadia-backend.service").stat().st_mode & 0o111
 
 print("Restricted SSM delivery source preflight passed; no AWS or GitHub command was executed.")

@@ -12,7 +12,7 @@ fail() {
 
 [[ "$(id -u)" -eq 0 ]] || fail "must run as root"
 getent passwd threadia >/dev/null || fail "deploy user threadia is missing"
-for command in aws python3 tar curl systemctl install; do
+for command in aws python3 tar curl systemctl install flock; do
   command -v "$command" >/dev/null 2>&1 || fail "baseline prerequisite missing: $command"
 done
 [[ -f "$HELPER_SOURCE" && -f "$UNIT_SOURCE" ]] || fail "reviewed host artifacts are missing"
