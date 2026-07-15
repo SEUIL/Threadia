@@ -27,6 +27,9 @@ import com.threadia.backend.company.exception.CompanyNotFoundException;
 import com.threadia.backend.company.exception.DepartmentConflictException;
 import com.threadia.backend.company.exception.DepartmentNotFoundException;
 import com.threadia.backend.config.jwt.JwtAuthenticationException;
+import com.threadia.backend.document.exception.DocumentConflictException;
+import com.threadia.backend.document.exception.DocumentLinkNotFoundException;
+import com.threadia.backend.document.exception.DocumentNotFoundException;
 import com.threadia.backend.invitation.exception.InvitationConflictException;
 import com.threadia.backend.invitation.exception.InvitationNotFoundException;
 import com.threadia.backend.issue.exception.IssueNotFoundException;
@@ -108,6 +111,8 @@ public class GlobalExceptionHandler {
 			ProjectNotFoundException.class,
 			IssueNotFoundException.class,
 			SprintNotFoundException.class,
+			DocumentNotFoundException.class,
+			DocumentLinkNotFoundException.class,
 			com.threadia.backend.invitation.exception.CompanyNotFoundException.class})
 	public ResponseEntity<ErrorResponse> handleCompanyNotFound(RuntimeException ex) {
 		ErrorBody body = ErrorBody.of("NOT_FOUND", ex.getMessage());
@@ -120,7 +125,8 @@ public class GlobalExceptionHandler {
 			ProjectMemberConflictException.class,
 			ProjectConflictException.class,
 			IssueConflictException.class,
-			SprintConflictException.class})
+			SprintConflictException.class,
+			DocumentConflictException.class})
 	public ResponseEntity<ErrorResponse> handleCompanyConflict(RuntimeException ex) {
 		ErrorBody body = ErrorBody.of("CONFLICT", ex.getMessage());
 		return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(body));
