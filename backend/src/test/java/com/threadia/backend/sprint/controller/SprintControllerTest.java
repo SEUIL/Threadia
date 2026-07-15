@@ -37,6 +37,12 @@ class SprintControllerTest {
 		mockMvc.perform(post("/api/v1/sprints/30/issues").header(HttpHeaders.AUTHORIZATION,"Bearer token").contentType(MediaType.APPLICATION_JSON).content("{}"))
 			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
 	}
+	@Test void assignmentRejectsNullEmptyAndNullElementIssueIds() throws Exception {
+		for (String requestBody : new String[] {"{\"issueIds\":null}", "{\"issueIds\":[]}", "{\"issueIds\":[100,null]}"}) {
+			mockMvc.perform(post("/api/v1/sprints/30/issues").header(HttpHeaders.AUTHORIZATION,"Bearer token").contentType(MediaType.APPLICATION_JSON).content(requestBody))
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+		}
+	}
 	@Test void sprintTimestampsSerializeWithUtcZSuffix() throws Exception {
 		SprintData response = new SprintData(new SprintResponse(30L,20L,"Sprint 1",null,"COMPLETED",LocalDate.parse("2026-07-01"),LocalDate.parse("2026-07-14"),LocalDateTime.of(2026, 7, 1, 9, 0),LocalDateTime.of(2026, 7, 14, 18, 0),"done"));
 		when(service.detail("token",30L)).thenReturn(response);
