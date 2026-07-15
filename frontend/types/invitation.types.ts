@@ -7,6 +7,8 @@
  * id/companyId/projectId/inviterUserId/inviteeUserId는 action·권한 처리용이다.
  */
 
+import type { UserSummary } from "@/types/auth.types";
+
 export type InvitationStatus = "PENDING" | "ACCEPTED" | "DECLINED" | "CANCELED" | "EXPIRED";
 
 export type InvitationScopeType = "COMPANY" | "PROJECT";
@@ -55,6 +57,14 @@ export interface ProjectInvitationsData {
 /** POST /projects/{id}/invitations 201 응답 */
 export interface ProjectInvitationData {
   invitation: InvitationResponse;
+}
+
+/**
+ * GET /projects/{id}/invitable-members?email= 200 응답 (Issue #108).
+ * 초대 가능한 사용자 1명만 최소 필드로 반환한다.
+ */
+export interface ProjectInvitableMemberData {
+  user: UserSummary;
 }
 
 /** accept / decline / cancel 공통 응답. membershipCreated는 accept에서만 의미 있음 */
