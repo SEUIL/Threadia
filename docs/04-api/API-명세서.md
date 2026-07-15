@@ -323,7 +323,7 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 | GET | `/api/v1/projects/{projectId}/issues` | A/P/C | `status`, `sprintId`, `assigneeId`, `unassignedOnly`, `includeTrashed` filter를 지원하는 이슈 목록. pagination 없음 |
 | POST | `/api/v1/projects/{projectId}/issues` | A/P/C | 이슈 생성. A는 title/description만, P/C는 priority/assignee/dueDate/sprint 지정 가능 |
 | GET | `/api/v1/issues/{issueId}` | A/P/C | 이슈 상세 조회 |
-| PATCH | `/api/v1/issues/{issueId}` | A/P/C | PATCH omitted=유지, 명시 null은 description/assignee/dueDate만 clear |
+| PATCH | `/api/v1/issues/{issueId}` | A/P/C | PATCH omitted=유지, 명시 null은 description/assignee/dueDate/sprintId만 clear. `sprintId`는 해제 전용으로 null만 허용하고 non-null은 400 |
 | PATCH | `/api/v1/issues/{issueId}/status` | A 제한/P/C | A는 DONE 외 상태, P/C는 DONE 재오픈을 포함한 모든 상태 변경 |
 | POST | `/api/v1/issues/{issueId}/trash` | P/C 또는 등록자 | 이슈 휴지통 이동 |
 | POST | `/api/v1/issues/{issueId}/restore` | P/C 또는 등록자 | 이슈 복원 |
@@ -342,7 +342,7 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 
 이슈 상태 변경은 같은 상태에 대해 200 no-op이며 history를 남기지 않는다. trashed 이슈의 상태/내용 변경은 `409 CONFLICT`다. trash/restore는 등록자 또는 P/C가 실행하며 idempotent 200이고 trash reason은 받지 않는다. `includeTrashed=true`은 active와 trashed를 함께 반환한다. 이슈의 `projectId`, `issueKey`, reporter, source 필드는 immutable이고 source는 `MANUAL`만 생성한다. 담당자와 Sprint는 같은 프로젝트의 ACTIVE project member 및 non-COMPLETED Sprint로 검증한다. COMPANY_ADMIN은 관리 action은 가능하지만 ACTIVE project member가 아니면 담당자가 될 수 없다.
 
-Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PLANNED다. P/C만 생성·수정·시작·완료·일괄 배정할 수 있고 수정은 PLANNED에만 허용한다. 프로젝트별 ACTIVE Sprint는 하나이며 서버 UTC로 `startedAt`/`completedAt`을 기록한다. `GET /api/v1/sprints/{sprintId}`는 Sprint metadata만 반환하며 배정 이슈를 포함하지 않는다. 배정 이슈는 `GET /api/v1/projects/{projectId}/issues?sprintId={sprintId}`로 별도 조회한다. `unassignedOnly=true`는 Sprint가 없는 이슈만 반환하며 `sprintId`와 함께 전달하면 `400 VALIDATION_ERROR`다. 배정은 같은 프로젝트의 non-trashed issue만 대상으로 하고 status를 바꾸지 않는다. 완료 시 DONE을 제외한 모든 배정 issue는 원자적으로 `BACKLOG`로 이동하고 Sprint를 clear한다. notification/event 발행은 하지 않는다.
+Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PLANNED다. P/C만 생성·수정·시작·완료·일괄 배정할 수 있고 수정은 PLANNED에만 허용한다. 프로젝트별 ACTIVE Sprint는 하나이며 서버 UTC로 `startedAt`/`completedAt`을 기록한다. `GET /api/v1/sprints/{sprintId}`는 Sprint metadata만 반환하며 배정 이슈를 포함하지 않는다. 배정 이슈는 `GET /api/v1/projects/{projectId}/issues?sprintId={sprintId}`로 별도 조회한다. `unassignedOnly=true`는 Sprint가 없는 이슈만 반환하며 `sprintId`와 함께 전달하면 `400 VALIDATION_ERROR`다. 배정은 같은 프로젝트의 non-trashed issue만 대상으로 하고 status를 바꾸지 않는다. 배정 해제는 `PATCH /api/v1/issues/{issueId}`에 `sprintId: null`을 보내며(Issue #113), 그 endpoint는 해제만 허용하고 non-null `sprintId`는 `400`으로 거절해 배정 경로를 위 POST 하나로 유지한다. 완료 시 DONE을 제외한 모든 배정 issue는 원자적으로 `BACKLOG`로 이동하고 Sprint를 clear한다. notification/event 발행은 하지 않는다.
 
 문서 정책: 문서 `type`은 `DOC` 또는 `MEETING_NOTE`이고, `title`은 trim 후 최대 200자이며 `content`는 Markdown 원문이다. 목록은 `type`, `q`, `includeTrashed`(기본 `false`)를 지원하며 기존 표시 순서(id 오름차순)를 유지한다. 문서 조회/생성은 A/P/C, 수정·trash·restore는 작성자 또는 P/C가 수행한다. trash/restore는 idempotent다. 문서와 이슈가 모두 요청 `projectId`에 속해야 link를 만들 수 있고, 중복 link 또는 어느 한 endpoint가 trashed이면 `409 CONFLICT`다. trashed endpoint의 기존 link는 project link list, 기본 graph, reverse read에서 숨긴다.
 
@@ -1323,7 +1323,7 @@ Response 201:
 
 #### PATCH `/api/v1/issues/{issueId}`
 
-변경할 필드만 전달한다. omitted 필드는 유지하고 명시 `null`은 `description`, `assigneeUserId`, `dueDate`만 clear한다.
+변경할 필드만 전달한다. omitted 필드는 유지하고 명시 `null`은 `description`, `assigneeUserId`, `dueDate`, `sprintId`만 clear한다.
 
 Request Body:
 
@@ -1335,6 +1335,14 @@ Request Body:
   "assigneeUserId": 3,
   "dueDate": "2026-06-22"
 }
+```
+
+**`sprintId`는 해제 전용이다.** 명시 `null`이면 이슈를 Sprint에서 떼어 백로그로 되돌리고, non-null 값을 담으면 `400 VALIDATION_ERROR`다. 배정은 `POST /api/v1/sprints/{sprintId}/issues` 하나로만 한다 — 배정 경로를 둘로 나누지 않기 위한 계약이다. `sprintId`도 관리 전용 필드라 A가 담아 보내면 `403`이다(A는 `title`/`description`만 수정할 수 있다).
+
+Request Body (Sprint 해제):
+
+```json
+{ "sprintId": null }
 ```
 
 #### PATCH `/api/v1/issues/{issueId}/status`

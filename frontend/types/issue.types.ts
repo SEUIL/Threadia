@@ -75,5 +75,11 @@ export interface IssueUpdateRequest {
   priority?: IssuePriority;
   assigneeUserId?: number | null;
   dueDate?: string | null;
-  sprintId?: number | null;
+  /**
+   * **해제 전용이라 null만 받는다.** 이 endpoint로는 배정할 수 없고, 값을 담아 보내면
+   * 서버가 400으로 거절하며 `POST /sprints/{sprintId}/issues`를 쓰라고 안내한다
+   * (IssueService.update 참고). 배정 경로를 하나로 유지하려는 계약이라, 타입도
+   * `number | null`로 열어두지 않고 실제로 가능한 값만 남긴다.
+   */
+  sprintId?: null;
 }
