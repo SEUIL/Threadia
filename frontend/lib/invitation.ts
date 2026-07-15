@@ -24,8 +24,12 @@ export const INVITATION_STATUS_CLASS: Record<InvitationStatus, string> = {
 };
 
 // 409 conflict 코드 → 사용자 안내 문구. 매핑에 없는 코드는 서버 message를 그대로 쓴다.
+// 기준: backend InvitationConflictException(회사/프로젝트 초대 공용).
 const INVITATION_ERROR_MESSAGE: Record<string, string> = {
   ALREADY_COMPANY_MEMBER: "이미 회사에 소속된 사용자입니다.",
+  ALREADY_PROJECT_MEMBER: "이미 프로젝트에 속한 구성원입니다.",
+  TARGET_NOT_ACTIVE_COMPANY_MEMBER: "같은 회사의 활성 구성원만 초대할 수 있습니다.",
+  INVITATION_SELF_NOT_ALLOWED: "자기 자신은 초대할 수 없습니다.",
   INVITATION_ALREADY_PENDING: "이미 대기 중인 초대가 있습니다.",
   COMPANY_MEMBER_SUSPENDED: "정지된 구성원은 초대 수락으로 복구할 수 없습니다.",
   INVITATION_EXPIRED: "만료된 초대입니다.",

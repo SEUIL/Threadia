@@ -7,9 +7,12 @@ import apiClient from "@/lib/axios";
 import type { ApiResponse, UserSummary } from "@/types/auth.types";
 import type {
   CompanyInvitationData,
+  CompanyInvitationRole,
   CompanyInvitationsData,
   InvitationActionData,
-  InvitationRole,
+  ProjectInvitationData,
+  ProjectInvitationRole,
+  ProjectInvitationsData,
 } from "@/types/invitation.types";
 
 export const invitationService = {
@@ -23,7 +26,7 @@ export const invitationService = {
   decline: (invitationId: number) =>
     apiClient.post<ApiResponse<InvitationActionData>>(`/api/v1/invitations/${invitationId}/decline`),
 
-  /** 보낸 초대 취소 — COMPANY_ADMIN 전용 */
+  /** 보낸 초대 취소 — 저장된 scope 기준으로 COMPANY는 C, PROJECT는 P/C가 취소한다 */
   cancel: (invitationId: number) =>
     apiClient.post<ApiResponse<InvitationActionData>>(`/api/v1/invitations/${invitationId}/cancel`),
 
@@ -34,9 +37,30 @@ export const invitationService = {
     ),
 
   /** 회사 초대 생성 — COMPANY_ADMIN 전용. 대상은 lookup으로 확인한 등록 사용자만 */
-  create: (companyId: string | number, body: { inviteeUserId: number; role: InvitationRole }) =>
+  create: (
+    companyId: string | number,
+    body: { inviteeUserId: number; role: CompanyInvitationRole }
+  ) =>
     apiClient.post<ApiResponse<CompanyInvitationData>>(
       `/api/v1/companies/${companyId}/invitations`,
+      body
+    ),
+
+  /** 프로젝트가 보낸 초대 목록 (S12) — P/C 전용 */
+  listProject: (projectId: string | number) =>
+    apiClient.get<ApiResponse<ProjectInvitationsData>>(`/api/v1/projects/${projectId}/invitations`),
+
+  /**
+   * 프로젝트 초대 생성 — P/C 전용. 대상은 같은 회사의 ACTIVE 구성원만 가능하고
+   * (서버가 TARGET_NOT_ACTIVE_COMPANY_MEMBER로 거절), 이미 프로젝트 멤버이거나
+   * 본인이면 409다. scopeType은 보내지 않는다 — scope는 endpoint가 결정한다.
+   */
+  createProject: (
+    projectId: string | number,
+    body: { inviteeUserId: number; role: ProjectInvitationRole }
+  ) =>
+    apiClient.post<ApiResponse<ProjectInvitationData>>(
+      `/api/v1/projects/${projectId}/invitations`,
       body
     ),
 

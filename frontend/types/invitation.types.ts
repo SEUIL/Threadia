@@ -11,11 +11,11 @@ export type InvitationStatus = "PENDING" | "ACCEPTED" | "DECLINED" | "CANCELED" 
 
 export type InvitationScopeType = "COMPANY" | "PROJECT";
 
-/**
- * Sprint 1.5 회사 초대 role. 프로젝트 초대 role(PROJECT_ADMIN)은 Sprint 3
- * `PROJECT-MEMBER-01~02` 후보로 재분류됐다(API-명세서 v1.3 Sprint 3 기준선).
- */
-export type InvitationRole = "COMPANY_ADMIN" | "MEMBER";
+/** 회사 초대 role — POST /companies/{id}/invitations */
+export type CompanyInvitationRole = "COMPANY_ADMIN" | "MEMBER";
+
+/** 프로젝트 초대 role — POST /projects/{id}/invitations (WBS 4.3.1) */
+export type ProjectInvitationRole = "PROJECT_ADMIN" | "MEMBER";
 
 export interface InvitationResponse {
   id: number;
@@ -28,6 +28,10 @@ export interface InvitationResponse {
   inviteeUserId: number;
   inviteeEmail: string;
   inviteeNickname: string;
+  /**
+   * scope에 따라 값이 다르다 — COMPANY면 CompanyInvitationRole, PROJECT면
+   * ProjectInvitationRole. 서버가 String으로 내려주므로 표시할 때 scope를 함께 본다.
+   */
   role: string;
   status: InvitationStatus;
   expiresAt: string; // ISO-8601 UTC, 생성 +7일
@@ -40,6 +44,16 @@ export interface CompanyInvitationsData {
 
 /** POST /companies/{id}/invitations 201 응답 */
 export interface CompanyInvitationData {
+  invitation: InvitationResponse;
+}
+
+/** GET /projects/{id}/invitations — PROJECT scope만 반환, 생성 시각 내림차순 */
+export interface ProjectInvitationsData {
+  invitations: InvitationResponse[];
+}
+
+/** POST /projects/{id}/invitations 201 응답 */
+export interface ProjectInvitationData {
   invitation: InvitationResponse;
 }
 
