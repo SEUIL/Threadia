@@ -120,7 +120,7 @@ public class ProjectInvitationService {
 				now.plusDays(EXPIRY_DAYS),
 				now,
 				now));
-		return new ProjectInvitationData(toResponse(invitation));
+		return new ProjectInvitationData(toResponse(invitation, project.getName()));
 	}
 
 	@Transactional
@@ -132,22 +132,27 @@ public class ProjectInvitationService {
 				.findByProjectIdAndScopeTypeOrderByCreatedAtDesc(projectId, InvitationScopeType.PROJECT)
 				.stream()
 				.map(this::expirePendingIfNeeded)
-				.map(ProjectInvitationService::toResponse)
+				.map(invitation -> toResponse(invitation, project.getName()))
 				.toList();
 		return new ProjectInvitationsData(invitations);
 	}
 
-	@Transactional
+	/**
+	 * 초대 후보 exact-email 조회. 아무것도 쓰지 않으므로 프로젝트 행을 잠그지 않는다 —
+	 * 초대 화면에서 이메일을 칠 때마다 호출되는 경로라, 락을 걸면 같은 프로젝트의
+	 * 쓰기 작업(초대 생성, 스프린트 시작/종료 등)과 불필요하게 직렬화된다.
+	 * eligibility는 어차피 create() 시점에 재검증한다.
+	 */
+	@Transactional(readOnly = true)
 	public ProjectInvitableMemberData findInvitableMember(String accessToken, Long projectId, String rawEmail) {
 		User requester = activeRequester(accessToken);
-		Project project = projectForUpdate(projectId);
+		Project project = project(projectId);
 		requireProjectManage(project, requester.getId());
 		String email = EmailNormalizer.normalize(rawEmail);
-		User invitee = activeInviteeByEmail(email);
+		User invitee = invitableCompanyMemberByEmail(project, email);
 		if (requester.getId().equals(invitee.getId())) {
 			throw InvitationConflictException.selfInvitation();
 		}
-		assertActiveCompanyMember(project, invitee.getId());
 		if (projectMemberRepository.existsByProject_IdAndUser_IdAndStatus(
 				projectId, invitee.getId(), ProjectMemberStatus.ACTIVE)) {
 			throw InvitationConflictException.alreadyProjectMember();
@@ -237,13 +242,27 @@ public class ProjectInvitationService {
 		return invitee;
 	}
 
-	private User activeInviteeByEmail(String email) {
-		User invitee = userRepository.findByEmail(email)
+	/**
+	 * 이 프로젝트 회사의 ACTIVE 구성원 중에서만 email로 찾는다.
+	 *
+	 * ★ 미가입 email과 "가입했지만 다른 회사" email을 **똑같이 404**로 처리한다.
+	 * 전역 조회를 먼저 하고 회사 소속을 나중에 검사하면, 404(미가입)와
+	 * 409(다른 회사)가 갈려서 PROJECT_ADMIN이 임의의 email을 넣어보는 것만으로
+	 * 서비스 가입 여부를 알아낼 수 있다(user enumeration). 이 endpoint의 권한은
+	 * "프로젝트 범위"이므로 회사 경계 밖 정보는 존재 여부조차 노출하지 않는다.
+	 * 전역 email 조회는 계속 COMPANY_ADMIN 전용(GET /users/lookup)으로 남는다.
+	 */
+	private User invitableCompanyMemberByEmail(Project project, String email) {
+		return userRepository.findByEmail(email)
+				.filter(user -> user.getStatus() == UserStatus.ACTIVE)
+				.filter(user -> companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(
+						project.getCompany().getId(), user.getId(), CompanyMemberStatus.ACTIVE))
 				.orElseThrow(() -> new UserNotFoundException(email));
-		if (invitee.getStatus() != UserStatus.ACTIVE) {
-			throw InvitationConflictException.targetUserNotActiveCompanyMember();
-		}
-		return invitee;
+	}
+
+	private Project project(Long projectId) {
+		return projectRepository.findById(projectId)
+				.orElseThrow(() -> new ProjectNotFoundException(projectId));
 	}
 
 	private Project projectForUpdate(Long projectId) {
@@ -334,13 +353,14 @@ public class ProjectInvitationService {
 		return LocalDateTime.ofInstant(clock.instant(), UTC);
 	}
 
-	private static InvitationResponse toResponse(Invitation invitation) {
+	private static InvitationResponse toResponse(Invitation invitation, String projectName) {
 		return new InvitationResponse(
 				invitation.getId(),
 				invitation.getScopeType().name(),
 				invitation.getCompany().getId(),
 				invitation.getCompany().getName(),
 				invitation.getProjectId(),
+				projectName,
 				invitation.getInviter().getId(),
 				invitation.getInviter().getNickname(),
 				invitation.getInvitee().getId(),

@@ -25,10 +25,14 @@
  * 숨긴 액션은 어차피 서버도 막는다. ACTIVE 상태 멤버만 조회한다(제거된 멤버는
  * 목록에서 사라짐, 복원 UI 없음).
  *
- * ⚠️ 멤버 "추가"(초대)는 WBS 4.3(Project Invitation, Sprint 3 범위)이 아직
- * 없어서 여전히 제공하지 않는다 — PR #70도 조회/역할변경/제거만 다루고 추가
- * endpoint 자체가 없다(경계가 코드로 확인됨). 근거:
- * sprint2-3.4-project-frontend-설계.md, 화면정의서 S12 인용구 메모.
+ * WBS 4.3.2 실 연동: 멤버 "추가"(초대)를 붙였다. 이메일로 후보를 조회한 뒤
+ * (`GET /projects/{id}/invitable-members`, Issue #108) 확인하고 초대를 만든다.
+ * 회사 초대(S14)가 쓰는 전역 `GET /users/lookup`은 COMPANY_ADMIN 전용이라 P가
+ * 쓸 수 없어서, 프로젝트 범위 후보 조회를 따로 쓴다.
+ *
+ * 초대 후보가 아니면 서버가 전부 404로 통일해서 준다(미가입·비활성·다른 회사를
+ * 구분하지 않는다 — 회사 밖 email의 가입 여부를 노출하지 않기 위한 계약).
+ * 그래서 이 화면도 그 셋을 하나의 문구로 안내한다.
  *
  * WBS 3.4.4 QA(PR #72 finding F-3, 김민정) 반영: 프로젝트 상세와 멤버 목록을
  * `Promise.all`로 묶어서 불러왔더니 멤버 목록 API만 실패해도 페이지 전체가
@@ -39,11 +43,19 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { isAxiosError } from "axios";
 import { projectService } from "@/services/project.service";
 import { projectMemberService } from "@/services/project-member.service";
-import { invitationErrorMessage } from "@/lib/invitation";
+import { invitationService } from "@/services/invitation.service";
+import {
+  INVITATION_STATUS_CLASS,
+  INVITATION_STATUS_LABEL,
+  formatExpiresAt,
+  invitationErrorMessage,
+} from "@/lib/invitation";
 import type { ProjectResponse, ProjectStatus, ProjectViewerData } from "@/types/project.types";
 import type { ProjectMemberResponse } from "@/types/project-member.types";
+import type { InvitationResponse, ProjectInvitationRole } from "@/types/invitation.types";
 
 const STATUS_LABEL: Record<ProjectStatus, string> = {
   PLANNING: "기획중",
@@ -94,6 +106,22 @@ export default function ProjectSettingsPage() {
   const [memberError, setMemberError] = useState<string | null>(null);
   const [memberBusyId, setMemberBusyId] = useState<number | null>(null);
 
+  // 초대 — 프로젝트 상세/멤버 목록과 독립된 요청이라 loading/error를 따로 둔다(F-3 패턴).
+  const [invitations, setInvitations] = useState<InvitationResponse[]>([]);
+  const [invitationsState, setInvitationsState] = useState<LoadState>("loading");
+  const [invitationsError, setInvitationsError] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<ProjectInvitationRole>("MEMBER");
+  const [lookupBusy, setLookupBusy] = useState(false);
+  // 후보 조회에 성공한 사용자 — 확인 후 생성한다.
+  const [pendingInvitee, setPendingInvitee] = useState<{ id: number; email: string } | null>(null);
+  const [createBusy, setCreateBusy] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [cancelBusyId, setCancelBusyId] = useState<number | null>(null);
+  // 목록 로딩 실패(invitationsState)와 분리한다 — 같은 state를 쓰면 action 실패
+  // 하나가 렌더 조건을 깨서 목록 전체가 사라진다(PR #55 리뷰, 김민정).
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
   const loadPage = useCallback(async () => {
     setPageState("loading");
     setPageError(null);
@@ -122,6 +150,23 @@ export default function ProjectSettingsPage() {
     }
   }, [params.projectId]);
 
+  // silent: action 직후 재조회처럼 이미 목록이 떠 있을 때 깜빡임을 막는다.
+  const loadInvitations = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!options?.silent) setInvitationsState("loading");
+      setInvitationsError(null);
+      try {
+        const { data } = await invitationService.listProject(params.projectId);
+        setInvitations(data.data.invitations);
+        setInvitationsState("ready");
+      } catch (error) {
+        setInvitationsError(invitationErrorMessage(error, "초대 목록을 불러오지 못했습니다."));
+        setInvitationsState("error");
+      }
+    },
+    [params.projectId]
+  );
+
   useEffect(() => {
     (async () => {
       await Promise.all([loadPage(), loadMembers()]);
@@ -130,6 +175,14 @@ export default function ProjectSettingsPage() {
 
   const isArchived = project?.status === "ARCHIVED";
   const canManage = viewer?.canManageProject ?? false;
+
+  // 초대 목록은 P/C 전용이라 권한을 확인한 뒤에 부른다(아니면 403).
+  useEffect(() => {
+    if (!canManage) return;
+    (async () => {
+      await loadInvitations();
+    })();
+  }, [canManage, loadInvitations]);
 
   const startEdit = () => {
     if (!project) return;
@@ -184,6 +237,71 @@ export default function ProjectSettingsPage() {
       setMemberError(invitationErrorMessage(error, "멤버 역할 변경에 실패했습니다."));
     } finally {
       setMemberBusyId(null);
+    }
+  };
+
+  const lookupInvitee = async () => {
+    const email = inviteEmail.trim().toLowerCase();
+    setInviteError(null);
+    setPendingInvitee(null);
+    if (!email) return;
+
+    setLookupBusy(true);
+    try {
+      const { data } = await invitationService.findInvitableMember(params.projectId, email);
+      setPendingInvitee({ id: data.data.user.id, email: data.data.user.email });
+    } catch (error) {
+      // 서버는 미가입·비활성·다른 회사를 구분 없이 404로 준다(회사 밖 email의 가입
+      // 여부를 노출하지 않기 위한 계약). 서버 message("사용자를 찾을 수 없습니다")를
+      // 그대로 쓰면 "그런 계정이 없다"로 읽혀 오해를 주므로, 이 화면에서 할 수 있는
+      // 일을 알려주는 문구로 바꾼다. 409(이미 멤버·대기 중 초대)는 매핑된 안내를 쓴다.
+      const notCandidate = isAxiosError(error) && error.response?.status === 404;
+      setInviteError(
+        notCandidate
+          ? "이 회사의 구성원 중에서 해당 이메일을 찾을 수 없습니다."
+          : invitationErrorMessage(error, "초대 후보를 조회하지 못했습니다.")
+      );
+    } finally {
+      setLookupBusy(false);
+    }
+  };
+
+  const confirmInvite = async () => {
+    if (!pendingInvitee) return;
+    setCreateBusy(true);
+    setInviteError(null);
+    try {
+      await invitationService.createProject(params.projectId, {
+        inviteeUserId: pendingInvitee.id,
+        role: inviteRole,
+      });
+      setPendingInvitee(null);
+      setInviteEmail("");
+      await loadInvitations({ silent: true });
+    } catch (error) {
+      setInviteError(invitationErrorMessage(error, "초대 생성에 실패했습니다."));
+    } finally {
+      setCreateBusy(false);
+    }
+  };
+
+  const cancelInvitation = async (invitationId: number) => {
+    setCancelError(null);
+    setCancelBusyId(invitationId);
+    try {
+      // 성공 시엔 재조회 대신 응답으로 해당 행만 갱신한다 — 재조회가 실패 메시지를
+      // 지우는 흐름과 얽히지 않게 하고, 목록 깜빡임도 없다.
+      const { data } = await invitationService.cancel(invitationId);
+      setInvitations((prev) =>
+        prev.map((i) => (i.id === invitationId ? { ...i, status: data.data.status } : i))
+      );
+    } catch (error) {
+      setCancelError(invitationErrorMessage(error, "초대 취소에 실패했습니다."));
+      // 이미 수락/만료돼 실패했을 수 있으니 최신 상태로 맞춘다. loadInvitations는
+      // cancelError를 건드리지 않으므로 방금 띄운 메시지가 지워지지 않는다.
+      await loadInvitations({ silent: true });
+    } finally {
+      setCancelBusyId(null);
     }
   };
 
@@ -383,12 +501,133 @@ export default function ProjectSettingsPage() {
               )}
             </ul>
 
-            <p className="mt-4 text-xs text-placeholder">
-              멤버 초대는 준비 중입니다. Project Invitation API 연동 후 제공될 예정입니다.
-            </p>
           </>
         )}
       </section>
+
+      {/* 멤버 초대 — P/C 전용. 아카이빙된 프로젝트에는 초대하지 않는다. */}
+      {canManage && !isArchived && (
+        <section className="mt-6 rounded-xl border border-border bg-surface p-6">
+          <h2 className="text-sm font-semibold text-foreground">멤버 초대</h2>
+          <p className="mt-1 text-xs text-muted">
+            같은 회사 구성원만 초대할 수 있습니다. 수락하면 프로젝트 멤버가 됩니다.
+          </p>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <input
+              type="email"
+              aria-label="초대할 이메일"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && lookupInvitee()}
+              placeholder="member@example.com"
+              className="min-w-[220px] flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-placeholder focus:border-ring focus:outline-none"
+            />
+            <select
+              aria-label="초대 역할"
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value as ProjectInvitationRole)}
+              className="rounded-md border border-border bg-surface px-2 py-2 text-sm text-foreground focus:border-ring focus:outline-none"
+            >
+              <option value="MEMBER">MEMBER</option>
+              <option value="PROJECT_ADMIN">PROJECT_ADMIN</option>
+            </select>
+            <button
+              type="button"
+              onClick={lookupInvitee}
+              disabled={lookupBusy || !inviteEmail.trim()}
+              className="rounded-md btn-gradient px-4 py-2 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              조회
+            </button>
+          </div>
+
+          {inviteError && <p className="mt-3 text-xs text-destructive">{inviteError}</p>}
+
+          {/* 후보 확인 — 실수로 엉뚱한 사람을 초대하지 않게 한 단계 둔다(S14와 동일) */}
+          {pendingInvitee && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-primary-subtle px-3 py-2">
+              <p className="text-xs text-foreground">
+                <span className="font-medium">{pendingInvitee.email}</span> 님을 {inviteRole}(으)로
+                초대할까요?
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPendingInvitee(null)}
+                  className="rounded-md px-2 py-1 text-xs font-medium text-muted transition-colors duration-fast hover:bg-surface"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmInvite}
+                  disabled={createBusy}
+                  className="rounded-md btn-gradient px-3 py-1 text-xs font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  초대하기
+                </button>
+              </div>
+            </div>
+          )}
+
+          <h3 className="mt-6 text-xs font-semibold text-foreground">
+            보낸 초대{invitationsState === "ready" && ` (${invitations.length})`}
+          </h3>
+
+          {invitationsState === "loading" && (
+            <p className="mt-2 text-xs text-muted">초대 목록을 불러오는 중...</p>
+          )}
+          {invitationsState === "error" && (
+            <p className="mt-2 text-xs text-destructive">{invitationsError}</p>
+          )}
+
+          {invitationsState === "ready" && (
+            <>
+              {cancelError && <p className="mt-2 text-xs text-destructive">{cancelError}</p>}
+              <ul className="mt-2 divide-y divide-border">
+                {invitations.map((invitation) => (
+                  <li
+                    key={invitation.id}
+                    className="flex flex-wrap items-center justify-between gap-2 px-1 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-foreground">
+                        {invitation.inviteeNickname}
+                        <span className="ml-1.5 text-xs text-muted">{invitation.inviteeEmail}</span>
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted">
+                        {invitation.role} · {formatExpiresAt(invitation.expiresAt)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${INVITATION_STATUS_CLASS[invitation.status]}`}
+                      >
+                        {INVITATION_STATUS_LABEL[invitation.status]}
+                      </span>
+                      {/* PENDING만 취소할 수 있다(서버도 그 외 상태는 409) */}
+                      {invitation.status === "PENDING" && (
+                        <button
+                          type="button"
+                          onClick={() => cancelInvitation(invitation.id)}
+                          disabled={cancelBusyId === invitation.id}
+                          className="text-xs font-medium text-destructive transition-colors duration-fast hover:opacity-70 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          취소
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+                {invitations.length === 0 && (
+                  <li className="py-2.5 text-center text-xs text-muted">보낸 초대가 없습니다.</li>
+                )}
+              </ul>
+            </>
+          )}
+        </section>
+      )}
 
       {/* 아카이빙 */}
       {canManage && !isArchived && (

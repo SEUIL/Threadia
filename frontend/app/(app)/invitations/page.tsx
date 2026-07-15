@@ -11,12 +11,21 @@
  *    않는다. AuthContext는 로그인/세션 복원 시점에만
  *    GET /users/me/company-memberships를 호출하고(AuthContext.tsx 참고),
  *    이 화면의 accept 액션 후 자동 재조회는 하지 않으므로 새 membership을
- *    실제로 쓰려면(RailShell 등에서) 재로그인이 필요하다.
+ *    실제로 쓰려면(RailShell 등에서) 재로그인이 필요하다. 이건 COMPANY 초대에만
+ *    해당한다 — PROJECT 초대 수락자는 이미 그 회사 소속이라 재로그인이 필요 없다.
+ *
+ * WBS 4.3.2: 이 목록에는 COMPANY와 PROJECT 초대가 섞여 내려온다
+ * (GET /users/me/invitations가 둘 다 반환). 화면 표기(어디로 오는 초대인지, role
+ * 이름, 수락 후 안내)는 scope에 따라 달라서 lib/invitation.ts의 scope 헬퍼를 쓴다.
  */
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { invitationService } from "@/services/invitation.service";
-import { invitationErrorMessage, isInvitationExpired } from "@/lib/invitation";
+import {
+  invitationAcceptedMessage,
+  invitationErrorMessage,
+  isInvitationExpired,
+} from "@/lib/invitation";
 import { InvitationEnvelope } from "@/components/invitations/InvitationEnvelope";
 import { InvitationLetter } from "@/components/invitations/InvitationLetter";
 import type { InvitationResponse } from "@/types/invitation.types";
@@ -69,9 +78,9 @@ export default function InvitationsPage() {
         prev.map((i) => (i.id === invitation.id ? { ...i, status: data.data.status } : i))
       );
       if (action === "accept") {
-        setAcceptNotice(
-          `${invitation.companyName} 소속이 반영됐습니다. 새 회사는 재로그인 후 확인할 수 있습니다.`
-        );
+        // 회사 초대는 재로그인 안내가 필요하지만 프로젝트 초대는 이미 그 회사 소속이라
+        // 필요 없다 — scope별로 안내가 다르다.
+        setAcceptNotice(invitationAcceptedMessage(invitation));
       }
     } catch (error) {
       setActionError(
