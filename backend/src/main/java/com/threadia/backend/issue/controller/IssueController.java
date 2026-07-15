@@ -51,10 +51,11 @@ public class IssueController {
 			@RequestParam(required = false) IssueStatus status,
 			@RequestParam(required = false) Long sprintId,
 			@RequestParam(required = false) Long assigneeId,
+			@RequestParam(defaultValue = "false") boolean unassignedOnly,
 			@RequestParam(defaultValue = "false") boolean includeTrashed) {
-		IssuesData data = status == null && sprintId == null && assigneeId == null && !includeTrashed
+		IssuesData data = status == null && sprintId == null && assigneeId == null && !unassignedOnly && !includeTrashed
 				? issueService.list(extractAccessToken(authorizationHeader), projectId)
-				: issueService.list(extractAccessToken(authorizationHeader), projectId, status, sprintId, assigneeId, includeTrashed);
+				: issueService.list(extractAccessToken(authorizationHeader), projectId, status, sprintId, assigneeId, unassignedOnly, includeTrashed);
 		return ResponseEntity.ok(ApiResponse.of(data));
 	}
 

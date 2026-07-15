@@ -31,6 +31,7 @@ import com.threadia.backend.issue.dto.IssueUpdateRequest;
 import com.threadia.backend.issue.dto.IssuesData;
 import com.threadia.backend.issue.exception.IssueNotFoundException;
 import com.threadia.backend.issue.service.IssueService;
+import com.threadia.backend.project.exception.ProjectValidationException;
 
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(IssueController.class)
@@ -231,14 +232,38 @@ class IssueControllerTest {
 
 	@Test
 	void listPassesFullContractFilters() throws Exception {
-		when(issueService.list("valid-token", 20L, com.threadia.backend.issue.domain.IssueStatus.TODO, 30L, 2L, true))
+		when(issueService.list("valid-token", 20L, com.threadia.backend.issue.domain.IssueStatus.TODO, 30L, 2L, false, true))
 				.thenReturn(new IssuesData(List.of()));
 
 		mockMvc.perform(get("/api/v1/projects/20/issues?status=TODO&sprintId=30&assigneeId=2&includeTrashed=true")
 					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
 				.andExpect(status().isOk());
 
-		verify(issueService).list("valid-token", 20L, com.threadia.backend.issue.domain.IssueStatus.TODO, 30L, 2L, true);
+		verify(issueService).list("valid-token", 20L, com.threadia.backend.issue.domain.IssueStatus.TODO, 30L, 2L, false, true);
+	}
+
+	@Test
+	void listPassesUnassignedOnlyFilter() throws Exception {
+		when(issueService.list("valid-token", 20L, null, null, null, true, false)).thenReturn(new IssuesData(List.of()));
+
+		mockMvc.perform(get("/api/v1/projects/20/issues?unassignedOnly=true")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+				.andExpect(status().isOk());
+
+		verify(issueService).list("valid-token", 20L, null, null, null, true, false);
+	}
+
+	@Test
+	void listReturnsValidationErrorWhenUnassignedOnlyAndSprintIdAreCombined() throws Exception {
+		when(issueService.list("valid-token", 20L, null, 30L, null, true, false))
+				.thenThrow(new ProjectValidationException("unassignedOnly와 sprintId는 함께 사용할 수 없습니다."));
+
+		mockMvc.perform(get("/api/v1/projects/20/issues?unassignedOnly=true&sprintId=30")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+
+		verify(issueService).list("valid-token", 20L, null, 30L, null, true, false);
 	}
 
 	@Test
