@@ -10,7 +10,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -43,18 +42,18 @@ class DirectMessageControllerTest {
 	@Autowired MockMvc mockMvc;
 	@MockitoBean DirectMessageService directMessageService;
 	@Test void exposesAllSixRestEndpointsWithExpectedEnvelopes() throws Exception {
-		DirectMessageRoomResponse room = new DirectMessageRoomResponse(30L, 10L, new UserResponse(2L, "other@example.com", "other", null), 1, LocalDateTime.parse("2026-07-15T00:00:00"));
+		DirectMessageRoomResponse room = new DirectMessageRoomResponse(30L, 10L, new UserResponse(2L, "other@example.com", "other", null), 1, "2026-07-15T00:00:00Z");
 		when(directMessageService.listRooms("token", 10L)).thenReturn(new DirectMessageRoomsData(List.of(room)));
 		when(directMessageService.getOrCreateRoom(eq("token"), eq(10L), any())).thenReturn(new DirectMessageRoomCreationResult(new DirectMessageRoomData(room), true));
-		when(directMessageService.listMessages("token", 30L)).thenReturn(new DirectMessagesData(List.of(new DirectMessageResponse(40L, 30L, new UserResponse(2L, "other@example.com", "other", null), "hello", LocalDateTime.parse("2026-07-15T00:00:00")))));
-		when(directMessageService.send(eq("token"), eq(30L), any())).thenReturn(new DirectMessageData(new DirectMessageResponse(41L, 30L, new UserResponse(1L, "me@example.com", "me", null), "reply", LocalDateTime.parse("2026-07-15T00:00:01"))));
-		when(directMessageService.markRead(eq("token"), eq(30L), any())).thenReturn(new DirectMessageReadData(30L, 40L, 0, LocalDateTime.parse("2026-07-15T00:00:02")));
+		when(directMessageService.listMessages("token", 30L)).thenReturn(new DirectMessagesData(List.of(new DirectMessageResponse(40L, 30L, new UserResponse(2L, "other@example.com", "other", null), "hello", "2026-07-15T00:00:00Z"))));
+		when(directMessageService.send(eq("token"), eq(30L), any())).thenReturn(new DirectMessageData(new DirectMessageResponse(41L, 30L, new UserResponse(1L, "me@example.com", "me", null), "reply", "2026-07-15T00:00:01Z")));
+		when(directMessageService.markRead(eq("token"), eq(30L), any())).thenReturn(new DirectMessageReadData(30L, 40L, 0, "2026-07-15T00:00:02Z"));
 		when(directMessageService.unreadCount("token")).thenReturn(new DirectMessageUnreadCountData(1));
-		mockMvc.perform(get("/api/v1/companies/10/direct-messages/rooms").header(HttpHeaders.AUTHORIZATION, "Bearer token")).andExpect(status().isOk()).andExpect(jsonPath("$.data.rooms[0].otherUser.id").value(2));
-		mockMvc.perform(post("/api/v1/companies/10/direct-messages/rooms").header(HttpHeaders.AUTHORIZATION, "Bearer token").contentType(MediaType.APPLICATION_JSON).content("{\"otherUserId\":2}")).andExpect(status().isCreated()).andExpect(jsonPath("$.data.room.id").value(30));
-		mockMvc.perform(get("/api/v1/direct-messages/rooms/30/messages").header(HttpHeaders.AUTHORIZATION, "Bearer token")).andExpect(status().isOk()).andExpect(jsonPath("$.data.messages[0].content").value("hello"));
-		mockMvc.perform(post("/api/v1/direct-messages/rooms/30/messages").header(HttpHeaders.AUTHORIZATION, "Bearer token").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"reply\"}")).andExpect(status().isCreated()).andExpect(jsonPath("$.data.message.id").value(41));
-		mockMvc.perform(post("/api/v1/direct-messages/rooms/30/mark-read").header(HttpHeaders.AUTHORIZATION, "Bearer token").contentType(MediaType.APPLICATION_JSON).content("{\"lastReadDirectMessageId\":40}")).andExpect(status().isOk()).andExpect(jsonPath("$.data.lastReadDirectMessageId").value(40));
+		mockMvc.perform(get("/api/v1/companies/10/direct-messages/rooms").header(HttpHeaders.AUTHORIZATION, "Bearer token")).andExpect(status().isOk()).andExpect(jsonPath("$.data.rooms[0].otherUser.id").value(2)).andExpect(jsonPath("$.data.rooms[0].createdAt").value("2026-07-15T00:00:00Z"));
+		mockMvc.perform(post("/api/v1/companies/10/direct-messages/rooms").header(HttpHeaders.AUTHORIZATION, "Bearer token").contentType(MediaType.APPLICATION_JSON).content("{\"otherUserId\":2}")).andExpect(status().isCreated()).andExpect(jsonPath("$.data.room.id").value(30)).andExpect(jsonPath("$.data.room.createdAt").value("2026-07-15T00:00:00Z"));
+		mockMvc.perform(get("/api/v1/direct-messages/rooms/30/messages").header(HttpHeaders.AUTHORIZATION, "Bearer token")).andExpect(status().isOk()).andExpect(jsonPath("$.data.messages[0].content").value("hello")).andExpect(jsonPath("$.data.messages[0].createdAt").value("2026-07-15T00:00:00Z"));
+		mockMvc.perform(post("/api/v1/direct-messages/rooms/30/messages").header(HttpHeaders.AUTHORIZATION, "Bearer token").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"reply\"}")).andExpect(status().isCreated()).andExpect(jsonPath("$.data.message.id").value(41)).andExpect(jsonPath("$.data.message.createdAt").value("2026-07-15T00:00:01Z"));
+		mockMvc.perform(post("/api/v1/direct-messages/rooms/30/mark-read").header(HttpHeaders.AUTHORIZATION, "Bearer token").contentType(MediaType.APPLICATION_JSON).content("{\"lastReadDirectMessageId\":40}")).andExpect(status().isOk()).andExpect(jsonPath("$.data.lastReadDirectMessageId").value(40)).andExpect(jsonPath("$.data.readAt").value("2026-07-15T00:00:02Z"));
 		mockMvc.perform(get("/api/v1/direct-messages/unread-count").header(HttpHeaders.AUTHORIZATION, "Bearer token")).andExpect(status().isOk()).andExpect(jsonPath("$.data.unreadCount").value(1));
 	}
 	@Test void validatesRequestBodiesAndMapsParticipantRoomToNotFound() throws Exception {
@@ -65,7 +64,7 @@ class DirectMessageControllerTest {
 	}
 	@Test void trimsContentBeforeValidatingTheMaximumLength() throws Exception {
 		String normalized = "x".repeat(10000); String padded = " " + normalized + " ";
-		when(directMessageService.send(eq("token"), eq(30L), any())).thenReturn(new DirectMessageData(new DirectMessageResponse(41L, 30L, new UserResponse(1L, "me@example.com", "me", null), normalized, LocalDateTime.parse("2026-07-15T00:00:01"))));
+		when(directMessageService.send(eq("token"), eq(30L), any())).thenReturn(new DirectMessageData(new DirectMessageResponse(41L, 30L, new UserResponse(1L, "me@example.com", "me", null), normalized, "2026-07-15T00:00:01Z")));
 		mockMvc.perform(post("/api/v1/direct-messages/rooms/30/messages").header(HttpHeaders.AUTHORIZATION, "Bearer token").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"" + padded + "\"}"))
 				.andExpect(status().isCreated()).andExpect(jsonPath("$.data.message.content").value(normalized));
 		ArgumentCaptor<DirectMessageSendRequest> requestCaptor = ArgumentCaptor.forClass(DirectMessageSendRequest.class);

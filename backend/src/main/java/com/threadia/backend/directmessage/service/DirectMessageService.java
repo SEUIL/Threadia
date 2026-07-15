@@ -116,7 +116,7 @@ public class DirectMessageService {
 		DirectMessageRoomUserState state = stateRepository.findByRoomIdAndUserIdForUpdate(room.getId(), auth.userId()).orElseThrow();
 		state.advanceTo(message, now());
 		Long pointer = state.getLastReadDirectMessage() == null ? null : state.getLastReadDirectMessage().getId();
-		return new DirectMessageReadData(room.getId(), pointer, messageRepository.countUnreadByRoomIdAndUserId(room.getId(), auth.userId()), state.getLastReadAt());
+		return DirectMessageReadData.of(room.getId(), pointer, messageRepository.countUnreadByRoomIdAndUserId(room.getId(), auth.userId()), state.getLastReadAt());
 	}
 
 	@Transactional(readOnly = true)

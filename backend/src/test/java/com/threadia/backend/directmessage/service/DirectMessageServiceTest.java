@@ -109,11 +109,11 @@ class DirectMessageServiceTest {
 		assertThatThrownBy(() -> service.markRead("token", 30L, new DirectMessageMarkReadRequest(40L))).isInstanceOf(DirectMessageValidationException.class);
 	}
 	@Test void markReadStoresServerUtcAndNeverRegressesThePointer() {
-		DirectMessageRoom room = room(30L, 10L, 1L, 2L); DirectMessage newer = new DirectMessage(room, user(2L), "newer", java.time.LocalDateTime.now()); setId(newer, 50L); DirectMessage older = new DirectMessage(room, user(2L), "older", java.time.LocalDateTime.now()); setId(older, 40L);
-		DirectMessageRoomUserState state = new DirectMessageRoomUserState(room, user(1L), java.time.LocalDateTime.parse("2026-07-14T00:00:00")); state.advanceTo(newer, java.time.LocalDateTime.parse("2026-07-14T00:00:00"));
-		when(roomRepository.findByIdWithParticipants(30L)).thenReturn(Optional.of(room)); when(membershipService.isActiveMember(10L, 1L)).thenReturn(true); when(membershipService.isActiveMember(10L, 2L)).thenReturn(true); when(messageRepository.findById(40L)).thenReturn(Optional.of(older)); when(stateRepository.findByRoomIdAndUserIdForUpdate(30L, 1L)).thenReturn(Optional.of(state)); when(messageRepository.countUnreadByRoomIdAndUserId(30L, 1L)).thenReturn(0L);
-		var result = service.markRead("token", 30L, new DirectMessageMarkReadRequest(40L));
-		assertThat(result.lastReadDirectMessageId()).isEqualTo(50L); assertThat(result.readAt()).isEqualTo(java.time.LocalDateTime.parse("2026-07-14T00:00:00"));
+		DirectMessageRoom room = room(30L, 10L, 1L, 2L); DirectMessage laterWithLowerId = new DirectMessage(room, user(2L), "later", java.time.LocalDateTime.parse("2026-07-15T00:00:02")); setId(laterWithLowerId, 40L); DirectMessage earlierWithHigherId = new DirectMessage(room, user(2L), "earlier", java.time.LocalDateTime.parse("2026-07-15T00:00:01")); setId(earlierWithHigherId, 50L);
+		DirectMessageRoomUserState state = new DirectMessageRoomUserState(room, user(1L), java.time.LocalDateTime.parse("2026-07-14T00:00:00")); state.advanceTo(laterWithLowerId, java.time.LocalDateTime.parse("2026-07-14T00:00:00"));
+		when(roomRepository.findByIdWithParticipants(30L)).thenReturn(Optional.of(room)); when(membershipService.isActiveMember(10L, 1L)).thenReturn(true); when(membershipService.isActiveMember(10L, 2L)).thenReturn(true); when(messageRepository.findById(50L)).thenReturn(Optional.of(earlierWithHigherId)); when(stateRepository.findByRoomIdAndUserIdForUpdate(30L, 1L)).thenReturn(Optional.of(state)); when(messageRepository.countUnreadByRoomIdAndUserId(30L, 1L)).thenReturn(0L);
+		var result = service.markRead("token", 30L, new DirectMessageMarkReadRequest(50L));
+		assertThat(result.lastReadDirectMessageId()).isEqualTo(40L); assertThat(result.readAt()).isEqualTo("2026-07-14T00:00:00Z");
 	}
 	@Test void unreadCountExcludesRoomsWhoseParticipantsAreNotBothActive() {
 		DirectMessageRoom activeRoom = room(30L, 10L, 1L, 2L); DirectMessageRoom inactiveRoom = room(31L, 10L, 1L, 3L);
