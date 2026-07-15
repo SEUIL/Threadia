@@ -32,6 +32,7 @@ release_helper = (BASE.parent.parent / "scripts/ssm-delivery/apply-release").rea
 service_unit = (BASE.parent.parent / "scripts/ssm-delivery/threadia-backend.service").read_text(encoding="utf-8")
 bootstrap = (BASE.parent.parent / "scripts/ssm-delivery/bootstrap-host.sh").read_text(encoding="utf-8")
 version_pattern = "^[A-Za-z0-9._+=/-]{1,1000}[A-Za-z0-9._+=/-]{0,24}$"
+artifact_key_pattern = r"^releases/[0-9a-f]{40}/[0-9]+-[0-9]+/threadia-release-[0-9a-f]{40}-[0-9]+-[0-9]+\.tar\.gz$"
 
 for source_name, source in (("template", template), ("network", network)):
     for prohibited in ("AWS::CodeDeploy", "AWS-RunShellScript", "NatGateway", "MapPublicIpOnLaunch: true", "0.0.0.0/0"):
@@ -106,6 +107,8 @@ assert "Resource: '*'" in template and "Action: ssm:GetCommandInvocation" in tem
 assert "AWS-RunShellScript" not in template
 assert f"allowedPattern: '{version_pattern}'" in template
 assert f'[[ "$version_id" =~ {version_pattern} ]] || fail "invalid version ID"' in release_helper
+assert f"allowedPattern: '{artifact_key_pattern}'" in template
+assert f'[[ "$artifact_key" =~ {artifact_key_pattern} ]] || fail "invalid artifact key"' in release_helper
 
 compiled_version_pattern = re.compile(version_pattern)
 assert not compiled_version_pattern.fullmatch("")
@@ -115,6 +118,14 @@ assert compiled_version_pattern.fullmatch("a" * 1001)
 assert compiled_version_pattern.fullmatch("a" * 1024)
 assert not compiled_version_pattern.fullmatch("a" * 1025)
 assert not compiled_version_pattern.fullmatch("a" * 1023 + "!")
+
+compiled_artifact_key_pattern = re.compile(artifact_key_pattern)
+assert compiled_artifact_key_pattern.fullmatch(
+    "releases/" + "a" * 40 + "/29394051902-1/threadia-release-" + "a" * 40 + "-29394051902-1.tar.gz"
+)
+assert not compiled_artifact_key_pattern.fullmatch(
+    "releases/" + "a" * 40 + "/29394051902-1/threadia-release-" + "a" * 40 + "-29394051902-1.tarXgz"
+)
 
 service_text = json.dumps(service_policy)
 assert "codedeploy:*" in service_text
@@ -129,10 +140,11 @@ fixed_command_document = next(
 )
 assert fixed_command_document["Action"] == [
     "ssm:CreateDocument",
-    "ssm:DescribeDocument",
-    "ssm:GetDocument",
-    "ssm:UpdateDocument",
-    "ssm:DeleteDocument",
+        "ssm:DescribeDocument",
+        "ssm:GetDocument",
+        "ssm:UpdateDocument",
+        "ssm:UpdateDocumentDefaultVersion",
+        "ssm:DeleteDocument",
     "ssm:AddTagsToResource",
     "ssm:RemoveTagsFromResource",
 ]
