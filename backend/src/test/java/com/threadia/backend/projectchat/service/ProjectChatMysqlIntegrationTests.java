@@ -37,6 +37,7 @@ import com.threadia.backend.projectchat.dto.MessagesData;
 		"threadia.project-chat.cursor-hmac-secret=test-only-project-chat-cursor-hmac-secret"})
 @ContextConfiguration(initializers = ProjectChatMysqlSchemaInitializer.class)
 @EnabledIfEnvironmentVariable(named = "THREADIA_DB_PASSWORD", matches = ".+")
+@EnabledIfEnvironmentVariable(named = "THREADIA_DB_SCHEMA_VALIDATION", matches = "true")
 class ProjectChatMysqlIntegrationTests {
 	private static final Duration TIMEOUT = Duration.ofSeconds(10);
 

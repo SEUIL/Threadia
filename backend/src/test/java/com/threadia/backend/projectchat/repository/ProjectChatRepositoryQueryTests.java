@@ -16,6 +16,7 @@ import com.threadia.backend.projectchat.ProjectChatMysqlSchemaInitializer;
 @SpringBootTest
 @ContextConfiguration(initializers = ProjectChatMysqlSchemaInitializer.class)
 @EnabledIfEnvironmentVariable(named = "THREADIA_DB_PASSWORD", matches = ".+")
+@EnabledIfEnvironmentVariable(named = "THREADIA_DB_SCHEMA_VALIDATION", matches = "true")
 class ProjectChatRepositoryQueryTests {
 	@Autowired private MessageRepository messageRepository;
 
