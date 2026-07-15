@@ -40,6 +40,10 @@ class MysqlSchemaValidationTests {
 			"issues",
 			"issue_status_history"
 	);
+	private static final List<String> DOCUMENT_TABLES = List.of(
+			"documents",
+			"document_issue_links"
+	);
 
 	@Autowired
 	private DataSource dataSource;
@@ -206,6 +210,56 @@ class MysqlSchemaValidationTests {
 		assertIndex("issue_status_history", "idx_ish_changed_by", "changed_by_user_id");
 		assertForeignKey("issue_status_history", "fk_ish_issue", "issue_id", "issues", "id");
 		assertForeignKey("issue_status_history", "fk_ish_changed_by", "changed_by_user_id", "users", "id");
+	}
+
+	@Test
+	void appliesSchemaSqlAndCreatesDocumentAndLinkTables() {
+		applySchemaSql();
+
+		Set<String> existingTables = jdbcTemplate.queryForList("""
+				SELECT table_name
+				FROM information_schema.tables
+				WHERE table_schema = DATABASE()
+				  AND table_name IN ('documents', 'document_issue_links')
+				""", String.class)
+				.stream()
+				.collect(Collectors.toSet());
+
+		assertThat(existingTables).containsExactlyInAnyOrderElementsOf(DOCUMENT_TABLES);
+	}
+
+	@Test
+	void appliesSchemaSqlAndCreatesDocumentAndLinkReferenceConstraints() {
+		applySchemaSql();
+
+		assertRequiredColumn("documents", "project_id", "bigint");
+		assertRequiredColumn("documents", "author_user_id", "bigint");
+		assertRequiredColumn("documents", "title", "varchar");
+		assertEnumColumn("documents", "document_type", "DOC", "DOC", "MEETING_NOTE");
+		assertRequiredColumn("documents", "content", "longtext");
+		assertNullableColumn("documents", "trashed_at", "datetime");
+		assertNullableColumn("documents", "trashed_by_user_id", "bigint");
+		assertNullableColumn("documents", "restored_at", "datetime");
+		assertRequiredColumn("documents", "created_at", "datetime");
+		assertRequiredColumn("documents", "updated_at", "datetime");
+		assertIndex("documents", "idx_documents_project_type", "project_id", "document_type");
+		assertForeignKey("documents", "fk_documents_project", "project_id", "projects", "id");
+		assertForeignKey("documents", "fk_documents_author", "author_user_id", "users", "id");
+		assertForeignKey("documents", "fk_documents_trashed_by", "trashed_by_user_id", "users", "id");
+		assertCheckConstraint("chk_documents_trash_pair");
+
+		assertRequiredColumn("document_issue_links", "project_id", "bigint");
+		assertRequiredColumn("document_issue_links", "document_id", "bigint");
+		assertRequiredColumn("document_issue_links", "issue_id", "bigint");
+		assertRequiredColumn("document_issue_links", "created_by_user_id", "bigint");
+		assertEnumColumn("document_issue_links", "link_type", "RELATED", "RELATED");
+		assertRequiredColumn("document_issue_links", "created_at", "datetime");
+		assertIndex("document_issue_links", "uq_dil_document_issue", "document_id", "issue_id");
+		assertUniqueConstraint("document_issue_links", "uq_dil_document_issue");
+		assertForeignKey("document_issue_links", "fk_dil_project", "project_id", "projects", "id");
+		assertForeignKey("document_issue_links", "fk_dil_document", "document_id", "documents", "id");
+		assertForeignKey("document_issue_links", "fk_dil_issue", "issue_id", "issues", "id");
+		assertForeignKey("document_issue_links", "fk_dil_created_by", "created_by_user_id", "users", "id");
 	}
 
 	private void applySchemaSql() {

@@ -1,32 +1,31 @@
 "use client";
 
 /*
- * 화면 RBAC 분기용 role 훅 — projects/backlog/board/project-settings 등
- * A/P/C 3단계 role을 쓰는 화면 공용. WBS 3.2.4.
+ * 현재 URL의 companyId 기준 **회사 레벨** role 훅. WBS 3.2.4 → 4.2.2에서 정정.
  *
- * ⚠️ "P"(PROJECT_ADMIN, 프로젝트 레벨 관리자)는 절대 반환하지 않는다.
- * 이 훅은 companyId만 알고 projectId는 모르는 라우트(S04 목록 등)에서도
- * 쓰이는데, 프로젝트 레벨 role은 "어느 프로젝트냐"에 따라 달라지는 정보라
- * 애초에 companyId 기준 회사 role(companyMemberships)만으로는 표현이 안
- * 된다. 대신 COMPANY_ADMIN이 아니면 전부 "A"로 보수적으로 처리한다: 권한
- * 없는 사용자에게 관리 UI가 잘못 노출되는 것보다 안전하다는 판단이다.
+ * 반환값은 "C"(COMPANY_ADMIN) 또는 "A"(그 외) 둘뿐이다. 회사 membership만 보고
+ * 판단하므로 프로젝트 레벨 role은 원리적으로 알 수 없다 — companyId만 알고
+ * projectId는 모르는 라우트(S04 프로젝트 목록 등)에서도 쓰이기 때문이다.
  *
- * (2026-07-11 갱신) Project Member API(WBS 3.3.4, `GET /projects/{projectId}/
- * project-members`)는 PR #70으로 이미 존재한다 — "API가 없어서"는 더 이상
- * 이 훅의 한계 사유가 아니다. projectId가 있는 라우트(backlog/board 등)는
- * 이제 기술적으로 프로젝트별 실 role을 조회할 수 있다(S12가 이미
- * `viewer.canManageProject`로 그렇게 하고 있다, `project.service.ts` 참고).
- * 다만 이 훅을 그렇게 확장하는 건 WBS 3.4 범위 밖이라 손대지 않았다 — 백엔드
- * 쪽에서 목록 응답에 role 정보를 함께 내려주는 방식으로 갈지, 프론트가
- * project-members를 별도 조회할지 방향이 아직 안 정해졌다. 다음에 이
- * 영역을 다시 볼 때는 이 갱신 내용부터 확인할 것.
+ * ⚠️ 프로젝트 레벨 권한(P, PROJECT_ADMIN)이 필요하면 이 훅을 쓰지 말고
+ * **viewer 패턴**을 쓴다: `projectService.detail(projectId)` 응답의
+ * `viewer.canManageProject`(= COMPANY_ADMIN 이거나 PROJECT_ADMIN)나
+ * `viewer.projectRole`을 읽으면 된다. S12(project settings), S05(board),
+ * S06(backlog)이 이미 이 방식이다.
+ *
+ * (이력) 원래 이 훅은 타입이 "A" | "P" | "C" 였지만 "P"를 절대 반환하지 못해서
+ * 진짜 PROJECT_ADMIN이 "A"로 강등됐다. Project Member API(WBS 3.3.4, PR #70)와
+ * 프로젝트 상세의 viewer 계약이 생기면서 프로젝트 레벨 role을 정확히 알 수 있게
+ * 됐고, WBS 4.2.2에서 소비자(S06)를 viewer로 옮기고 이 훅의 타입을 실제 동작에
+ * 맞게 좁혔다.
  */
 import { useParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 
-export type ScreenRole = "A" | "P" | "C";
+/** 회사 레벨 화면 role. 프로젝트 레벨 "P"는 여기서 표현하지 않는다(위 주석 참고). */
+export type CompanyScreenRole = "A" | "C";
 
-export function useCurrentCompanyRole(): ScreenRole {
+export function useCurrentCompanyRole(): CompanyScreenRole {
   const params = useParams<{ companyId: string }>();
   const { companyMemberships } = useAuth();
   const membership = companyMemberships.find((m) => m.companyId === Number(params.companyId));

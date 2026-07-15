@@ -49,6 +49,13 @@ interface AuthContextValue {
   status: AuthStatus;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  /*
+   * 이미 인증된 사용자의 user 정보만 교체한다(WBS 4.2.2 프로필 수정용).
+   * PATCH /users/me/profile 응답의 user를 그대로 넣으면 레일 아바타·닉네임이
+   * 즉시 갱신된다. status/companyMemberships는 건드리지 않는다 — 프로필 수정은
+   * 세션이나 회사 소속과 무관하다.
+   */
+  applyUser: (user: UserSummary) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -113,6 +120,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStatus("authenticated");
   }, []);
 
+  const applyUser = useCallback((next: UserSummary) => {
+    setUser(next);
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await authService.logout();
@@ -125,7 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, companyMemberships, status, login, logout }}>
+    <AuthContext.Provider value={{ user, companyMemberships, status, login, logout, applyUser }}>
       {children}
     </AuthContext.Provider>
   );

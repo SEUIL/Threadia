@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Field;
@@ -16,6 +17,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,16 +31,19 @@ import com.threadia.backend.auth.domain.User;
 import com.threadia.backend.auth.domain.UserStatus;
 import com.threadia.backend.common.auth.AuthContext;
 import com.threadia.backend.common.auth.AuthContextService;
+import com.threadia.backend.common.exception.AuthenticationFailedException;
 import com.threadia.backend.common.exception.ForbiddenException;
 import com.threadia.backend.company.domain.Company;
 import com.threadia.backend.company.domain.CompanyMemberRole;
 import com.threadia.backend.company.service.CompanyMembershipService;
 import com.threadia.backend.issue.domain.Issue;
+import com.threadia.backend.issue.domain.IssuePriority;
 import com.threadia.backend.issue.domain.IssueStatus;
 import com.threadia.backend.issue.domain.IssueStatusHistory;
 import com.threadia.backend.issue.dto.IssueCreateRequest;
 import com.threadia.backend.issue.dto.IssueData;
 import com.threadia.backend.issue.dto.IssueStatusUpdateRequest;
+import com.threadia.backend.issue.dto.IssueUpdateRequest;
 import com.threadia.backend.issue.dto.IssuesData;
 import com.threadia.backend.issue.exception.IssueNotFoundException;
 import com.threadia.backend.issue.repository.IssueRepository;
@@ -49,8 +54,12 @@ import com.threadia.backend.project.domain.ProjectMemberRole;
 import com.threadia.backend.project.domain.ProjectMemberStatus;
 import com.threadia.backend.project.domain.ProjectStatus;
 import com.threadia.backend.project.exception.ProjectNotFoundException;
+import com.threadia.backend.project.exception.ProjectValidationException;
 import com.threadia.backend.project.repository.ProjectMemberRepository;
 import com.threadia.backend.project.repository.ProjectRepository;
+import com.threadia.backend.sprint.domain.Sprint;
+import com.threadia.backend.sprint.domain.SprintStatus;
+import com.threadia.backend.sprint.repository.SprintRepository;
 
 @ExtendWith(MockitoExtension.class)
 class IssueServiceTest {
@@ -69,6 +78,8 @@ class IssueServiceTest {
 	private IssueRepository issueRepository;
 	@Mock
 	private IssueStatusHistoryRepository historyRepository;
+	@Mock
+	private SprintRepository sprintRepository;
 
 	private IssueService issueService;
 
@@ -81,6 +92,8 @@ class IssueServiceTest {
 				projectMemberRepository,
 				issueRepository,
 				historyRepository,
+				null,
+				sprintRepository,
 				FIXED_CLOCK);
 	}
 
@@ -116,16 +129,68 @@ class IssueServiceTest {
 	}
 
 	@Test
-	void listRejectsRequesterWithoutActiveProjectMembership() {
+	void listRejectsInvalidTokenBeforeValidation() {
+		when(authContextService.fromAccessToken("bad-token")).thenThrow(new AuthenticationFailedException("토큰이 유효하지 않습니다."));
+
+		assertThatThrownBy(() -> issueService.list("bad-token", 20L, null, 30L, null, true, false))
+				.isInstanceOf(AuthenticationFailedException.class)
+				.hasMessage("토큰이 유효하지 않습니다.");
+
+		verifyNoInteractions(projectRepository, companyMembershipService, projectMemberRepository, issueRepository);
+	}
+
+	@Test
+	void listRejectsUnauthorizedActorBeforeValidation() {
 		Fixtures fixtures = fixtures();
 		stubAuth(fixtures);
 		when(projectRepository.findById(20L)).thenReturn(Optional.of(fixtures.project()));
 		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false);
 		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L)).thenReturn(Optional.empty());
 
-		assertThatThrownBy(() -> issueService.list("token", 20L))
+		assertThatThrownBy(() -> issueService.list("token", 20L, null, 30L, null, true, false))
 				.isInstanceOf(ForbiddenException.class)
 				.hasMessage("프로젝트 접근 권한이 없습니다.");
+
+		InOrder order = inOrder(authContextService, projectRepository, companyMembershipService, projectMemberRepository);
+		order.verify(authContextService).fromAccessToken("token");
+		order.verify(authContextService).requireActiveUser(fixtures.authContext());
+		order.verify(projectRepository).findById(20L);
+		order.verify(companyMembershipService).hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN);
+		order.verify(companyMembershipService).requireActiveMember(10L, fixtures.authContext());
+		order.verify(projectMemberRepository).findByProject_IdAndUser_Id(20L, 1L);
+		verifyNoInteractions(issueRepository);
+	}
+
+	@Test
+	void listUsesUnassignedOnlyRepositoryFilter() {
+		Fixtures fixtures = fixtures();
+		stubAuth(fixtures);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(fixtures.project()));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+		when(issueRepository.findByFiltersInDisplayOrder(20L, null, null, null, true, false)).thenReturn(List.of());
+
+		issueService.list("token", 20L, null, null, null, true, false);
+
+		verify(issueRepository).findByFiltersInDisplayOrder(20L, null, null, null, true, false);
+	}
+
+	@Test
+	void listRejectsUnassignedOnlyCombinedWithSprintIdAfterAuthAndAccess() {
+		Fixtures fixtures = fixtures();
+		stubAuth(fixtures);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(fixtures.project()));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+
+		assertThatThrownBy(() -> issueService.list("token", 20L, null, 30L, null, true, false))
+				.isInstanceOf(ProjectValidationException.class)
+				.hasMessage("unassignedOnly와 sprintId는 함께 사용할 수 없습니다.");
+
+		InOrder order = inOrder(authContextService, projectRepository, companyMembershipService);
+		order.verify(authContextService).fromAccessToken("token");
+		order.verify(authContextService).requireActiveUser(fixtures.authContext());
+		order.verify(projectRepository).findById(20L);
+		order.verify(companyMembershipService).hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN);
+		verifyNoInteractions(issueRepository);
 	}
 
 	@Test
@@ -200,6 +265,49 @@ class IssueServiceTest {
 	}
 
 	@Test
+	void createPersistsDescriptionForRegularMember() {
+		Fixtures fixtures = fixtures();
+		stubAuth(fixtures);
+		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(fixtures.project()));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false);
+		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L))
+				.thenReturn(Optional.of(projectMember(fixtures, ProjectMemberRole.MEMBER, ProjectMemberStatus.ACTIVE)));
+		when(issueRepository.findByProjectIdForSequenceUpdate(20L)).thenReturn(List.of());
+		when(issueRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+		IssueData data = issueService.create("token", 20L, new IssueCreateRequest("멤버 생성 이슈", "설명", null, null, null, null));
+
+		assertThat(data.issue().description()).isEqualTo("설명");
+	}
+
+	@Test
+	void createRejectsManagerOnlyFieldsForRegularMember() {
+		Fixtures fixtures = fixtures();
+		stubAuth(fixtures);
+		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(fixtures.project()));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false);
+		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L))
+				.thenReturn(Optional.of(projectMember(fixtures, ProjectMemberRole.MEMBER, ProjectMemberStatus.ACTIVE)));
+
+		assertThatThrownBy(() -> issueService.create("token", 20L, new IssueCreateRequest("멤버 생성 이슈", "설명", IssuePriority.HIGH, null, null, null)))
+				.isInstanceOf(ForbiddenException.class);
+		verify(issueRepository, never()).findByProjectIdForSequenceUpdate(any());
+	}
+
+	@Test
+	void updateRejectsTitleLongerThanTwoHundredCharacters() {
+		Fixtures fixtures = fixtures();
+		Issue issue = issue(100L, fixtures.project(), fixtures.user(), "THD-1", "첫 이슈", IssueStatus.BACKLOG);
+		stubAuth(fixtures);
+		when(issueRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(issue));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+
+		assertThatThrownBy(() -> issueService.update("token", 100L, new IssueUpdateRequest("x".repeat(201), null, null, null, null), Set.of("title")))
+				.isInstanceOf(com.threadia.backend.project.exception.ProjectValidationException.class);
+		assertThat(issue.getTitle()).isEqualTo("첫 이슈");
+	}
+
+	@Test
 	void createRejectsMissingProjectBeforeSequenceLookup() {
 		Fixtures fixtures = fixtures();
 		stubAuth(fixtures);
@@ -207,6 +315,23 @@ class IssueServiceTest {
 
 		assertThatThrownBy(() -> issueService.create("token", 404L, new IssueCreateRequest("새 이슈")))
 				.isInstanceOf(ProjectNotFoundException.class);
+		verify(issueRepository, never()).findByProjectIdForSequenceUpdate(any());
+	}
+
+	@Test
+	void createLocksSprintBeforeIssueSequenceAndRejectsCompletedSprint() {
+		Fixtures fixtures = fixtures();
+		Sprint completedSprint = new Sprint(fixtures.project(), "완료 Sprint", null, null, null, LocalDateTime.now(FIXED_CLOCK));
+		setId(completedSprint, 30L);
+		completedSprint.start(LocalDateTime.now(FIXED_CLOCK));
+		completedSprint.complete(null, LocalDateTime.now(FIXED_CLOCK));
+		stubAuth(fixtures);
+		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(fixtures.project()));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+		when(sprintRepository.findByIdForUpdate(30L)).thenReturn(Optional.of(completedSprint));
+
+		assertThatThrownBy(() -> issueService.create("token", 20L, new IssueCreateRequest("새 이슈", null, null, null, null, 30L)))
+				.isInstanceOf(com.threadia.backend.project.exception.ProjectValidationException.class);
 		verify(issueRepository, never()).findByProjectIdForSequenceUpdate(any());
 	}
 

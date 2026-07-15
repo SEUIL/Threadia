@@ -8,26 +8,29 @@
  * 시작/종료, 이슈 배정을 구현한다.
  *
  * 설계 메모 반영:
- *   - 스프린트 생성/시작/종료는 P/C 전용(useCurrentCompanyRole로 분기, 실제
- *     auth 가드는 아직 없음 — 화면정의서 규칙을 코드에 반영해두는 정도).
+ *   - 스프린트 생성/시작/종료는 P/C 전용. 프로젝트 상세의 `viewer.canManageProject`
+ *     (backend에서 COMPANY_ADMIN || PROJECT_ADMIN으로 계산 = 화면정의서의 "P/C"와
+ *     정확히 일치)로 분기한다. 실제 접근 차단은 백엔드가 하고, 여기서는 UI 노출만
+ *     맞춘다.
  *   - 스프린트 시작 시 "S11 알림 생성"은 실제 알림 API 연동 전이라 생략.
  *   - 스프린트 종료 시 미완료 이슈(= DONE이 아닌 이슈)는 백로그로 되돌린다.
  *
  * db/schema.sql 기준 sprints.status enum: PLANNED/ACTIVE/COMPLETED.
  *
- * ⚠️ MOCK: 스프린트/이슈 API(`GET/POST /projects/{projectId}/sprints`,
- * `/start`, `/complete`, `/issues`)가 아직 없어서 로컬 state로 흉내낸다.
- * S05 칸반 보드와 이슈 저장소를 공유하지 않아 여기서 만든 이슈가 보드에
- * 실제로 나타나지는 않는다(연동은 Sprint 2 백엔드 이후).
+ * ⚠️ MOCK: 스프린트/이슈 데이터는 아직 로컬 state로 흉내낸다. S05 칸반 보드와
+ * 이슈 저장소를 공유하지 않아 여기서 만든 이슈가 보드에 실제로 나타나지는 않는다.
+ * 실 API 연동은 WBS 4.4.2(S05/S06 Frontend) 범위다.
  *
- * ⚠️ role만 WBS 3.2.4로 실 연동했다(useCurrentCompanyRole, "P"는 Project
- * Member API 부재로 항상 "A" 취급 — hooks/useCurrentCompanyRole.ts 참고).
- * 스프린트/이슈 데이터 자체는 여전히 mock이다.
+ * (2026-07-15, WBS 4.2.2) role만 먼저 정확해졌다. 이전엔 useCurrentCompanyRole을
+ * 썼는데 그 훅은 회사 role만 알아서 "P"를 반환하지 못했고, 그 결과 진짜
+ * PROJECT_ADMIN이 "A"로 강등돼 스프린트 관리 버튼을 못 봤다. 지금은 S12와 같은
+ * viewer 패턴으로 프로젝트 레벨 권한을 정확히 읽는다.
  */
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCurrentCompanyRole } from "@/hooks/useCurrentCompanyRole";
+import { projectService } from "@/services/project.service";
+import type { ProjectViewerData } from "@/types/project.types";
 
 type SprintStatus = "PLANNED" | "ACTIVE" | "COMPLETED";
 type IssueStatus = "BACKLOG" | "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE";
@@ -76,8 +79,28 @@ const MOCK_ISSUES: BacklogIssue[] = [
 
 export default function BacklogPage() {
   const params = useParams<{ companyId: string; projectId: string }>();
-  const role = useCurrentCompanyRole();
-  const canManageSprint = role === "P" || role === "C";
+
+  // 프로젝트 레벨 권한만 이 요청으로 가져온다(스프린트/이슈 데이터는 아직 mock).
+  // 실패하면 viewer가 null로 남아 관리 UI가 숨겨진다 — 권한을 과다 노출하는 것보다
+  // 안전한 쪽이고, 실제 차단은 어차피 백엔드가 한다.
+  const [viewer, setViewer] = useState<ProjectViewerData | null>(null);
+
+  const loadViewer = useCallback(async () => {
+    try {
+      const { data } = await projectService.detail(params.projectId);
+      setViewer(data.data.viewer);
+    } catch {
+      setViewer(null);
+    }
+  }, [params.projectId]);
+
+  useEffect(() => {
+    (async () => {
+      await loadViewer();
+    })();
+  }, [loadViewer]);
+
+  const canManageSprint = viewer?.canManageProject ?? false;
 
   const [sprints, setSprints] = useState<Sprint[]>(MOCK_SPRINTS);
   const [issues, setIssues] = useState<BacklogIssue[]>(MOCK_ISSUES);

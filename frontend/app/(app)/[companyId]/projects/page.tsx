@@ -12,16 +12,16 @@
  *     필터링은 백엔드 `GET /companies/{companyId}/projects` 응답이 이미
  *     역할별로 걸러서 내려준다(PR #61) — 프론트는 받은 목록을 그대로 렌더링한다.
  *
- * WBS 3.4.1 실 연동: project.service 사용. role은 여전히 WBS 3.2.4의
- * useCurrentCompanyRole()(hooks/useCurrentCompanyRole.ts 참고, "P"는 Project
- * Member API 부재로 항상 "A")을 그대로 쓴다 — 프로젝트 생성 권한은 회사 레벨
- * (COMPANY_ADMIN)이라 이 훅의 한계와 무관하다.
+ * WBS 3.4.1 실 연동: project.service 사용. role은 useCurrentCompanyRole()을 쓴다 —
+ * 이 화면은 companyId만 알고 projectId는 모르는데, 프로젝트 생성 권한은 애초에
+ * 회사 레벨(COMPANY_ADMIN)이라 회사 role만으로 정확히 판단된다.
  *
  * ⚠️ 화면정의서 S04 "주요 데이터"는 "프로젝트명, 상태, 멤버 수, 이슈 수, PM"인데
- * `ProjectResponse`(PR #61)에는 멤버 수/이슈 수/PM 이름이 없다 — WBS 3.3.4
- * (Project Member API, 미착수)/3.5(Issue, capacity 후보) 이후 채워질 예정이라
- * 카드에서는 뺐다. 근거: sprint2-3.4-project-frontend-설계.md,
- * 화면정의서 S04 인용구 메모.
+ * `ProjectResponse`(PR #61)에는 멤버 수/이슈 수/PM 이름이 없어 카드에서 뺐다.
+ * Project Member API(3.3.4)와 Issue API(3.5)가 이제 생겨서 기술적으로는 조회가
+ * 가능하지만, 카드마다 개별 호출하면 N+1이라 목록 응답이 집계 필드를 내려주기
+ * 전까지는 그대로 둔다(임시로 채우면 나중에 걷어내는 재작업이 생긴다).
+ * 근거: sprint2-3.4-project-frontend-설계.md, 화면정의서 S04 인용구 메모.
  */
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
