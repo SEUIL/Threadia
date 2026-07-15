@@ -24,7 +24,7 @@
  *
  * 스타일 규칙: style={{}} 금지, @theme 시멘틱 토큰 클래스만 사용.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -68,13 +68,56 @@ function ProfileEditDialog({ user, onClose }: { user: UserSummary; onClose: () =
   const previewNickname = useWatch({ control, name: "nickname" });
   const previewAvatarUrl = useWatch({ control, name: "avatarUrl" });
 
-  // Esc로 닫기 — 모달 기본 동작.
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Esc로 닫기 + focus 관리. 모달이 열려도 focus가 배경(아바타 버튼)에 남아 있으면
+  // 키보드 사용자는 첫 Tab이 모달이 아니라 배경 UI로 가서 모달 뒤를 조작하게 된다.
+  // 그래서 열 때 안으로 옮기고, Tab을 모달 안에 가두고, 닫을 때 연 버튼으로 되돌린다.
   useEffect(() => {
+    const trigger = document.activeElement as HTMLElement | null;
+    dialogRef.current?.querySelector<HTMLElement>("input")?.focus();
+
+    const focusables = () =>
+      Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          "button, input, [href], select, textarea, [tabindex]:not([tabindex='-1'])",
+        ) ?? [],
+      ).filter((el) => !el.hasAttribute("disabled"));
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab") return;
+
+      const els = focusables();
+      if (els.length === 0) return;
+      const first = els[0];
+      const last = els[els.length - 1];
+      const active = document.activeElement;
+
+      // 바깥에 있으면 무조건 안으로 끌어온다 — 경계에서 벗어나는 것만 막으면
+      // focus가 이미 배경에 있는 경우를 놓친다.
+      if (!dialogRef.current?.contains(active)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+        return;
+      }
+      if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      }
     };
+
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      trigger?.focus?.();
+    };
   }, [onClose]);
 
   const onSubmit = async (values: ProfileFormValues) => {
@@ -100,11 +143,11 @@ function ProfileEditDialog({ user, onClose }: { user: UserSummary; onClose: () =
       applyUser(data.data.user);
       onClose();
     } catch (err) {
-      if (isAxiosError<ApiError>(err) && err.response) {
-        setError(err.response.data.error.message);
-      } else {
-        setError("프로필 수정에 실패했습니다. 잠시 후 다시 시도해주세요.");
-      }
+      // 백엔드는 5xx도 error envelope으로 주지만, 앞단 proxy/gateway가 끼면 HTML
+      // 502 같은 게 올 수 있다. shape을 확인하지 않고 .error.message를 읽으면
+      // catch 안에서 다시 예외가 나 사용자에게 아무 메시지도 안 뜬다.
+      const message = isAxiosError<ApiError>(err) ? err.response?.data?.error?.message : undefined;
+      setError(message ?? "프로필 수정에 실패했습니다. 잠시 후 다시 시도해주세요.");
     }
   };
 
@@ -119,6 +162,7 @@ function ProfileEditDialog({ user, onClose }: { user: UserSummary; onClose: () =
       />
 
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="profile-modal-title"

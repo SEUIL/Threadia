@@ -29,9 +29,12 @@ export function UserAvatar({
   /** 크기 등 배치용 클래스. 호출부가 기존에 쓰던 h-8 w-8 등을 그대로 넘긴다. */
   className?: string;
 }) {
-  const [broken, setBroken] = useState(false);
+  // 실패 사실을 boolean이 아니라 **실패한 URL**로 기억한다. boolean으로 두면 한 번
+  // 깨진 뒤에는 사용자가 URL을 고쳐도 계속 이니셜만 나온다(모달 미리보기는 입력 중인
+  // URL을 그대로 넘기므로 오타를 지나가는 것만으로도 이 상태가 된다).
+  const [brokenUrl, setBrokenUrl] = useState<string | null>(null);
   const initial = nickname.slice(0, 1);
-  const showImage = Boolean(avatarUrl) && !broken;
+  const showImage = Boolean(avatarUrl) && avatarUrl !== brokenUrl;
 
   return (
     <span
@@ -47,7 +50,7 @@ export function UserAvatar({
           src={avatarUrl as string}
           alt=""
           className="h-full w-full object-cover"
-          onError={() => setBroken(true)}
+          onError={() => setBrokenUrl(avatarUrl as string)}
         />
       ) : (
         initial
