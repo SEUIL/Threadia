@@ -37,7 +37,7 @@ public class MeController {
 	}
 
 	// "Authorization: Bearer ..." 헤더 파싱은 JwtTokenService가 아니라 여기(controller helper)에서 처리한다(합의안 기준).
-	private static String extractAccessToken(String authorizationHeader) {
+	static String extractAccessToken(String authorizationHeader) {
 		if (authorizationHeader == null || !authorizationHeader.startsWith(BEARER_PREFIX)) {
 			throw new JwtAuthenticationException("Authorization 헤더가 없거나 형식이 올바르지 않습니다.");
 		}
