@@ -8,9 +8,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.data.domain.PageRequest;
 
+import com.threadia.backend.projectchat.ProjectChatMysqlSchemaInitializer;
+
 @SpringBootTest
+@ContextConfiguration(initializers = ProjectChatMysqlSchemaInitializer.class)
 @EnabledIfEnvironmentVariable(named = "THREADIA_DB_PASSWORD", matches = ".+")
 class ProjectChatRepositoryQueryTests {
 	@Autowired private MessageRepository messageRepository;

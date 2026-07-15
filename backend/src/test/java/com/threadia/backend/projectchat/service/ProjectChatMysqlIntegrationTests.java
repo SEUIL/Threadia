@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -27,12 +28,14 @@ import com.threadia.backend.auth.domain.User;
 import com.threadia.backend.auth.repository.UserRepository;
 import com.threadia.backend.common.auth.AuthContext;
 import com.threadia.backend.common.auth.AuthContextService;
+import com.threadia.backend.projectchat.ProjectChatMysqlSchemaInitializer;
 import com.threadia.backend.projectchat.dto.MarkReadRequest;
 import com.threadia.backend.projectchat.dto.MessagesData;
 
 @SpringBootTest(properties = {
 		"threadia.jwt.secret=01234567890123456789012345678901",
 		"threadia.project-chat.cursor-hmac-secret=test-only-project-chat-cursor-hmac-secret"})
+@ContextConfiguration(initializers = ProjectChatMysqlSchemaInitializer.class)
 @EnabledIfEnvironmentVariable(named = "THREADIA_DB_PASSWORD", matches = ".+")
 class ProjectChatMysqlIntegrationTests {
 	private static final Duration TIMEOUT = Duration.ofSeconds(10);
