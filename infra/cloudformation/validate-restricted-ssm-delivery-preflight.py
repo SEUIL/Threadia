@@ -31,6 +31,8 @@ workflow = (BASE.parent.parent / ".github/workflows/restricted-ssm-release.yml")
 release_helper = (BASE.parent.parent / "scripts/ssm-delivery/apply-release").read_text(encoding="utf-8")
 service_unit = (BASE.parent.parent / "scripts/ssm-delivery/threadia-backend.service").read_text(encoding="utf-8")
 bootstrap = (BASE.parent.parent / "scripts/ssm-delivery/bootstrap-host.sh").read_text(encoding="utf-8")
+runtime_env_generator = release_helper.split('python3 - "$parameters_json" "$new_env" <<\'PY\'\n', 1)[1].split("\nPY\n", 1)[0]
+compile(runtime_env_generator, "runtime-env-generator", "exec")
 version_pattern = "^[A-Za-z0-9._+=/-]{1,1000}[A-Za-z0-9._+=/-]{0,24}$"
 artifact_key_pattern = r"^releases/[0-9a-f]{40}/[0-9]+-[0-9]+/threadia-release-[0-9a-f]{40}-[0-9]+-[0-9]+\.tar\.gz$"
 
