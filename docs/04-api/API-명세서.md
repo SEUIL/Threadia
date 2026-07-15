@@ -1,9 +1,9 @@
-# Threadia API 명세서 v2.7
+# Threadia API 명세서 v2.8
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
 > **최종 수정**: 2026-07-15
-> **버전**: v2.8 WBS 4.6.1 Documents/Graph Backend 계약 반영
+> **버전**: v2.8 WBS 4.6.1 Documents/Graph 및 WBS 4.7.3.1 1:1 Direct Message Backend 계약 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -378,7 +378,17 @@ Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PL
 | POST | `/api/v1/direct-messages/rooms/{roomId}/mark-read` | 참여자 | DM 읽음 위치 갱신 |
 | GET | `/api/v1/direct-messages/unread-count` | A/P/C | 전체 DM unread count |
 
-1:1 DM core는 Sprint 3 후보다. 다자간 DM, DM room + participants 일반화, DM 상대 read receipt, DM 메시지 삭제, DM 메시지 이슈 전환은 선행 결정 전 full endpoint contract를 만들지 않는다.
+### 8.1 WBS 4.7.3.1 1:1 DM REST 정책
+
+- 이 구현은 1:1 room만 지원한다. room은 `(companyId, min(userId), max(userId))`로 정규화하고 unique constraint로 하나만 유지한다. self-DM은 `400 VALIDATION_ERROR`다.
+- room 목록과 생성은 path `companyId`의 현재 사용자와 상대 사용자가 모두 ACTIVE company member일 때만 허용한다. 존재하지 않거나 inactive인 상대 사용자는 `400 VALIDATION_ERROR`다.
+- room의 메시지 목록, 전송, mark-read는 현재 ACTIVE 사용자가 room 참여자이며 room 회사의 ACTIVE member일 때만 허용한다. 비참여자, 다른 회사 membership, 존재하지 않는 room은 모두 `404 NOT_FOUND`로 처리해 room 존재 여부를 노출하지 않는다.
+- `POST /companies/{companyId}/direct-messages/rooms`는 신규 room이면 `201`, 기존 normalized pair room이면 `200`을 반환한다. unique-key race는 insert 후 pair 재조회로 처리한다.
+- 메시지 content는 trim 후 1~10,000자다. 메시지 목록은 생성 시각과 ID 오름차순으로 반환한다.
+- mark-read body는 `lastReadDirectMessageId`만 받는다. client `readAt`은 허용하지 않으며 server UTC로만 저장한다. 포인터는 같은 room 메시지여야 하고 뒤로 이동하지 않는다.
+- unread는 현재 사용자가 보낸 메시지를 제외하고 개인별 `dm_room_user_states.last_read_direct_message_id`로 계산한다. 상대방 read receipt는 제공하지 않는다.
+
+1:1 DM core는 WBS 4.7.3.1 Backend 구현 범위다. 다자간 DM, DM room + participants 일반화, DM 상대 read receipt, DM 메시지 삭제, DM 메시지 이슈 전환은 선행 결정 전 full endpoint contract를 만들지 않는다.
 
 ---
 
@@ -1622,6 +1632,10 @@ Response 200:
 }
 ```
 
+#### GET `/api/v1/companies/{companyId}/direct-messages/rooms`
+
+현재 사용자가 참여한 해당 회사의 1:1 room만 반환한다. 각 room은 상대 사용자와 현재 사용자 기준 unread count를 포함한다.
+
 #### POST `/api/v1/companies/{companyId}/direct-messages/rooms`
 
 Request Body:
@@ -1652,6 +1666,10 @@ Response 201 / 200:
 }
 ```
 
+#### GET `/api/v1/direct-messages/rooms/{roomId}/messages`
+
+참여자만 생성 시각/ID 오름차순 메시지 목록을 조회할 수 있다.
+
 #### POST `/api/v1/direct-messages/rooms/{roomId}/messages`
 
 Request Body:
@@ -1666,8 +1684,7 @@ Request Body:
 
 ```json
 {
-  "lastReadDirectMessageId": 9100,
-  "readAt": "2026-06-16T10:00:00Z"
+  "lastReadDirectMessageId": 9100
 }
 ```
 
@@ -1678,7 +1695,8 @@ Response 200:
   "data": {
     "roomId": 9000,
     "lastReadDirectMessageId": 9100,
-    "unreadCount": 0
+    "unreadCount": 0,
+    "readAt": "2026-06-16T10:00:00Z"
   },
   "meta": { "requestId": "req_..." }
 }
