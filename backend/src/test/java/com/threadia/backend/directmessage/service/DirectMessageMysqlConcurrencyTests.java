@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -25,8 +26,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import com.threadia.backend.auth.repository.UserRepository;
 import com.threadia.backend.common.auth.AuthContext;
 import com.threadia.backend.common.auth.AuthContextService;
+import com.threadia.backend.directmessage.dto.DirectMessageMarkReadRequest;
 import com.threadia.backend.directmessage.dto.DirectMessageRoomCreateRequest;
 import com.threadia.backend.directmessage.dto.DirectMessageRoomCreationResult;
+import com.threadia.backend.directmessage.repository.DirectMessageRepository;
 
 @SpringBootTest(properties = "threadia.jwt.secret=01234567890123456789012345678901")
 @EnabledIfEnvironmentVariable(named = "THREADIA_DB_PASSWORD", matches = ".+")
@@ -35,6 +38,7 @@ class DirectMessageMysqlConcurrencyTests {
 	@Autowired JdbcTemplate jdbcTemplate;
 	@Autowired UserRepository userRepository;
 	@Autowired DirectMessageService directMessageService;
+	@Autowired DirectMessageRepository directMessageRepository;
 	@MockitoBean AuthContextService authContextService;
 	private Long firstUserId; private Long secondUserId; private Long companyId;
 	@BeforeEach void setUp() {
@@ -68,6 +72,25 @@ class DirectMessageMysqlConcurrencyTests {
 		DirectMessageRoomCreationResult result = directMessageService.getOrCreateRoom("reverse-token", companyId, new DirectMessageRoomCreateRequest(firstUserId));
 		assertThat(result.data().room().companyId()).isEqualTo(companyId);
 		assertThat(jdbcTemplate.queryForObject("select count(*) from direct_message_rooms where company_id = ? and user1_id = ? and user2_id = ?", Integer.class, companyId, Math.min(firstUserId, secondUserId), Math.max(firstUserId, secondUserId))).isEqualTo(1);
+	}
+	@Test void timestampOrderingWinsWhenGeneratedIdsAreInverted() {
+		Long roomId = directMessageService.getOrCreateRoom("token", companyId, new DirectMessageRoomCreateRequest(secondUserId)).data().room().id();
+		String suffix = UUID.randomUUID().toString();
+		String laterContent = "later-" + suffix;
+		String earlierContent = "earlier-" + suffix;
+		jdbcTemplate.update("insert into direct_messages (room_id, sender_user_id, content, created_at) values (?, ?, ?, ?)", roomId, secondUserId, laterContent, LocalDateTime.parse("2026-07-15T00:00:02"));
+		Long laterMessageId = jdbcTemplate.queryForObject("select id from direct_messages where room_id = ? and content = ?", Long.class, roomId, laterContent);
+		jdbcTemplate.update("insert into direct_messages (room_id, sender_user_id, content, created_at) values (?, ?, ?, ?)", roomId, secondUserId, earlierContent, LocalDateTime.parse("2026-07-15T00:00:01"));
+		Long earlierMessageId = jdbcTemplate.queryForObject("select id from direct_messages where room_id = ? and content = ?", Long.class, roomId, earlierContent);
+		assertThat(laterMessageId).isLessThan(earlierMessageId);
+
+		var laterRead = directMessageService.markRead("token", roomId, new DirectMessageMarkReadRequest(laterMessageId));
+		assertThat(laterRead.lastReadDirectMessageId()).isEqualTo(laterMessageId);
+		assertThat(laterRead.unreadCount()).isZero();
+		var attemptedRegression = directMessageService.markRead("token", roomId, new DirectMessageMarkReadRequest(earlierMessageId));
+		assertThat(attemptedRegression.lastReadDirectMessageId()).isEqualTo(laterMessageId);
+		assertThat(directMessageRepository.countUnreadByRoomIdAndUserId(roomId, firstUserId)).isZero();
+		assertThat(directMessageRepository.countUnreadByUserId(firstUserId)).isZero();
 	}
 	private DirectMessageRoomCreationResult createAfterBarrier(CountDownLatch ready, CountDownLatch start) {
 		ready.countDown(); try { if (!start.await(TIMEOUT.toSeconds(), TimeUnit.SECONDS)) throw new IllegalStateException("동시 생성 시작 대기 시간이 초과되었습니다."); } catch (InterruptedException exception) { Thread.currentThread().interrupt(); throw new IllegalStateException("동시 생성 대기가 중단되었습니다.", exception); }
