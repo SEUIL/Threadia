@@ -182,7 +182,7 @@ Resources:
         parameters:
           ArtifactKey:
             type: String
-            allowedPattern: '^releases/[0-9a-f]{40}/[0-9]+-[0-9]+/threadia-release-[0-9a-f]{40}-[0-9]+-[0-9]+\\.tar\\.gz$'
+            allowedPattern: '^releases/[0-9a-f]{40}/[0-9]+-[0-9]+/threadia-release-[0-9a-f]{40}-[0-9]+-[0-9]+\.tar\.gz$'
           ArtifactVersionId:
             type: String
             allowedPattern: '^[A-Za-z0-9._+=/-]{1,1000}[A-Za-z0-9._+=/-]{0,24}$'
