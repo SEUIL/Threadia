@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.threadia.backend.auth.domain.User;
 import com.threadia.backend.auth.domain.UserStatus;
 import com.threadia.backend.auth.repository.UserRepository;
+import com.threadia.backend.common.auth.EmailNormalizer;
+import com.threadia.backend.common.auth.UserResponse;
 import com.threadia.backend.common.exception.AuthenticationFailedException;
 import com.threadia.backend.common.exception.ForbiddenException;
 import com.threadia.backend.common.exception.UserNotFoundException;
@@ -27,6 +29,7 @@ import com.threadia.backend.invitation.domain.InvitationScopeType;
 import com.threadia.backend.invitation.domain.InvitationStatus;
 import com.threadia.backend.invitation.dto.InvitationActionData;
 import com.threadia.backend.invitation.dto.InvitationResponse;
+import com.threadia.backend.invitation.dto.ProjectInvitableMemberData;
 import com.threadia.backend.invitation.dto.ProjectInvitationData;
 import com.threadia.backend.invitation.dto.ProjectInvitationRequest;
 import com.threadia.backend.invitation.dto.ProjectInvitationsData;
@@ -134,6 +137,25 @@ public class ProjectInvitationService {
 		return new ProjectInvitationsData(invitations);
 	}
 
+	@Transactional
+	public ProjectInvitableMemberData findInvitableMember(String accessToken, Long projectId, String rawEmail) {
+		User requester = activeRequester(accessToken);
+		Project project = projectForUpdate(projectId);
+		requireProjectManage(project, requester.getId());
+		String email = EmailNormalizer.normalize(rawEmail);
+		User invitee = activeInviteeByEmail(email);
+		if (requester.getId().equals(invitee.getId())) {
+			throw InvitationConflictException.selfInvitation();
+		}
+		assertActiveCompanyMember(project, invitee.getId());
+		if (projectMemberRepository.existsByProject_IdAndUser_IdAndStatus(
+				projectId, invitee.getId(), ProjectMemberStatus.ACTIVE)) {
+			throw InvitationConflictException.alreadyProjectMember();
+		}
+		assertNoPendingInvitation(projectId, invitee.getId(), now());
+		return new ProjectInvitableMemberData(UserResponse.from(invitee));
+	}
+
 	@Transactional(noRollbackFor = InvitationConflictException.class)
 	public InvitationActionData accept(String accessToken, Long invitationId) {
 		User requester = activeRequester(accessToken);
@@ -209,6 +231,15 @@ public class ProjectInvitationService {
 	private User activeInvitee(Long userId) {
 		User invitee = userRepository.findById(userId)
 				.orElseThrow(() -> new UserNotFoundException(String.valueOf(userId)));
+		if (invitee.getStatus() != UserStatus.ACTIVE) {
+			throw InvitationConflictException.targetUserNotActiveCompanyMember();
+		}
+		return invitee;
+	}
+
+	private User activeInviteeByEmail(String email) {
+		User invitee = userRepository.findByEmail(email)
+				.orElseThrow(() -> new UserNotFoundException(email));
 		if (invitee.getStatus() != UserStatus.ACTIVE) {
 			throw InvitationConflictException.targetUserNotActiveCompanyMember();
 		}
