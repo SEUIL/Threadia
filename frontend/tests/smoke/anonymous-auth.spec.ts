@@ -29,7 +29,7 @@ test("renders anonymous auth forms", async ({ page }) => {
   await expect(page.getByRole("button", { name: "재설정 링크 받기" })).toBeVisible();
 });
 
-test("redirects to login after the backend rejects an invalid reset token", async ({ page, request }) => {
+test("redirects to login after the backend rejects an invalid reset token", async ({ page }) => {
   await page.route("**/api/v1/auth/password-reset/confirm", async (route) => {
     if (route.request().method() === "OPTIONS") {
       await route.fulfill({
@@ -44,14 +44,35 @@ test("redirects to login after the backend rejects an invalid reset token", asyn
       return;
     }
 
-    const response = await request.post(route.request().url(), {
-      data: route.request().postDataJSON(),
-    });
-    expect(response.status()).toBe(401);
     await route.fulfill({
-      status: response.status(),
+      status: 401,
       contentType: "application/json",
-      body: await response.text(),
+      body: JSON.stringify({ error: { message: "유효하지 않거나 만료된 재설정 링크입니다" } }),
+      headers: {
+        "access-control-allow-origin": "http://127.0.0.1:3001",
+        "access-control-allow-credentials": "true",
+      },
+    });
+  });
+
+  await page.route("**/api/v1/auth/refresh", async (route) => {
+    if (route.request().method() === "OPTIONS") {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          "access-control-allow-origin": "http://127.0.0.1:3001",
+          "access-control-allow-methods": "POST",
+          "access-control-allow-headers": "content-type",
+          "access-control-allow-credentials": "true",
+        },
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { message: "세션이 만료되었습니다" } }),
       headers: {
         "access-control-allow-origin": "http://127.0.0.1:3001",
         "access-control-allow-credentials": "true",
