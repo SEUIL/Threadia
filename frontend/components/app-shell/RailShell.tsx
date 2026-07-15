@@ -30,6 +30,8 @@ import { usePathname, useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePendingInvitationCount } from "@/hooks/usePendingInvitationCount";
+import { UserAvatar } from "@/components/profile/UserAvatar";
+import { ProfileEditModal } from "@/components/profile/ProfileEditModal";
 import { PageTransition } from "./PageTransition";
 
 // TODO(Sprint 2): 알림/DM API 연동 후 실제 unread count로 교체
@@ -127,6 +129,7 @@ function Rail({ companyId }: { companyId: string }) {
   const router = useRouter();
   const { user, companyMemberships, logout } = useAuth();
   const [open, setOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const nickname = user?.nickname ?? "";
   const pendingInvitationCount = usePendingInvitationCount();
   const membership = companyMemberships.find((m) => m.companyId === Number(companyId)) ?? null;
@@ -185,14 +188,17 @@ function Rail({ companyId }: { companyId: string }) {
         );
       })}
 
-      {/* 아바타/로그아웃 — 레일 하단에 고정. 콘텐츠 위에 뜨지 않아 화면과 겹칠 일이 없다 */}
+      {/* 아바타/로그아웃 — 레일 하단에 고정. 콘텐츠 위에 뜨지 않아 화면과 겹칠 일이 없다.
+          아바타를 누르면 어느 화면에서든 프로필 수정 모달이 열린다(WBS 4.2.2) */}
       <div className="mt-auto flex flex-col items-center gap-2">
-        <span
-          title={nickname}
-          className="flex h-8 w-8 items-center justify-center rounded-full avatar-ring text-xs font-semibold text-chrome-foreground"
+        <button
+          type="button"
+          onClick={() => setProfileOpen(true)}
+          title={`${nickname} — 프로필 수정`}
+          className="rounded-full transition-opacity duration-fast hover:opacity-80"
         >
-          {nickname.slice(0, 1)}
-        </span>
+          <UserAvatar nickname={nickname} avatarUrl={user?.avatarUrl} />
+        </button>
         <button
           type="button"
           onClick={handleLogout}
@@ -239,12 +245,19 @@ function Rail({ companyId }: { companyId: string }) {
           );
         })}
 
-        {/* 플라이아웃 하단에도 아바타/닉네임/로그아웃 표시 */}
+        {/* 플라이아웃 하단에도 아바타/닉네임/로그아웃 표시 — 여기도 눌러서 프로필 수정 */}
         <div className="mt-auto flex items-center gap-2 border-t border-chrome-foreground/10 px-4 pt-3">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full avatar-ring text-xs font-semibold text-chrome-foreground">
-            {nickname.slice(0, 1)}
-          </span>
-          <span className="min-w-0 flex-1 truncate text-sm font-medium text-chrome-foreground">{nickname}</span>
+          <button
+            type="button"
+            onClick={() => setProfileOpen(true)}
+            title="프로필 수정"
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left transition-colors duration-fast hover:bg-chrome-hover"
+          >
+            <UserAvatar nickname={nickname} avatarUrl={user?.avatarUrl} />
+            <span className="min-w-0 flex-1 truncate text-sm font-medium text-chrome-foreground">
+              {nickname}
+            </span>
+          </button>
           <button
             type="button"
             onClick={handleLogout}
@@ -255,6 +268,8 @@ function Rail({ companyId }: { companyId: string }) {
           </button>
         </div>
       </div>
+
+      <ProfileEditModal open={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>
   );
 }

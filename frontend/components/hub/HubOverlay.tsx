@@ -31,6 +31,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePendingInvitationCount } from "@/hooks/usePendingInvitationCount";
+import { UserAvatar } from "@/components/profile/UserAvatar";
+import { ProfileEditModal } from "@/components/profile/ProfileEditModal";
 
 // TODO(Sprint 2): 알림/DM API 연동 후 실제 unread count로 교체
 const MOCK_NOTIFICATION_COUNT = 3;
@@ -126,6 +128,7 @@ function HubRail() {
   const { user, companyMemberships, logout } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const nickname = user?.nickname ?? "";
   const pendingInvitationCount = usePendingInvitationCount();
   // 다중 회사 소속 시 회사 전환 UI는 범위 밖 — 첫 번째 회사로 진입한다.
@@ -181,14 +184,17 @@ function HubRail() {
         </Link>
       ))}
 
-      {/* 아바타/로그아웃 — RailShell과 동일하게 레일 하단 고정 */}
+      {/* 아바타/로그아웃 — RailShell과 동일하게 레일 하단 고정.
+          아바타를 누르면 프로필 수정 모달이 열린다(WBS 4.2.2, RailShell과 동일) */}
       <div className="mt-auto flex flex-col items-center gap-2">
-        <span
-          title={nickname}
-          className="flex h-8 w-8 items-center justify-center rounded-full avatar-ring text-xs font-semibold text-chrome-foreground"
+        <button
+          type="button"
+          onClick={() => setProfileOpen(true)}
+          title={`${nickname} — 프로필 수정`}
+          className="rounded-full transition-opacity duration-fast hover:opacity-80"
         >
-          {nickname.slice(0, 1)}
-        </span>
+          <UserAvatar nickname={nickname} avatarUrl={user?.avatarUrl} />
+        </button>
         <button
           type="button"
           onClick={handleLogout}
@@ -230,10 +236,17 @@ function HubRail() {
         ))}
 
         <div className="mt-auto flex items-center gap-2 border-t border-chrome-foreground/10 px-4 pt-3">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full avatar-ring text-xs font-semibold text-chrome-foreground">
-            {nickname.slice(0, 1)}
-          </span>
-          <span className="min-w-0 flex-1 truncate text-sm font-medium text-chrome-foreground">{nickname}</span>
+          <button
+            type="button"
+            onClick={() => setProfileOpen(true)}
+            title="프로필 수정"
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left transition-colors duration-fast hover:bg-chrome-hover"
+          >
+            <UserAvatar nickname={nickname} avatarUrl={user?.avatarUrl} />
+            <span className="min-w-0 flex-1 truncate text-sm font-medium text-chrome-foreground">
+              {nickname}
+            </span>
+          </button>
           <button
             type="button"
             onClick={handleLogout}
@@ -244,6 +257,10 @@ function HubRail() {
           </button>
         </div>
       </div>
+
+      {/* 모달은 pointer-events-auto인 레일 안에서 렌더한다 — 바깥 HubOverlay 래퍼는
+          3D 씬 조작을 막지 않으려고 pointer-events-none이라 거기 두면 클릭이 안 먹는다 */}
+      <ProfileEditModal open={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>
   );
 }
