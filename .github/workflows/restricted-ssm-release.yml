@@ -53,7 +53,8 @@ jobs:
           stage="$(mktemp -d)"
           cp "$jar_path" "$stage/app.jar"
           test -x "$JAVA_HOME/bin/java"
-          cp -a "$JAVA_HOME" "$stage/runtime"
+          cp -aL "$JAVA_HOME" "$stage/runtime"
+          test ! -L "$stage/runtime"
           sha256sum "$stage/app.jar" | cut -d ' ' -f1 > "$stage/app.jar.sha256"
           python3 - "$stage/manifest.json" "$release_id" <<'PY'
           import json
