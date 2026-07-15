@@ -1,9 +1,9 @@
-# Threadia API 명세서 v2.4
+# Threadia API 명세서 v2.7
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-07-14
-> **버전**: Sprint 1.5 invitation 표시 필드 보강 + Sprint 3 기준선 반영 + company member scoped PATCH 동기화 + current-user membership context + project detail viewer response v1.6 + WBS 3.5 candidate Issue/Kanban 최소 계약 + WBS 4.2.1 profile Backend PATCH + WBS 4.3.1 PROJECT invitation Backend 계약 동기화
+> **최종 수정**: 2026-07-15
+> **버전**: v2.7 WBS 4.4.1 Issue/Sprint Backend review 계약 보완
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -268,9 +268,9 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 | DELETE | `/api/v1/project-members/{projectMemberId}` | P/C | 프로젝트 멤버 제거 |
 | GET | `/api/v1/projects/{projectId}/sprints` | A/P/C | Sprint 목록 |
 | POST | `/api/v1/projects/{projectId}/sprints` | P/C | Sprint 생성 |
-| GET | `/api/v1/sprints/{sprintId}` | A/P/C | Sprint 상세 |
+| GET | `/api/v1/sprints/{sprintId}` | A/P/C | Sprint metadata 상세. 배정 이슈는 별도 Issue 목록 조회 |
 | PATCH | `/api/v1/sprints/{sprintId}` | P/C | Sprint 수정 |
-| POST | `/api/v1/sprints/{sprintId}/start` | P/C | Sprint 시작, 알림 발송 |
+| POST | `/api/v1/sprints/{sprintId}/start` | P/C | Sprint 시작 |
 | POST | `/api/v1/sprints/{sprintId}/complete` | P/C | Sprint 종료 |
 | POST | `/api/v1/sprints/{sprintId}/issues` | P/C | Sprint에 이슈 배정 |
 
@@ -315,17 +315,16 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 
 > **Phase A Sprint 1 구현 범위**: 이 섹션은 후속 MVP reference다. Sprint 1 구현 target은 Auth API와 인증 DB에 한정한다.
 
-> **WBS 3.5 candidate 구현 계약**: `GET/POST /api/v1/projects/{projectId}/issues`, `PATCH /api/v1/issues/{issueId}/status`만 후보 구현 범위다. `POST` 요청은 `title`만 받고 새 이슈는 `BACKLOG`로 생성한다. 세 endpoint의 이슈 응답 객체는 `id`, `issueKey`, `title`, `status`만 포함한다. `description`, `priority`, `assigneeUserId`, `sprintId`, `dueDate`, `sourceType` 등 full Issue contract 필드와 이슈 상세 수정은 이번 후보 구현에서 제외한다.
+> **WBS 4.4.1 Backend 계약**: 이슈는 고정 상태 `BACKLOG`, `TODO`, `IN_PROGRESS`, `IN_REVIEW`, `DONE`를 사용한다. 커스텀 Kanban column/order, 메시지 기반 생성, 영구 삭제, notification, Frontend는 이 계약에 포함하지 않는다.
 
 
 | Method | Endpoint | 권한 | 설명 |
 |---|---|---|---|
-| GET | `/api/v1/projects/{projectId}/issues` | A/P/C | WBS 3.5 candidate 이슈 목록/칸반 조회. 응답은 최소 이슈 객체만 제공 |
-| POST | `/api/v1/projects/{projectId}/issues` | A/P/C | WBS 3.5 candidate title-only 이슈 생성. `BACKLOG`로 생성 |
-| POST | `/api/v1/projects/{projectId}/issues/from-message` | A/P/C | 프로젝트 메시지에서 이슈 생성 |
+| GET | `/api/v1/projects/{projectId}/issues` | A/P/C | `status`, `sprintId`, `assigneeId`, `unassignedOnly`, `includeTrashed` filter를 지원하는 이슈 목록. pagination 없음 |
+| POST | `/api/v1/projects/{projectId}/issues` | A/P/C | 이슈 생성. A는 title/description만, P/C는 priority/assignee/dueDate/sprint 지정 가능 |
 | GET | `/api/v1/issues/{issueId}` | A/P/C | 이슈 상세 조회 |
-| PATCH | `/api/v1/issues/{issueId}` | A 제한/P/C | full Issue contract 기준 이슈 수정. WBS 3.5 candidate 제외 |
-| PATCH | `/api/v1/issues/{issueId}/status` | A 제한/P/C | WBS 3.5 candidate 이슈 상태 변경 |
+| PATCH | `/api/v1/issues/{issueId}` | A/P/C | PATCH omitted=유지, 명시 null은 description/assignee/dueDate만 clear |
+| PATCH | `/api/v1/issues/{issueId}/status` | A 제한/P/C | A는 DONE 외 상태, P/C는 DONE 재오픈을 포함한 모든 상태 변경 |
 | POST | `/api/v1/issues/{issueId}/trash` | P/C 또는 등록자 | 이슈 휴지통 이동 |
 | POST | `/api/v1/issues/{issueId}/restore` | P/C 또는 등록자 | 이슈 복원 |
 | GET | `/api/v1/projects/{projectId}/documents` | A/P/C | 문서 목록 |
@@ -341,7 +340,9 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 | GET | `/api/v1/issues/{issueId}/documents` | A/P/C | 이슈 기준 연결 문서 |
 | GET | `/api/v1/documents/{documentId}/issues` | A/P/C | 문서 기준 연결 이슈 |
 
-이슈/문서 영구 삭제는 Sprint 3 decision-needed다. 참조 무결성, audit, 보존 기간, 권한 기준이 확정되기 전까지 full endpoint contract를 추가하지 않는다. WBS 3.5 candidate의 최소 이슈 계약은 이슈 상세, 담당자, 우선순위, 마감일, Sprint, from-message, 문서, thread, notification 연결을 확정하거나 구현하지 않는다.
+이슈 상태 변경은 같은 상태에 대해 200 no-op이며 history를 남기지 않는다. trashed 이슈의 상태/내용 변경은 `409 CONFLICT`다. trash/restore는 등록자 또는 P/C가 실행하며 idempotent 200이고 trash reason은 받지 않는다. `includeTrashed=true`은 active와 trashed를 함께 반환한다. 이슈의 `projectId`, `issueKey`, reporter, source 필드는 immutable이고 source는 `MANUAL`만 생성한다. 담당자와 Sprint는 같은 프로젝트의 ACTIVE project member 및 non-COMPLETED Sprint로 검증한다. COMPANY_ADMIN은 관리 action은 가능하지만 ACTIVE project member가 아니면 담당자가 될 수 없다.
+
+Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PLANNED다. P/C만 생성·수정·시작·완료·일괄 배정할 수 있고 수정은 PLANNED에만 허용한다. 프로젝트별 ACTIVE Sprint는 하나이며 서버 UTC로 `startedAt`/`completedAt`을 기록한다. `GET /api/v1/sprints/{sprintId}`는 Sprint metadata만 반환하며 배정 이슈를 포함하지 않는다. 배정 이슈는 `GET /api/v1/projects/{projectId}/issues?sprintId={sprintId}`로 별도 조회한다. `unassignedOnly=true`는 Sprint가 없는 이슈만 반환하며 `sprintId`와 함께 전달하면 `400 VALIDATION_ERROR`다. 배정은 같은 프로젝트의 non-trashed issue만 대상으로 하고 status를 바꾸지 않는다. 완료 시 DONE을 제외한 모든 배정 issue는 원자적으로 `BACKLOG`로 이동하고 Sprint를 clear한다. notification/event 발행은 하지 않는다.
 
 문서 optimistic locking은 Sprint 3 decision-needed다. `DOCUMENT_VERSION_CONFLICT`는 boundary error code로만 둔다. request body의 `version` 또는 `revision` 필드, conflict response body, UI 해소 방식은 아직 확정 계약이 아니다.
 
@@ -482,10 +483,10 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 
 ## 13. 요청/응답 JSON 예시
 
-이 섹션은 v2.4의 endpoint, 권한, 보류 범위를 유지한 상태에서 구현자가 참고할 수 있는 JSON 예시를 보강한다.
+이 섹션은 v2.6 endpoint, 권한, 보류 범위를 기준으로 구현자가 참고할 수 있는 JSON 예시를 제공한다.
 
 - `v1.4`의 예시는 형식 참고용으로만 사용한다.
-- 실제 계약 기준은 이 문서의 endpoint 표와 v2.2에서 확정한 정책이다.
+- 실제 계약 기준은 이 문서의 endpoint 표와 v2.6 정책이다.
 - `PATCH` 요청은 변경할 필드만 전달한다.
 - S3 파일 저장 API, Redis/NoSQL 알림 저장 API, 프로젝트별 알림 설정은 현재 full contract로 제공하지 않는다. Sprint 3 decision-needed 항목은 선행 결정 후 request/response 예시를 추가한다.
 
@@ -967,11 +968,7 @@ Request Body:
 
 #### POST `/api/v1/sprints/{sprintId}/start`
 
-Request Body:
-
-```json
-{ "startedAt": "2026-06-17T09:00:00Z" }
-```
+Request Body: 없음
 
 #### POST `/api/v1/sprints/{sprintId}/complete`
 
@@ -979,10 +976,13 @@ Request Body:
 
 ```json
 {
-  "completedAt": "2026-06-30T18:00:00Z",
   "summary": "Sprint 1 목표 기능 skeleton 완료"
 }
 ```
+
+#### GET `/api/v1/sprints/{sprintId}`
+
+Sprint의 `id`, `projectId`, `name`, `goal`, `status`, 기간과 lifecycle timestamp/summary만 반환하는 metadata endpoint다. 배정 이슈 배열은 반환하지 않으며 `GET /api/v1/projects/{projectId}/issues?sprintId={sprintId}`로 조회한다.
 
 #### POST `/api/v1/sprints/{sprintId}/issues`
 
@@ -994,6 +994,7 @@ Request Body:
 }
 ```
 
+`issueIds`는 null 또는 빈 배열일 수 없고, 각 원소도 null일 수 없다. 위반 시 `400 VALIDATION_ERROR`를 반환한다.
 
 ### 13.5-A Invitation
 
@@ -1244,7 +1245,10 @@ Response 200:
 
 #### GET `/api/v1/projects/{projectId}/issues`
 
-> **WBS 3.5 candidate**: 목록의 각 이슈 객체는 `id`, `issueKey`, `title`, `status`만 포함한다.
+목록의 각 이슈 객체는 full Issue contract를 따른다. `id`, `issueKey`, `title`, `status`, `description`, `priority`, `assigneeUserId`, `sprintId`, `dueDate`, `sourceType`, `trashedAt`, `restoredAt`을 반환하며 시간 필드는 UTC `Z` 형식이다.
+
+- `unassignedOnly=true`는 `sprintId`가 없는 이슈만 조회한다.
+- `unassignedOnly=true`와 `sprintId`를 함께 전달하면 `400 VALIDATION_ERROR`다.
 
 Response 200:
 
@@ -1256,7 +1260,15 @@ Response 200:
         "id": 1000,
         "issueKey": "THD-1",
         "title": "로그인 API 구현",
-        "status": "BACKLOG"
+        "status": "BACKLOG",
+        "description": "로그인 API 구현과 테스트를 진행한다.",
+        "priority": "HIGH",
+        "assigneeUserId": 2,
+        "sprintId": 300,
+        "dueDate": "2026-06-22",
+        "sourceType": "MANUAL",
+        "trashedAt": null,
+        "restoredAt": null
       }
     ]
   },
@@ -1266,13 +1278,18 @@ Response 200:
 
 #### POST `/api/v1/projects/{projectId}/issues`
 
-> **WBS 3.5 candidate**: `title`만 허용하며, `description`, `priority`, `assigneeUserId`, `sprintId`, `dueDate`는 받지 않는다. 생성 상태는 항상 `BACKLOG`다.
+`title`은 필수이며 최대 200자다. A는 `title`, `description`만 지정할 수 있고 P/C는 `priority`, `assigneeUserId`, `sprintId`, `dueDate`도 지정할 수 있다. 생성 상태는 항상 `BACKLOG`다.
 
 Request Body:
 
 ```json
 {
-  "title": "로그인 API 구현"
+  "title": "로그인 API 구현",
+  "description": "로그인 API 구현과 테스트를 진행한다.",
+  "priority": "HIGH",
+  "assigneeUserId": 2,
+  "sprintId": 300,
+  "dueDate": "2026-06-22"
 }
 ```
 
@@ -1285,31 +1302,24 @@ Response 201:
       "id": 1000,
       "issueKey": "THD-1",
       "title": "로그인 API 구현",
-      "status": "BACKLOG"
+      "status": "BACKLOG",
+      "description": "로그인 API 구현과 테스트를 진행한다.",
+      "priority": "HIGH",
+      "assigneeUserId": 2,
+      "sprintId": 300,
+      "dueDate": "2026-06-22",
+      "sourceType": "MANUAL",
+      "trashedAt": null,
+      "restoredAt": null
     }
   },
   "meta": { "requestId": "req_..." }
 }
 ```
 
-#### POST `/api/v1/projects/{projectId}/issues/from-message`
-
-Request Body:
-
-```json
-{
-  "messageId": 7000,
-  "title": "채팅에서 도출된 API 수정",
-  "description": "프로젝트 채팅 메시지를 기반으로 이슈를 생성한다.",
-  "priority": "MEDIUM",
-  "assigneeUserId": 2,
-  "sprintId": 300
-}
-```
-
 #### PATCH `/api/v1/issues/{issueId}`
 
-> full Issue contract 수정 예시는 WBS 3.5 candidate 범위 밖의 reference다.
+변경할 필드만 전달한다. omitted 필드는 유지하고 명시 `null`은 `description`, `assigneeUserId`, `dueDate`만 clear한다.
 
 Request Body:
 
@@ -1325,7 +1335,7 @@ Request Body:
 
 #### PATCH `/api/v1/issues/{issueId}/status`
 
-> **WBS 3.5 candidate**: 응답 이슈 객체는 `id`, `issueKey`, `title`, `status`만 포함한다.
+응답 이슈 객체는 full Issue contract를 따른다.
 
 Request Body:
 
@@ -1342,7 +1352,15 @@ Response 200:
       "id": 1000,
       "issueKey": "THD-1",
       "title": "로그인 API 구현",
-      "status": "IN_PROGRESS"
+      "status": "IN_PROGRESS",
+      "description": "로그인 API 구현과 테스트를 진행한다.",
+      "priority": "HIGH",
+      "assigneeUserId": 2,
+      "sprintId": 300,
+      "dueDate": "2026-06-22",
+      "sourceType": "MANUAL",
+      "trashedAt": null,
+      "restoredAt": null
     }
   },
   "meta": { "requestId": "req_..." }
@@ -1351,11 +1369,7 @@ Response 200:
 
 #### POST `/api/v1/issues/{issueId}/trash`
 
-Request Body:
-
-```json
-{ "reason": "중복 이슈" }
-```
+Request body 없음.
 
 #### POST `/api/v1/issues/{issueId}/restore`
 
@@ -1364,8 +1378,20 @@ Response 200:
 ```json
 {
   "data": {
-    "issueId": 1000,
-    "trashedAt": null
+    "issue": {
+      "id": 1000,
+      "issueKey": "THD-1",
+      "title": "로그인 API 구현",
+      "status": "BACKLOG",
+      "description": "로그인 API 구현과 테스트를 진행한다.",
+      "priority": "HIGH",
+      "assigneeUserId": 2,
+      "sprintId": 300,
+      "dueDate": "2026-06-22",
+      "sourceType": "MANUAL",
+      "trashedAt": null,
+      "restoredAt": "2026-07-14T00:00:00Z"
+    }
   },
   "meta": { "requestId": "req_..." }
 }
