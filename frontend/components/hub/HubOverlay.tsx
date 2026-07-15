@@ -191,6 +191,9 @@ function HubRail() {
           type="button"
           onClick={() => setProfileOpen(true)}
           title={`${nickname} — 프로필 수정`}
+          // 버튼 안이 이니셜 한 글자라 aria-label이 없으면 스크린리더가 "A 버튼"으로만 읽는다
+          // (title은 내용이 있으면 접근성 이름으로 쓰이지 않는다). RailShell과 동일.
+          aria-label={`${nickname} — 프로필 수정`}
           className="rounded-full transition-opacity duration-fast hover:opacity-80"
         >
           <UserAvatar nickname={nickname} avatarUrl={user?.avatarUrl} />
@@ -240,6 +243,7 @@ function HubRail() {
             type="button"
             onClick={() => setProfileOpen(true)}
             title="프로필 수정"
+            aria-label={`${nickname} — 프로필 수정`}
             className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left transition-colors duration-fast hover:bg-chrome-hover"
           >
             <UserAvatar nickname={nickname} avatarUrl={user?.avatarUrl} />
