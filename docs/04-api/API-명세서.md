@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
 > **최종 수정**: 2026-07-15
-> **버전**: v2.7 WBS 4.4.1 Issue/Sprint Backend review 계약 보완
+> **버전**: v2.8 WBS 4.6.1 Documents/Graph Backend 계약 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -346,7 +346,7 @@ Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PL
 
 문서 정책: 문서 `type`은 `DOC` 또는 `MEETING_NOTE`이고, `title`은 trim 후 최대 200자이며 `content`는 Markdown 원문이다. 목록은 `type`, `q`, `includeTrashed`(기본 `false`)를 지원하며 기존 표시 순서(id 오름차순)를 유지한다. 문서 조회/생성은 A/P/C, 수정·trash·restore는 작성자 또는 P/C가 수행한다. trash/restore는 idempotent다. 문서와 이슈가 모두 요청 `projectId`에 속해야 link를 만들 수 있고, 중복 link 또는 어느 한 endpoint가 trashed이면 `409 CONFLICT`다. trashed endpoint의 기존 link는 project link list, 기본 graph, reverse read에서 숨긴다.
 
-그래프는 `DOCUMENT`, `ISSUE` node만 반환한다. trashed 문서·이슈와 그 endpoint를 참조하는 edge는 반환하지 않는다. `GET /documents/{documentId}/issues`는 최소 Issue 객체 목록, `GET /issues/{issueId}/documents`는 문서 목록을 반환한다.
+그래프는 `DOCUMENT`, `ISSUE` node만 반환한다. trashed 문서·이슈와 그 endpoint를 참조하는 edge는 반환하지 않는다. `GET /documents/{documentId}/issues`는 canonical full `IssueResponse` 객체 목록, `GET /issues/{issueId}/documents`는 문서 목록을 반환한다.
 
 문서 optimistic locking은 Sprint 3 decision-needed다. `DOCUMENT_VERSION_CONFLICT`는 boundary error code로만 둔다. request body의 `version` 또는 `revision` 필드, conflict response body, UI 해소 방식은 아직 확정 계약이 아니다.
 
