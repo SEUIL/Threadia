@@ -52,12 +52,14 @@ function withColorOverrides(scene: THREE.Object3D, overrides: Record<string, str
   return clone;
 }
 
-// "모던 콘크리트" 배색 v5 — 색 포인트는 Canvas 배경(page.tsx의 SCENE_BACKGROUND,
-// 건물 바깥 허공)에 주고, 벽/바닥은 뉴트럴하게 둔다. ambientLight를 3까지 올려
+// "모던 콘크리트" 배색 v5 — 벽/바닥은 뉴트럴하게 둔다. ambientLight를 3까지 올려
 // 재질 색이 캔버스에 그대로(왜곡 없이) 렌더링되는 걸 픽셀로 확인했으나, 명암 대비가
 // 사라져 평면적으로 보여서 최종적으로는 조명을 3개(반구광+주광+보조광)로 나눴다
 // (page.tsx의 Canvas 주석 참고). 순백(#ffffff)은 너무 밋밋해서 은은한 오프화이트로
 // 조정했다. wall.glb 는 앞/뒤 면 재질이 다르므로(wood/metalDark) 둘 다 덮어씌운다.
+// ※ "색 포인트는 배경 허공에 준다"던 이전 버전 결정은 배경이 검정 허공에서 격자형
+// 도심(CityBlocks, page.tsx)으로 바뀌면서 더 이상 유효하지 않다 — 지금은 배경 자체가
+// 뉴트럴 하늘톤 + 건물들이라 이 사무실 재질과 같은 "모던 콘크리트" 계열로 어우러진다.
 const FLOOR_COLOR_OVERRIDES: Record<string, string> = { wood: "#d6d3cd" };
 const WALL_COLOR_OVERRIDES: Record<string, string> = {
   wood: "#f4f1ec",
