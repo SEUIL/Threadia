@@ -61,6 +61,14 @@ class DirectMessageMysqlConcurrencyTests {
 			assertThat(firstRoomId).isEqualTo(secondRoomId); assertThat(jdbcTemplate.queryForObject("select count(*) from direct_message_rooms where company_id = ? and user1_id = ? and user2_id = ?", Integer.class, companyId, Math.min(firstUserId, secondUserId), Math.max(firstUserId, secondUserId))).isEqualTo(1);
 		} finally { start.countDown(); executor.shutdownNow(); executor.awaitTermination(TIMEOUT.toSeconds(), TimeUnit.SECONDS); }
 	}
+	@Test void oppositeDirectionCallerReusesTheSameNormalizedRoom() {
+		AuthContext reverseAuth = new AuthContext(secondUserId, "second@example.com");
+		when(authContextService.fromAccessToken("reverse-token")).thenReturn(reverseAuth);
+		when(authContextService.requireActiveUser(reverseAuth)).thenAnswer(invocation -> userRepository.findById(secondUserId).orElseThrow());
+		DirectMessageRoomCreationResult result = directMessageService.getOrCreateRoom("reverse-token", companyId, new DirectMessageRoomCreateRequest(firstUserId));
+		assertThat(result.data().room().companyId()).isEqualTo(companyId);
+		assertThat(jdbcTemplate.queryForObject("select count(*) from direct_message_rooms where company_id = ? and user1_id = ? and user2_id = ?", Integer.class, companyId, Math.min(firstUserId, secondUserId), Math.max(firstUserId, secondUserId))).isEqualTo(1);
+	}
 	private DirectMessageRoomCreationResult createAfterBarrier(CountDownLatch ready, CountDownLatch start) {
 		ready.countDown(); try { if (!start.await(TIMEOUT.toSeconds(), TimeUnit.SECONDS)) throw new IllegalStateException("동시 생성 시작 대기 시간이 초과되었습니다."); } catch (InterruptedException exception) { Thread.currentThread().interrupt(); throw new IllegalStateException("동시 생성 대기가 중단되었습니다.", exception); }
 		return directMessageService.getOrCreateRoom("token", companyId, new DirectMessageRoomCreateRequest(secondUserId));

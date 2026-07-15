@@ -3,6 +3,7 @@ package com.threadia.backend.directmessage.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -26,6 +27,7 @@ import com.threadia.backend.auth.repository.UserRepository;
 import com.threadia.backend.common.auth.AuthContext;
 import com.threadia.backend.common.auth.AuthContextService;
 import com.threadia.backend.company.domain.Company;
+import com.threadia.backend.company.repository.CompanyRepository;
 import com.threadia.backend.company.service.CompanyMembershipService;
 import com.threadia.backend.directmessage.domain.DirectMessage;
 import com.threadia.backend.directmessage.domain.DirectMessageRoom;
@@ -41,12 +43,13 @@ import com.threadia.backend.directmessage.repository.DirectMessageRoomUserStateR
 @ExtendWith(MockitoExtension.class)
 class DirectMessageServiceTest {
 	@Mock AuthContextService authContextService; @Mock CompanyMembershipService membershipService; @Mock UserRepository userRepository;
+	@Mock CompanyRepository companyRepository;
 	@Mock DirectMessageRoomRepository roomRepository; @Mock DirectMessageRepository messageRepository; @Mock DirectMessageRoomUserStateRepository stateRepository;
 	private DirectMessageService service;
 	private final AuthContext auth = new AuthContext(1L, "me@example.com");
 	@BeforeEach void setUp() {
-		service = new DirectMessageService(authContextService, membershipService, userRepository, roomRepository, messageRepository, stateRepository, Clock.fixed(Instant.parse("2026-07-15T00:00:00Z"), ZoneOffset.UTC));
-		when(authContextService.fromAccessToken("token")).thenReturn(auth); when(authContextService.requireActiveUser(auth)).thenReturn(user(1L));
+		service = new DirectMessageService(authContextService, membershipService, companyRepository, userRepository, roomRepository, messageRepository, stateRepository, Clock.fixed(Instant.parse("2026-07-15T00:00:00Z"), ZoneOffset.UTC));
+		lenient().when(authContextService.fromAccessToken("token")).thenReturn(auth); lenient().when(authContextService.requireActiveUser(auth)).thenReturn(user(1L));
 	}
 	@Test void rejectsSelfDirectMessageBeforeRoomLookup() {
 		assertThatThrownBy(() -> service.getOrCreateRoom("token", 10L, new DirectMessageRoomCreateRequest(1L))).isInstanceOf(DirectMessageValidationException.class);
@@ -67,9 +70,26 @@ class DirectMessageServiceTest {
 	}
 	@Test void reReadsTheRoomWithALockAfterLosingConcurrentCreation() {
 		DirectMessageRoom room = room(30L, 10L, 1L, 2L);
-		when(membershipService.isActiveMember(10L, 1L)).thenReturn(true); when(userRepository.findById(2L)).thenReturn(Optional.of(user(2L))); when(membershipService.isActiveMember(10L, 2L)).thenReturn(true); when(roomRepository.findByCompanyIdAndUserPair(10L, 1L, 2L)).thenReturn(Optional.empty()); when(roomRepository.insertIgnore(any(), any(), any(), any())).thenReturn(0); when(roomRepository.findByCompanyIdAndUserPairForUpdate(10L, 1L, 2L)).thenReturn(Optional.of(room));
+		when(membershipService.isActiveMember(10L, 1L)).thenReturn(true); when(userRepository.findById(2L)).thenReturn(Optional.of(user(2L))); when(membershipService.isActiveMember(10L, 2L)).thenReturn(true); when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(room.getCompany())); when(roomRepository.findByCompanyIdAndUserPair(10L, 1L, 2L)).thenReturn(Optional.empty()); when(roomRepository.insertIgnore(any(), any(), any(), any())).thenReturn(0); when(roomRepository.findByCompanyIdAndUserPairForUpdate(10L, 1L, 2L)).thenReturn(Optional.of(room));
 		assertThat(service.getOrCreateRoom("token", 10L, new DirectMessageRoomCreateRequest(2L)).data().room().id()).isEqualTo(30L);
+		org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(authContextService, membershipService, userRepository, companyRepository, roomRepository);
+		inOrder.verify(authContextService).fromAccessToken("token");
+		inOrder.verify(authContextService).requireActiveUser(auth);
+		inOrder.verify(membershipService).isActiveMember(10L, 1L);
+		inOrder.verify(userRepository).findById(2L);
+		inOrder.verify(membershipService).isActiveMember(10L, 2L);
+		inOrder.verify(companyRepository).findByIdForUpdate(10L);
+		inOrder.verify(roomRepository).findByCompanyIdAndUserPair(10L, 1L, 2L);
+		inOrder.verify(roomRepository).insertIgnore(any(), any(), any(), any());
 		verify(roomRepository).findByCompanyIdAndUserPairForUpdate(10L, 1L, 2L);
+	}
+	@Test void normalizesOppositeDirectionCallerToTheSameRoom() {
+		AuthContext otherAuth = new AuthContext(2L, "you@example.com");
+		DirectMessageRoom room = room(30L, 10L, 1L, 2L);
+		when(authContextService.fromAccessToken("token-2")).thenReturn(otherAuth); when(authContextService.requireActiveUser(otherAuth)).thenReturn(user(2L));
+		when(membershipService.isActiveMember(10L, 2L)).thenReturn(true); when(userRepository.findById(1L)).thenReturn(Optional.of(user(1L))); when(membershipService.isActiveMember(10L, 1L)).thenReturn(true); when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(room.getCompany())); when(roomRepository.findByCompanyIdAndUserPair(10L, 1L, 2L)).thenReturn(Optional.of(room));
+		assertThat(service.getOrCreateRoom("token-2", 10L, new DirectMessageRoomCreateRequest(1L)).data().room().id()).isEqualTo(30L);
+		verify(roomRepository).findByCompanyIdAndUserPair(10L, 1L, 2L);
 	}
 	@Test void hidesNonparticipantAndWrongCompanyRoomAsNotFound() {
 		DirectMessageRoom room = room(30L, 20L, 2L, 3L); when(roomRepository.findByIdWithParticipants(30L)).thenReturn(Optional.of(room));

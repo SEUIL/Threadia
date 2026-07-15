@@ -14,6 +14,8 @@ import com.threadia.backend.auth.domain.UserStatus;
 import com.threadia.backend.auth.repository.UserRepository;
 import com.threadia.backend.common.auth.AuthContext;
 import com.threadia.backend.common.auth.AuthContextService;
+import com.threadia.backend.company.exception.CompanyNotFoundException;
+import com.threadia.backend.company.repository.CompanyRepository;
 import com.threadia.backend.company.service.CompanyMembershipService;
 import com.threadia.backend.directmessage.domain.DirectMessage;
 import com.threadia.backend.directmessage.domain.DirectMessageRoom;
@@ -40,6 +42,7 @@ import com.threadia.backend.directmessage.repository.DirectMessageRoomUserStateR
 public class DirectMessageService {
 	private final AuthContextService authContextService;
 	private final CompanyMembershipService companyMembershipService;
+	private final CompanyRepository companyRepository;
 	private final UserRepository userRepository;
 	private final DirectMessageRoomRepository roomRepository;
 	private final DirectMessageRepository messageRepository;
@@ -47,12 +50,12 @@ public class DirectMessageService {
 	private final Clock clock;
 
 	@Autowired
-	public DirectMessageService(AuthContextService authContextService, CompanyMembershipService companyMembershipService, UserRepository userRepository, DirectMessageRoomRepository roomRepository, DirectMessageRepository messageRepository, DirectMessageRoomUserStateRepository stateRepository) {
-		this(authContextService, companyMembershipService, userRepository, roomRepository, messageRepository, stateRepository, Clock.systemUTC());
+	public DirectMessageService(AuthContextService authContextService, CompanyMembershipService companyMembershipService, CompanyRepository companyRepository, UserRepository userRepository, DirectMessageRoomRepository roomRepository, DirectMessageRepository messageRepository, DirectMessageRoomUserStateRepository stateRepository) {
+		this(authContextService, companyMembershipService, companyRepository, userRepository, roomRepository, messageRepository, stateRepository, Clock.systemUTC());
 	}
 
-	DirectMessageService(AuthContextService authContextService, CompanyMembershipService companyMembershipService, UserRepository userRepository, DirectMessageRoomRepository roomRepository, DirectMessageRepository messageRepository, DirectMessageRoomUserStateRepository stateRepository, Clock clock) {
-		this.authContextService = authContextService; this.companyMembershipService = companyMembershipService; this.userRepository = userRepository;
+	DirectMessageService(AuthContextService authContextService, CompanyMembershipService companyMembershipService, CompanyRepository companyRepository, UserRepository userRepository, DirectMessageRoomRepository roomRepository, DirectMessageRepository messageRepository, DirectMessageRoomUserStateRepository stateRepository, Clock clock) {
+		this.authContextService = authContextService; this.companyMembershipService = companyMembershipService; this.companyRepository = companyRepository; this.userRepository = userRepository;
 		this.roomRepository = roomRepository; this.messageRepository = messageRepository; this.stateRepository = stateRepository; this.clock = clock;
 	}
 
@@ -76,6 +79,7 @@ public class DirectMessageService {
 		requireActiveMembership(companyId, otherUser.getId());
 		long user1Id = Math.min(auth.userId(), otherUser.getId());
 		long user2Id = Math.max(auth.userId(), otherUser.getId());
+		companyRepository.findByIdForUpdate(companyId).orElseThrow(() -> new CompanyNotFoundException(companyId));
 		DirectMessageRoom existing = roomRepository.findByCompanyIdAndUserPair(companyId, user1Id, user2Id).orElse(null);
 		RoomLookup roomLookup = existing == null ? createAndReread(companyId, user1Id, user2Id) : new RoomLookup(existing, false);
 		boolean created = roomLookup.created();
