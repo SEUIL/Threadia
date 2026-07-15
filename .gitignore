@@ -1,0 +1,72 @@
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+
+# Logs and temporary files
+logs/
+*.log
+*.tmp
+*.temp
+tmp/
+temp/
+
+# AI agent local state, logs, and sessions
+.opencode/
+.sisyphus/
+.omo/
+.codex/
+.claude/settings.local.json
+.claude/local/
+.claude/logs/
+.claude/sessions/
+.claude/cache/
+.claude/tmp/
+.claude/launch.json
+claude-code*.log
+codex*.log
+opencode*.log
+
+# Node / frontend
+node_modules/
+.npm/
+.yarn/cache/
+.pnpm-store/
+dist/
+build/
+.next/
+out/
+coverage/
+.turbo/
+
+# Java / Spring Boot
+.gradle/
+target/
+*.class
+*.jar
+*.war
+
+# Test and coverage outputs
+.nyc_output/
+junit*.xml
+coverage-*.json
+
+# Local database and runtime artifacts
+*.db
+*.sqlite
+*.sqlite3
+*.pid
+db/seed.sql
