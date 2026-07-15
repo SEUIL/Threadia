@@ -65,7 +65,7 @@ export interface IssueCreateRequest {
 
 /**
  * 이슈 수정. **보낸 필드만 반영된다** — 서버가 request body의 key 집합으로 판정하므로
- * 생략한 필드는 유지되고, 명시적 null은 description/assigneeUserId/dueDate만 clear한다.
+ * 생략한 필드는 유지되고, 명시적 null은 description/assigneeUserId/dueDate/sprintId를 clear한다.
  * 허용되지 않은 필드를 담으면 400이라 바꿀 필드만 보내야 한다.
  * A는 title/description만 수정할 수 있다(그 외 필드를 담으면 403).
  */
@@ -75,4 +75,5 @@ export interface IssueUpdateRequest {
   priority?: IssuePriority;
   assigneeUserId?: number | null;
   dueDate?: string | null;
+  sprintId?: number | null;
 }
