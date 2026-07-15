@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Field;
@@ -30,6 +31,7 @@ import com.threadia.backend.auth.domain.User;
 import com.threadia.backend.auth.domain.UserStatus;
 import com.threadia.backend.common.auth.AuthContext;
 import com.threadia.backend.common.auth.AuthContextService;
+import com.threadia.backend.common.exception.AuthenticationFailedException;
 import com.threadia.backend.common.exception.ForbiddenException;
 import com.threadia.backend.company.domain.Company;
 import com.threadia.backend.company.domain.CompanyMemberRole;
@@ -52,6 +54,7 @@ import com.threadia.backend.project.domain.ProjectMemberRole;
 import com.threadia.backend.project.domain.ProjectMemberStatus;
 import com.threadia.backend.project.domain.ProjectStatus;
 import com.threadia.backend.project.exception.ProjectNotFoundException;
+import com.threadia.backend.project.exception.ProjectValidationException;
 import com.threadia.backend.project.repository.ProjectMemberRepository;
 import com.threadia.backend.project.repository.ProjectRepository;
 import com.threadia.backend.sprint.domain.Sprint;
@@ -126,16 +129,68 @@ class IssueServiceTest {
 	}
 
 	@Test
-	void listRejectsRequesterWithoutActiveProjectMembership() {
+	void listRejectsInvalidTokenBeforeValidation() {
+		when(authContextService.fromAccessToken("bad-token")).thenThrow(new AuthenticationFailedException("토큰이 유효하지 않습니다."));
+
+		assertThatThrownBy(() -> issueService.list("bad-token", 20L, null, 30L, null, true, false))
+				.isInstanceOf(AuthenticationFailedException.class)
+				.hasMessage("토큰이 유효하지 않습니다.");
+
+		verifyNoInteractions(projectRepository, companyMembershipService, projectMemberRepository, issueRepository);
+	}
+
+	@Test
+	void listRejectsUnauthorizedActorBeforeValidation() {
 		Fixtures fixtures = fixtures();
 		stubAuth(fixtures);
 		when(projectRepository.findById(20L)).thenReturn(Optional.of(fixtures.project()));
 		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false);
 		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L)).thenReturn(Optional.empty());
 
-		assertThatThrownBy(() -> issueService.list("token", 20L))
+		assertThatThrownBy(() -> issueService.list("token", 20L, null, 30L, null, true, false))
 				.isInstanceOf(ForbiddenException.class)
 				.hasMessage("프로젝트 접근 권한이 없습니다.");
+
+		InOrder order = inOrder(authContextService, projectRepository, companyMembershipService, projectMemberRepository);
+		order.verify(authContextService).fromAccessToken("token");
+		order.verify(authContextService).requireActiveUser(fixtures.authContext());
+		order.verify(projectRepository).findById(20L);
+		order.verify(companyMembershipService).hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN);
+		order.verify(companyMembershipService).requireActiveMember(10L, fixtures.authContext());
+		order.verify(projectMemberRepository).findByProject_IdAndUser_Id(20L, 1L);
+		verifyNoInteractions(issueRepository);
+	}
+
+	@Test
+	void listUsesUnassignedOnlyRepositoryFilter() {
+		Fixtures fixtures = fixtures();
+		stubAuth(fixtures);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(fixtures.project()));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+		when(issueRepository.findByFiltersInDisplayOrder(20L, null, null, null, true, false)).thenReturn(List.of());
+
+		issueService.list("token", 20L, null, null, null, true, false);
+
+		verify(issueRepository).findByFiltersInDisplayOrder(20L, null, null, null, true, false);
+	}
+
+	@Test
+	void listRejectsUnassignedOnlyCombinedWithSprintIdAfterAuthAndAccess() {
+		Fixtures fixtures = fixtures();
+		stubAuth(fixtures);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(fixtures.project()));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+
+		assertThatThrownBy(() -> issueService.list("token", 20L, null, 30L, null, true, false))
+				.isInstanceOf(ProjectValidationException.class)
+				.hasMessage("unassignedOnly와 sprintId는 함께 사용할 수 없습니다.");
+
+		InOrder order = inOrder(authContextService, projectRepository, companyMembershipService);
+		order.verify(authContextService).fromAccessToken("token");
+		order.verify(authContextService).requireActiveUser(fixtures.authContext());
+		order.verify(projectRepository).findById(20L);
+		order.verify(companyMembershipService).hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN);
+		verifyNoInteractions(issueRepository);
 	}
 
 	@Test

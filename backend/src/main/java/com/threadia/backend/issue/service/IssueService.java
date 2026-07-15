@@ -40,13 +40,16 @@ public class IssueService {
 	}
 
 	@Transactional(readOnly=true)
-	public IssuesData list(String token, Long projectId) { return list(token, projectId, null, null, null, false); }
+	public IssuesData list(String token, Long projectId) { return list(token, projectId, null, null, null, false, false); }
 	@Transactional(readOnly=true)
-	public IssuesData list(String token, Long projectId, IssueStatus status, Long sprintId, Long assigneeId, boolean includeTrashed) {
+	public IssuesData list(String token, Long projectId, IssueStatus status, Long sprintId, Long assigneeId, boolean includeTrashed) { return list(token, projectId, status, sprintId, assigneeId, false, includeTrashed); }
+	@Transactional(readOnly=true)
+	public IssuesData list(String token, Long projectId, IssueStatus status, Long sprintId, Long assigneeId, boolean unassignedOnly, boolean includeTrashed) {
 		AuthContext context=active(token); requireAccess(project(projectId), context);
-		List<Issue> result = status == null && sprintId == null && assigneeId == null && !includeTrashed
+		if (unassignedOnly && sprintId != null) throw new ProjectValidationException("unassignedOnly와 sprintId는 함께 사용할 수 없습니다.");
+		List<Issue> result = status == null && sprintId == null && assigneeId == null && !unassignedOnly && !includeTrashed
 				? issues.findActiveByProjectIdInDisplayOrder(projectId)
-				: issues.findByFiltersInDisplayOrder(projectId,status,sprintId,assigneeId,includeTrashed);
+				: issues.findByFiltersInDisplayOrder(projectId,status,sprintId,assigneeId,unassignedOnly,includeTrashed);
 		return new IssuesData(result.stream().map(IssueResponse::from).toList());
 	}
 	@Transactional(readOnly=true)
