@@ -1,0 +1,67 @@
+name: restricted-ssm-service-unit-maintenance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  invoke-service-unit-maintenance:
+    name: Invoke parameterless fixed service unit maintenance document
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: restricted-ssm-host-change
+      cancel-in-progress: false
+    timeout-minutes: 20
+    environment: restricted-nonprod
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+      THREADIA_DELIVERY_INSTANCE_ID: ${{ vars.THREADIA_DELIVERY_INSTANCE_ID }}
+      THREADIA_SSM_SERVICE_UNIT_MAINTENANCE_DOCUMENT_NAME: ${{ vars.THREADIA_SSM_SERVICE_UNIT_MAINTENANCE_DOCUMENT_NAME }}
+    steps:
+      - name: Checkout
+        # actions/checkout v4.3.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Configure AWS credentials through OIDC
+        # aws-actions/configure-aws-credentials v4.3.1
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Invoke fixed parameterless service unit maintenance document
+        id: command
+        run: |
+          set -euo pipefail
+          command_id="$(aws ssm send-command --region "$AWS_REGION" --document-name "$THREADIA_SSM_SERVICE_UNIT_MAINTENANCE_DOCUMENT_NAME" --instance-ids "$THREADIA_DELIVERY_INSTANCE_ID" --query Command.CommandId --output text)"
+          test "$command_id" != "None"
+          printf 'command_id=%s\n' "$command_id" >> "$GITHUB_OUTPUT"
+          printf 'command_id=%s\ndocument_name=%s\ninstance_id=%s\n' "$command_id" "$THREADIA_SSM_SERVICE_UNIT_MAINTENANCE_DOCUMENT_NAME" "$THREADIA_DELIVERY_INSTANCE_ID" >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify fixed command completion
+        run: |
+          set -euo pipefail
+          terminal_status=""
+          for attempt in $(seq 1 60); do
+            if ! status="$(aws ssm get-command-invocation --region "$AWS_REGION" --cli-connect-timeout 5 --cli-read-timeout 10 --command-id "${{ steps.command.outputs.command_id }}" --instance-id "$THREADIA_DELIVERY_INSTANCE_ID" --query Status --output text 2>/dev/null)"; then
+              status=Pending
+            fi
+            case "$status" in
+              Success|Failed|Cancelled|TimedOut|Cancelling)
+                terminal_status="$status"
+                break
+                ;;
+            esac
+            sleep 10
+          done
+          if [[ -z "$terminal_status" ]]; then
+            terminal_status=TimedOut
+          fi
+          printf 'terminal_status=%s\n' "$terminal_status" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$terminal_status" == Success ]]; then
+            exit 0
+          fi
+          aws ssm get-command-invocation --region "$AWS_REGION" --cli-connect-timeout 5 --cli-read-timeout 10 --command-id "${{ steps.command.outputs.command_id }}" --instance-id "$THREADIA_DELIVERY_INSTANCE_ID" --query '{Status:Status,ResponseCode:ResponseCode,StandardErrorContent:StandardErrorContent,StandardOutputContent:StandardOutputContent}' --output json 2>&1 | cut -c1-4000 || true
+          exit 1
