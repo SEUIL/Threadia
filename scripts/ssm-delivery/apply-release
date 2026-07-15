@@ -97,7 +97,8 @@ with open(sys.argv[2], "w", encoding="utf-8") as target:
         value = values[parameter_name]
         if "\n" in value or "\r" in value or "\x00" in value:
             raise SystemExit("runtime parameter contains an unsupported control character")
-        target.write(f'{environment_name}="{value.replace(chr(92), chr(92) * 2).replace(chr(34), chr(92) + chr(34)}"\n')
+        escaped_value = value.replace("\\", "\\\\").replace('"', '\\"')
+        target.write(f'{environment_name}="{escaped_value}"\n')
 PY
 
 release_dir="$RELEASE_ROOT/$release_id"
