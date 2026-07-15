@@ -120,7 +120,7 @@ public class ProjectInvitationService {
 				now.plusDays(EXPIRY_DAYS),
 				now,
 				now));
-		return new ProjectInvitationData(toResponse(invitation));
+		return new ProjectInvitationData(toResponse(invitation, project.getName()));
 	}
 
 	@Transactional
@@ -132,7 +132,7 @@ public class ProjectInvitationService {
 				.findByProjectIdAndScopeTypeOrderByCreatedAtDesc(projectId, InvitationScopeType.PROJECT)
 				.stream()
 				.map(this::expirePendingIfNeeded)
-				.map(ProjectInvitationService::toResponse)
+				.map(invitation -> toResponse(invitation, project.getName()))
 				.toList();
 		return new ProjectInvitationsData(invitations);
 	}
@@ -353,13 +353,14 @@ public class ProjectInvitationService {
 		return LocalDateTime.ofInstant(clock.instant(), UTC);
 	}
 
-	private static InvitationResponse toResponse(Invitation invitation) {
+	private static InvitationResponse toResponse(Invitation invitation, String projectName) {
 		return new InvitationResponse(
 				invitation.getId(),
 				invitation.getScopeType().name(),
 				invitation.getCompany().getId(),
 				invitation.getCompany().getName(),
 				invitation.getProjectId(),
+				projectName,
 				invitation.getInviter().getId(),
 				invitation.getInviter().getNickname(),
 				invitation.getInvitee().getId(),

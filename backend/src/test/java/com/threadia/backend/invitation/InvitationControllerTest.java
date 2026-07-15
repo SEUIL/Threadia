@@ -135,6 +135,7 @@ class InvitationControllerTest {
 				1L,
 				"Threadia",
 				"PROJECT".equals(scopeType) ? 10L : null,
+				"PROJECT".equals(scopeType) ? "Threadia 웹" : null,
 				1L,
 				"admin",
 				2L,
