@@ -196,8 +196,10 @@ Resources:
           - action: aws:runShellScript
             name: ApplyImmutableRelease
             inputs:
+              timeoutSeconds: '540'
               runCommand:
                 - !Sub >-
+                  AWS_REGION='${AWS::Region}' AWS_DEFAULT_REGION='${AWS::Region}'
                   /usr/local/lib/threadia-release/apply-release
                   '${ArtifactBucket}' '{{ ArtifactKey }}' '{{ ArtifactVersionId }}'
                   '{{ ArtifactSha256 }}' '{{ ReleaseId }}'

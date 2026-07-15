@@ -15,7 +15,12 @@ permissions:
 jobs:
   release:
     name: Build immutable release and invoke fixed SSM document
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    concurrency:
+      group: restricted-ssm-release
+      cancel-in-progress: false
+    timeout-minutes: 30
     environment: restricted-nonprod
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
@@ -70,15 +75,15 @@ jobs:
         id: command
         run: |
           set -euo pipefail
-          version_id="$(aws s3api put-object --bucket "$THREADIA_ARTIFACT_BUCKET" --key "${{ steps.release.outputs.key }}" --body "${{ steps.release.outputs.archive }}" --server-side-encryption AES256 --query VersionId --output text)"
+          version_id="$(aws s3api put-object --region "$AWS_REGION" --bucket "$THREADIA_ARTIFACT_BUCKET" --key "${{ steps.release.outputs.key }}" --body "${{ steps.release.outputs.archive }}" --server-side-encryption AES256 --query VersionId --output text)"
           test "$version_id" != "None"
-          command_id="$(aws ssm send-command --document-name "$THREADIA_SSM_DOCUMENT_NAME" --instance-ids "$THREADIA_DELIVERY_INSTANCE_ID" --parameters ArtifactKey="${{ steps.release.outputs.key }}",ArtifactVersionId="$version_id",ArtifactSha256="${{ steps.release.outputs.archive_sha }}",ReleaseId="${{ steps.release.outputs.release_id }}" --query Command.CommandId --output text)"
+          command_id="$(aws ssm send-command --region "$AWS_REGION" --document-name "$THREADIA_SSM_DOCUMENT_NAME" --instance-ids "$THREADIA_DELIVERY_INSTANCE_ID" --parameters ArtifactKey="${{ steps.release.outputs.key }}",ArtifactVersionId="$version_id",ArtifactSha256="${{ steps.release.outputs.archive_sha }}",ReleaseId="${{ steps.release.outputs.release_id }}" --query Command.CommandId --output text)"
           printf 'command_id=%s\n' "$command_id" >> "$GITHUB_OUTPUT"
       - name: Verify fixed command completion
         run: |
           set -euo pipefail
           for attempt in $(seq 1 60); do
-            if ! status="$(aws ssm get-command-invocation --command-id "${{ steps.command.outputs.command_id }}" --instance-id "$THREADIA_DELIVERY_INSTANCE_ID" --query Status --output text 2>/dev/null)"; then
+            if ! status="$(aws ssm get-command-invocation --region "$AWS_REGION" --cli-connect-timeout 5 --cli-read-timeout 10 --command-id "${{ steps.command.outputs.command_id }}" --instance-id "$THREADIA_DELIVERY_INSTANCE_ID" --query Status --output text 2>/dev/null)"; then
               status=Pending
             fi
             case "$status" in
