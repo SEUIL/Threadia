@@ -226,6 +226,170 @@ class ProjectInvitationServiceTest {
 	}
 
 	@Test
+	void findInvitableMemberNormalizesEmailAndReturnsActiveSameCompanyUserForProjectAdmin() {
+		User requester = user(1L);
+		User invitee = user(2L);
+		Project project = project(requester);
+		stubProjectAdmin(requester, project);
+		when(userRepository.findByEmail("user2@example.com")).thenReturn(Optional.of(invitee));
+		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE)).thenReturn(true);
+		when(projectMemberRepository.existsByProject_IdAndUser_IdAndStatus(10L, 2L, ProjectMemberStatus.ACTIVE)).thenReturn(false);
+		when(invitationRepository.findAllByProjectIdAndInvitee_IdAndScopeTypeAndStatus(10L, 2L, InvitationScopeType.PROJECT, InvitationStatus.PENDING)).thenReturn(List.of());
+
+		var data = service.findInvitableMember("token", 10L, "  USER2@example.com  ");
+
+		assertThat(data.user().id()).isEqualTo(2L);
+		assertThat(data.user().email()).isEqualTo("user2@example.com");
+		assertThat(data.user().nickname()).isEqualTo("user2");
+		assertThat(data.user().avatarUrl()).isNull();
+		verify(userRepository).findByEmail("user2@example.com");
+	}
+
+	@Test
+	void findInvitableMemberAllowsActiveCompanyAdminWithoutProjectMembership() {
+		User requester = user(1L);
+		User invitee = user(2L);
+		Project project = project(requester);
+		stubCompanyAdmin(requester, project);
+		when(userRepository.findByEmail(invitee.getEmail())).thenReturn(Optional.of(invitee));
+		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE)).thenReturn(true);
+		when(projectMemberRepository.existsByProject_IdAndUser_IdAndStatus(10L, 2L, ProjectMemberStatus.ACTIVE)).thenReturn(false);
+		when(invitationRepository.findAllByProjectIdAndInvitee_IdAndScopeTypeAndStatus(10L, 2L, InvitationScopeType.PROJECT, InvitationStatus.PENDING)).thenReturn(List.of());
+
+		var data = service.findInvitableMember("token", 10L, invitee.getEmail());
+
+		assertThat(data.user().id()).isEqualTo(2L);
+	}
+
+	@Test
+	void findInvitableMemberChecksExactProjectManagePermissionBeforeEmailLookup() {
+		User requester = user(1L);
+		Project project = project(requester);
+		stubRequester(requester);
+		when(projectRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(project));
+		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 1L, CompanyMemberStatus.ACTIVE)).thenReturn(true);
+		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndRoleAndStatus(1L, 1L, CompanyMemberRole.COMPANY_ADMIN, CompanyMemberStatus.ACTIVE)).thenReturn(false);
+		when(projectMemberRepository.findByProject_IdAndUser_Id(10L, 1L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service.findInvitableMember("token", 10L, "user2@example.com"))
+				.isInstanceOf(ForbiddenException.class);
+		verify(userRepository, never()).findByEmail("user2@example.com");
+	}
+
+	@Test
+	void findInvitableMemberRejectsMissingUser() {
+		User requester = user(1L);
+		Project project = project(requester);
+		stubCompanyAdmin(requester, project);
+		when(userRepository.findByEmail("ghost@example.com")).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service.findInvitableMember("token", 10L, "ghost@example.com"))
+				.isInstanceOf(UserNotFoundException.class);
+		verify(companyMemberRepository, never()).existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE);
+	}
+
+	@Test
+	void findInvitableMemberRejectsInactiveUserWithCanonicalConflict() {
+		User requester = user(1L);
+		User invitee = user(2L, UserStatus.SUSPENDED);
+		Project project = project(requester);
+		stubCompanyAdmin(requester, project);
+		when(userRepository.findByEmail(invitee.getEmail())).thenReturn(Optional.of(invitee));
+
+		Throwable thrown = catchThrowable(() -> service.findInvitableMember("token", 10L, invitee.getEmail()));
+
+		assertThat(thrown).isInstanceOf(InvitationConflictException.class);
+		assertThat(((InvitationConflictException) thrown).getCode()).isEqualTo("TARGET_NOT_ACTIVE_COMPANY_MEMBER");
+		verify(companyMemberRepository, never()).existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE);
+	}
+
+	@Test
+	void findInvitableMemberRejectsSelf() {
+		User requester = user(1L);
+		Project project = project(requester);
+		stubCompanyAdmin(requester, project);
+		when(userRepository.findByEmail(requester.getEmail())).thenReturn(Optional.of(requester));
+
+		Throwable thrown = catchThrowable(() -> service.findInvitableMember("token", 10L, requester.getEmail()));
+
+		assertThat(thrown).isInstanceOf(InvitationConflictException.class);
+		assertThat(((InvitationConflictException) thrown).getCode()).isEqualTo("INVITATION_SELF_NOT_ALLOWED");
+		verify(projectMemberRepository, never()).existsByProject_IdAndUser_IdAndStatus(10L, 1L, ProjectMemberStatus.ACTIVE);
+	}
+
+	@Test
+	void findInvitableMemberRejectsUserOutsideActiveProjectCompany() {
+		User requester = user(1L);
+		User invitee = user(2L);
+		Project project = project(requester);
+		stubCompanyAdmin(requester, project);
+		when(userRepository.findByEmail(invitee.getEmail())).thenReturn(Optional.of(invitee));
+		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE)).thenReturn(false);
+
+		Throwable thrown = catchThrowable(() -> service.findInvitableMember("token", 10L, invitee.getEmail()));
+
+		assertThat(thrown).isInstanceOf(InvitationConflictException.class);
+		assertThat(((InvitationConflictException) thrown).getCode()).isEqualTo("TARGET_NOT_ACTIVE_COMPANY_MEMBER");
+	}
+
+	@Test
+	void findInvitableMemberRejectsActiveProjectMember() {
+		User requester = user(1L);
+		User invitee = user(2L);
+		Project project = project(requester);
+		stubCompanyAdmin(requester, project);
+		when(userRepository.findByEmail(invitee.getEmail())).thenReturn(Optional.of(invitee));
+		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE)).thenReturn(true);
+		when(projectMemberRepository.existsByProject_IdAndUser_IdAndStatus(10L, 2L, ProjectMemberStatus.ACTIVE)).thenReturn(true);
+
+		Throwable thrown = catchThrowable(() -> service.findInvitableMember("token", 10L, invitee.getEmail()));
+
+		assertThat(thrown).isInstanceOf(InvitationConflictException.class);
+		assertThat(((InvitationConflictException) thrown).getCode()).isEqualTo("ALREADY_PROJECT_MEMBER");
+		verify(invitationRepository, never()).findAllByProjectIdAndInvitee_IdAndScopeTypeAndStatus(
+				10L, 2L, InvitationScopeType.PROJECT, InvitationStatus.PENDING);
+	}
+
+	@Test
+	void findInvitableMemberRejectsLivePendingProjectInvitation() {
+		User requester = user(1L);
+		User invitee = user(2L);
+		Project project = project(requester);
+		Invitation pending = projectInvitation(100L, project, requester, invitee);
+		stubCompanyAdmin(requester, project);
+		when(userRepository.findByEmail(invitee.getEmail())).thenReturn(Optional.of(invitee));
+		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE)).thenReturn(true);
+		when(projectMemberRepository.existsByProject_IdAndUser_IdAndStatus(10L, 2L, ProjectMemberStatus.ACTIVE)).thenReturn(false);
+		when(invitationRepository.findAllByProjectIdAndInvitee_IdAndScopeTypeAndStatus(10L, 2L, InvitationScopeType.PROJECT, InvitationStatus.PENDING)).thenReturn(List.of(pending));
+
+		Throwable thrown = catchThrowable(() -> service.findInvitableMember("token", 10L, invitee.getEmail()));
+
+		assertThat(thrown).isInstanceOf(InvitationConflictException.class);
+		assertThat(((InvitationConflictException) thrown).getCode()).isEqualTo("INVITATION_ALREADY_PENDING");
+		assertThat(pending.getStatus()).isEqualTo(InvitationStatus.PENDING);
+	}
+
+	@Test
+	void findInvitableMemberExpiresStalePendingInvitationAndReturnsCandidate() {
+		User requester = user(1L);
+		User invitee = user(2L);
+		Project project = project(requester);
+		Invitation stale = projectInvitation(100L, project, requester, invitee);
+		stale.setExpiresAt(now().minusSeconds(1));
+		stubCompanyAdmin(requester, project);
+		when(userRepository.findByEmail(invitee.getEmail())).thenReturn(Optional.of(invitee));
+		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE)).thenReturn(true);
+		when(projectMemberRepository.existsByProject_IdAndUser_IdAndStatus(10L, 2L, ProjectMemberStatus.ACTIVE)).thenReturn(false);
+		when(invitationRepository.findAllByProjectIdAndInvitee_IdAndScopeTypeAndStatus(10L, 2L, InvitationScopeType.PROJECT, InvitationStatus.PENDING)).thenReturn(List.of(stale));
+
+		var data = service.findInvitableMember("token", 10L, invitee.getEmail());
+
+		assertThat(data.user().id()).isEqualTo(2L);
+		assertThat(stale.getStatus()).isEqualTo(InvitationStatus.EXPIRED);
+		assertThat(stale.getUpdatedAt()).isEqualTo(now());
+	}
+
+	@Test
 	void acceptCreatesMembershipAndAcceptsInvitation() {
 		User invitee = user(2L);
 		User inviter = user(1L);
