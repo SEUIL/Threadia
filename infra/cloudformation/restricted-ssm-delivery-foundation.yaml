@@ -1,0 +1,214 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Private S3 and fixed SSM Command delivery add-on for the restricted Threadia EC2 host.
+
+Parameters:
+  NetworkStackName:
+    Type: String
+    AllowedPattern: '^[A-Za-z][A-Za-z0-9-]{0,127}$'
+  ExistingEc2InstanceId:
+    Type: String
+    Description: Exact existing DeliveryHost instance ID.
+    AllowedPattern: '^i-[a-z0-9]+$'
+  ExistingEc2RoleName:
+    Type: String
+    Description: Existing restricted compute EC2 role name.
+    AllowedPattern: '^[A-Za-z0-9+=,.@_-]{1,64}$'
+  ArtifactNoncurrentVersionRetentionDays:
+    Type: Number
+    Default: 30
+    MinValue: 7
+    MaxValue: 365
+
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      ClientIdList: [sts.amazonaws.com]
+      Url: https://token.actions.githubusercontent.com
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: ManagedBy
+          Value: CloudFormation
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub threadia-restricted-${AWS::AccountId}-${AWS::Region}-artifacts
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireNoncurrentReleaseVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: !Ref ArtifactNoncurrentVersionRetentionDays
+          - Id: AbortIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: ManagedBy
+          Value: CloudFormation
+  GitHubDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Exact GitHub Environment OIDC role for immutable S3 releases and the fixed SSM document.
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref GitHubOidcProvider
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub: repo:SEUIL/Threadia:environment:restricted-nonprod
+      MaxSessionDuration: 3600
+      Policies:
+        - PolicyName: PublishImmutableReleaseAndInvokeFixedDocument
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: PutOnlyImmutableReleaseObjects
+                Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub ${ArtifactBucket.Arn}/releases/*
+              - Sid: InvokeOnlyTheFixedDocumentOnTheExactHost
+                Effect: Allow
+                Action: ssm:SendCommand
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${ReleaseCommandDocument}
+                  - !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${ExistingEc2InstanceId}
+              - Sid: ReadOnlyOwnCommandInvocationStatus
+                Effect: Allow
+                Action: ssm:GetCommandInvocation
+                Resource: '*'
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: ManagedBy
+          Value: CloudFormation
+  ExistingEc2DeliveryPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub ${AWS::StackName}-artifact-and-runtime-parameters
+      Roles: [!Ref ExistingEc2RoleName]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: ReadVersionedReleaseOnlyThroughPrivateS3Endpoint
+            Effect: Allow
+            Action: [s3:GetObject, s3:GetObjectVersion]
+            Resource: !Sub ${ArtifactBucket.Arn}/releases/*
+            Condition:
+              StringEquals:
+                aws:SourceVpce:
+                  Fn::ImportValue: !Sub ${NetworkStackName}-S3GatewayEndpointId
+          - Sid: ReadExactRuntimeSecureStringParametersOnly
+            Effect: Allow
+            Action: [ssm:GetParameter, ssm:GetParameters]
+            Resource:
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_DB_URL
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_DB_USERNAME
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_DB_PASSWORD
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN
+  ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !GetAtt ArtifactBucket.Arn
+              - !Sub ${ArtifactBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+          - Sid: AllowGitHubRoleToPutReleaseObjects
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt GitHubDeployRole.Arn
+            Action: s3:PutObject
+            Resource: !Sub ${ArtifactBucket.Arn}/releases/*
+          - Sid: AllowExactEc2RoleToReadOnlyViaPrivateS3Endpoint
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ExistingEc2RoleName}
+            Action: [s3:GetObject, s3:GetObjectVersion]
+            Resource: !Sub ${ArtifactBucket.Arn}/releases/*
+            Condition:
+              StringEquals:
+                aws:SourceVpce:
+                  Fn::ImportValue: !Sub ${NetworkStackName}-S3GatewayEndpointId
+  ReleaseCommandDocument:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Command
+      DocumentFormat: YAML
+      TargetType: /AWS::EC2::Instance
+      Content:
+        schemaVersion: '2.2'
+        description: Download and atomically activate one immutable Threadia release through the fixed host helper.
+        parameters:
+          ArtifactKey:
+            type: String
+            allowedPattern: '^releases/[0-9a-f]{40}/[0-9]+-[0-9]+/threadia-release-[0-9a-f]{40}-[0-9]+-[0-9]+\\.tar\\.gz$'
+          ArtifactVersionId:
+            type: String
+            allowedPattern: '^[A-Za-z0-9._+=/-]{1,1000}[A-Za-z0-9._+=/-]{0,24}$'
+          ArtifactSha256:
+            type: String
+            allowedPattern: '^[a-f0-9]{64}$'
+          ReleaseId:
+            type: String
+            allowedPattern: '^[0-9a-f]{40}-[0-9]+-[0-9]+$'
+        mainSteps:
+          - action: aws:runShellScript
+            name: ApplyImmutableRelease
+            inputs:
+              runCommand:
+                - !Sub >-
+                  /usr/local/lib/threadia-release/apply-release
+                  '${ArtifactBucket}' '{{ ArtifactKey }}' '{{ ArtifactVersionId }}'
+                  '{{ ArtifactSha256 }}' '{{ ReleaseId }}'
+
+Outputs:
+  ArtifactBucketName:
+    Value: !Ref ArtifactBucket
+  GitHubDeployRoleArn:
+    Value: !GetAtt GitHubDeployRole.Arn
+  ReleaseCommandDocumentName:
+    Value: !Ref ReleaseCommandDocument
+  RuntimeParameterNames:
+    Description: Exact SecureString names that the approved platform owner must create and rotate outside this template.
+    Value: /threadia/restricted-nonprod/runtime/{THREADIA_DB_URL,THREADIA_DB_USERNAME,THREADIA_DB_PASSWORD,THREADIA_JWT_SECRET,THREADIA_COOKIE_SECURE,THREADIA_CORS_ALLOWED_ORIGIN}
