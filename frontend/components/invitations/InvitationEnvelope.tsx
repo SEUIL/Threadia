@@ -19,6 +19,7 @@
 import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { seededRandom } from "@/lib/seededRandom";
+import { invitationScopeLabel } from "@/lib/invitation";
 import type { InvitationResponse } from "@/types/invitation.types";
 
 type EnvelopePhase = "falling" | "landed" | "opening";
@@ -67,7 +68,7 @@ export function InvitationEnvelope({
         type="button"
         onClick={handleClick}
         disabled={phase === "opening"}
-        aria-label={`${invitation.companyName} 초대 봉투 열기`}
+        aria-label={`${invitationScopeLabel(invitation)} 초대 봉투 열기`}
         className="relative block -translate-x-1/2 cursor-pointer [perspective:600px]"
       >
         <div className="relative h-28 w-44 overflow-hidden rounded-lg bg-surface shadow-xl">

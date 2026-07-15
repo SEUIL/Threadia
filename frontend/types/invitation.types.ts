@@ -25,6 +25,12 @@ export interface InvitationResponse {
   companyId: number;
   companyName: string;
   projectId: number | null;
+  /**
+   * PROJECT scope 표시용 프로젝트 이름. COMPANY scope면 null이다.
+   * 초대 대상자는 아직 프로젝트 member가 아니라 프로젝트 상세를 조회할 수 없어서
+   * (403), 이 필드가 없으면 수신 화면이 어느 프로젝트 초대인지 알 수 없다.
+   */
+  projectName: string | null;
   inviterUserId: number;
   inviterNickname: string;
   inviteeUserId: number;
