@@ -13,6 +13,7 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import com.threadia.backend.auth.domain.*;
 import com.threadia.backend.common.auth.*;
+import com.threadia.backend.common.exception.ForbiddenException;
 import com.threadia.backend.company.domain.*;
 import com.threadia.backend.company.service.CompanyMembershipService;
 import com.threadia.backend.issue.domain.*;
@@ -42,6 +43,14 @@ class SprintServiceTest {
 		when(sprints.findById(30L)).thenReturn(Optional.of(sprint)); when(projects.findByIdForUpdate(20L)).thenReturn(Optional.of(project)); when(sprints.findByIdForUpdate(30L)).thenReturn(Optional.of(sprint)); when(issues.findBySprintIdForUpdate(30L)).thenReturn(List.of(inProgress,backlog,done));
 		SprintData data=service.complete("token",30L,new SprintCompleteRequest("closed"));
 		assertThat(data.sprint().status()).isEqualTo("COMPLETED"); assertThat(inProgress.getStatus()).isEqualTo(IssueStatus.BACKLOG); assertThat(inProgress.getSprint()).isNull(); assertThat(backlog.getStatus()).isEqualTo(IssueStatus.BACKLOG); assertThat(backlog.getSprint()).isNull(); assertThat(done.getStatus()).isEqualTo(IssueStatus.DONE); assertThat(done.getSprint()).isNull(); verify(history,times(1)).save(any(IssueStatusHistory.class));
+	}
+	@Test void createRejectsInactiveCompanyBeforeSprintWrite() {
+		LocalDateTime now=LocalDateTime.now(CLOCK); Company inactiveCompany=new Company("Threadia",null,null,null,null,CompanyStatus.INACTIVE,user,now,now); id(inactiveCompany,11L); Project inactiveProject=new Project(inactiveCompany,"MVP","THD",null,ProjectStatus.ACTIVE,null,null,user,null,null,null,now,now); id(inactiveProject,21L);
+		when(projects.findByIdForUpdate(21L)).thenReturn(Optional.of(inactiveProject)); when(companyMembership.hasActiveRole(11L,context,CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false); doThrow(new ForbiddenException("회사 접근 권한이 없습니다.")).when(companyMembership).requireActiveMember(11L,context);
+
+		assertThatThrownBy(()->service.create("token",21L,new SprintCreateRequest("Sprint",null,null,null))).isInstanceOf(ForbiddenException.class).hasMessage("회사 접근 권한이 없습니다.");
+
+		verify(projects).findByIdForUpdate(21L); verifyNoMoreInteractions(projects); verifyNoInteractions(sprints,issues,members);
 	}
 	@Test void invalidAuthenticationPreventsEverySprintResourceLookupOrLock() {
 		when(auth.fromAccessToken("invalid-token")).thenThrow(new JwtAuthenticationException("유효하지 않은 access token입니다."));
