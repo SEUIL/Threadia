@@ -47,6 +47,7 @@ class MysqlSchemaValidationTests {
 			"documents",
 			"document_issue_links"
 	);
+	private static final List<String> DIRECT_MESSAGE_TABLES = List.of("direct_message_rooms", "direct_messages", "dm_room_user_states");
 	private static final List<String> PROJECT_CHAT_TABLES = List.of("messages", "project_chat_member_states");
 	private static final List<String> PLATFORM_SUPPORT_TABLES = List.of(
 			"platform_admin_bootstrap_locks",
@@ -275,6 +276,29 @@ class MysqlSchemaValidationTests {
 		assertForeignKey("document_issue_links", "fk_dil_document", "document_id", "documents", "id");
 		assertForeignKey("document_issue_links", "fk_dil_issue", "issue_id", "issues", "id");
 		assertForeignKey("document_issue_links", "fk_dil_created_by", "created_by_user_id", "users", "id");
+	}
+
+	@Test
+	void appliesSchemaSqlAndCreatesDirectMessageTablesAndConstraints() {
+		applySchemaSql();
+		Set<String> existingTables = jdbcTemplate.queryForList("""
+				SELECT table_name FROM information_schema.tables
+				WHERE table_schema = DATABASE()
+				  AND table_name IN ('direct_message_rooms', 'direct_messages', 'dm_room_user_states')
+				""", String.class).stream().collect(Collectors.toSet());
+		assertThat(existingTables).containsExactlyInAnyOrderElementsOf(DIRECT_MESSAGE_TABLES);
+		assertIndex("direct_message_rooms", "uq_dmr_company_users", "company_id", "user1_id", "user2_id");
+		assertUniqueConstraint("direct_message_rooms", "uq_dmr_company_users");
+		assertForeignKey("direct_message_rooms", "fk_dmr_company", "company_id", "companies", "id");
+		assertForeignKey("direct_message_rooms", "fk_dmr_user1", "user1_id", "users", "id");
+		assertForeignKey("direct_message_rooms", "fk_dmr_user2", "user2_id", "users", "id");
+		assertCheckConstraint("chk_dmr_user_order");
+		assertIndex("direct_messages", "idx_dm_room_created", "room_id", "created_at", "id");
+		assertForeignKey("direct_messages", "fk_dm_room", "room_id", "direct_message_rooms", "id");
+		assertForeignKey("direct_messages", "fk_dm_sender", "sender_user_id", "users", "id");
+		assertIndex("dm_room_user_states", "PRIMARY", "room_id", "user_id");
+		assertForeignKey("dm_room_user_states", "fk_dmrus_room", "room_id", "direct_message_rooms", "id");
+		assertForeignKey("dm_room_user_states", "fk_dmrus_last_read", "last_read_direct_message_id", "direct_messages", "id");
 	}
 
 	@Test

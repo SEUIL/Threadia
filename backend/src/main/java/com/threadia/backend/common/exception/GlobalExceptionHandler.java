@@ -30,6 +30,8 @@ import com.threadia.backend.config.jwt.JwtAuthenticationException;
 import com.threadia.backend.document.exception.DocumentConflictException;
 import com.threadia.backend.document.exception.DocumentLinkNotFoundException;
 import com.threadia.backend.document.exception.DocumentNotFoundException;
+import com.threadia.backend.directmessage.exception.DirectMessageRoomNotFoundException;
+import com.threadia.backend.directmessage.exception.DirectMessageValidationException;
 import com.threadia.backend.invitation.exception.InvitationConflictException;
 import com.threadia.backend.invitation.exception.InvitationNotFoundException;
 import com.threadia.backend.issue.exception.IssueNotFoundException;
@@ -97,7 +99,7 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(body));
 	}
 
-	@ExceptionHandler({ProjectValidationException.class, SupportCaseValidationException.class})
+	@ExceptionHandler({ProjectValidationException.class, SupportCaseValidationException.class, DirectMessageValidationException.class})
 	public ResponseEntity<ErrorResponse> handleProjectValidation(RuntimeException ex) {
 		ErrorBody body = ErrorBody.of("VALIDATION_ERROR", ex.getMessage());
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(body));
@@ -121,6 +123,7 @@ public class GlobalExceptionHandler {
 			ProjectMemberNotFoundException.class,
 			ProjectNotFoundException.class,
 			MessageNotFoundException.class,
+			DirectMessageRoomNotFoundException.class,
 			IssueNotFoundException.class,
 			SprintNotFoundException.class,
 			DocumentNotFoundException.class,
