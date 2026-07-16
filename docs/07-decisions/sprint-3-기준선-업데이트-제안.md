@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-07
-> **최종 수정**: 2026-07-14
-> **버전**: v0.5 WBS 4.2 Level 3 실행 row 분리 반영
+> **최종 수정**: 2026-07-16
+> **버전**: v0.6 WBS 4.10.4 범위 정렬
 > **상태**: 검토 중
 > **태그**: decision, sprint-3, baseline, proposal, changelog
 
@@ -144,7 +144,7 @@ Level 3 row는 전체 parent를 기계적으로 쪼개지 않고 실행 순서�
 | `4.2` | `4.2.1~4.2.2` | `4.2.1`은 Backend-only로 `PATCH /api/v1/users/me/profile`의 partial nickname/avatarUrl 수정을 지원하고, 기존 `GET /api/v1/auth/me`와 `GET /api/v1/users/me/company-memberships`를 분리된 verified context contract로 유지한다. `4.2.2`는 `4.2.1`에 의존하는 Frontend-only planned row로 mock role 제거, 프로필 UI, S03/S04 API 연동, 브라우저 검증을 다루며 0%로 둔다. |
 | `4.7` | `4.7.1~4.7.4` | thread core, project chat, 1:1 DM, group DM/read receipt decision 분리 |
 | `4.9` | `4.9.1~4.9.3` | activity feed, search decision, dashboard aggregate 분리 |
-| `4.10` | `4.10.1~4.10.4` | support cases, enforcement, system settings decision, audit/operation logs 분리 |
+| `4.10` | `4.10.1~4.10.4` | support cases, enforcement, system settings decision, audit/operation logs 및 platform admin lifecycle/grant/revoke 분리 |
 | `4.11` | `4.11.1~4.11.3` | attachment policy, presigned URL 구현, metadata/validation 검증 분리 |
 | `4.12` | `4.12.1~4.12.3` | version/revision policy, conflict API/backend, conflict UI/검증 분리 |
 | `4.13` | `4.13.1~4.13.3` | retention/audit policy, project restore, permanent delete 구현 분리 |
