@@ -31,6 +31,7 @@ import com.threadia.backend.common.auth.AuthContextService;
 import com.threadia.backend.common.exception.ForbiddenException;
 import com.threadia.backend.company.domain.Company;
 import com.threadia.backend.company.domain.CompanyMemberRole;
+import com.threadia.backend.company.domain.CompanyStatus;
 import com.threadia.backend.company.service.CompanyMembershipService;
 import com.threadia.backend.project.domain.Project;
 import com.threadia.backend.project.domain.ProjectMember;
@@ -211,7 +212,7 @@ class ProjectChatServiceTest {
 	private static Fixture fixture() {
 		LocalDateTime now = LocalDateTime.now(CLOCK);
 		User user = new User("member@example.com", "hash", "member", null, UserStatus.ACTIVE, now, now); setId(user, 1L);
-		Company company = new Company("Threadia", "member", "workspace", "IT", null, "ACTIVE", user, now, now); setId(company, 10L);
+		Company company = new Company("Threadia", "member", "workspace", "IT", null, CompanyStatus.ACTIVE, user, now, now); setId(company, 10L);
 		Project project = new Project(company, "MVP", "THD", null, ProjectStatus.ACTIVE, LocalDate.now(), LocalDate.now(), user, null, null, null, now, now); setId(project, 20L);
 		return new Fixture(new AuthContext(1L, "member@example.com"), user, project);
 	}

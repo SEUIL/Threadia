@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import com.threadia.backend.auth.domain.User;
 import com.threadia.backend.auth.domain.UserStatus;
 import com.threadia.backend.company.domain.Company;
+import com.threadia.backend.company.domain.CompanyStatus;
 import com.threadia.backend.project.domain.Project;
 import com.threadia.backend.project.domain.ProjectStatus;
 import com.threadia.backend.projectchat.domain.Message;
@@ -52,7 +53,7 @@ class ProjectChatCursorCodecTest {
 
 	private static Message message(Long id, LocalDateTime createdAt) {
 		User user = new User("user@example.com", "hash", "user", null, UserStatus.ACTIVE, createdAt, createdAt); setId(user, 1L);
-		Company company = new Company("Company", "name", null, null, null, "ACTIVE", user, createdAt, createdAt); setId(company, 10L);
+		Company company = new Company("Company", "name", null, null, null, CompanyStatus.ACTIVE, user, createdAt, createdAt); setId(company, 10L);
 		Project project = new Project(company, "Project", "PRJ", null, ProjectStatus.ACTIVE, null, null, user, null, null, null, createdAt, createdAt); setId(project, 20L);
 		Message message = new Message(project, user, "content", createdAt); setId(message, id); return message;
 	}
