@@ -379,7 +379,7 @@ Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PL
 | POST | `/api/v1/projects/{projectId}/threads` | A/P/C | 쓰레드 생성/get-or-create |
 | GET | `/api/v1/threads/{threadId}` | A/P/C | 쓰레드 상세 |
 | PATCH | `/api/v1/threads/{threadId}` | 작성자/P/C | 쓰레드 topic 수정 |
-| POST | `/api/v1/threads/{threadId}/comments` | A/P/C | 댓글 작성, 멘션 알림 생성 |
+| POST | `/api/v1/threads/{threadId}/comments` | A/P/C | append-only 댓글 작성. 멘션 알림은 범위 밖 |
 | GET | `/api/v1/projects/{projectId}/messages` | A/P/C | 프로젝트 메시지 목록 |
 | POST | `/api/v1/projects/{projectId}/messages` | A/P/C | 프로젝트 메시지 작성 |
 | GET | `/api/v1/messages/{messageId}` | A/P/C | 메시지 상세 |
@@ -1784,6 +1784,18 @@ Request Body:
 }
 ```
 
+대상별 대표 Thread를 명시적으로 get-or-create한다. 처음 생성하면 `201`, 기존 대표 Thread를 반환하면 `200`이다. Issue/Document/Message의 생성은 Thread를 자동 생성하지 않는다.
+
+Response `data.thread`은 `id`, `projectId`, `targetType`, `targetId`, `topic`, `createdByUserId`, `createdAt`, `updatedAt`을 반환한다.
+
+#### GET `/api/v1/projects/{projectId}/threads?targetType={ISSUE|DOCUMENT|MESSAGE}&targetId={targetId}`
+
+`targetType`과 `targetId`는 모두 필수다. 요청 프로젝트·대상과 일치하는 대표 Thread 하나를 `data.thread`로 반환한다. project-wide Thread 목록과 pagination은 제공하지 않는다. Thread가 아직 없으면 `404 NOT_FOUND`다.
+
+#### GET `/api/v1/threads/{threadId}`
+
+접근 가능한 Thread 상세를 `data.thread`로 반환한다.
+
 #### PATCH `/api/v1/threads/{threadId}`
 
 Request Body:
@@ -1792,16 +1804,23 @@ Request Body:
 { "topic": "로그인 API 검증 논의" }
 ```
 
+`topic`은 `null` 또는 trim 후 1~200자다. `null`은 topic을 제거한다. Thread 생성자 또는 P/C만 수정할 수 있다.
+
+#### GET `/api/v1/threads/{threadId}/comments`
+
+생성 순서(`id ASC`)의 append-only 댓글을 `data.comments`로 반환한다.
+
 #### POST `/api/v1/threads/{threadId}/comments`
 
 Request Body:
 
 ```json
 {
-  "content": "@김민정 실패 케이스도 같이 확인해주세요.",
-  "mentionedUserIds": [2]
+  "content": "실패 케이스도 같이 확인해주세요."
 }
 ```
+
+Response 201의 `data.comment`은 `id`, `threadId`, `authorUserId`, `content`, `createdAt`을 반환한다.
 
 #### POST `/api/v1/projects/{projectId}/messages`
 
@@ -1908,6 +1927,15 @@ Response 200:
 - `GET /api/v1/projects/{projectId}/messages/unread-count`와 mark-read 응답의 unread count는 저장하지 않고 계산한다. 본인이 작성한 메시지는 제외하며, 현재 pointer 이후 메시지만 센다.
 - 모든 endpoint는 ACTIVE 회사 `COMPANY_ADMIN`이면 해당 회사의 모든 project에 접근할 수 있고, 그 외 사용자는 ACTIVE project membership이 필요하다. 서버 생성 시각과 응답 시간은 UTC ISO-8601 `Z` 형식이다.
 - list의 잘못된 `limit`, 10,000자를 초과하거나 blank인 `content`, missing `lastReadMessageId`, malformed/tampered cursor는 `400 VALIDATION_ERROR`다. 없는 message는 `404 NOT_FOUND`, 접근 불가 project/message는 `403 FORBIDDEN`, non-null `threadId`는 `409 THREAD_DEFERRED`다.
+
+#### WBS 4.7.1.1 Thread Core Backend 정책
+
+- Thread 생성은 `POST /api/v1/projects/{projectId}/threads`만 수행한다. Issue, Document, Message 생성 및 조회는 Thread를 자동 생성하지 않는다.
+- 대상은 `ISSUE`, `DOCUMENT`, `MESSAGE`만 허용하고, 존재하며 path project에 속해야 한다. `(targetType, targetId)` DB unique key와 `INSERT IGNORE` 후 재조회로 경합 시에도 대표 Thread 하나만 반환한다.
+- `GET /api/v1/projects/{projectId}/threads`는 필수 target query의 대표 Thread 조회 전용이다. project-wide list/pagination은 범위 밖이다.
+- 모든 Thread read/create/comment endpoint는 ACTIVE 회사 `COMPANY_ADMIN` 또는 ACTIVE project member만 수행한다. topic 변경은 Thread 생성자 또는 P/C만 수행한다.
+- 댓글은 1~10,000자 `content`를 trim해 생성 순서로 append-only 저장한다. 댓글 수정/삭제, 멘션 파싱·저장·notification/event 발행은 제공하지 않는다.
+- topic은 생성 시 선택이고, 수정 요청의 `null`은 제거를 의미한다. non-null topic은 trim 후 1~200자여야 한다. 모든 서버 시간 및 응답 시간은 UTC ISO-8601 `Z` 형식이다.
 
 #### GET `/api/v1/companies/{companyId}/direct-messages/rooms`
 
