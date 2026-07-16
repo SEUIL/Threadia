@@ -232,6 +232,7 @@ class CompanyInvitationControllerTest {
 				companyId,
 				"Threadia",
 				null,
+				null,
 				1L,
 				"admin",
 				inviteeUserId,

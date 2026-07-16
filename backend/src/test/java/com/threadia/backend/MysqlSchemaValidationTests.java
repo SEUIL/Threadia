@@ -17,6 +17,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
+import com.threadia.backend.platform.bootstrap.PlatformAdminBootstrap;
 
 @SpringBootTest(properties = "spring.jpa.hibernate.ddl-auto=none")
 @EnabledIfEnvironmentVariable(named = "THREADIA_DB_PASSWORD", matches = ".+")
@@ -45,6 +48,17 @@ class MysqlSchemaValidationTests {
 			"document_issue_links"
 	);
 	private static final List<String> PROJECT_CHAT_TABLES = List.of("messages", "project_chat_member_states");
+	private static final List<String> PLATFORM_SUPPORT_TABLES = List.of(
+			"platform_admin_bootstrap_locks",
+			"platform_admins",
+			"support_cases",
+			"support_case_public_replies",
+			"support_case_internal_notes",
+			"admin_action_audits"
+	);
+
+	@MockitoBean
+	private PlatformAdminBootstrap platformAdminBootstrap;
 
 	@Autowired
 	private DataSource dataSource;
@@ -293,6 +307,102 @@ class MysqlSchemaValidationTests {
 		assertForeignKey("project_chat_member_states", "fk_pcms_project", "project_id", "projects", "id");
 		assertForeignKey("project_chat_member_states", "fk_pcms_user", "user_id", "users", "id");
 		assertForeignKey("project_chat_member_states", "fk_pcms_last_read", "last_read_message_id", "messages", "id");
+	}
+
+	@Test
+	void appliesSchemaSqlAndCreatesPlatformSupportTables() {
+		applySchemaSql();
+
+		Set<String> existingTables = jdbcTemplate.queryForList("""
+				SELECT table_name
+				FROM information_schema.tables
+				WHERE table_schema = DATABASE()
+				  AND table_name IN (
+				    'platform_admin_bootstrap_locks',
+				    'platform_admins',
+				    'support_cases',
+				    'support_case_public_replies',
+				    'support_case_internal_notes',
+				    'admin_action_audits'
+				  )
+				""", String.class)
+				.stream()
+				.collect(Collectors.toSet());
+
+		assertThat(existingTables).containsExactlyInAnyOrderElementsOf(PLATFORM_SUPPORT_TABLES);
+	}
+
+	@Test
+	void appliesSchemaSqlAndCreatesPlatformSupportConstraints() {
+		applySchemaSql();
+
+		assertRequiredColumn("platform_admin_bootstrap_locks", "id", "int");
+		assertCheckConstraint("chk_platform_admin_bootstrap_lock_singleton");
+		assertThat(jdbcTemplate.queryForObject(
+				"SELECT COUNT(*) FROM platform_admin_bootstrap_locks WHERE id = 1",
+				Integer.class))
+				.isEqualTo(1);
+
+		assertRequiredColumn("platform_admins", "user_id", "bigint");
+		assertEnumColumn("platform_admins", "role", null, "PLATFORM_ADMIN", "SUPER_ADMIN");
+		assertUniqueConstraint("platform_admins", "uq_platform_admins_user");
+		assertForeignKey("platform_admins", "fk_platform_admins_user", "user_id", "users", "id");
+
+		assertRequiredColumn("support_cases", "reporter_user_id", "bigint");
+		assertEnumColumn("support_cases", "case_type", null, "INQUIRY", "REPORT");
+		assertEnumColumn(
+				"support_cases",
+				"status",
+				"OPEN",
+				"OPEN",
+				"IN_PROGRESS",
+				"RESOLVED",
+				"REJECTED",
+				"CLOSED");
+		assertNullableEnumColumn("support_cases", "target_type", "USER", "COMPANY", "PROJECT", "CONTENT");
+		assertNullableColumn("support_cases", "target_id", "char");
+		assertForeignKey("support_cases", "fk_support_cases_reporter", "reporter_user_id", "users", "id");
+		assertCheckConstraint("chk_support_cases_target");
+
+		assertForeignKey(
+				"support_case_public_replies",
+				"fk_scpr_case",
+				"support_case_id",
+				"support_cases",
+				"id");
+		assertForeignKey(
+				"support_case_public_replies",
+				"fk_scpr_author",
+				"author_platform_admin_id",
+				"platform_admins",
+				"id");
+		assertForeignKey(
+				"support_case_internal_notes",
+				"fk_scin_case",
+				"support_case_id",
+				"support_cases",
+				"id");
+		assertForeignKey(
+				"support_case_internal_notes",
+				"fk_scin_author",
+				"author_platform_admin_id",
+				"platform_admins",
+				"id");
+
+		assertEnumColumn("admin_action_audits", "authority_source", null, "USER", "PLATFORM_ADMIN");
+		assertNullableEnumColumn("admin_action_audits", "authority_role", "PLATFORM_ADMIN", "SUPER_ADMIN");
+		assertRequiredColumn("admin_action_audits", "reason", "varchar");
+		assertNullableColumn("admin_action_audits", "before_state", "longtext");
+		assertRequiredColumn("admin_action_audits", "after_state", "longtext");
+		assertForeignKey("admin_action_audits", "fk_aaa_case", "support_case_id", "support_cases", "id");
+		assertForeignKey("admin_action_audits", "fk_aaa_actor", "actor_user_id", "users", "id");
+		assertForeignKey(
+				"admin_action_audits",
+				"fk_aaa_platform_admin",
+				"actor_platform_admin_id",
+				"platform_admins",
+				"id");
+		assertCheckConstraint("chk_aaa_authority");
 	}
 
 	private void applySchemaSql() {

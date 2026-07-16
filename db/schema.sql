@@ -1,3 +1,9 @@
+DROP TABLE IF EXISTS admin_action_audits;
+DROP TABLE IF EXISTS support_case_internal_notes;
+DROP TABLE IF EXISTS support_case_public_replies;
+DROP TABLE IF EXISTS support_cases;
+DROP TABLE IF EXISTS platform_admins;
+DROP TABLE IF EXISTS platform_admin_bootstrap_locks;
 DROP TABLE IF EXISTS project_dashboard_summaries;
 DROP TABLE IF EXISTS notification_recipients;
 DROP TABLE IF EXISTS notification_preferences;
@@ -37,6 +43,107 @@ CREATE TABLE users (
     updated_at    DATETIME     NOT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uq_users_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE platform_admin_bootstrap_locks (
+    id INT NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT chk_platform_admin_bootstrap_lock_singleton CHECK (id = 1)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO platform_admin_bootstrap_locks (id) VALUES (1);
+
+CREATE TABLE platform_admins (
+    id         BIGINT   NOT NULL AUTO_INCREMENT,
+    user_id    BIGINT   NOT NULL,
+    role       ENUM('PLATFORM_ADMIN','SUPER_ADMIN') NOT NULL,
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_platform_admins_user (user_id),
+    CONSTRAINT fk_platform_admins_user FOREIGN KEY (user_id) REFERENCES users (id)
+        ON DELETE RESTRICT ON UPDATE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE support_cases (
+    id               BIGINT       NOT NULL AUTO_INCREMENT,
+    reporter_user_id BIGINT       NOT NULL,
+    case_type        ENUM('INQUIRY','REPORT') NOT NULL,
+    status           ENUM('OPEN','IN_PROGRESS','RESOLVED','REJECTED','CLOSED') NOT NULL DEFAULT 'OPEN',
+    target_type      ENUM('USER','COMPANY','PROJECT','CONTENT') NULL,
+    target_id        CHAR(36)     NULL,
+    title            VARCHAR(200) NOT NULL,
+    body             TEXT         NOT NULL,
+    created_at       DATETIME     NOT NULL,
+    updated_at       DATETIME     NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_support_cases_reporter_created (reporter_user_id, created_at, id),
+    KEY idx_support_cases_status_created (status, created_at, id),
+    CONSTRAINT fk_support_cases_reporter FOREIGN KEY (reporter_user_id) REFERENCES users (id)
+        ON DELETE RESTRICT ON UPDATE RESTRICT,
+    CONSTRAINT chk_support_cases_target CHECK (
+        (case_type = 'INQUIRY' AND target_type IS NULL AND target_id IS NULL) OR
+        (case_type = 'REPORT' AND target_type IS NOT NULL)
+    )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE support_case_public_replies (
+    id                        BIGINT   NOT NULL AUTO_INCREMENT,
+    support_case_id           BIGINT   NOT NULL,
+    author_platform_admin_id  BIGINT   NOT NULL,
+    body                      TEXT     NOT NULL,
+    created_at                DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_scpr_case_created (support_case_id, created_at, id),
+    KEY idx_scpr_author (author_platform_admin_id),
+    CONSTRAINT fk_scpr_case FOREIGN KEY (support_case_id) REFERENCES support_cases (id)
+        ON DELETE RESTRICT ON UPDATE RESTRICT,
+    CONSTRAINT fk_scpr_author FOREIGN KEY (author_platform_admin_id) REFERENCES platform_admins (id)
+        ON DELETE RESTRICT ON UPDATE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE support_case_internal_notes (
+    id                        BIGINT   NOT NULL AUTO_INCREMENT,
+    support_case_id           BIGINT   NOT NULL,
+    author_platform_admin_id  BIGINT   NOT NULL,
+    body                      TEXT     NOT NULL,
+    created_at                DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_scin_case_created (support_case_id, created_at, id),
+    KEY idx_scin_author (author_platform_admin_id),
+    CONSTRAINT fk_scin_case FOREIGN KEY (support_case_id) REFERENCES support_cases (id)
+        ON DELETE RESTRICT ON UPDATE RESTRICT,
+    CONSTRAINT fk_scin_author FOREIGN KEY (author_platform_admin_id) REFERENCES platform_admins (id)
+        ON DELETE RESTRICT ON UPDATE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE admin_action_audits (
+    id                          BIGINT       NOT NULL AUTO_INCREMENT,
+    support_case_id             BIGINT       NOT NULL,
+    actor_user_id               BIGINT       NOT NULL,
+    actor_platform_admin_id     BIGINT       NULL,
+    authority_source            ENUM('USER','PLATFORM_ADMIN') NOT NULL,
+    authority_role              ENUM('PLATFORM_ADMIN','SUPER_ADMIN') NULL,
+    action                      ENUM('SUPPORT_CASE_CREATED','PUBLIC_REPLY_CREATED','INTERNAL_NOTE_CREATED','STATUS_CHANGED') NOT NULL,
+    target_type                 ENUM('SUPPORT_CASE','PUBLIC_REPLY','INTERNAL_NOTE') NOT NULL,
+    target_id                   BIGINT       NOT NULL,
+    reason                      VARCHAR(500) NOT NULL,
+    before_state                LONGTEXT     NULL,
+    after_state                 LONGTEXT     NOT NULL,
+    created_at                  DATETIME     NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_aaa_case_created (support_case_id, created_at, id),
+    KEY idx_aaa_actor_created (actor_user_id, created_at, id),
+    KEY idx_aaa_platform_admin (actor_platform_admin_id),
+    CONSTRAINT fk_aaa_case FOREIGN KEY (support_case_id) REFERENCES support_cases (id)
+        ON DELETE RESTRICT ON UPDATE RESTRICT,
+    CONSTRAINT fk_aaa_actor FOREIGN KEY (actor_user_id) REFERENCES users (id)
+        ON DELETE RESTRICT ON UPDATE RESTRICT,
+    CONSTRAINT fk_aaa_platform_admin FOREIGN KEY (actor_platform_admin_id) REFERENCES platform_admins (id)
+        ON DELETE RESTRICT ON UPDATE RESTRICT,
+    CONSTRAINT chk_aaa_authority CHECK (
+        (authority_source = 'USER' AND actor_platform_admin_id IS NULL AND authority_role IS NULL) OR
+        (authority_source = 'PLATFORM_ADMIN' AND actor_platform_admin_id IS NOT NULL AND authority_role IS NOT NULL)
+    )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE oauth_accounts (

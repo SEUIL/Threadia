@@ -111,7 +111,7 @@ class ProjectInvitationControllerTest {
 
 	private static InvitationResponse invitation(Long id, String status) {
 		return new InvitationResponse(
-				id, "PROJECT", 1L, "Threadia", 10L, 1L, "admin", 2L,
+				id, "PROJECT", 1L, "Threadia", 10L, "Threadia 웹", 1L, "admin", 2L,
 				"member@example.com", "member", "MEMBER", status, "2026-07-14T10:15:30Z");
 	}
 }
