@@ -35,7 +35,8 @@ service_unit_maintenance_workflow = (BASE.parent.parent / ".github/workflows/res
 release_helper = (BASE.parent.parent / "scripts/ssm-delivery/apply-release").read_text(encoding="utf-8")
 service_unit = (BASE.parent.parent / "scripts/ssm-delivery/threadia-backend.service").read_text(encoding="utf-8")
 bootstrap = (BASE.parent.parent / "scripts/ssm-delivery/bootstrap-host.sh").read_text(encoding="utf-8")
-dual_image_workflow = (BASE.parent.parent / ".github/workflows/ecr-compose-ssm-deploy.yml").read_text(encoding="utf-8")
+backend_image_workflow = (BASE.parent.parent / ".github/workflows/ecr-compose-ssm-deploy.yml").read_text(encoding="utf-8")
+dual_image_workflow = (BASE.parent.parent / ".github/workflows/ecr-compose-dual-image-ssm-deploy.yml").read_text(encoding="utf-8")
 dual_image_manifest_helper = (BASE.parent.parent / "scripts/ecr-compose-deploy/deploy-release-manifest").read_text(encoding="utf-8")
 runbook = (BASE.parent.parent / "docs/00-project/restricted-ssm-release-runbook.md").read_text(encoding="utf-8")
 architecture = (BASE.parent.parent / "docs/05-architecture/GitHub-OIDC-SSM-EC2-배포-설계.md").read_text(encoding="utf-8")
@@ -109,6 +110,8 @@ assert "StringLike:" not in template.split("GitHubDeployRole:", 1)[1].split("Exi
 github_role = template.split("GitHubDeployRole:", 1)[1].split("ExistingEc2DeliveryPolicy:", 1)[0]
 assert "${ReleaseCommandDocument}" in github_role
 assert "${DualImageReleaseCommandDocument}" in github_role
+assert "ReadVersionedReleaseObjectsForRollbackValidation" in github_role
+assert "Action: [s3:GetObject, s3:GetObjectVersion]" in github_role
 assert "${HelperMaintenanceCommandDocument}" in github_role
 assert "${ServiceUnitMaintenanceCommandDocument}" in github_role
 assert "${ExistingEc2InstanceId}" in github_role
@@ -124,6 +127,7 @@ assert "interpolationType: ENV_VAR" in dual_image_document
 assert "dual-image-release-" in dual_image_document
 assert 'exec /usr/local/lib/threadia-compose/deploy-release-manifest' in dual_image_document
 assert '"$SSM_ReleaseManifestRef"' in dual_image_document
+assert "'${ArtifactBucket}'" not in dual_image_document
 assert f"allowedPattern: '{version_pattern}'" in template
 assert "HelperArtifactKey:" in template
 assert "HelperArtifactVersionId:" in template
@@ -394,14 +398,21 @@ assert "StandardErrorContent:StandardErrorContent" in service_unit_maintenance_w
 assert "StandardOutputContent:StandardOutputContent" in service_unit_maintenance_workflow
 assert "cut -c1-4000" in service_unit_maintenance_workflow
 assert "java " not in release_helper.split("for command", 1)[1].split("umask", 1)[0]
+assert "rollback_digest:" in backend_image_workflow
+assert "THREADIA_ECR_REPOSITORY" in backend_image_workflow
+assert '--parameters ImageRef="$IMAGE_REF"' in backend_image_workflow
+assert "rollback_manifest_ref:" not in backend_image_workflow
 assert "rollback_manifest_ref:" in dual_image_workflow
 assert "THREADIA_ECR_FRONTEND_REPOSITORY" in dual_image_workflow
 assert "THREADIA_ECR_BACKEND_REPOSITORY" in dual_image_workflow
 assert "dual-image-release-${release_id}.env" in dual_image_workflow
 assert '--parameters ReleaseManifestRef="$MANIFEST_REF"' in dual_image_workflow
-assert '[[ "$manifest_ref" =~ ^releases/' in dual_image_manifest_helper
-assert 'aws s3api get-object --bucket "$artifact_bucket" --key "$manifest_key" --version-id "$manifest_version_id"' in dual_image_manifest_helper
-assert 'exec "$DEPLOY_RELEASE" "$manifest_path"' in dual_image_manifest_helper
+assert '[[ "$reference" =~ ^releases/' in dual_image_manifest_helper
+assert '[[ "$#" -eq 1 ]]' in dual_image_manifest_helper
+assert 'aws s3api get-object \\' in dual_image_manifest_helper
+assert '"$DEPLOY_RELEASE" "$manifest_path"' in dual_image_manifest_helper
+assert "environment:\n      name: restricted-nonprod" in dual_image_workflow
+assert "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020" in dual_image_workflow
 assert "runtime/bin/java" in release_helper and "ExecStart=/opt/threadia/current/runtime/bin/java" in service_unit
 assert "yum " not in bootstrap and "apt " not in bootstrap and "http" not in bootstrap
 document_parameters = template.split("parameters:", 1)[1].split("mainSteps:", 1)[0]

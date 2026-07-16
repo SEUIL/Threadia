@@ -1,0 +1,186 @@
+name: ecr-compose-dual-image-ssm-deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      rollback_manifest_ref:
+        description: Existing immutable dual-image manifest reference to deploy instead of building (releases/.../dual-image-release-...env@S3VersionId)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ecr-compose-dual-image-ssm-deploy
+  cancel-in-progress: false
+
+jobs:
+  build_publish:
+    name: Test and publish immutable image
+    if: github.ref == 'refs/heads/main' && inputs.rollback_manifest_ref == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: restricted-nonprod
+    outputs:
+      manifest_ref: ${{ steps.release.outputs.manifest_ref }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+      THREADIA_ECR_REGISTRY: ${{ vars.THREADIA_ECR_REGISTRY }}
+      THREADIA_ECR_FRONTEND_REPOSITORY: ${{ vars.THREADIA_ECR_FRONTEND_REPOSITORY }}
+      THREADIA_ECR_BACKEND_REPOSITORY: ${{ vars.THREADIA_ECR_BACKEND_REPOSITORY }}
+      THREADIA_ARTIFACT_BUCKET: ${{ vars.THREADIA_ARTIFACT_BUCKET }}
+    steps:
+      - name: Checkout
+        # actions/checkout v4.3.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Set up Java 17
+        # actions/setup-java v4.8.0
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Test backend
+        working-directory: backend
+        env:
+          THREADIA_DB_URL: jdbc:mysql://localhost:3307/threadia_test
+          THREADIA_DB_USERNAME: threadia
+          THREADIA_DB_PASSWORD: ""
+          THREADIA_JWT_SECRET: public-ci-test-jwt-secret-not-for-production-please-replace
+          THREADIA_COOKIE_SECURE: "false"
+          THREADIA_CORS_ALLOWED_ORIGIN: http://localhost:3000
+        run: ./gradlew test
+      - name: Set up Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Test frontend SSR build
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: https://api.threadia.click
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run lint
+          npm run build
+      - name: Configure AWS credentials through OIDC
+        # aws-actions/configure-aws-credentials v4.3.1
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Build and push immutable frontend and backend images
+        id: release
+        run: |
+          set -euo pipefail
+          docker_config="$(mktemp -d)"
+          trap 'rm -rf "$docker_config"' EXIT
+          export DOCKER_CONFIG="$docker_config"
+          image_tag="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$THREADIA_ECR_REGISTRY" >/dev/null
+          frontend_repository="$THREADIA_ECR_REGISTRY/$THREADIA_ECR_FRONTEND_REPOSITORY"
+          backend_repository="$THREADIA_ECR_REGISTRY/$THREADIA_ECR_BACKEND_REPOSITORY"
+          docker build --platform linux/amd64 --build-arg NEXT_PUBLIC_API_URL=https://api.threadia.click --tag "$frontend_repository:$image_tag" frontend
+          docker build --platform linux/amd64 --tag "$backend_repository:$image_tag" backend
+          docker push "$frontend_repository:$image_tag" >/dev/null
+          docker push "$backend_repository:$image_tag" >/dev/null
+          frontend_digest="$(aws ecr describe-images --region "$AWS_REGION" --repository-name "$THREADIA_ECR_FRONTEND_REPOSITORY" --image-ids imageTag="$image_tag" --query 'imageDetails[0].imageDigest' --output text)"
+          backend_digest="$(aws ecr describe-images --region "$AWS_REGION" --repository-name "$THREADIA_ECR_BACKEND_REPOSITORY" --image-ids imageTag="$image_tag" --query 'imageDetails[0].imageDigest' --output text)"
+          [[ "$frontend_digest" =~ ^sha256:[a-f0-9]{64}$ && "$backend_digest" =~ ^sha256:[a-f0-9]{64}$ ]] || exit 1
+          release_id="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          manifest="$(mktemp)"
+          trap 'rm -rf "$docker_config" "$manifest"' EXIT
+          printf 'THREADIA_RELEASE_ID=%s\nTHREADIA_FRONTEND_IMAGE=%s@%s\nTHREADIA_BACKEND_IMAGE=%s@%s\n' "$release_id" "$frontend_repository" "$frontend_digest" "$backend_repository" "$backend_digest" > "$manifest"
+          manifest_key="releases/${GITHUB_SHA}/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/dual-image-release-${release_id}.env"
+          manifest_version_id="$(aws s3api put-object --region "$AWS_REGION" --bucket "$THREADIA_ARTIFACT_BUCKET" --key "$manifest_key" --body "$manifest" --server-side-encryption AES256 --query VersionId --output text)"
+          [[ "$manifest_version_id" =~ ^[A-Za-z0-9._+=/-]{1,1024}$ ]] || exit 1
+          printf 'manifest_ref=%s@%s\n' "$manifest_key" "$manifest_version_id" >> "$GITHUB_OUTPUT"
+
+  validate_rollback:
+    name: Validate existing rollback image
+    if: github.ref == 'refs/heads/main' && inputs.rollback_manifest_ref != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: restricted-nonprod
+    outputs:
+      manifest_ref: ${{ steps.manifest.outputs.manifest_ref }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+      THREADIA_ECR_REGISTRY: ${{ vars.THREADIA_ECR_REGISTRY }}
+      THREADIA_ARTIFACT_BUCKET: ${{ vars.THREADIA_ARTIFACT_BUCKET }}
+      ROLLBACK_MANIFEST_REF: ${{ inputs.rollback_manifest_ref }}
+    steps:
+      - name: Validate rollback manifest reference
+        run: |
+          set -euo pipefail
+          [[ "$ROLLBACK_MANIFEST_REF" =~ ^releases/[0-9a-f]{40}/[0-9]+-[0-9]+/dual-image-release-[0-9a-f]{40}-[0-9]+-[0-9]+\.env@[A-Za-z0-9._+=/-]{1,1024}$ ]]
+      - name: Configure AWS credentials through OIDC
+        # aws-actions/configure-aws-credentials v4.3.1
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Confirm rollback manifest version exists
+        id: manifest
+        run: |
+          set -euo pipefail
+          manifest_key="${ROLLBACK_MANIFEST_REF%@*}"
+          manifest_version_id="${ROLLBACK_MANIFEST_REF##*@}"
+          aws s3api head-object --region "$AWS_REGION" --bucket "$THREADIA_ARTIFACT_BUCKET" --key "$manifest_key" --version-id "$manifest_version_id" >/dev/null
+          printf 'manifest_ref=%s\n' "$ROLLBACK_MANIFEST_REF" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Invoke fixed Compose deploy command
+    needs: [build_publish, validate_rollback]
+    if: >-
+      always() && github.ref == 'refs/heads/main' &&
+      (needs.build_publish.result == 'success' || needs.validate_rollback.result == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: restricted-nonprod
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+      THREADIA_ECR_COMPOSE_INSTANCE_ID: ${{ vars.THREADIA_ECR_COMPOSE_INSTANCE_ID }}
+      THREADIA_ECR_COMPOSE_DUAL_IMAGE_SSM_DOCUMENT_NAME: ${{ vars.THREADIA_ECR_COMPOSE_DUAL_IMAGE_SSM_DOCUMENT_NAME }}
+      THREADIA_ECR_COMPOSE_DUAL_IMAGE_SSM_DOCUMENT_VERSION: ${{ vars.THREADIA_ECR_COMPOSE_DUAL_IMAGE_SSM_DOCUMENT_VERSION }}
+      MANIFEST_REF: ${{ needs.build_publish.outputs.manifest_ref || needs.validate_rollback.outputs.manifest_ref }}
+    steps:
+      - name: Configure AWS credentials through OIDC
+        # aws-actions/configure-aws-credentials v4.3.1
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Invoke fixed host deploy script through SSM
+        id: command
+        run: |
+          set -euo pipefail
+          [[ "$MANIFEST_REF" =~ ^releases/[0-9a-f]{40}/[0-9]+-[0-9]+/dual-image-release-[0-9a-f]{40}-[0-9]+-[0-9]+\.env@[A-Za-z0-9._+=/-]{1,1024}$ ]]
+          [[ "$THREADIA_ECR_COMPOSE_DUAL_IMAGE_SSM_DOCUMENT_VERSION" =~ ^[1-9][0-9]*$ ]]
+          command_id="$(aws ssm send-command --region "$AWS_REGION" --document-name "$THREADIA_ECR_COMPOSE_DUAL_IMAGE_SSM_DOCUMENT_NAME" --document-version "$THREADIA_ECR_COMPOSE_DUAL_IMAGE_SSM_DOCUMENT_VERSION" --instance-ids "$THREADIA_ECR_COMPOSE_INSTANCE_ID" --parameters ReleaseManifestRef="$MANIFEST_REF" --query Command.CommandId --output text)"
+          [[ "$command_id" != "None" && "$command_id" != "null" ]] || exit 1
+          printf 'command_id=%s\n' "$command_id" >> "$GITHUB_OUTPUT"
+      - name: Verify SSM command completion
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            if ! status="$(aws ssm get-command-invocation --region "$AWS_REGION" --cli-connect-timeout 5 --cli-read-timeout 10 --command-id "${{ steps.command.outputs.command_id }}" --instance-id "$THREADIA_ECR_COMPOSE_INSTANCE_ID" --query Status --output text 2>/dev/null)"; then
+              status=Pending
+            fi
+            case "$status" in
+              Success) exit 0 ;;
+              Failed|Cancelled|TimedOut|Cancelling) exit 1 ;;
+            esac
+            sleep 10
+          done
+          exit 1

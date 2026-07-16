@@ -118,15 +118,19 @@ Resources:
                 Effect: Allow
                 Action: s3:PutObject
                 Resource: !Sub ${ArtifactBucket.Arn}/releases/*
+              - Sid: ReadVersionedReleaseObjectsForRollbackValidation
+                Effect: Allow
+                Action: [s3:GetObject, s3:GetObjectVersion]
+                Resource: !Sub ${ArtifactBucket.Arn}/releases/*
               - Sid: InvokeOnlyTheFixedDocumentOnTheExactHost
                 Effect: Allow
                 Action: ssm:SendCommand
                 Resource:
-                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${ReleaseCommandDocument}
-                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${DualImageReleaseCommandDocument}
-                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${HelperMaintenanceCommandDocument}
-                    - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${ServiceUnitMaintenanceCommandDocument}
-                    - !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${ExistingEc2InstanceId}
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${ReleaseCommandDocument}
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${DualImageReleaseCommandDocument}
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${HelperMaintenanceCommandDocument}
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${ServiceUnitMaintenanceCommandDocument}
+                  - !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${ExistingEc2InstanceId}
               - Sid: ReadOnlyOwnCommandInvocationStatus
                 Effect: Allow
                 Action: ssm:GetCommandInvocation
@@ -228,8 +232,8 @@ Resources:
                 - !Sub >-
                   AWS_REGION='${AWS::Region}' AWS_DEFAULT_REGION='${AWS::Region}'
                   /usr/local/lib/threadia-release/apply-release
-                   '${ArtifactBucket}' '{{ ArtifactKey }}' '{{ ArtifactVersionId }}'
-                   '{{ ArtifactSha256 }}' '{{ ReleaseId }}'
+                  '${ArtifactBucket}' '{{ ArtifactKey }}' '{{ ArtifactVersionId }}'
+                  '{{ ArtifactSha256 }}' '{{ ReleaseId }}'
   DualImageReleaseCommandDocument:
     Type: AWS::SSM::Document
     Properties:
@@ -251,8 +255,7 @@ Resources:
               timeoutSeconds: '540'
               runCommand:
                 - !Sub >-
-                  exec /usr/local/lib/threadia-compose/deploy-release-manifest
-                  '${ArtifactBucket}' "$SSM_ReleaseManifestRef"
+                  exec /usr/local/lib/threadia-compose/deploy-release-manifest "$SSM_ReleaseManifestRef"
   HelperMaintenanceCommandDocument:
     Type: AWS::SSM::Document
     Properties:
