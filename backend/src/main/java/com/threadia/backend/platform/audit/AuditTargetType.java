@@ -4,5 +4,6 @@ public enum AuditTargetType {
 	SUPPORT_CASE,
 	PUBLIC_REPLY,
 	INTERNAL_NOTE,
-	COMPANY
+	COMPANY,
+	SYSTEM_SETTING
 }
