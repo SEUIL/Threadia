@@ -9,7 +9,7 @@
 
 ## 1. 목적과 책임 경계
 
-이 문서는 단일 EC2의 Docker Compose backend 앞에 Route 53, Elastic IP, Nginx, Certbot을 연결하는 사용자 운영 절차를 정의한다. AWS resource 생성, domain 구매, DNS 변경, EC2 bootstrap, certificate 발급과 renewal 설정은 모두 사용자가 직접 수행한다. 이 repository의 workflow와 script는 이 작업을 자동화하거나 수행하지 않는다.
+이 문서는 Docker Compose backend EC2 앞에 Route 53, Elastic IP, Nginx, Certbot을 연결하는 사용자 운영 절차를 정의한다. AWS resource 생성, domain 구매, DNS 변경, EC2 bootstrap, certificate 발급과 renewal 설정은 모두 사용자가 직접 수행한다. 이 repository의 workflow와 script는 이 작업을 자동화하거나 수행하지 않는다.
 
 ## 2. 사전 결정
 
@@ -61,11 +61,11 @@ Nginx virtual host는 사용자가 선택한 API FQDN만 `server_name`으로 설
 
 ## 6. JAR fallback과 Compose의 제어된 전환
 
-Nginx upstream은 8080을 공유하지만, 기존 JAR systemd service와 Compose `app`은 동시에 실행할 수 없다. JAR fallback에서 Compose로 최초 전환할 때 사용자는 legacy JAR systemd unit을 명시적으로 `disable`하고 `stop`한 뒤 8080이 비었음을 확인하고 Compose 배포를 실행한다. Nginx는 같은 localhost upstream을 사용하므로 runtime 전환 중에도 별도로 다른 port를 설정하지 않는다.
+legacy JAR runtime과 Compose `app`은 별도 EC2에서 실행한다. 각 host는 자신의 `127.0.0.1:8080`을 사용할 수 있으므로 port binding, systemd unit, release lock을 공유하지 않는다. Compose host의 Nginx는 Compose host의 localhost upstream으로만 reverse proxy한다.
 
-Compose 최초 전환이 실패하면 사용자는 Compose `app`을 수동으로 stop/remove하고, legacy JAR systemd unit을 `enable`하고 `start`한 뒤 localhost health와 Nginx proxy를 확인한다. Compose가 이미 active인 상태의 digest rollback은 Compose runtime 내부에서만 수행하며 JAR unit을 enable 또는 start하지 않는다. 이 절차는 legacy source를 변경하지 않는다.
+JAR fallback에서 Compose로 최초 전환할 때 사용자는 Compose host에 image를 배포하고 local actuator health와 Nginx proxy health를 확인한 뒤, DNS A record를 Compose host의 EIP로 변경하거나 public Nginx upstream을 Compose host로 전환한다. 전환 후 실제 public endpoint와 주요 요청을 확인한다.
 
-legacy main-push JAR workflow가 enabled인 동안 Compose path는 test-only다. Compose를 지속 active release path로 만들려면 별도 승인 cutover PR가 legacy automatic trigger를 disable해야 하며, 이 문서 변경이나 Compose workflow 실행으로 legacy source를 바꾸지 않는다.
+Compose host에 장애가 있으면 DNS A record 또는 public Nginx upstream을 계속 실행 중인 legacy JAR host로 되돌리고 public endpoint를 확인한다. Compose host의 digest rollback은 Compose runtime 내부에서만 수행하며, legacy JAR host의 service를 stop, start, enable 또는 disable하지 않는다. legacy JAR/S3/SSM release 경로는 fallback으로 유지한다.
 
 ## 7. TLS와 application runtime 정합성
 
@@ -104,4 +104,4 @@ EIP 연결, DNS, Nginx 또는 certificate 변경이 실패하면 사용자는 �
 - Docker Compose에 MySQL을 추가하거나 external RDS를 container DB로 대체하지 않는다.
 - EIP, domain, certificate, credential, secret을 tracked file 또는 CI log에 기록하지 않는다.
 - HTTPS 적용 전 `THREADIA_COOKIE_SECURE`를 production 안전값으로 간주하지 않는다.
-- JAR fallback과 Compose `app`을 동시에 실행하거나 8080 listener 충돌을 자동 조치하지 않는다.
+- DNS 또는 Nginx upstream 전환 검증 전에는 public traffic을 Compose host로 변경하지 않는다.
