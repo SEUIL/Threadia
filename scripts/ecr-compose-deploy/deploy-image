@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly COMPOSE_ROOT=/opt/threadia-compose
+readonly COMPOSE_FILE="$COMPOSE_ROOT/compose.production.yml"
+readonly RUNTIME_ENV=/etc/threadia-compose/runtime.env
+readonly STATE_ROOT=/var/lib/threadia-compose
+readonly CURRENT_DIGEST_FILE="$STATE_ROOT/current-image"
+readonly DEPLOY_LOCK_FILE=/run/lock/threadia-compose-deploy.lock
+readonly LEGACY_RELEASE_LOCK_FILE=/run/lock/threadia-release.lock
+readonly HEALTH_TIMEOUT_SECONDS=180
+readonly HEALTH_INTERVAL_SECONDS=3
+
+fail() {
+  printf '%s\n' "compose deployment failed: $*" >&2
+  exit 1
+}
+
+validate_image_ref() {
+  local image_ref="$1"
+
+  [[ "$image_ref" =~ ^[0-9]{12}\.dkr\.ecr\.([a-z]{2}(-[a-z0-9]+)+-[0-9]+)\.amazonaws\.com/[a-z0-9]+([._/-][a-z0-9]+)*@sha256:[a-f0-9]{64}$ ]]
+}
+
+read_digest() {
+  local state_file="$1"
+
+  [[ -f "$state_file" ]] || return 0
+  local image_ref
+  image_ref="$(<"$state_file")"
+  validate_image_ref "$image_ref" || fail "invalid persisted image reference"
+  printf '%s\n' "$image_ref"
+}
+
+write_digest() {
+  local state_file="$1"
+  local image_ref="$2"
+  local temporary_file
+
+  temporary_file="$(mktemp "$STATE_ROOT/.image.XXXXXX")"
+  printf '%s\n' "$image_ref" > "$temporary_file"
+  chmod 0600 "$temporary_file"
+  mv -f "$temporary_file" "$state_file"
+}
+
+require_root_owned_non_writable() {
+  local path="$1"
+  local owner
+  local group
+  local mode
+
+  owner="$(stat -c '%U' "$path")"
+  group="$(stat -c '%G' "$path")"
+  mode="$(stat -c '%a' "$path")"
+  [[ "$owner" == root && "$group" == root ]] || fail "$path must be owned by root:root"
+  (( (8#$mode & 0022) == 0 )) || fail "$path must not be writable by group or others"
+}
+
+compose_for_image() {
+  local image_ref="$1"
+  shift
+
+  THREADIA_IMAGE="$image_ref" THREADIA_RUNTIME_ENV_FILE="$RUNTIME_ENV" docker compose \
+    --project-directory "$COMPOSE_ROOT" \
+    --env-file "$RUNTIME_ENV" \
+    --file "$COMPOSE_FILE" \
+    "$@"
+}
+
+wait_for_health() {
+  local deadline=$((SECONDS + HEALTH_TIMEOUT_SECONDS))
+
+  while (( SECONDS < deadline )); do
+    if curl --fail --silent --show-error --connect-timeout 1 --max-time 2 \
+      http://127.0.0.1:8080/actuator/health >/dev/null; then
+      return 0
+    fi
+    sleep "$HEALTH_INTERVAL_SECONDS"
+  done
+
+  return 1
+}
+
+start_image() {
+  local image_ref="$1"
+
+  compose_for_image "$image_ref" pull app
+  compose_for_image "$image_ref" up --detach --no-deps --force-recreate app
+}
+
+rollback() {
+  local previous_image="$1"
+  local failed_candidate="$2"
+
+  if [[ -n "$previous_image" ]]; then
+    start_image "$previous_image" && wait_for_health
+    return
+  fi
+
+  compose_for_image "$failed_candidate" rm --force --stop app >/dev/null 2>&1 || true
+  return 0
+}
+
+[[ "$(id -u)" -eq 0 ]] || fail "must run as root"
+[[ "$#" -eq 1 ]] || fail "expected exactly one ECR repository digest"
+
+candidate_image="$1"
+validate_image_ref "$candidate_image" || fail "image must be a full ECR repository@sha256:<64-hex> reference"
+
+for command in aws curl docker flock grep install mktemp mv chmod rm ss stat uname; do
+  command -v "$command" >/dev/null 2>&1 || fail "missing host prerequisite: $command"
+done
+
+[[ -f "$COMPOSE_FILE" ]] || fail "production Compose file is missing"
+[[ -f "$RUNTIME_ENV" ]] || fail "root-only runtime environment file is missing"
+require_root_owned_non_writable "$0"
+require_root_owned_non_writable "$COMPOSE_FILE"
+require_root_owned_non_writable "$RUNTIME_ENV"
+[[ "$(stat -c '%a' "$RUNTIME_ENV")" == "600" ]] || fail "runtime environment file must have mode 0600"
+[[ "$(uname -m)" == "x86_64" ]] || fail "production Compose runtime requires an x86_64 host"
+
+install -d -o root -g root -m 0755 /run/lock
+install -d -o root -g root -m 0700 "$STATE_ROOT"
+exec 8>"$LEGACY_RELEASE_LOCK_FILE"
+flock -n 8 || fail "a legacy JAR release is already active"
+exec 9>"$DEPLOY_LOCK_FILE"
+flock -n 9 || fail "another compose deployment is already active"
+
+current_image="$(read_digest "$CURRENT_DIGEST_FILE")"
+running_services="$(compose_for_image "$candidate_image" ps --status running --services)"
+if [[ "$running_services" == "app" ]]; then
+  [[ -n "$current_image" ]] || fail "Compose app is running without current-image state; reconcile manually"
+  running_container="$(compose_for_image "$candidate_image" ps --quiet app)"
+  [[ -n "$running_container" ]] || fail "Compose app state is ambiguous; reconcile manually"
+  running_image="$(docker inspect --format '{{.Config.Image}}' "$running_container")"
+  [[ "$running_image" == "$current_image" ]] || fail "Compose app image does not match current-image state; reconcile manually"
+elif [[ -n "$running_services" ]]; then
+  fail "unexpected running Compose service state; reconcile manually"
+elif ss -ltnH 'sport = :8080' | grep --quiet .; then
+  fail "127.0.0.1:8080 is already occupied; stop the legacy JAR service manually before activating Compose"
+fi
+
+repository="${candidate_image%@sha256:*}"
+registry="${repository%%/*}"
+aws_region="${registry#*.dkr.ecr.}"
+aws_region="${aws_region%.amazonaws.com}"
+
+DOCKER_CONFIG="$(mktemp -d /run/threadia-compose-docker.XXXXXX)"
+export DOCKER_CONFIG
+trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+aws ecr get-login-password --region "$aws_region" | docker login --username AWS --password-stdin "$registry" >/dev/null
+
+if ! start_image "$candidate_image" || ! wait_for_health; then
+  if rollback "$current_image" "$candidate_image"; then
+    fail "candidate did not become healthy; prior image restored"
+  fi
+  fail "candidate did not become healthy and rollback failed"
+fi
+
+write_digest "$CURRENT_DIGEST_FILE" "$candidate_image"
+printf '%s\n' "compose deployment activated"

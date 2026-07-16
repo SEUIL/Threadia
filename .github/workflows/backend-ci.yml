@@ -28,9 +28,9 @@ jobs:
       run:
         working-directory: backend
     env:
-      THREADIA_DB_URL: jdbc:mysql://127.0.0.1:3306/threadia_backend_ci
-      THREADIA_DB_USERNAME: threadia_backend_ci
-      THREADIA_DB_PASSWORD: threadia_backend_ci_password
+      THREADIA_DB_URL: jdbc:mysql://127.0.0.1:3306/threadia_ci
+      THREADIA_DB_USERNAME: threadia_ci
+      THREADIA_DB_PASSWORD: threadia_ci_password
       THREADIA_DB_SCHEMA_VALIDATION: "true"
       THREADIA_JWT_SECRET: public-ci-test-jwt-secret-not-for-production-please-replace
       THREADIA_COOKIE_SECURE: "false"
@@ -40,12 +40,12 @@ jobs:
       mysql:
         image: mysql:8.4
         env:
-          MYSQL_DATABASE: threadia_backend_ci
-          MYSQL_USER: threadia_backend_ci
-          MYSQL_PASSWORD: threadia_backend_ci_password
-          MYSQL_ROOT_PASSWORD: threadia_backend_ci_root_password
+          MYSQL_DATABASE: threadia_ci
+          MYSQL_USER: threadia_ci
+          MYSQL_PASSWORD: threadia_ci_password
+          MYSQL_ROOT_PASSWORD: threadia_ci_root_password
         options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -uthreadia_backend_ci -pthreadia_backend_ci_password"
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uthreadia_ci -pthreadia_ci_password"
           --health-interval=5s
           --health-timeout=3s
           --health-retries=20
@@ -64,7 +64,7 @@ jobs:
           cache: gradle
 
       - name: Initialize MySQL schema
-        run: MYSQL_PWD="$THREADIA_DB_PASSWORD" mysql --host=127.0.0.1 --port=3306 --user="$THREADIA_DB_USERNAME" threadia_backend_ci < ../db/schema.sql
+        run: MYSQL_PWD="$THREADIA_DB_PASSWORD" mysql --host=127.0.0.1 --port=3306 --user="$THREADIA_DB_USERNAME" threadia_ci < ../db/schema.sql
 
       - name: Run backend tests
         run: ./gradlew test

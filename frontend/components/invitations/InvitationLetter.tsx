@@ -15,6 +15,8 @@ import {
   INVITATION_STATUS_CLASS,
   INVITATION_STATUS_LABEL,
   formatExpiresAt,
+  invitationRoleLabel,
+  invitationScopeLabel,
 } from "@/lib/invitation";
 import type { InvitationResponse } from "@/types/invitation.types";
 
@@ -48,9 +50,10 @@ export function InvitationLetter({
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-foreground">{invitation.companyName}</p>
+          {/* PROJECT 초대는 회사명만으로 어느 프로젝트인지 알 수 없어 함께 보여준다 */}
+          <p className="text-sm font-semibold text-foreground">{invitationScopeLabel(invitation)}</p>
           <p className="mt-1 text-xs text-muted">
-            {invitation.inviterNickname} 님이 {invitation.role === "COMPANY_ADMIN" ? "관리자" : "구성원"}(으)로 초대했습니다
+            {invitation.inviterNickname} 님이 {invitationRoleLabel(invitation)}(으)로 초대했습니다
           </p>
           <p className="mt-1 text-xs text-muted">{formatExpiresAt(invitation.expiresAt)}</p>
         </div>

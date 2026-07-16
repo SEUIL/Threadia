@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-27
-> **최종 수정**: 2026-07-02
-> **버전**: v1.2
+> **최종 수정**: 2026-07-15
+> **버전**: v1.3
 > **상태**: 확정
 > **태그**: decision, db, schema, changelog
 
@@ -33,6 +33,16 @@ DB schema가 바뀌면 아래 항목을 기록한다.
 ---
 
 ## 3. 변경 이력
+
+### 2026-07-15 WBS 4.10.1 platform support case schema 추가
+
+| 항목 | 내용 |
+|---|---|
+| 변경 대상 | `platform_admin_bootstrap_locks`, `platform_admins`, `support_cases`, `support_case_public_replies`, `support_case_internal_notes`, `admin_action_audits` |
+| 변경 내용 | singleton bootstrap lock row와 platform role을 membership과 분리하고, 문의/신고와 상태, public reply/internal note 분리, immutable mutation audit와 FK/index/CHECK를 `db/schema.sql`에 추가했다. bootstrap은 고정 lock row의 pessimistic lock으로 동시 최초 관리자 생성을 직렬화한다. REPORT target은 type과 nullable `CHAR(36)` UUID로 저장하며 다형성 FK를 추가하지 않았다. |
+| 변경 이유 | 승인된 WBS `4.10.1` support case Backend vertical slice와 필수 platform authorization/audit foundation을 영속화하기 위해서다. |
+| 영향 범위 | 신규 JPA Entity/Repository, 동시성 안전한 최초 `SUPER_ADMIN` bootstrap, support case service/API, audit transaction, schema validation test에 영향을 준다. 기존 `users`, company/project membership role은 변경하지 않는다. |
+| 관련 문서 | `docs/02-requirements/S15-플랫폼-관리자-1차-범위-정의.md`, `docs/03-design/ERD.md`, `docs/04-api/API-명세서.md`, `docs/07-decisions/플랫폼-관리자-인가-모델-결정.md` |
 
 ### 2026-07-02 ERD/schema drift 보정
 

@@ -1,0 +1,23 @@
+services:
+  app:
+    image: ${THREADIA_IMAGE:?THREADIA_IMAGE is required}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    env_file:
+      - path: ${THREADIA_RUNTIME_ENV_FILE:?THREADIA_RUNTIME_ENV_FILE is required}
+        required: true
+    environment:
+      THREADIA_DB_URL: ${THREADIA_DB_URL:?THREADIA_DB_URL is required}
+      THREADIA_DB_USERNAME: ${THREADIA_DB_USERNAME:?THREADIA_DB_USERNAME is required}
+      THREADIA_DB_PASSWORD: ${THREADIA_DB_PASSWORD:?THREADIA_DB_PASSWORD is required}
+      THREADIA_JWT_SECRET: ${THREADIA_JWT_SECRET:?THREADIA_JWT_SECRET is required}
+      THREADIA_COOKIE_SECURE: ${THREADIA_COOKIE_SECURE:?THREADIA_COOKIE_SECURE is required}
+      THREADIA_CORS_ALLOWED_ORIGIN: ${THREADIA_CORS_ALLOWED_ORIGIN:?THREADIA_CORS_ALLOWED_ORIGIN is required}
+      MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s

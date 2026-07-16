@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-14
-> **최종 수정**: 2026-07-15
-> **버전**: v0.3
+> **최종 수정**: 2026-07-16
+> **버전**: v0.4
 > **상태**: 검토 중
 > **태그**: aws, github-actions, oidc, ssm, s3, ec2, parameter-store
 
@@ -38,6 +38,8 @@ platform owner는 아래 exact Parameter Store `SecureString`을 release 전에 
 
 EC2 instance role은 위 ARN의 `ssm:GetParameter(s)`만 받을 수 있으며 `GetParametersByPath`, Secrets Manager, RDS master credential read를 받지 않는다. DB 연결에는 RDS master와 분리된 최소 권한 application DB user가 사전에 존재해야 한다. DB migration은 이 release path에 포함하지 않는다.
 
+이 six-key restriction에는 `THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL`이 포함되지 않는다. 따라서 현재 active path는 bootstrap email을 주입할 수 없다. `platform_admins`가 비어 있는 첫 배포는 이미 platform admin이 존재하거나, matching ACTIVE user용 해당 키를 제공하는 별도 승인된 runtime delivery contract, IAM, helper 변경이 있기 전까지 No-Go다.
+
 ## 4. Host release 계약
 
 workflow는 pinned action SHA를 사용하고 setup-java가 제공한 Linux x86_64 runtime을 executable bit 보존 방식으로 release archive에 포함한다. AMI에 Java를 설치하지 않는다. host는 SSM Agent, AWS CLI, Python 3, tar, curl, systemd, `flock`, `threadia` user, `/usr/local/lib/threadia-release/apply-release`, `threadia-backend.service`만 사전에 갖춰야 한다. `bootstrap-host.sh`는 이 reviewed local artifact만 root-owned path에 설치하며 package manager 또는 network access를 사용하지 않는다. helper는 host-level exclusive lock을 획득한 뒤 bundled runtime이 Linux x86_64 host에서 실행되는지, immutable archive와 JAR checksum이 맞는지 확인하고 새 release directory를 만든 뒤 runtime env와 active symlink를 atomic하게 교체한다. systemd는 activated release의 absolute runtime path만 실행하고 restricted runtime에서만 mail health를 `MANAGEMENT_HEALTH_MAIL_ENABLED=false`로 비활성화한다. global backend application properties는 변경하지 않는다. restart 후 helper는 약 120초 동안 service active 상태와 local `/actuator/health`를 polling한다. service가 inactive가 되거나 readiness timeout이 발생하면 직전 runtime env와 active symlink를 함께 복구하고 이전 service를 restart하며, 이전 상태가 없으면 새 env와 symlink를 삭제하고 service를 중지한다.
@@ -47,3 +49,9 @@ workflow는 pinned action SHA를 사용하고 setup-java가 제공한 Linux x86_
 ## 5. Legacy와 승인 경계
 
 기존 `delivery-foundation*` CodeDeploy source는 기록 보존을 위해 유지하지만 신규 active path에서 사용하지 않는다. Network Change Set은 endpoint route/egress/policy만, SSM delivery Change Set은 deterministic artifact bucket, exact OIDC subject, fixed document와 runtime policy만 검토한다. delivery operator는 Change Set create/describe/delete와 exact CloudFormation role pass만 허용하며 Execute 권한이 없다. 두 승인 window는 분리한다. 이 repository revision은 AWS/GitHub resource, role, parameter, endpoint, stack, DB user를 생성하거나 변경하지 않는다.
+
+## 변경 이력
+
+| 날짜 | 내용 |
+|---|---|
+| 2026-07-16 | active restricted SSM path의 six-key 제한, bootstrap email 미전달, `platform_admins`가 비어 있는 첫 배포의 No-Go 경계를 명시했다. |

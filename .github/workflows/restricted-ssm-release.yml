@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - backend/**
+      - '!backend/Dockerfile'
       - .github/workflows/restricted-ssm-release.yml
 
 permissions:
