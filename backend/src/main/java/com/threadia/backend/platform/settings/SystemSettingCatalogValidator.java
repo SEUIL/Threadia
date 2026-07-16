@@ -1,5 +1,6 @@
 package com.threadia.backend.platform.settings;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import org.springframework.stereotype.Component;
@@ -31,10 +32,11 @@ public class SystemSettingCatalogValidator {
 		requireOnlyFields(value, Set.of(field));
 		JsonNode entries = requireArray(value, field);
 		requireCollectionSize(entries, field);
+		Set<String> codes = new HashSet<>();
 		for (JsonNode entry : entries) {
 			requireObject(entry, field + " entry");
 			requireOnlyFields(entry, Set.of("code", "label"));
-			requireTextWithin(entry, "code", MAX_CODE_LENGTH);
+			requireUniqueCode(codes, requireTextWithin(entry, "code", MAX_CODE_LENGTH));
 			requireTextWithin(entry, "label", MAX_LABEL_LENGTH);
 		}
 	}
@@ -43,10 +45,11 @@ public class SystemSettingCatalogValidator {
 		requireOnlyFields(value, Set.of("presets"));
 		JsonNode presets = requireArray(value, "presets");
 		requireCollectionSize(presets, "presets");
+		Set<String> codes = new HashSet<>();
 		for (JsonNode preset : presets) {
 			requireObject(preset, "preset");
 			requireOnlyFields(preset, Set.of("code", "durationDays"));
-			requireTextWithin(preset, "code", MAX_CODE_LENGTH);
+			requireUniqueCode(codes, requireTextWithin(preset, "code", MAX_CODE_LENGTH));
 			JsonNode durationDays = required(preset, "durationDays");
 			if (!durationDays.isNull() && (!durationDays.isIntegralNumber() || durationDays.longValue() <= 0)) {
 				throw invalid("durationDays는 null 또는 양의 정수여야 합니다.");
@@ -58,10 +61,11 @@ public class SystemSettingCatalogValidator {
 		requireOnlyFields(value, Set.of("templates"));
 		JsonNode templates = requireArray(value, "templates");
 		requireCollectionSize(templates, "templates");
+		Set<String> codes = new HashSet<>();
 		for (JsonNode template : templates) {
 			requireObject(template, "template");
 			requireOnlyFields(template, Set.of("code", "title", "body"));
-			requireTextWithin(template, "code", MAX_CODE_LENGTH);
+			requireUniqueCode(codes, requireTextWithin(template, "code", MAX_CODE_LENGTH));
 			requireTextWithin(template, "title", MAX_LABEL_LENGTH);
 			requireTextWithin(template, "body", MAX_TEMPLATE_BODY_LENGTH);
 		}
@@ -124,6 +128,12 @@ public class SystemSettingCatalogValidator {
 	private static void requireCollectionSize(JsonNode array, String field) {
 		if (array.size() > MAX_COLLECTION_SIZE) {
 			throw invalid(field + "는 " + MAX_COLLECTION_SIZE + "개 이하여야 합니다.");
+		}
+	}
+
+	private static void requireUniqueCode(Set<String> codes, String code) {
+		if (!codes.add(code)) {
+			throw invalid("code는 중복될 수 없습니다.");
 		}
 	}
 

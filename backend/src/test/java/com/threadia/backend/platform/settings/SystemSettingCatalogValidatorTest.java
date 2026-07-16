@@ -35,5 +35,18 @@ class SystemSettingCatalogValidatorTest {
 				.isInstanceOf(SystemSettingValidationException.class);
 	}
 
+	@Test
+	void rejectsDuplicateExactCodesInEveryCodeBearingArray() throws Exception {
+		assertThatThrownBy(() -> validator.validate(SystemSettingKey.SUPPORT_CASE_CATEGORIES,
+				json("{\"categories\":[{\"code\":\"ACCOUNT\",\"label\":\"계정\"},{\"code\":\"ACCOUNT\",\"label\":\"중복 계정\"}]}")))
+				.isInstanceOf(SystemSettingValidationException.class);
+		assertThatThrownBy(() -> validator.validate(SystemSettingKey.ENFORCEMENT_DURATION_PRESETS,
+				json("{\"presets\":[{\"code\":\"ONE_DAY\",\"durationDays\":1},{\"code\":\"ONE_DAY\",\"durationDays\":2}]}")))
+				.isInstanceOf(SystemSettingValidationException.class);
+		assertThatThrownBy(() -> validator.validate(SystemSettingKey.REPLY_TEMPLATES,
+				json("{\"templates\":[{\"code\":\"DEFAULT\",\"title\":\"기본\",\"body\":\"답변\"},{\"code\":\"DEFAULT\",\"title\":\"중복\",\"body\":\"중복 답변\"}]}")))
+				.isInstanceOf(SystemSettingValidationException.class);
+	}
+
 	private com.fasterxml.jackson.databind.JsonNode json(String value) throws Exception { return objectMapper.readTree(value); }
 }
