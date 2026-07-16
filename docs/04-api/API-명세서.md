@@ -1363,7 +1363,9 @@ Response 200:
 
 #### GET `/api/v1/projects/{projectId}/issues`
 
-목록의 각 이슈 객체는 full Issue contract를 따른다. `id`, `issueKey`, `title`, `status`, `description`, `priority`, `assigneeUserId`, `sprintId`, `dueDate`, `sourceType`, `trashedAt`, `restoredAt`을 반환하며 시간 필드는 UTC `Z` 형식이다.
+목록의 각 이슈 객체는 full Issue contract를 따른다. `id`, `issueKey`, `title`, `status`, `description`, `priority`, `assigneeUserId`, `reporterUserId`, `sprintId`, `dueDate`, `sourceType`, `trashedAt`, `restoredAt`을 반환하며 시간 필드는 UTC `Z` 형식이다.
+
+`reporterUserId`는 표시용이 아니라 **권한 판정용**이다 — trash/restore가 P/C 또는 등록자에게 허용되므로, 클라이언트가 이 값과 현재 사용자를 비교해야 "내가 등록한 이슈" 경로를 판정할 수 있다.
 
 - `unassignedOnly=true`는 `sprintId`가 없는 이슈만 조회한다.
 - `unassignedOnly=true`와 `sprintId`를 함께 전달하면 `400 VALIDATION_ERROR`다.
@@ -1382,6 +1384,7 @@ Response 200:
         "description": "로그인 API 구현과 테스트를 진행한다.",
         "priority": "HIGH",
         "assigneeUserId": 2,
+        "reporterUserId": 1,
         "sprintId": 300,
         "dueDate": "2026-06-22",
         "sourceType": "MANUAL",
@@ -1424,6 +1427,7 @@ Response 201:
       "description": "로그인 API 구현과 테스트를 진행한다.",
       "priority": "HIGH",
       "assigneeUserId": 2,
+      "reporterUserId": 1,
       "sprintId": 300,
       "dueDate": "2026-06-22",
       "sourceType": "MANUAL",
@@ -1482,6 +1486,7 @@ Response 200:
       "description": "로그인 API 구현과 테스트를 진행한다.",
       "priority": "HIGH",
       "assigneeUserId": 2,
+      "reporterUserId": 1,
       "sprintId": 300,
       "dueDate": "2026-06-22",
       "sourceType": "MANUAL",
@@ -1512,6 +1517,7 @@ Response 200:
       "description": "로그인 API 구현과 테스트를 진행한다.",
       "priority": "HIGH",
       "assigneeUserId": 2,
+      "reporterUserId": 1,
       "sprintId": 300,
       "dueDate": "2026-06-22",
       "sourceType": "MANUAL",
