@@ -29,7 +29,7 @@
 
 host의 release manifest는 root:root 소유이며 group/other write가 없어야 한다. `deploy-release`는 shell source를 사용하지 않고 아래 세 key만 엄격하게 읽으므로, manifest에 command 또는 runtime secret을 넣을 수 없다.
 
-```dotenv
+```properties
 THREADIA_RELEASE_ID=2026.07.16-001
 THREADIA_FRONTEND_IMAGE=123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/threadia-frontend@sha256:<64-lowercase-hex>
 THREADIA_BACKEND_IMAGE=123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/threadia-backend@sha256:<64-lowercase-hex>

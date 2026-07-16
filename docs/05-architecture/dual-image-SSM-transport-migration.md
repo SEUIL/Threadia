@@ -15,7 +15,7 @@
 
 GitHub Actions는 frontend와 backend를 각각 `linux/amd64` ECR digest로 publish하고, 세 key만 포함한 versioned S3 manifest를 만든다.
 
-```dotenv
+```properties
 THREADIA_RELEASE_ID=<commit>-<run>-<attempt>
 THREADIA_FRONTEND_IMAGE=<frontend-repository>@sha256:<digest>
 THREADIA_BACKEND_IMAGE=<backend-repository>@sha256:<digest>
