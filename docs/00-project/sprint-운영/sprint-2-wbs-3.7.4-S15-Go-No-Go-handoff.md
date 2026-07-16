@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-13
-> **최종 수정**: 2026-07-13
-> **버전**: v0.1
+> **최종 수정**: 2026-07-16
+> **버전**: v0.4
 > **상태**: 검토 중
 > **태그**: sprint-2, wbs, platform-admin, handoff, go-no-go
 
@@ -12,14 +12,14 @@
 | 구분 | 판정 | 의미 |
 |---|---|---|
 | planning | Go | `3.7.1`부터 `3.7.3`의 범위, 영향도, 권한 flow 초안을 후속 검토 입력으로 넘길 수 있다. |
-| S15 implementation | No-Go | 선행 foundation, security 적용 방향, 상세 ERD/API/화면 결정, audit 및 운영 정책 evidence가 없으므로 구현에 착수할 수 없다. |
+| S15 implementation | No-Go | stacked `4.10.1` foundation과 `4.10.3` policy evidence는 존재한다. 다만 `4.10.2~4.10.4`의 security 적용, 상세 ERD/API/화면, enforcement·settings·audit/operation logs 및 platform admin lifecycle/grant/revoke 구현 설계와 검증이 남아 구현에 착수할 수 없다. |
 | canonical alignment | No-Go | `3.7.5`의 승인 전에는 canonical 문서를 수정하지 않는다. |
 | reviewer approval | 미확정 | 이 문서는 최종 reviewer 승인이나 구현 commitment를 기록하지 않는다. |
 | deployment readiness | 미확정 | 이 문서는 배포 준비 또는 운영 배포 가능 상태를 선언하지 않는다. |
 
 ## 2. 확인된 planning 결과
 
-1. S15의 공식 WBS ID는 `4.10`이며, 실행 row는 `4.10.1` support cases, `4.10.2` user/company enforcement, `4.10.3` system settings decision, `4.10.4` platform authorization 및 audit/operation logs다.
+1. S15의 공식 WBS ID는 `4.10`이며, 실행 row는 `4.10.1` support cases, `4.10.2` user/company enforcement, `4.10.3` system settings decision, `4.10.4` audit/operation logs 및 platform admin lifecycle/grant/revoke다.
 2. 플랫폼 권한은 `platform_admins`로 분리하며 `users.role`을 만들지 않는다.
 3. 문의와 신고는 `support_cases`에서 `INQUIRY`와 `REPORT`로 구분한다.
 4. 사용자 정지와 회사 비활성화는 hard delete가 아니라 상태 전이로 처리한다.
@@ -31,13 +31,13 @@
 | blocker | 현재 상태 | 구현 전 필요 조치 |
 |---|---|---|
 | Company/RBAC/Project foundation | S15의 선행 WBS `3.1~3.4` 기준이 필요하다. | 실제 선행 foundation의 완료 evidence와 platform 경계 호환성을 확인한다. |
-| Security 적용 방향 | 현재 backend의 `SecurityConfig`는 permitAll 상태이며, platform-admin table, package, route, audit log가 없다. | 이는 gating concern이며 구현 authorization이 아니다. 실제 인증과 platform authorization 적용 방향을 설계 및 검증한다. |
-| ERD | 신규 분리 domain의 영향만 식별됐다. | `platform_admins`, `support_cases`, immutable `admin_action_audits`의 상세 설계를 승인한다. |
-| API | full endpoint, request/response, error code가 없다. | 권한, 상태 전이, reason, audit, 실패 처리 기준을 계약으로 결정한다. |
+| Security 적용 방향 | stacked `4.10.1` base에는 `platform_admins`, platform package/route, immutable audit foundation이 있다. 후속 `4.10.2~4.10.4` security 적용과 negative authorization 검증은 미착수다. | 기존 foundation을 전제로 실제 인증 및 후속 platform authorization 적용 방향을 설계·검증한다. |
+| ERD | `4.10.1` foundation의 concrete schema는 존재한다. `4.10.2~4.10.4`의 enforcement, typed settings catalog, audit/operation logs 및 platform admin lifecycle/grant/revoke 상세 설계는 미정이다. | 후속 구현에 필요한 상세 설계를 승인한다. |
+| API | `4.10.1` support case API foundation은 존재한다. `4.10.2~4.10.4`의 endpoint, request/response, error code는 미정이다. | 권한, 상태 전이, reason, audit, 실패 처리 기준을 후속 계약으로 결정한다. |
 | 화면 | S15 정보 구조와 flow는 초안이다. | namespace, entry, 상태 표현, forbidden 처리, action confirmation을 설계한다. |
-| 시스템 설정 | 설정 범위와 변경 절차가 확정되지 않았다. | 허용 목록, 권한, 변경 전후 기록, 보존 정책을 결정한다. |
+| 시스템 설정 | WBS `4.10.3` 정책 결정은 확정됐지만 구현은 미착수다. | typed catalog의 key, schema 저장 구조, version 충돌 처리, 변경 절차와 API 계약을 설계한다. |
 | 알림 | 처리 결과 notification의 정책이 없다. | 수신자, 발송 조건, 채널, 실패 처리 여부를 결정한다. |
-| 운영 감사 | 보존 기간, 조회 권한, 민감정보 처리 기준이 없다. | immutable audit의 보존 및 접근 정책을 결정한다. |
+| enforcement, audit/operation logs 및 platform admin lifecycle/grant/revoke | 회사 `INACTIVE` 접근 경계, audit 3년 보존, 민감 payload 제외 또는 마스킹, keyset 조회, `SUPER_ADMIN` 전용 grant/revoke 정책은 확정됐지만 구현은 미착수다. | 접근 차단 구현, 해제·복구 기준, payload masking, 보존 종료 처리, API와 승인 workflow를 설계한다. |
 
 ## 4. implementation Go 최소 evidence
 
@@ -47,9 +47,9 @@
 - [ ] platform actor를 `platform_admins`에서 판정하는 security 설계와 negative authorization 사례가 있다.
 - [ ] `users.role` 및 company/project membership platform permission 금지 검증 기준이 있다.
 - [ ] support case 상태 전이, reason 요구, 답변 또는 처리 메모 규칙이 결정됐다.
-- [ ] 사용자 정지와 회사 비활성화의 영향 범위, 해제 기준, 실패 처리가 결정됐다.
-- [ ] immutable `admin_action_audits`의 보존, 조회 권한, 민감정보 처리와 변경 전후 기록 기준이 결정됐다.
-- [ ] system settings, grant/revoke, dashboard, notification의 포함 또는 deferred 판단이 명시됐다.
+- [x] 사용자 정지와 회사 `INACTIVE`의 접근 영향 범위가 결정됐다. 해제 기준과 실패 처리는 구현 설계에서 결정한다.
+- [x] immutable `admin_action_audits`의 3년 보존, platform admin 조회 권한, 민감 payload 제외 또는 마스킹, keyset 조회 기준이 결정됐다. 구현 방식은 후속 설계에서 결정한다.
+- [x] system settings catalog와 `SUPER_ADMIN` 전용 grant/revoke 정책이 결정됐다. dashboard와 notification의 구체 구현은 deferred다.
 - [ ] ERD, API, 화면 초안에 대한 승인 경로와 이후 검증 계획이 있다.
 
 ## 5. canonical alignment 전송 규칙
