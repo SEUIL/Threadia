@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly COMPOSE_ROOT=/opt/threadia-compose
+readonly RELEASE_ROOT="$COMPOSE_ROOT/releases"
+readonly TRANSPORT_CONFIG=/etc/threadia-compose/release-manifest-transport.env
+readonly DEPLOY_RELEASE=/usr/local/lib/threadia-compose/deploy-release
+
+fail() {
+  printf '%s\n' "dual-image manifest transport failed: $*" >&2
+  exit 1
+}
+
+require_root_owned_non_writable() {
+  local path="$1"
+  local owner group mode
+
+  owner="$(stat -c '%U' "$path")"
+  group="$(stat -c '%G' "$path")"
+  mode="$(stat -c '%a' "$path")"
+  [[ "$owner" == root && "$group" == root ]] || fail "$path must be owned by root:root"
+  (( (8#$mode & 0022) == 0 )) || fail "$path must not be writable by group or others"
+}
+
+read_artifact_bucket() {
+  local line key value
+
+  artifact_bucket=""
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    [[ "$line" == *=* ]] || fail "invalid transport configuration line"
+    key="${line%%=*}"
+    value="${line#*=}"
+    case "$key" in
+      THREADIA_ARTIFACT_BUCKET) [[ -z "$artifact_bucket" ]] || fail "duplicate THREADIA_ARTIFACT_BUCKET"; artifact_bucket="$value" ;;
+      *) fail "unsupported transport configuration key: $key" ;;
+    esac
+  done < "$TRANSPORT_CONFIG"
+
+  [[ "$artifact_bucket" =~ ^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$ ]] || fail "THREADIA_ARTIFACT_BUCKET must be a valid bucket name"
+}
+
+read_manifest_reference() {
+  local reference="$1"
+
+  [[ "$reference" =~ ^releases/[0-9a-f]{40}/[1-9][0-9]*-[1-9][0-9]*/dual-image-release-[0-9a-f]{40}-[1-9][0-9]*-[1-9][0-9]*\.env@[A-Za-z0-9._+=/-]{1,1024}$ ]] || fail "release manifest reference is invalid"
+  manifest_key="${reference%@*}"
+  manifest_version_id="${reference##*@}"
+}
+
+[[ "$(id -u)" -eq 0 ]] || fail "must run as root"
+[[ "$#" -eq 1 ]] || fail "expected exactly one versioned release manifest reference"
+
+for command in aws install mktemp rm stat; do
+  command -v "$command" >/dev/null 2>&1 || fail "missing host prerequisite: $command"
+done
+for path in "$0" "$TRANSPORT_CONFIG" "$DEPLOY_RELEASE"; do
+  [[ -f "$path" ]] || fail "required file is missing: $path"
+  require_root_owned_non_writable "$path"
+done
+[[ "$(stat -c '%a' "$TRANSPORT_CONFIG")" == "600" ]] || fail "transport configuration file must have mode 0600"
+
+read_artifact_bucket
+read_manifest_reference "$1"
+
+install -d -o root -g root -m 0700 "$RELEASE_ROOT"
+manifest_path="$(mktemp "$RELEASE_ROOT/.manifest.XXXXXX")"
+trap 'rm -f "$manifest_path"' EXIT
+chmod 0600 "$manifest_path"
+
+aws s3api get-object \
+  --bucket "$artifact_bucket" \
+  --key "$manifest_key" \
+  --version-id "$manifest_version_id" \
+  "$manifest_path" >/dev/null
+
+"$DEPLOY_RELEASE" "$manifest_path"

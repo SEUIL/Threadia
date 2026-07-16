@@ -35,6 +35,9 @@ service_unit_maintenance_workflow = (BASE.parent.parent / ".github/workflows/res
 release_helper = (BASE.parent.parent / "scripts/ssm-delivery/apply-release").read_text(encoding="utf-8")
 service_unit = (BASE.parent.parent / "scripts/ssm-delivery/threadia-backend.service").read_text(encoding="utf-8")
 bootstrap = (BASE.parent.parent / "scripts/ssm-delivery/bootstrap-host.sh").read_text(encoding="utf-8")
+backend_image_workflow = (BASE.parent.parent / ".github/workflows/ecr-compose-ssm-deploy.yml").read_text(encoding="utf-8")
+dual_image_workflow = (BASE.parent.parent / ".github/workflows/ecr-compose-dual-image-ssm-deploy.yml").read_text(encoding="utf-8")
+dual_image_manifest_helper = (BASE.parent.parent / "scripts/ecr-compose-deploy/deploy-release-manifest").read_text(encoding="utf-8")
 runbook = (BASE.parent.parent / "docs/00-project/restricted-ssm-release-runbook.md").read_text(encoding="utf-8")
 architecture = (BASE.parent.parent / "docs/05-architecture/GitHub-OIDC-SSM-EC2-배포-설계.md").read_text(encoding="utf-8")
 version_pattern = "^[A-Za-z0-9._+=/-]{1,1000}[A-Za-z0-9._+=/-]{0,24}$"
@@ -106,6 +109,9 @@ assert "token.actions.githubusercontent.com:sub: repo:SEUIL/Threadia:environment
 assert "StringLike:" not in template.split("GitHubDeployRole:", 1)[1].split("ExistingEc2DeliveryPolicy:", 1)[0]
 github_role = template.split("GitHubDeployRole:", 1)[1].split("ExistingEc2DeliveryPolicy:", 1)[0]
 assert "${ReleaseCommandDocument}" in github_role
+assert "${DualImageReleaseCommandDocument}" in github_role
+assert "ReadVersionedReleaseObjectsForRollbackValidation" in github_role
+assert "Action: [s3:GetObject, s3:GetObjectVersion]" in github_role
 assert "${HelperMaintenanceCommandDocument}" in github_role
 assert "${ServiceUnitMaintenanceCommandDocument}" in github_role
 assert "${ExistingEc2InstanceId}" in github_role
@@ -115,6 +121,13 @@ assert "ManageMasterUserPassword" not in template
 assert template.count("parameter/threadia/restricted-nonprod/runtime/") == 6
 assert "Resource: '*'" in template and "Action: ssm:GetCommandInvocation" in template
 assert "AWS-RunShellScript" not in template
+dual_image_document = template.split("DualImageReleaseCommandDocument:", 1)[1].split("HelperMaintenanceCommandDocument:", 1)[0]
+assert "ReleaseManifestRef:" in dual_image_document
+assert "interpolationType: ENV_VAR" in dual_image_document
+assert "dual-image-release-" in dual_image_document
+assert 'exec /usr/local/lib/threadia-compose/deploy-release-manifest' in dual_image_document
+assert '"$SSM_ReleaseManifestRef"' in dual_image_document
+assert "'${ArtifactBucket}'" not in dual_image_document
 assert f"allowedPattern: '{version_pattern}'" in template
 assert "HelperArtifactKey:" in template
 assert "HelperArtifactVersionId:" in template
@@ -238,6 +251,13 @@ service_unit_maintenance_document = next(
 )
 assert service_unit_maintenance_document["Action"] == document_lifecycle_actions
 assert service_unit_maintenance_document["Resource"] == "arn:aws:ssm:ap-northeast-2:<AWS_ACCOUNT_ID>:document/threadia-restricted-ssm-delivery-ServiceUnitMaintenanceCommandDocument-*"
+dual_image_release_document = next(
+    statement
+    for statement in service_policy["Statement"]
+    if statement["Sid"] == "AllowManageFixedDualImageReleaseCommandDocument"
+)
+assert dual_image_release_document["Action"] == document_lifecycle_actions
+assert dual_image_release_document["Resource"] == "arn:aws:ssm:ap-northeast-2:<AWS_ACCOUNT_ID>:document/threadia-restricted-ssm-delivery-DualImageReleaseCommandDocument-*"
 assert "restricted-ssm-delivery-GitHubDeployRole-*" in service_text
 operator_text = json.dumps(operator_policy)
 assert "threadia-restricted-ssm-delivery" in operator_text
@@ -378,6 +398,21 @@ assert "StandardErrorContent:StandardErrorContent" in service_unit_maintenance_w
 assert "StandardOutputContent:StandardOutputContent" in service_unit_maintenance_workflow
 assert "cut -c1-4000" in service_unit_maintenance_workflow
 assert "java " not in release_helper.split("for command", 1)[1].split("umask", 1)[0]
+assert "rollback_digest:" in backend_image_workflow
+assert "THREADIA_ECR_REPOSITORY" in backend_image_workflow
+assert '--parameters ImageRef="$IMAGE_REF"' in backend_image_workflow
+assert "rollback_manifest_ref:" not in backend_image_workflow
+assert "rollback_manifest_ref:" in dual_image_workflow
+assert "THREADIA_ECR_FRONTEND_REPOSITORY" in dual_image_workflow
+assert "THREADIA_ECR_BACKEND_REPOSITORY" in dual_image_workflow
+assert "dual-image-release-${release_id}.env" in dual_image_workflow
+assert '--parameters ReleaseManifestRef="$MANIFEST_REF"' in dual_image_workflow
+assert '[[ "$reference" =~ ^releases/' in dual_image_manifest_helper
+assert '[[ "$#" -eq 1 ]]' in dual_image_manifest_helper
+assert 'aws s3api get-object \\' in dual_image_manifest_helper
+assert '"$DEPLOY_RELEASE" "$manifest_path"' in dual_image_manifest_helper
+assert "environment:\n      name: restricted-nonprod" in dual_image_workflow
+assert "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020" in dual_image_workflow
 assert "runtime/bin/java" in release_helper and "ExecStart=/opt/threadia/current/runtime/bin/java" in service_unit
 assert "yum " not in bootstrap and "apt " not in bootstrap and "http" not in bootstrap
 document_parameters = template.split("parameters:", 1)[1].split("mainSteps:", 1)[0]
