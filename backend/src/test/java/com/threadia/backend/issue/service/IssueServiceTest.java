@@ -436,7 +436,7 @@ class IssueServiceTest {
 		LocalDateTime now = LocalDateTime.now(FIXED_CLOCK);
 		User user = new User("member@example.com", "hashed", "member", null, UserStatus.ACTIVE, now, now);
 		setId(user, 1L);
-		Company company = new Company("Threadia", "Member", "workspace", "IT", null, "ACTIVE", user, now, now);
+		Company company = new Company("Threadia", "Member", "workspace", "IT", null, com.threadia.backend.company.domain.CompanyStatus.ACTIVE, user, now, now);
 		setId(company, 10L);
 		Project project = new Project(
 				company,
