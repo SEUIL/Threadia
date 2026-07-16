@@ -75,7 +75,8 @@
 | 문서-이슈 연결/그래프 | LINK-02, GRAPH-01, GRAPH-02 | Sprint 3 후보 | SC-P-01, SC-A-01, SC-LINK-01 | 문서-이슈 연결 생성/해제/조회, 그래프 조회 | `document_issue_links`, `documents`, `issues` | S07/S08 그래프 뷰에 edge 반영 |
 | 프로젝트 채팅 | CHAT-01, CHAT-03, LINK-01 | Sprint 3 후보 | SC-A-01, SC-LINK-01 | 프로젝트 메시지 목록/작성/상세/읽음/unread/from-message | `messages`, `project_chat_member_states`, `issues` | 프로젝트 메시지만 이슈 전환 가능 |
 | 1:1 DM | CHAT-02, CHAT-03 | Sprint 3 후보 | SC-A-01 | DM 방 목록/생성, DM 메시지 조회/전송/읽음/unread | `direct_message_rooms`, `direct_messages`, `dm_room_user_states` | 다자간 DM과 상대 read receipt는 이번 개발 기간 보류다. 향후 재검토 전 API, schema, frontend 구현은 추가하지 않는다. |
-| 쓰레드 | THREAD-01~04 | Sprint 3 후보 | SC-C-02, SC-P-01, SC-A-01, SC-LINK-01 | 대상별 쓰레드 조회/생성, 상세, topic 수정, 댓글 작성 | `threads`, `thread_comments`, `notification_events` | 대상 1개당 대표 쓰레드 1개 |
+| 쓰레드 | THREAD-01~03 | WBS 4.7.1.1 Backend 구현 | SC-C-02, SC-P-01, SC-A-01, SC-LINK-01 | 명시적 대상별 get-or-create/조회, 상세, author/P/C topic 수정, append-only 댓글 작성 | `threads`, `thread_comments` | 대상 1개당 대표 쓰레드 1개, 자동 생성·project-wide list 제외 |
+| 쓰레드 멘션 알림 | THREAD-04 | 범위 밖 | SC-C-02, SC-P-01, SC-A-01, SC-LINK-01 | 미제공 | `notification_events` 미사용 | 멘션 파싱·저장·event emission 미구현 |
 | 알림 | NOTI-01 | Sprint 3 후보, primary WBS `4.8` | 전체 시나리오 | 알림 목록/unread/read/read-all | `notification_events`, `notification_recipients` | NOTI-02/03은 현재 계약/reference row로 유지하고 PROJECT scope preference는 API boundary code로 관리 |
 
 ---
@@ -126,6 +127,7 @@
 | 서버 생성 시각과 만료 시각은 UTC 기준으로 생성, 저장, 비교하고 API 응답은 ISO-8601 UTC `Z` 형식으로 반환한다. | API 명세서 v2.3, ERD v2.0 | 일치 |
 | 로그인 이메일은 모든 진입점에서 `trim + lowercase` 정규화 값을 저장, 조회, 비교한다. | API 명세서 v2.3, ERD v2.0 | 일치 |
 | Redis는 원본 저장소가 아니라 cache/push 보조 계층이다. | ERD v2.0, 보류 기능 최종표 v1.0, 조건부 확장 계획서 | 일치 |
+| Thread는 명시적 get-or-create만 생성하며 `(target_type, target_id)` unique key로 대표 Thread 하나를 보장한다. | API 명세서 v2.10, ERD v2.2 | 일치 |
 
 ---
 
