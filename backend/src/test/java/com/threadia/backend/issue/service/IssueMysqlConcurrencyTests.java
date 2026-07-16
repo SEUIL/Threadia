@@ -31,6 +31,7 @@ import com.threadia.backend.common.auth.AuthContext;
 import com.threadia.backend.common.auth.AuthContextService;
 import com.threadia.backend.issue.dto.IssueCreateRequest;
 import com.threadia.backend.issue.dto.IssueData;
+import com.threadia.backend.platform.bootstrap.PlatformAdminBootstrap;
 import com.threadia.backend.project.repository.ProjectRepository;
 
 @SpringBootTest(properties = "threadia.jwt.secret=01234567890123456789012345678901")
@@ -57,6 +58,9 @@ class IssueMysqlConcurrencyTests {
 
 	@MockitoBean
 	private AuthContextService authContextService;
+
+	@MockitoBean
+	private PlatformAdminBootstrap platformAdminBootstrap;
 
 	private Long userId;
 	private Long companyId;
