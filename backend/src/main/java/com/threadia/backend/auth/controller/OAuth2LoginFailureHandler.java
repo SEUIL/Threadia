@@ -4,6 +4,7 @@ import java.io.IOException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.stereotype.Component;
@@ -30,7 +31,12 @@ public class OAuth2LoginFailureHandler implements AuthenticationFailureHandler {
 			HttpServletRequest request,
 			HttpServletResponse response,
 			AuthenticationException exception) throws IOException, ServletException {
-		log.warn("Google OAuth authentication failed: {}", exception.getClass().getSimpleName());
+		String logMessage = "Google OAuth authentication failed: " + exception.getClass().getSimpleName();
+		if (exception instanceof OAuth2AuthenticationException oauth2AuthenticationException
+				&& oauth2AuthenticationException.getError() != null) {
+			logMessage += " " + oauth2AuthenticationException.getError().getErrorCode();
+		}
+		log.warn(logMessage);
 		response.sendRedirect(properties.getFailureRedirectUrl());
 	}
 }
