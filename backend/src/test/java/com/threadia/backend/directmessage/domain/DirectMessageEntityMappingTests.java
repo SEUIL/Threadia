@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import com.threadia.backend.auth.domain.User;
 import com.threadia.backend.company.domain.Company;
+import com.threadia.backend.company.domain.CompanyStatus;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -37,7 +38,7 @@ class DirectMessageEntityMappingTests {
 		assertRelation(DirectMessageRoomUserState.class, "lastReadDirectMessage", DirectMessage.class, "last_read_direct_message_id", "fk_dmrus_last_read", true);
 	}
 	@Test void readPointerAdvancesByCreatedAtThenId() {
-		User first = user(1L); User second = user(2L); Company company = new Company("company", null, null, null, null, "ACTIVE", first, LocalDateTime.now(), LocalDateTime.now()); setId(company, 10L);
+		User first = user(1L); User second = user(2L); Company company = new Company("company", null, null, null, null, CompanyStatus.ACTIVE, first, LocalDateTime.now(), LocalDateTime.now()); setId(company, 10L);
 		DirectMessageRoom room = new DirectMessageRoom(company, first, second, LocalDateTime.now()); setId(room, 30L);
 		LocalDateTime laterCreatedAt = LocalDateTime.parse("2026-07-15T00:00:02");
 		DirectMessage laterWithLowerId = new DirectMessage(room, second, "later", laterCreatedAt); setId(laterWithLowerId, 40L);
