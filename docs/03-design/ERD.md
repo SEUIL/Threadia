@@ -1,9 +1,9 @@
-# Threadia ERD v2.0
+# Threadia ERD v2.1
 
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-15  
-> **최종 수정**: 2026-07-08
-> **버전**: 개발 기준 사용 반영 + company member scoped PATCH 동기화 v1.5
+> **최종 수정**: 2026-07-15
+> **버전**: v2.1 WBS 4.10.1 platform support case schema 반영
 > **상태**: 확정
 > **태그**: erd, db, schema, auth, invitation
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
@@ -13,7 +13,7 @@
 
 > **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows다. DB schema는 `docs/03-design/ERD.md`와 `db/schema.sql`을 기준으로 관리하고, Spring Boot/JPA는 schema 생성이 아니라 mapping 검증에 사용한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
-> **Sprint 3 기준선 메모**: 현재 ERD 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, Sprint 3 decision-needed, 유지 보류 항목을 분리한다. S15는 `3.7~3.7.5` planning gate 이후 `4.10`에서 추적하고, NOTI primary WBS는 `NOTI-01`=`4.8`이다. 이 문서는 S15, 첨부, document versioning, 고급 DM, PROJECT notification scope, project restore, permanent delete의 영향 범위만 표시하며, 선행 결정 전 concrete table이나 column 계약을 추가하지 않는다.
+> **Sprint 3 기준선 메모**: 현재 ERD 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, Sprint 3 decision-needed, 유지 보류 항목을 분리한다. S15 WBS `4.10.1`의 platform authorization, support case, reply/note, immutable audit table은 확정 schema로 반영한다. enforcement, settings, admin lifecycle, dashboard, notification과 나머지 decision-needed 항목은 concrete schema를 추가하지 않는다.
 
 
 ## 0. DB schema 관리 기준
@@ -74,6 +74,12 @@ Spring Boot JPA Entity는 DB를 자동 생성하거나 수정하는 기준이 �
 | 알림 | `notification_recipients` | 사용자별 수신/읽음 상태 | Sprint 3 후보 |
 | 알림 | `notification_preferences` | 개인 알림 설정. NOTI-02/03은 현재 계약/reference이며 PROJECT scope exact schema는 API boundary로 유지 | Sprint 3 후보 |
 | 대시보드 | `project_dashboard_summaries` | 프로젝트 홈 read model. 성능 필요 확인 전 조건부 | Sprint 3 후보 |
+| 플랫폼 인가 | `platform_admin_bootstrap_locks` | 최초 관리자 생성을 직렬화하는 singleton lock row | WBS 4.10.1 foundation |
+| 플랫폼 인가 | `platform_admins` | `users`와 1:1로 분리한 플랫폼 운영 권한 | WBS 4.10.1 foundation |
+| 고객센터 | `support_cases` | 문의/신고와 단방향 처리 상태 | WBS 4.10.1 구현 |
+| 고객센터 | `support_case_public_replies` | 사용자에게 공개되는 관리자 답변 | WBS 4.10.1 구현 |
+| 고객센터 | `support_case_internal_notes` | 플랫폼 관리자 전용 내부 메모 | WBS 4.10.1 구현 |
+| 운영 감사 | `admin_action_audits` | support case mutation 불변 audit 원장 | WBS 4.10.1 foundation |
 
 ---
 
@@ -125,6 +131,14 @@ erDiagram
     users ||--o{ invitations : "초대자"
     invitations ||--o| company_members : "수락시회사소속"
     invitations ||--o| project_members : "수락시프로젝트소속"
+    users ||--o| platform_admins : "플랫폼권한"
+    users ||--o{ support_cases : "신고자"
+    support_cases ||--o{ support_case_public_replies : "공개답변"
+    support_cases ||--o{ support_case_internal_notes : "내부메모"
+    support_cases ||--o{ admin_action_audits : "감사연결"
+    platform_admins ||--o{ support_case_public_replies : "작성"
+    platform_admins ||--o{ support_case_internal_notes : "작성"
+    platform_admins ||--o{ admin_action_audits : "관리자행위"
 ```
 
 ---
@@ -226,6 +240,64 @@ login, OAuth callback, token refresh, `/auth/me`는 `users.status = ACTIVE`인 �
 - 프로젝트 invitation은 `PROJECT-MEMBER-01~02` 기준 Sprint 3 후보다. 구현 시 해당 프로젝트가 속한 회사의 `ACTIVE` company member에게만 생성한다. `INVITE-01~04` company invitation 의미를 덮어쓰지 않는다.
 - invitation-related notification은 필요 시 내부 `notification_events` 원장 기록을 남길 수 있으나 Sprint 1.5 완료 조건에는 포함하지 않는다. Push 알림, 별도 Invitation notification preference, S11 사용자 알림 UI 필수 구현은 포함하지 않는다.
 - Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local/dev/demo seed로 준비한다. `POST /api/v1/companies`는 Sprint 1.5 구현 범위에 포함하지 않고 MVP/Sprint 2 reference로 유지하며, 운영 데이터에는 seed를 포함하지 않는다.
+
+### 4.5-A WBS 4.10.1 platform support case
+
+#### platform_admin_bootstrap_locks
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | INT | PK, CHECK (`id = 1`) | 최초 관리자 bootstrap을 직렬화하는 singleton row |
+
+canonical schema는 `id = 1` row를 seed한다. 각 application instance는 같은 transaction에서 이 row를 `PESSIMISTIC_WRITE`로 lock한 뒤 `platform_admins` 존재 확인과 최초 insert를 수행한다. 따라서 서로 다른 유효한 bootstrap email로 동시에 시작해도 한 instance만 `SUPER_ADMIN`을 생성하고 나머지는 lock 획득 후 정상 no-op한다.
+
+#### platform_admins
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | 플랫폼 관리자 ID |
+| user_id | BIGINT | UNIQUE, FK → users.id, NOT NULL | 기존 ACTIVE 로그인 사용자 |
+| role | ENUM('PLATFORM_ADMIN','SUPER_ADMIN') | NOT NULL | platform-level role |
+| created_at | DATETIME | NOT NULL | 권한 생성 UTC 시각 |
+
+`users.role`, `company_members`, `project_members`는 platform authorization에 사용하지 않는다. table이 비었을 때만 환경변수 email과 일치하는 기존 ACTIVE 사용자를 최초 `SUPER_ADMIN`으로 bootstrap한다.
+
+#### support_cases
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | case ID |
+| reporter_user_id | BIGINT | FK → users.id, NOT NULL | 작성자/소유자 |
+| case_type | ENUM('INQUIRY','REPORT') | NOT NULL | 문의 또는 신고 |
+| status | ENUM('OPEN','IN_PROGRESS','RESOLVED','REJECTED','CLOSED') | NOT NULL | 단방향 처리 상태 |
+| target_type | ENUM('USER','COMPANY','PROJECT','CONTENT') | NULL | REPORT 대상 유형 |
+| target_id | CHAR(36) | NULL | 대상 UUID. 다형성 FK 없음 |
+| title | VARCHAR(200) | NOT NULL | 제목 |
+| body | TEXT | NOT NULL | 내용 |
+| created_at, updated_at | DATETIME | NOT NULL | UTC 생성/수정 시각 |
+
+CHECK는 `INQUIRY`의 target 두 field가 모두 NULL이고 `REPORT`의 `target_type`이 존재함을 보장한다. target domain 존재 여부는 WBS `4.10.1`에서 검증하지 않는다.
+
+#### support_case_public_replies / support_case_internal_notes
+
+두 table은 `id`, `support_case_id`, `author_platform_admin_id`, `body`, `created_at`을 가진다. public reply는 사용자 상세 조회에 포함할 수 있지만 internal note는 platform 전용 query와 DTO만 사용한다. 두 table 모두 hard delete를 제공하지 않는다.
+
+#### admin_action_audits
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| support_case_id | BIGINT | FK → support_cases.id, NOT NULL | 모든 mutation의 case 연결 |
+| actor_user_id | BIGINT | FK → users.id, NOT NULL | 실제 actor |
+| actor_platform_admin_id | BIGINT | FK → platform_admins.id, NULL | platform action 권한 row |
+| authority_source | ENUM('USER','PLATFORM_ADMIN') | NOT NULL | 권한 원천 |
+| authority_role | ENUM('PLATFORM_ADMIN','SUPER_ADMIN') | NULL | platform action 당시 role |
+| action | ENUM | NOT NULL | case 생성, public reply, internal note, 상태 변경 |
+| target_type, target_id | ENUM, BIGINT | NOT NULL | mutation 대상 종류와 ID |
+| reason | VARCHAR(500) | NOT NULL | body와 분리된 audit 사유 |
+| before_state, after_state | LONGTEXT | before NULL 가능, after NOT NULL | JSON 변경 전후 snapshot |
+| created_at | DATETIME | NOT NULL | UTC 감사 시각 |
+
+audit entity는 update/delete API와 setter를 제공하지 않는다. mutation과 같은 transaction에서 insert하며 audit insert 실패는 mutation rollback 조건이다.
 
 ### 4.6 activity_events
 
@@ -647,7 +719,7 @@ DB FK와 CHECK만으로 표현하기 어려운 tenant/project/다형성 정합�
 
 | 항목 | 현재 경계 |
 |---|---|
-| S15 platform admin | `3.7~3.7.5` planning gate와 Go/No-Go handoff 이후 `4.10`에서 추적한다. `users.role` 단일 권한 모델을 만들지 않는다. `platform_admins`, `support_cases`, audit log exact schema는 decision-needed다. |
+| S15 후속 범위 | WBS `4.10.1` schema는 위에서 확정했다. 사용자/회사 enforcement, settings, admin lifecycle, dashboard, notification schema는 후속 결정 전 추가하지 않는다. |
 | Attachment | S3 presigned URL, metadata, 권한, 크기, MIME 정책 결정 전까지 `attachments` table 계약을 추가하지 않는다. |
 | Document versioning | optimistic locking 우선안은 decision-needed다. `documents.version` column 또는 별도 version table 여부는 미정이다. |
 | Advanced DM | 1:1 DM 현재 schema를 유지한다. participants table과 read receipt schema는 decision-needed다. |
@@ -673,7 +745,7 @@ DB FK와 CHECK만으로 표현하기 어려운 tenant/project/다형성 정합�
 - `threads` 자동 생성 vs 수동 생성 정책.
 - `activity_events`와 `notification_events`는 분리 운영한다. activity 이벤트가 notification 이벤트를 생성하는 조건은 구현 단계에서 이벤트별로 제한한다.
 - 범용 attachments 테이블과 S3 presigned URL 상세 정책은 Sprint 3 decision-needed로 확정.
-- S15 `platform_admins`, `support_cases`, audit log exact schema는 Sprint 3 decision-needed로 확정.
+- S15 WBS `4.10.1` 외 enforcement/settings/admin lifecycle/dashboard/notification exact schema는 후속 결정으로 유지.
 - document optimistic locking용 exact schema는 Sprint 3 decision-needed로 확정.
 - DM participants/read receipt schema와 PROJECT notification scope schema는 Sprint 3 decision-needed로 확정.
 - project restore와 issue/document permanent delete schema 영향은 Sprint 3 decision-needed로 확정.
