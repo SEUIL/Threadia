@@ -228,6 +228,28 @@ class IssueServiceTest {
 		assertThat(data.issue().issueKey()).isEqualTo("THD-8");
 	}
 
+	/**
+	 * reporterUserId는 표시용이 아니라 권한 판정용이다 — trash/restore가 P/C 또는
+	 * 등록자에게 허용되므로, 이게 없으면 클라이언트가 "등록자" 경로를 판정할 수 없다.
+	 */
+	@Test
+	void responseExposesReporterUserIdForOwnerPermissionChecks() {
+		Fixtures fixtures = fixtures();
+		stubAuth(fixtures);
+		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(fixtures.project()));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+		when(issueRepository.findByProjectIdForSequenceUpdate(20L)).thenReturn(List.of());
+		when(issueRepository.save(any())).thenAnswer(invocation -> {
+			Issue issue = invocation.getArgument(0);
+			setId(issue, 100L);
+			return issue;
+		});
+
+		IssueData data = issueService.create("token", 20L, new IssueCreateRequest("새 이슈"));
+
+		assertThat(data.issue().reporterUserId()).isEqualTo(fixtures.user().getId());
+	}
+
 	@Test
 	void createSelectsHighestNumericSuffixAndSkipsMalformedKeys() {
 		Fixtures fixtures = fixtures();
