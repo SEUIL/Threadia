@@ -30,6 +30,7 @@ import com.threadia.backend.directmessage.dto.DirectMessageMarkReadRequest;
 import com.threadia.backend.directmessage.dto.DirectMessageRoomCreateRequest;
 import com.threadia.backend.directmessage.dto.DirectMessageRoomCreationResult;
 import com.threadia.backend.directmessage.repository.DirectMessageRepository;
+import com.threadia.backend.platform.bootstrap.PlatformAdminBootstrap;
 
 @SpringBootTest(properties = "threadia.jwt.secret=01234567890123456789012345678901")
 @EnabledIfEnvironmentVariable(named = "THREADIA_DB_PASSWORD", matches = ".+")
@@ -40,6 +41,7 @@ class DirectMessageMysqlConcurrencyTests {
 	@Autowired DirectMessageService directMessageService;
 	@Autowired DirectMessageRepository directMessageRepository;
 	@MockitoBean AuthContextService authContextService;
+	@MockitoBean PlatformAdminBootstrap platformAdminBootstrap;
 	private Long firstUserId; private Long secondUserId; private Long companyId;
 	@BeforeEach void setUp() {
 		String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
