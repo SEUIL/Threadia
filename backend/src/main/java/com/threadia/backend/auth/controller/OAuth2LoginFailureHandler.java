@@ -30,7 +30,7 @@ public class OAuth2LoginFailureHandler implements AuthenticationFailureHandler {
 			HttpServletRequest request,
 			HttpServletResponse response,
 			AuthenticationException exception) throws IOException, ServletException {
-		log.warn("Google OAuth authentication failed");
+		log.warn("Google OAuth authentication failed: {}", exception.getClass().getSimpleName());
 		response.sendRedirect(properties.getFailureRedirectUrl());
 	}
 }
