@@ -11,7 +11,7 @@
 
 이 문서는 Spring Boot backend를 immutable ECR digest로 배포하는 첫 번째 수동 운영 경로를 정의한다. GitHub Actions는 OIDC로 한정된 AWS role을 assume하고 ECR image를 push한 뒤, SSM을 command transport로만 사용해 EC2의 고정 host script를 실행한다.
 
-기존 `.github/workflows/restricted-ssm-release.yml`과 `scripts/ssm-delivery/*`의 JAR/S3/SSM 경로는 수동 fallback으로 계속 유지한다. 다만 이 branch는 legacy workflow의 path filter에 `backend/Dockerfile` exclusion을 추가하므로 Dockerfile 변경은 legacy JAR workflow를 trigger하지 않는다. 이 문서는 AWS resource 생성, GitHub variable 설정, EC2 bootstrap, deploy 실행을 수행하지 않는다.
+기존 `.github/workflows/restricted-ssm-release.yml`과 `scripts/ssm-delivery/*`의 JAR/S3/SSM 경로는 legacy source 배포 및 수동 fallback으로 계속 유지한다. legacy workflow는 실제 legacy deploy input 변경에만 자동 실행되며 workflow 파일만 변경한 main merge로는 실행되지 않는다. 이 문서는 AWS resource 생성, GitHub variable 설정, EC2 bootstrap, deploy 실행을 수행하지 않는다.
 
 ```text
 workflow_dispatch
@@ -81,12 +81,12 @@ legacy JAR runtime과 Compose `app`은 서로 다른 EC2에서 실행한다. 각
 
 JAR fallback에서 Compose로 최초 전환할 때 사용자는 다음 순서를 수동으로 수행한다.
 
-1. legacy JAR host가 현재 public traffic을 처리하는지 확인하고, Compose host에서 ECR Compose workflow를 수동 실행한다.
+1. Compose public host에서 ECR Compose workflow를 수동 실행한다.
 2. Compose host의 local actuator health와 해당 host의 Nginx proxy health를 확인한다. 이 단계에서는 legacy JAR host의 service와 workflow를 변경하지 않는다.
 3. DNS 또는 public Nginx upstream을 Compose public host로 전환하고, 실제 public endpoint health와 주요 요청을 확인한다.
-4. legacy JAR host는 fallback으로 유지한다. Compose host에서 새 digest 배포가 실패하면 host script는 직전 Compose digest를 먼저 복구하며, DNS/Nginx traffic은 검증된 active host를 계속 가리킨다.
+4. legacy JAR/S3/SSM release 경로는 deployment fallback으로 유지한다. Compose host에서 새 digest 배포가 실패하면 host script는 직전 Compose digest를 먼저 복구하며, DNS/Nginx traffic은 Compose public host를 계속 가리킨다.
 
-전환 후 Compose public host에 장애가 있으면 DNS 또는 Nginx upstream을 legacy JAR host로 되돌리고 public endpoint를 확인한다. 이 fallback은 legacy JAR service를 재기동하는 절차가 아니라, 계속 실행 중인 별도 host로 traffic을 되돌리는 절차다.
+legacy JAR host는 private host이므로 public DNS 또는 public Nginx upstream을 legacy JAR host로 변경하지 않는다. public traffic fallback은 별도로 승인된 public edge route가 설계·구축되기 전까지 범위 밖이다.
 
 ## 6. GitHub Actions 수동 운영 절차
 
@@ -106,7 +106,7 @@ workflow는 `refs/heads/main`에서만 job을 실행하고, hard-coded non-secre
 
 rollback은 Actions 화면에서 검증된 이전 `sha256:<64-hex>` digest를 `rollback_digest`에 입력해 수동 실행한다. rollback job은 digest format과 ECR object 존재만 확인한 뒤 SSM을 호출하며 checkout, Java setup, test, build, push를 수행하지 않는다. rollback은 tag를 재사용하지 않으며 같은 host script의 validation, health check, state persistence를 사용한다.
 
-legacy main-push JAR workflow와 Compose workflow는 별도 EC2 host를 대상으로 독립적으로 실행된다. public traffic의 활성 runtime은 workflow concurrency가 아니라 DNS 또는 Nginx upstream 전환으로 결정한다. 이 branch는 Dockerfile 변경이 legacy JAR workflow를 trigger하지 않도록 legacy workflow의 path filter에 `backend/Dockerfile` exclusion을 추가하며, 그 외 JAR/S3/SSM release 경로는 fallback으로 유지한다.
+legacy main-push JAR workflow와 Compose workflow는 별도 EC2 host를 대상으로 독립적으로 실행된다. public traffic의 활성 runtime은 workflow concurrency가 아니라 Compose public host의 DNS 또는 Nginx upstream으로 결정한다. private legacy JAR host를 public DNS 또는 public Nginx upstream 대상으로 사용하지 않으며, public traffic fallback은 별도로 승인된 public edge route가 설계·구축되기 전까지 범위 밖이다. legacy JAR/S3/SSM release 경로는 deployment fallback으로 유지한다.
 
 ## 7. 보안과 운영 경계
 
@@ -124,7 +124,7 @@ legacy main-push JAR workflow와 Compose workflow는 별도 EC2 host를 대상�
 - [ ] 사용자가 EC2와 host script, Compose file, root-only runtime env를 수동 bootstrap했다.
 - [ ] ECR pull과 external RDS network reachability를 host에서 별도 확인했다.
 - [ ] SSM document가 고정 script와 하나의 `ImageRef` parameter만 사용한다.
-- [ ] JAR fallback과 Compose `app`이 별도 EC2 host에서 정상인지 확인하고, DNS 또는 Nginx upstream으로 활성 host를 제어하는 전환 절차를 적용했다.
+- [ ] JAR fallback과 Compose `app`이 별도 EC2 host에서 정상인지 확인하고, public DNS 또는 Nginx upstream이 Compose public host만 가리키는지 확인했다.
 - [ ] reverse proxy와 TLS는 `Route53-EIP-Nginx-Certbot-운영-가이드.md` 절차로 별도 준비했다.
 - [ ] 기존 JAR/S3/SSM release 경로가 fallback으로 남아 있음을 확인했다.
 - [ ] RDS는 private이고 public access가 disabled이며, RDS inbound는 EC2 security group에서만 허용한다.

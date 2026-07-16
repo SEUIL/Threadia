@@ -7,7 +7,6 @@ on:
     paths:
       - backend/**
       - '!backend/Dockerfile'
-      - .github/workflows/restricted-ssm-release.yml
 
 permissions:
   contents: read

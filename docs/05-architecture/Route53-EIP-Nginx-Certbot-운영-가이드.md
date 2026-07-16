@@ -63,9 +63,9 @@ Nginx virtual host는 사용자가 선택한 API FQDN만 `server_name`으로 설
 
 legacy JAR runtime과 Compose `app`은 별도 EC2에서 실행한다. 각 host는 자신의 `127.0.0.1:8080`을 사용할 수 있으므로 port binding, systemd unit, release lock을 공유하지 않는다. Compose host의 Nginx는 Compose host의 localhost upstream으로만 reverse proxy한다.
 
-JAR fallback에서 Compose로 최초 전환할 때 사용자는 Compose host에 image를 배포하고 local actuator health와 Nginx proxy health를 확인한 뒤, DNS A record를 Compose host의 EIP로 변경하거나 public Nginx upstream을 Compose host로 전환한다. 전환 후 실제 public endpoint와 주요 요청을 확인한다.
+JAR fallback에서 Compose로 최초 전환할 때 사용자는 Compose host에 image를 배포하고 local actuator health와 Nginx proxy health를 확인한 뒤, DNS A record를 Compose public host의 EIP로 변경하거나 public Nginx upstream을 Compose host로 전환한다. 전환 후 실제 public endpoint와 주요 요청을 확인한다.
 
-Compose host에 장애가 있으면 DNS A record 또는 public Nginx upstream을 계속 실행 중인 legacy JAR host로 되돌리고 public endpoint를 확인한다. Compose host의 digest rollback은 Compose runtime 내부에서만 수행하며, legacy JAR host의 service를 stop, start, enable 또는 disable하지 않는다. legacy JAR/S3/SSM release 경로는 fallback으로 유지한다.
+legacy JAR host는 private host이므로 Compose host에 장애가 있어도 DNS A record 또는 public Nginx upstream을 legacy JAR host로 변경하지 않는다. public traffic fallback은 별도로 승인된 public edge route가 설계·구축되기 전까지 범위 밖이다. Compose host의 digest rollback은 Compose runtime 내부에서만 수행하며, legacy JAR host의 service를 stop, start, enable 또는 disable하지 않는다. legacy JAR/S3/SSM release 경로는 deployment fallback으로 유지한다.
 
 ## 7. TLS와 application runtime 정합성
 
@@ -105,3 +105,4 @@ EIP 연결, DNS, Nginx 또는 certificate 변경이 실패하면 사용자는 �
 - EIP, domain, certificate, credential, secret을 tracked file 또는 CI log에 기록하지 않는다.
 - HTTPS 적용 전 `THREADIA_COOKIE_SECURE`를 production 안전값으로 간주하지 않는다.
 - DNS 또는 Nginx upstream 전환 검증 전에는 public traffic을 Compose host로 변경하지 않는다.
+- private legacy JAR host를 public DNS 또는 public Nginx upstream 대상으로 지정하지 않는다.
