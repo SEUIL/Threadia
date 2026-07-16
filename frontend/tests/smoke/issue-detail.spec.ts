@@ -97,7 +97,11 @@ async function mockApi(page: Page, options: { canManage: boolean; issues: MockIs
     }
 
     if (request.method() === "GET" && url.pathname === "/api/v1/projects/10/issues") {
-      await json(apiResponse({ issues: issues.filter((i) => i.trashedAt === null).map(toResponse) }));
+      // 서버 계약: includeTrashed=true면 active와 trashed를 함께, 기본(false)은 active만.
+      const includeTrashed = url.searchParams.get("includeTrashed") === "true";
+      calls.push(`list:includeTrashed=${includeTrashed}`);
+      const visible = includeTrashed ? issues : issues.filter((i) => i.trashedAt === null);
+      await json(apiResponse({ issues: visible.map(toResponse) }));
       return;
     }
 
@@ -116,6 +120,15 @@ async function mockApi(page: Page, options: { canManage: boolean; issues: MockIs
       const target = issues.find((i) => i.id === Number(trashMatch[1]))!;
       target.trashedAt = "2026-07-16T00:00:00Z";
       calls.push(`trash:${target.id}`);
+      await json(apiResponse({ issue: toResponse(target) }));
+      return;
+    }
+
+    const restoreMatch = url.pathname.match(/^\/api\/v1\/issues\/(\d+)\/restore$/);
+    if (request.method() === "POST" && restoreMatch) {
+      const target = issues.find((i) => i.id === Number(restoreMatch[1]))!;
+      target.trashedAt = null;
+      calls.push(`restore:${target.id}`);
       await json(apiResponse({ issue: toResponse(target) }));
       return;
     }
@@ -167,7 +180,8 @@ test("바꾼 게 없으면 요청하지 않고 닫는다", async ({ page }) => {
   await page.getByRole("button", { name: "저장" }).click();
 
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  expect(mock.calls).toHaveLength(0);
+  // 목록 조회는 당연히 나가므로 PATCH만 본다 — 빈 body는 서버가 400이라 아예 호출하지 않는다.
+  expect(mock.calls.filter((call) => call.startsWith("PATCH:"))).toHaveLength(0);
 });
 
 test("A는 우선순위·담당자·마감일을 수정할 수 없다", async ({ page }) => {
@@ -213,4 +227,83 @@ test("관리자가 아니어도 내가 등록한 이슈는 휴지통에 넣을 �
   await expect.poll(() => mock.calls).toContain("trash:1");
   // 기본 목록은 includeTrashed=false라 휴지통 이슈는 보드에서 사라진다.
   await expect(page.getByText("내 이슈", { exact: true })).toHaveCount(0);
+});
+
+/** 휴지통 섹션을 펼친다. 기본 목록에 없는 trashed 이슈에 도달하는 유일한 경로다. */
+async function openTrash(page: Page) {
+  await page.getByRole("button", { name: /^휴지통/ }).click();
+}
+
+test("휴지통을 펼치면 includeTrashed=true로 조회해 trashed 이슈만 보여준다", async ({ page }) => {
+  const mock = await mockApi(page, {
+    canManage: true,
+    issues: [
+      issue({ id: 1, issueKey: "THR-1", title: "살아있는 이슈" }),
+      issue({ id: 2, issueKey: "THR-2", title: "버려진 이슈", trashedAt: "2026-07-16T00:00:00Z" }),
+    ],
+  });
+
+  await page.goto("/1/10/board");
+  // 펼치기 전에는 굳이 조회하지 않는다.
+  await expect.poll(() => mock.calls).toContain("list:includeTrashed=false");
+  expect(mock.calls).not.toContain("list:includeTrashed=true");
+
+  await openTrash(page);
+
+  await expect.poll(() => mock.calls).toContain("list:includeTrashed=true");
+  await expect(page.getByRole("button", { name: "휴지통 (1)" })).toBeVisible();
+  // active 이슈는 휴지통 목록에 섞이지 않는다(includeTrashed=true는 둘 다 준다).
+  const trashSection = page.locator("section").filter({ hasText: "휴지통" });
+  await expect(trashSection.getByText("버려진 이슈")).toBeVisible();
+  await expect(trashSection.getByText("살아있는 이슈")).toHaveCount(0);
+});
+
+test("휴지통에서 이슈를 열어 복원하면 보드로 돌아온다", async ({ page }) => {
+  const mock = await mockApi(page, {
+    canManage: true,
+    issues: [issue({ id: 2, issueKey: "THR-2", title: "버려진 이슈", trashedAt: "2026-07-16T00:00:00Z" })],
+  });
+
+  await page.goto("/1/10/board");
+  await expect(page.getByText("버려진 이슈", { exact: true })).toHaveCount(0);
+
+  await openTrash(page);
+  const trashSection = page.locator("section").filter({ hasText: "휴지통" });
+  await trashSection.getByRole("button", { name: "상세 열기", exact: true }).click();
+
+  // trashed 이슈는 서버가 수정을 409로 막으므로 폼이 잠기고 저장 버튼이 없다.
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByLabel("제목", { exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "저장" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "복원" }).click();
+
+  await expect.poll(() => mock.calls).toContain("restore:2");
+  // 복원되면 칸반에 다시 나타나고 휴지통에서는 빠진다.
+  await expect(page.getByText("버려진 이슈", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "휴지통 (0)" })).toBeVisible();
+});
+
+test("등록자도 관리자도 아니면 휴지통에서 열어도 복원할 수 없다", async ({ page }) => {
+  await mockApi(page, {
+    canManage: false,
+    issues: [
+      issue({
+        id: 2,
+        issueKey: "THR-2",
+        title: "남이 버린 이슈",
+        reporterUserId: 99,
+        trashedAt: "2026-07-16T00:00:00Z",
+      }),
+    ],
+  });
+
+  await page.goto("/1/10/board");
+  await openTrash(page);
+  const trashSection = page.locator("section").filter({ hasText: "휴지통" });
+  await trashSection.getByRole("button", { name: "상세 열기", exact: true }).click();
+
+  // 서버 규칙(P/C 또는 등록자)과 같게 복원 버튼도 숨긴다.
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("button", { name: "복원" })).toHaveCount(0);
 });
