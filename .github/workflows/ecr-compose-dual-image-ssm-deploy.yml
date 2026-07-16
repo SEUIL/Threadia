@@ -96,7 +96,7 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in $(seq 1 60); do
-            if ! status="$(aws ssm get-command-invocation --region "$AWS_REGION" --cli-connect-timeout 5 --cli-read-timeout 10 --command-id "${{ steps.command.outputs.command_id }}" --instance-id "$THREADIA_ECR_COMPOSE_INSTANCE_ID" --query Status --output text 2>/dev/null)"; then
+            if ! status="$(aws ssm get-command-invocation --region "$AWS_REGION" --cli-connect-timeout 5 --cli-read-timeout 10 --command-id "${{ steps.release.outputs.command_id }}" --instance-id "$THREADIA_ECR_COMPOSE_INSTANCE_ID" --query Status --output text 2>/dev/null)"; then
               status=Pending
             fi
             case "$status" in
