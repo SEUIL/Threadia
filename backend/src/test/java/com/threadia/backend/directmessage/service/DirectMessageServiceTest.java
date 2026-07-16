@@ -27,6 +27,7 @@ import com.threadia.backend.auth.repository.UserRepository;
 import com.threadia.backend.common.auth.AuthContext;
 import com.threadia.backend.common.auth.AuthContextService;
 import com.threadia.backend.company.domain.Company;
+import com.threadia.backend.company.domain.CompanyStatus;
 import com.threadia.backend.company.repository.CompanyRepository;
 import com.threadia.backend.company.service.CompanyMembershipService;
 import com.threadia.backend.directmessage.domain.DirectMessage;
@@ -122,6 +123,6 @@ class DirectMessageServiceTest {
 		verify(messageRepository, never()).countUnreadByRoomIdAndUserId(31L, 1L);
 	}
 	private static User user(Long id) { User user = new User("user" + id + "@example.com", "hash", "user", null, UserStatus.ACTIVE, java.time.LocalDateTime.now(), java.time.LocalDateTime.now()); setId(user, id); return user; }
-	private static DirectMessageRoom room(Long id, Long companyId, Long firstUserId, Long secondUserId) { User first = user(firstUserId); Company company = new Company("company", null, null, null, null, "ACTIVE", first, java.time.LocalDateTime.now(), java.time.LocalDateTime.now()); setId(company, companyId); DirectMessageRoom room = new DirectMessageRoom(company, first, user(secondUserId), java.time.LocalDateTime.now()); setId(room, id); return room; }
+	private static DirectMessageRoom room(Long id, Long companyId, Long firstUserId, Long secondUserId) { User first = user(firstUserId); Company company = new Company("company", null, null, null, null, CompanyStatus.ACTIVE, first, java.time.LocalDateTime.now(), java.time.LocalDateTime.now()); setId(company, companyId); DirectMessageRoom room = new DirectMessageRoom(company, first, user(secondUserId), java.time.LocalDateTime.now()); setId(room, id); return room; }
 	private static void setId(Object target, Long id) { try { Field field = target.getClass().getDeclaredField("id"); field.setAccessible(true); field.set(target, id); } catch (ReflectiveOperationException exception) { throw new AssertionError(exception); } }
 }
