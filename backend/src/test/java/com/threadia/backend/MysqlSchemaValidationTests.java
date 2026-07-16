@@ -47,6 +47,7 @@ class MysqlSchemaValidationTests {
 			"documents",
 			"document_issue_links"
 	);
+	private static final List<String> PROJECT_CHAT_TABLES = List.of("messages", "project_chat_member_states");
 	private static final List<String> PLATFORM_SUPPORT_TABLES = List.of(
 			"platform_admin_bootstrap_locks",
 			"platform_admins",
@@ -274,6 +275,38 @@ class MysqlSchemaValidationTests {
 		assertForeignKey("document_issue_links", "fk_dil_document", "document_id", "documents", "id");
 		assertForeignKey("document_issue_links", "fk_dil_issue", "issue_id", "issues", "id");
 		assertForeignKey("document_issue_links", "fk_dil_created_by", "created_by_user_id", "users", "id");
+	}
+
+	@Test
+	void appliesSchemaSqlAndCreatesProjectChatTablesAndReferenceConstraints() {
+		applySchemaSql();
+		Set<String> existingTables = jdbcTemplate.queryForList("""
+				SELECT table_name FROM information_schema.tables
+				WHERE table_schema = DATABASE() AND table_name IN ('messages', 'project_chat_member_states')
+				""", String.class).stream().collect(Collectors.toSet());
+		assertThat(existingTables).containsExactlyInAnyOrderElementsOf(PROJECT_CHAT_TABLES);
+
+		assertRequiredColumn("messages", "project_id", "bigint");
+		assertRequiredColumn("messages", "author_user_id", "bigint");
+		assertNullableColumn("messages", "thread_id", "bigint");
+		assertRequiredColumn("messages", "content", "text");
+		assertRequiredColumn("messages", "created_at", "datetime");
+		assertIndex("messages", "idx_messages_project_created", "project_id", "created_at", "id");
+		assertForeignKey("messages", "fk_messages_project", "project_id", "projects", "id");
+		assertForeignKey("messages", "fk_messages_author", "author_user_id", "users", "id");
+		assertForeignKey("messages", "fk_messages_thread", "thread_id", "threads", "id");
+
+		assertRequiredColumn("project_chat_member_states", "project_id", "bigint");
+		assertRequiredColumn("project_chat_member_states", "user_id", "bigint");
+		assertNullableColumn("project_chat_member_states", "last_read_message_id", "bigint");
+		assertNullableColumn("project_chat_member_states", "last_read_at", "datetime");
+		assertRequiredColumn("project_chat_member_states", "updated_at", "datetime");
+		assertIndex("project_chat_member_states", "PRIMARY", "project_id", "user_id");
+		assertIndex("project_chat_member_states", "idx_pcms_user", "user_id");
+		assertIndex("project_chat_member_states", "idx_pcms_last_read", "last_read_message_id");
+		assertForeignKey("project_chat_member_states", "fk_pcms_project", "project_id", "projects", "id");
+		assertForeignKey("project_chat_member_states", "fk_pcms_user", "user_id", "users", "id");
+		assertForeignKey("project_chat_member_states", "fk_pcms_last_read", "last_read_message_id", "messages", "id");
 	}
 
 	@Test

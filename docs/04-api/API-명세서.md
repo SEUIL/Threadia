@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-07-15
-> **버전**: v2.9 WBS 4.10.1 support case Backend 계약 반영
+> **최종 수정**: 2026-07-16
+> **버전**: v2.9 WBS 4.6.1 Documents/Graph, Issue #108 project-scoped exact-email invitation candidate lookup, WBS 4.7.2.1 Project Chat Backend 및 WBS 4.10.1 support case Backend 계약 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -80,6 +80,7 @@ pagination이 필요한 목록 응답은 `page`를 포함한다. endpoint별 응
 | 409 | INVITATION_CANCELED | 초대가 취소됨 |
 | 409 | INVITATION_INVALID_STATUS | 처리할 수 없는 초대 상태 |
 | 409 | DOCUMENT_VERSION_CONFLICT | 문서 수정 optimistic locking 충돌. Sprint 3 decision-needed boundary code |
+| 409 | THREAD_DEFERRED | WBS 4.7.1 Thread 구현 전 메시지 `threadId`를 지정함 |
 
 ### 사용자 요약 DTO
 
@@ -1712,15 +1713,61 @@ Request Body:
 }
 ```
 
+Response 201:
+
+```json
+{
+  "data": {
+    "message": {
+      "id": 7000,
+      "projectId": 20,
+      "authorUserId": 1,
+      "content": "로그인 API 응답 형식 확인했습니다.",
+      "threadId": null,
+      "createdAt": "2026-07-15T10:00:00Z"
+    }
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+#### GET `/api/v1/projects/{projectId}/messages`
+
+Query parameters: `cursor`(선택, 서버가 서명한 opaque cursor), `limit`(선택, 기본 50, 1~100).
+
+Response 200:
+
+```json
+{
+  "data": {
+    "messages": [
+      {
+        "id": 7002,
+        "projectId": 20,
+        "authorUserId": 2,
+        "content": "검증 결과를 공유합니다.",
+        "threadId": null,
+        "createdAt": "2026-07-15T10:02:00Z"
+      }
+    ],
+    "nextCursor": "<server-signed-opaque-cursor>"
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+마지막 page의 `nextCursor`는 `null`이다. cursor의 payload 또는 signature가 손상됐거나 현재 path project와 다르면 `400 VALIDATION_ERROR`다.
+
+#### GET `/api/v1/messages/{messageId}`
+
+Response 200은 `POST /projects/{projectId}/messages`의 `data.message`와 같은 6개 필드를 반환한다. 경로 message가 없으면 `404 NOT_FOUND`, 해당 project 접근 권한이 없으면 `403 FORBIDDEN`이다.
+
 #### POST `/api/v1/projects/{projectId}/messages/mark-read`
 
 Request Body:
 
 ```json
-{
-  "lastReadMessageId": 7000,
-  "readAt": "2026-06-16T10:00:00Z"
-}
+{ "lastReadMessageId": 7000 }
 ```
 
 Response 200:
@@ -1735,6 +1782,31 @@ Response 200:
   "meta": { "requestId": "req_..." }
 }
 ```
+
+`lastReadMessageId`가 path project에 속하지 않으면 `403 FORBIDDEN`이다. `lastReadAt`은 request field가 아니며 서버 UTC 시각만 저장한다.
+
+#### GET `/api/v1/projects/{projectId}/messages/unread-count`
+
+Response 200:
+
+```json
+{
+  "data": {
+    "projectId": 20,
+    "unreadCount": 3
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+#### WBS 4.7.2.1 Project Chat Backend 정책
+
+- `GET /api/v1/projects/{projectId}/messages`는 최신순 `(createdAt DESC, id DESC)` keyset pagination을 사용한다. `cursor`는 HMAC signature가 붙은 응답의 opaque `nextCursor`만 사용할 수 있고, 다른 project의 cursor, 손상된 payload/signature는 `400 VALIDATION_ERROR`다. 기본 `limit`은 50, 허용 범위는 1~100이며 응답은 `data.messages`, `data.nextCursor`를 제공한다.
+- `POST /api/v1/projects/{projectId}/messages`는 1~10,000자 범위의 비어 있지 않은 `content`만 작성한다. 메시지는 immutable이며 edit/delete endpoint를 제공하지 않는다. `threadId`는 WBS 4.7.1 완료 전 반드시 `null`이고, non-null 요청은 `409 THREAD_DEFERRED`다.
+- `POST /api/v1/projects/{projectId}/messages/mark-read`는 path project의 메시지만 pointer로 허용한다. 서버 UTC 시각으로 읽음 시각을 기록하며 client `readAt`은 받지 않는다. 동일 사용자의 `(projectId, userId)` 상태는 upsert되고, pointer는 `(createdAt, id)` 순서에서 뒤로 이동하지 않는다.
+- `GET /api/v1/projects/{projectId}/messages/unread-count`와 mark-read 응답의 unread count는 저장하지 않고 계산한다. 본인이 작성한 메시지는 제외하며, 현재 pointer 이후 메시지만 센다.
+- 모든 endpoint는 ACTIVE 회사 `COMPANY_ADMIN`이면 해당 회사의 모든 project에 접근할 수 있고, 그 외 사용자는 ACTIVE project membership이 필요하다. 서버 생성 시각과 응답 시간은 UTC ISO-8601 `Z` 형식이다.
+- list의 잘못된 `limit`, 10,000자를 초과하거나 blank인 `content`, missing `lastReadMessageId`, malformed/tampered cursor는 `400 VALIDATION_ERROR`다. 없는 message는 `404 NOT_FOUND`, 접근 불가 project/message는 `403 FORBIDDEN`, non-null `threadId`는 `409 THREAD_DEFERRED`다.
 
 #### POST `/api/v1/companies/{companyId}/direct-messages/rooms`
 
