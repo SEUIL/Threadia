@@ -142,6 +142,7 @@ class MysqlSchemaValidationTests {
 		applySchemaSql();
 
 		assertRequiredColumn("projects", "company_id", "bigint");
+		assertEnumColumn("companies", "status", "ACTIVE", "ACTIVE", "INACTIVE");
 		assertRequiredColumn("projects", "name", "varchar");
 		assertRequiredColumn("projects", "project_key", "varchar");
 		assertEnumColumn("projects", "status", "PLANNING", "PLANNING", "ACTIVE", "PAUSED", "COMPLETED", "ARCHIVED");
@@ -360,6 +361,7 @@ class MysqlSchemaValidationTests {
 		assertNullableEnumColumn("admin_action_audits", "authority_role", "PLATFORM_ADMIN", "SUPER_ADMIN");
 		assertRequiredColumn("admin_action_audits", "reason", "varchar");
 		assertNullableColumn("admin_action_audits", "before_state", "longtext");
+		assertNullableColumn("admin_action_audits", "support_case_id", "bigint");
 		assertRequiredColumn("admin_action_audits", "after_state", "longtext");
 		assertForeignKey("admin_action_audits", "fk_aaa_case", "support_case_id", "support_cases", "id");
 		assertForeignKey("admin_action_audits", "fk_aaa_actor", "actor_user_id", "users", "id");
