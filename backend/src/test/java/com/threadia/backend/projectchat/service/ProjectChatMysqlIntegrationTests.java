@@ -28,6 +28,7 @@ import com.threadia.backend.auth.domain.User;
 import com.threadia.backend.auth.repository.UserRepository;
 import com.threadia.backend.common.auth.AuthContext;
 import com.threadia.backend.common.auth.AuthContextService;
+import com.threadia.backend.platform.bootstrap.PlatformAdminBootstrap;
 import com.threadia.backend.projectchat.ProjectChatMysqlSchemaInitializer;
 import com.threadia.backend.projectchat.dto.MarkReadRequest;
 import com.threadia.backend.projectchat.dto.MessagesData;
@@ -45,6 +46,7 @@ class ProjectChatMysqlIntegrationTests {
 	@Autowired private UserRepository userRepository;
 	@Autowired private ProjectChatService projectChatService;
 	@MockitoBean private AuthContextService authContextService;
+	@MockitoBean private PlatformAdminBootstrap platformAdminBootstrap;
 
 	private Long readerId;
 	private Long authorId;
