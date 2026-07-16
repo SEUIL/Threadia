@@ -1,9 +1,9 @@
-# Threadia API 명세서 v2.9
+# Threadia API 명세서 v3.0
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
 > **최종 수정**: 2026-07-16
-> **버전**: v2.9 WBS 4.6.1 Documents/Graph, Issue #108 project-scoped exact-email invitation candidate lookup, WBS 4.7.2.1 Project Chat Backend, WBS 4.7.3.1 1:1 Direct Message Backend 및 WBS 4.10.1 support case Backend 계약 반영
+> **버전**: v3.0 WBS 4.10.3 typed system settings Backend 계약 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -13,7 +13,7 @@
 
 > **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows이며, DB는 ERD 기반 `db/schema.sql`과 문서 변경이력으로 관리한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
-> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, Sprint 3 decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15 WBS `4.10.1`의 support case Backend 계약만 확정하며 enforcement, settings, admin lifecycle, dashboard, notification, Frontend는 후속 범위다. attachment, document optimistic locking, advanced DM, PROJECT notification scope, project restore, permanent delete는 선행 결정 전 full endpoint contract나 request/response body를 만들지 않는다.
+> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, Sprint 3 decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15 WBS `4.10.1` support case와 WBS `4.10.3` typed system settings Backend 계약을 확정하며 enforcement, admin lifecycle, dashboard, notification, Frontend는 후속 범위다. attachment, document optimistic locking, advanced DM, PROJECT notification scope, project restore, permanent delete는 선행 결정 전 full endpoint contract나 request/response body를 만들지 않는다.
 
 
 ## 1. 공통 규칙
@@ -81,6 +81,8 @@ pagination이 필요한 목록 응답은 `page`를 포함한다. endpoint별 응
 | 409 | INVITATION_INVALID_STATUS | 처리할 수 없는 초대 상태 |
 | 409 | DOCUMENT_VERSION_CONFLICT | 문서 수정 optimistic locking 충돌. Sprint 3 decision-needed boundary code |
 | 409 | THREAD_DEFERRED | WBS 4.7.1 Thread 구현 전 메시지 `threadId`를 지정함 |
+| 409 | SYSTEM_SETTING_VERSION_CONFLICT | `expectedVersion`이 현재 setting version과 다름 |
+| 409 | SYSTEM_SETTING_NO_CHANGE | replacement JSON이 현재 value와 동일함 |
 
 ### 사용자 요약 DTO
 
@@ -115,6 +117,7 @@ platformAdminRole:      PLATFORM_ADMIN | SUPER_ADMIN
 supportCaseType:        INQUIRY | REPORT
 supportCaseStatus:      OPEN | IN_PROGRESS | RESOLVED | REJECTED | CLOSED
 supportCaseTargetType:  USER | COMPANY | PROJECT | CONTENT
+systemSettingKey:       SUPPORT_CASE_CATEGORIES | REPORT_REASON_CATEGORIES | ENFORCEMENT_REASON_PRESETS | ENFORCEMENT_DURATION_PRESETS | REPLY_TEMPLATES | ANNOUNCEMENT_BANNER | SUPPORT_CENTER_STATUS | RESULT_NOTIFICATION_POLICY
 ```
 
 Phase A Sprint 1 구현 provider는 Google OAuth로 한정한다. API와 ERD의 KAKAO, NAVER enum은 후속 확장 reference로만 유지한다.
@@ -540,11 +543,69 @@ case object는 `id`, `reporterUserId`, `type`, `status`, `targetType`, `targetId
 
 ---
 
+## 10-B. WBS 4.10.3 System Settings Backend
+
+system settings는 `/api/v1/platform/system-settings` namespace를 사용한다. 모든 endpoint는 JWT Bearer token과 `platform_admins` 기반 authority를 요구하며 company/project membership은 권한 근거가 아니다.
+
+| Method | Endpoint | 권한 | 설명 |
+|---|---|---|---|
+| GET | `/api/v1/platform/system-settings` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | 전체 8개 code-owned catalog value 조회 |
+| GET | `/api/v1/platform/system-settings/{key}` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | 한 code-owned catalog value 조회 |
+| PUT | `/api/v1/platform/system-settings/{key}` | `SUPER_ADMIN` | 한 key의 JSON value를 whole-document replacement |
+
+### 10-B.1 Catalog 및 default
+
+허용 path key는 `SUPPORT_CASE_CATEGORIES`, `REPORT_REASON_CATEGORIES`, `ENFORCEMENT_REASON_PRESETS`, `ENFORCEMENT_DURATION_PRESETS`, `REPLY_TEMPLATES`, `ANNOUNCEMENT_BANNER`, `SUPPORT_CENTER_STATUS`, `RESULT_NOTIFICATION_POLICY`로 정확히 8개다. unknown key는 `400 VALIDATION_ERROR`이며 arbitrary key 생성·삭제·부분 수정 API는 제공하지 않는다.
+
+clean-rebuild seed는 schema version `1`이고 policy examples만 이용한다. support category는 `ACCOUNT`, `COMPANY`, `PROJECT`, `BUG`, `OTHER`, report reason은 `SPAM`, `IMPERSONATION`, `MALICIOUS_CONTENT`, `PERMISSION_ABUSE`, enforcement duration은 1일·7일·30일·무기한(null)이며, banner는 disabled, support center는 `OPEN`, result notification 두 항목은 enabled다.
+
+JSON value의 top-level/object field는 key별 code-owned validator가 검증한다. categories/reasons는 `{ "categories"|"presets": [{ "code", "label" }] }`, duration은 `{ "presets": [{ "code", "durationDays" }] }`, template는 `{ "templates": [{ "code", "title", "body" }] }`, banner는 `{ "enabled", "message" }`, support center는 `{ "status", "message" }`, notification policy는 `{ "notifyOnPublicReply", "notifyOnCaseStatusChange" }` shape다. unknown JSON field, 타입 오류, blank required string, non-positive duration은 `400 VALIDATION_ERROR`다.
+
+### 10-B.2 Response와 replacement
+
+`GET /api/v1/platform/system-settings` response는 `data.settings` 배열을, `GET /api/v1/platform/system-settings/{key}` response는 같은 object를 `data`로 반환한다. `valueSchemaVersion`은 현재 1이며 `version`은 write의 optimistic concurrency 값이다. 존재하지 않는 유효 key는 `404 NOT_FOUND`다.
+
+```json
+{
+  "data": {
+    "settings": [
+      {
+        "id": 1,
+        "key": "SUPPORT_CENTER_STATUS",
+        "value": { "status": "OPEN", "message": "문의 접수가 가능합니다." },
+        "valueSchemaVersion": 1,
+        "version": 1,
+        "createdAt": "2026-07-16T00:00:00Z",
+        "updatedAt": "2026-07-16T00:00:00Z"
+      }
+    ]
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+`PUT /api/v1/platform/system-settings/SUPPORT_CENTER_STATUS` request는 value 전체, positive `expectedVersion`, trim 후 3~500자인 `reason`을 모두 요구한다.
+
+```json
+{
+  "value": {
+    "status": "DELAYED",
+    "message": "문의 답변이 지연되고 있습니다."
+  },
+  "expectedVersion": 1,
+  "reason": "운영 인력 부재에 따른 응답 지연 안내"
+}
+```
+
+성공하면 `data`에 갱신된 setting을 반환한다. setting row를 transaction 내 pessimistic lock으로 읽어 stale `expectedVersion`은 `409 SYSTEM_SETTING_VERSION_CONFLICT`, 동일 JSON value는 `409 SYSTEM_SETTING_NO_CHANGE`으로 구분한다. 성공 replacement만 version을 정확히 한 번 증가시키며, setting key, schema version, replacement 전/후 persisted version과 value를 immutable `admin_action_audits`에 같은 transaction으로 기록한다. `REPLY_TEMPLATES`의 template `body`, `ANNOUNCEMENT_BANNER`와 `SUPPORT_CENTER_STATUS`의 non-null `message`는 audit value에서 항상 `[REDACTED]`로 치환한다. audit write 실패 시 replacement는 rollback한다. notification dispatch, enforcement execution, OAuth/runtime/feature-flag setting은 이 API 범위에 포함하지 않는다.
+
+---
+
 ## 11. MVP 보류/Stub 목록
 
 | 구분 | API/기능 | 처리 | 이유 |
 |---|---|---|---|
-| 후속 범위 | S15 platform enforcement/settings/lifecycle | WBS `4.10.1` support case 외 full endpoint 미정 | 사용자/회사 enforcement, system settings, grant/revoke, dashboard, notification, Frontend는 이번 slice에서 제외 |
+| 후속 범위 | S15 platform enforcement/lifecycle | WBS `4.10.1`, `4.10.3` 외 full endpoint 미정 | 사용자/회사 enforcement, grant/revoke, dashboard, notification, Frontend는 이번 slice에서 제외 |
 | Sprint 3 decision-needed | 다자간 DM 방 | full endpoint 미정 | DM room + participants 모델 결정 필요 |
 | 보류 | DM 메시지 삭제 | 미제공 | 전송/조회/unread 중심 |
 | Sprint 3 decision-needed | DM 상대 read receipt | full endpoint 미정 | read receipt 정책 결정 필요 |
@@ -571,7 +632,7 @@ case object는 `id`, `reporterUserId`, `type`, `status`, `targetType`, `targetId
 - 메시지 목록 실시간 업데이트 방식.
 - DM 방 unread count 처리 방식.
 - `activity_events`와 `notification_events`는 분리 운영한다. activity 이벤트가 notification 이벤트를 생성하는 조건은 구현 단계에서 이벤트별로 제한한다.
-- S15 WBS `4.10.1` 외 enforcement/settings/admin lifecycle/dashboard/notification, attachment, document optimistic locking, advanced DM, PROJECT notification scope, project restore, permanent delete의 full API 계약.
+- S15 WBS `4.10.1`, `4.10.3` 외 enforcement/admin lifecycle/dashboard/notification, attachment, document optimistic locking, advanced DM, PROJECT notification scope, project restore, permanent delete의 full API 계약.
 
 ---
 
