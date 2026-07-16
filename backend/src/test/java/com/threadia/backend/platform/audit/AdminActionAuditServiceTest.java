@@ -74,6 +74,25 @@ class AdminActionAuditServiceTest {
 		assertThat(audit.getCreatedAt()).isEqualTo(LocalDateTime.of(2026, 7, 15, 6, 0));
 	}
 
+	@Test
+	void persistsCompanyAuditWithoutSupportCase() {
+		User actor = user(1L, "admin@example.com");
+		PlatformAdmin admin = new PlatformAdmin(actor, PlatformAdminRole.SUPER_ADMIN, LocalDateTime.now(FIXED_CLOCK));
+		setId(admin, 2L);
+		when(auditRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+		AdminActionAuditService service = new AdminActionAuditService(auditRepository, new ObjectMapper().findAndRegisterModules(), FIXED_CLOCK);
+
+		service.recordPlatformMutation(null, actor, admin, AdminAction.COMPANY_STATUS_CHANGED, AuditTargetType.COMPANY, 7L,
+				"Company policy review", Map.of("status", "ACTIVE"), Map.of("status", "INACTIVE"));
+
+		ArgumentCaptor<AdminActionAudit> captor = ArgumentCaptor.forClass(AdminActionAudit.class);
+		verify(auditRepository).save(captor.capture());
+		AdminActionAudit audit = captor.getValue();
+		assertThat(audit.getSupportCase()).isNull();
+		assertThat(audit.getTargetType()).isEqualTo(AuditTargetType.COMPANY);
+		assertThat(audit.getTargetId()).isEqualTo(7L);
+	}
+
 	private static User user(Long id, String email) {
 		LocalDateTime now = LocalDateTime.now(FIXED_CLOCK);
 		User user = new User(email, "hashed", "user", null, UserStatus.ACTIVE, now, now);

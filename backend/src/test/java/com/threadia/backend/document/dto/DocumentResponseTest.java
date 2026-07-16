@@ -21,7 +21,7 @@ class DocumentResponseTest {
 		LocalDateTime timestamp = LocalDateTime.parse("2026-07-15T12:34:56");
 		User user = new User("user@threadia.com", "hash", "사용자", null, UserStatus.ACTIVE, timestamp, timestamp);
 		id(user, 1L);
-		Company company = new Company("Threadia", "대표", null, null, null, "ACTIVE", user, timestamp, timestamp);
+		Company company = new Company("Threadia", "대표", null, null, null, com.threadia.backend.company.domain.CompanyStatus.ACTIVE, user, timestamp, timestamp);
 		id(company, 10L);
 		Project project = new Project(company, "프로젝트", "THD", null, ProjectStatus.ACTIVE, null, null, user, null, null, null, timestamp, timestamp);
 		id(project, 20L);

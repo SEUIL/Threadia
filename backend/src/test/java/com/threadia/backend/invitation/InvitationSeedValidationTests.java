@@ -70,14 +70,11 @@ class InvitationSeedValidationTests {
 				UserStatus.ACTIVE,
 				now,
 				now));
-		Company company = companyRepository.save(new Company(
-				"Threadia Seed " + suffix,
+		Company company = companyRepository.save(new Company("Threadia Seed " + suffix,
 				"여도현",
 				"Sprint 1.5 invitation seed verification",
 				"IT",
-				null,
-				"ACTIVE",
-				admin,
+				null, com.threadia.backend.company.domain.CompanyStatus.ACTIVE, admin,
 				now,
 				now));
 		CompanyMember adminMembership = companyMemberRepository.save(new CompanyMember(

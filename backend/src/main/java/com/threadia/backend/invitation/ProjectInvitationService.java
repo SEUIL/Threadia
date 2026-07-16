@@ -21,6 +21,7 @@ import com.threadia.backend.common.exception.ForbiddenException;
 import com.threadia.backend.common.exception.UserNotFoundException;
 import com.threadia.backend.company.domain.CompanyMemberRole;
 import com.threadia.backend.company.domain.CompanyMemberStatus;
+import com.threadia.backend.company.domain.CompanyStatus;
 import com.threadia.backend.company.repository.CompanyMemberRepository;
 import com.threadia.backend.config.jwt.AuthenticatedUser;
 import com.threadia.backend.config.jwt.JwtTokenService;
@@ -165,6 +166,7 @@ public class ProjectInvitationService {
 	public InvitationActionData accept(String accessToken, Long invitationId) {
 		User requester = activeRequester(accessToken);
 		Invitation invitation = projectInvitationForUpdate(invitationId);
+		requireActiveCompany(invitation.getCompany());
 		assertInvitee(invitation, requester.getId());
 		assertPending(invitation);
 		LocalDateTime now = now();
@@ -203,6 +205,7 @@ public class ProjectInvitationService {
 	public InvitationActionData decline(String accessToken, Long invitationId) {
 		User requester = activeRequester(accessToken);
 		Invitation invitation = projectInvitationForUpdate(invitationId);
+		requireActiveCompany(invitation.getCompany());
 		assertInvitee(invitation, requester.getId());
 		assertPending(invitation);
 		LocalDateTime now = now();
@@ -280,6 +283,7 @@ public class ProjectInvitationService {
 	}
 
 	private void requireProjectManage(Project project, Long requesterUserId) {
+		requireActiveCompany(project.getCompany());
 		Long companyId = project.getCompany().getId();
 		if (!companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(
 				companyId, requesterUserId, CompanyMemberStatus.ACTIVE)) {
@@ -302,9 +306,16 @@ public class ProjectInvitationService {
 	}
 
 	private void assertActiveCompanyMember(Project project, Long userId) {
+		requireActiveCompany(project.getCompany());
 		if (!companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(
 				project.getCompany().getId(), userId, CompanyMemberStatus.ACTIVE)) {
 			throw InvitationConflictException.targetUserNotActiveCompanyMember();
+		}
+	}
+
+	private static void requireActiveCompany(com.threadia.backend.company.domain.Company company) {
+		if (company.getStatus() != CompanyStatus.ACTIVE) {
+			throw new ForbiddenException("비활성 회사에는 접근할 수 없습니다.");
 		}
 	}
 

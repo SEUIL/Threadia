@@ -24,6 +24,7 @@ import com.threadia.backend.common.error.ErrorResponse;
 import com.threadia.backend.company.exception.CompanyMemberConflictException;
 import com.threadia.backend.company.exception.CompanyMemberNotFoundException;
 import com.threadia.backend.company.exception.CompanyNotFoundException;
+import com.threadia.backend.company.exception.CompanyStatusConflictException;
 import com.threadia.backend.company.exception.DepartmentConflictException;
 import com.threadia.backend.company.exception.DepartmentNotFoundException;
 import com.threadia.backend.config.jwt.JwtAuthenticationException;
@@ -137,6 +138,7 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler({
 			DepartmentConflictException.class,
+			CompanyStatusConflictException.class,
 			CompanyMemberConflictException.class,
 			ProjectMemberConflictException.class,
 			ProjectConflictException.class,

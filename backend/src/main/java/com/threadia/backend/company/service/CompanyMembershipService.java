@@ -4,25 +4,34 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import com.threadia.backend.common.auth.AuthContext;
 import com.threadia.backend.common.exception.ForbiddenException;
 import com.threadia.backend.company.domain.CompanyMember;
 import com.threadia.backend.company.domain.CompanyMemberRole;
 import com.threadia.backend.company.domain.CompanyMemberStatus;
+import com.threadia.backend.company.domain.CompanyStatus;
 import com.threadia.backend.company.repository.CompanyMemberRepository;
+import com.threadia.backend.company.repository.CompanyRepository;
 
 @Service
 @Transactional(readOnly = true)
 public class CompanyMembershipService {
 
 	private final CompanyMemberRepository companyMemberRepository;
+	private final CompanyRepository companyRepository;
 
-	public CompanyMembershipService(CompanyMemberRepository companyMemberRepository) {
+	@Autowired
+	public CompanyMembershipService(CompanyMemberRepository companyMemberRepository, CompanyRepository companyRepository) {
 		this.companyMemberRepository = companyMemberRepository;
+		this.companyRepository = companyRepository;
 	}
 
 	public Optional<CompanyMember> findMembership(Long companyId, Long userId) {
+		if (!isCompanyActive(companyId)) {
+			return Optional.empty();
+		}
 		return companyMemberRepository.findByCompany_IdAndUser_Id(companyId, userId);
 	}
 
@@ -31,6 +40,9 @@ public class CompanyMembershipService {
 	}
 
 	public boolean isActiveMember(Long companyId, Long userId) {
+		if (!isCompanyActive(companyId)) {
+			return false;
+		}
 		return companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(
 				companyId,
 				userId,
@@ -42,6 +54,9 @@ public class CompanyMembershipService {
 	}
 
 	public boolean hasRole(Long companyId, Long userId, CompanyMemberRole role, CompanyMemberStatus status) {
+		if (!isCompanyActive(companyId)) {
+			return false;
+		}
 		return companyMemberRepository.existsByCompany_IdAndUser_IdAndRoleAndStatus(
 				companyId,
 				userId,
@@ -67,5 +82,11 @@ public class CompanyMembershipService {
 		if (!hasActiveRole(companyId, authContext, CompanyMemberRole.COMPANY_ADMIN)) {
 			throw new ForbiddenException("회사 관리자 권한이 필요합니다.");
 		}
+	}
+
+	private boolean isCompanyActive(Long companyId) {
+		return companyRepository.findById(companyId)
+				.map(company -> company.getStatus() == CompanyStatus.ACTIVE)
+				.orElse(false);
 	}
 }

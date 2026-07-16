@@ -239,7 +239,7 @@ class CompanyServiceTest {
 
 	private static Company company(Long id, User createdBy) {
 		LocalDateTime now = LocalDateTime.now(FIXED_CLOCK);
-		Company company = new Company("Threadia Inc.", "Admin", "workspace", "IT", null, "ACTIVE", createdBy, now, now);
+		Company company = new Company("Threadia Inc.", "Admin", "workspace", "IT", null, com.threadia.backend.company.domain.CompanyStatus.ACTIVE, createdBy, now, now);
 		setId(company, id);
 		return company;
 	}

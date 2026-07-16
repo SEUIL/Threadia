@@ -24,6 +24,7 @@ import com.threadia.backend.invitation.domain.InvitationStatus;
 import com.threadia.backend.invitation.dto.CompanyInvitationsData;
 import com.threadia.backend.invitation.dto.InvitationResponse;
 import com.threadia.backend.invitation.repository.InvitationRepository;
+import com.threadia.backend.company.domain.CompanyStatus;
 import com.threadia.backend.project.domain.Project;
 import com.threadia.backend.project.repository.ProjectRepository;
 
@@ -65,6 +66,7 @@ public class ReceivedInvitationService {
 		User requester = activeRequester(accessToken);
 		List<Invitation> found = invitationRepository.findByInvitee_IdOrderByCreatedAtDesc(requester.getId())
 				.stream()
+				.filter(invitation -> invitation.getCompany().getStatus() == CompanyStatus.ACTIVE)
 				.map(this::expirePendingIfNeeded)
 				.toList();
 		Map<Long, String> projectNames = projectNamesOf(found);

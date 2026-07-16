@@ -13,6 +13,7 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import com.threadia.backend.auth.domain.*;
 import com.threadia.backend.common.auth.*;
+import com.threadia.backend.common.exception.ForbiddenException;
 import com.threadia.backend.company.domain.*;
 import com.threadia.backend.company.service.CompanyMembershipService;
 import com.threadia.backend.issue.domain.*;
@@ -31,7 +32,7 @@ class SprintServiceTest {
 	@Mock private AuthContextService auth; @Mock private CompanyMembershipService companyMembership; @Mock private ProjectRepository projects;
 	@Mock private ProjectMemberRepository members; @Mock private SprintRepository sprints; @Mock private IssueRepository issues; @Mock private IssueStatusHistoryRepository history;
 	private SprintService service; private User user; private Project project; private AuthContext context;
-	@BeforeEach void setUp() { service=new SprintService(auth,companyMembership,projects,members,sprints,issues,history,CLOCK); LocalDateTime now=LocalDateTime.now(CLOCK); user=new User("member@example.com","hash","member",null,UserStatus.ACTIVE,now,now); id(user,1L); Company company=new Company("Threadia",null,null,null,null,"ACTIVE",user,now,now); id(company,10L); project=new Project(company,"MVP","THD",null,ProjectStatus.ACTIVE,null,null,user,null,null,null,now,now); id(project,20L); context=new AuthContext(1L,"member@example.com"); lenient().when(auth.fromAccessToken("token")).thenReturn(context); lenient().when(auth.requireActiveUser(context)).thenReturn(user); lenient().when(companyMembership.hasActiveRole(10L,context,CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true); }
+	@BeforeEach void setUp() { service=new SprintService(auth,companyMembership,projects,members,sprints,issues,history,CLOCK); LocalDateTime now=LocalDateTime.now(CLOCK); user=new User("member@example.com","hash","member",null,UserStatus.ACTIVE,now,now); id(user,1L); Company company=new Company("Threadia",null,null,null,null, com.threadia.backend.company.domain.CompanyStatus.ACTIVE, user,now,now); id(company,10L); project=new Project(company,"MVP","THD",null,ProjectStatus.ACTIVE,null,null,user,null,null,null,now,now); id(project,20L); context=new AuthContext(1L,"member@example.com"); lenient().when(auth.fromAccessToken("token")).thenReturn(context); lenient().when(auth.requireActiveUser(context)).thenReturn(user); lenient().when(companyMembership.hasActiveRole(10L,context,CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true); }
 	@Test void startRejectsSecondActiveSprintAfterProjectLock() {
 		Sprint sprint=sprint(SprintStatus.PLANNED); when(sprints.findById(30L)).thenReturn(Optional.of(sprint)); when(sprints.findByIdForUpdate(30L)).thenReturn(Optional.of(sprint)); when(projects.findByIdForUpdate(20L)).thenReturn(Optional.of(project)); when(sprints.existsByProject_IdAndStatus(20L,SprintStatus.ACTIVE)).thenReturn(true);
 		assertThatThrownBy(()->service.start("token",30L)).isInstanceOf(SprintConflictException.class);
@@ -42,6 +43,14 @@ class SprintServiceTest {
 		when(sprints.findById(30L)).thenReturn(Optional.of(sprint)); when(projects.findByIdForUpdate(20L)).thenReturn(Optional.of(project)); when(sprints.findByIdForUpdate(30L)).thenReturn(Optional.of(sprint)); when(issues.findBySprintIdForUpdate(30L)).thenReturn(List.of(inProgress,backlog,done));
 		SprintData data=service.complete("token",30L,new SprintCompleteRequest("closed"));
 		assertThat(data.sprint().status()).isEqualTo("COMPLETED"); assertThat(inProgress.getStatus()).isEqualTo(IssueStatus.BACKLOG); assertThat(inProgress.getSprint()).isNull(); assertThat(backlog.getStatus()).isEqualTo(IssueStatus.BACKLOG); assertThat(backlog.getSprint()).isNull(); assertThat(done.getStatus()).isEqualTo(IssueStatus.DONE); assertThat(done.getSprint()).isNull(); verify(history,times(1)).save(any(IssueStatusHistory.class));
+	}
+	@Test void createRejectsInactiveCompanyBeforeSprintWrite() {
+		LocalDateTime now=LocalDateTime.now(CLOCK); Company inactiveCompany=new Company("Threadia",null,null,null,null,CompanyStatus.INACTIVE,user,now,now); id(inactiveCompany,11L); Project inactiveProject=new Project(inactiveCompany,"MVP","THD",null,ProjectStatus.ACTIVE,null,null,user,null,null,null,now,now); id(inactiveProject,21L);
+		when(projects.findByIdForUpdate(21L)).thenReturn(Optional.of(inactiveProject)); when(companyMembership.hasActiveRole(11L,context,CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false); doThrow(new ForbiddenException("회사 접근 권한이 없습니다.")).when(companyMembership).requireActiveMember(11L,context);
+
+		assertThatThrownBy(()->service.create("token",21L,new SprintCreateRequest("Sprint",null,null,null))).isInstanceOf(ForbiddenException.class).hasMessage("회사 접근 권한이 없습니다.");
+
+		verify(projects).findByIdForUpdate(21L); verifyNoMoreInteractions(projects); verifyNoInteractions(sprints,issues,members);
 	}
 	@Test void invalidAuthenticationPreventsEverySprintResourceLookupOrLock() {
 		when(auth.fromAccessToken("invalid-token")).thenThrow(new JwtAuthenticationException("유효하지 않은 access token입니다."));

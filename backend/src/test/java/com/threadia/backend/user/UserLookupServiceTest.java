@@ -125,6 +125,17 @@ class UserLookupServiceTest {
 		verify(userRepository, never()).findByEmail("member@example.com");
 	}
 
+	@Test
+	void lookupByEmailDeniesCompanyAdminWhenNoActiveCompanyExists() {
+		when(jwtTokenService.parseAccessToken("valid-token")).thenReturn(new AuthenticatedUser(1L, "requester@example.com"));
+		when(userRepository.findById(1L)).thenReturn(Optional.of(user(1L, "requester@example.com", "requester", UserStatus.ACTIVE)));
+		when(jdbcTemplate.queryForObject(companyAdminQuery(), Integer.class, 1L)).thenReturn(0);
+
+		assertThatThrownBy(() -> userLookupService.lookupByEmail("valid-token", "member@example.com"))
+				.isInstanceOf(ForbiddenException.class);
+		verify(userRepository, never()).findByEmail("member@example.com");
+	}
+
 	private void stubActiveRequester() {
 		when(jwtTokenService.parseAccessToken("valid-token"))
 				.thenReturn(new AuthenticatedUser(1L, "requester@example.com"));
@@ -136,10 +147,12 @@ class UserLookupServiceTest {
 	private static String companyAdminQuery() {
 		return """
 				SELECT COUNT(*)
-				FROM company_members
-				WHERE user_id = ?
-				  AND role = 'COMPANY_ADMIN'
-				  AND status = 'ACTIVE'
+				FROM company_members company_member
+				JOIN companies company ON company.id = company_member.company_id
+				WHERE company_member.user_id = ?
+				  AND company_member.role = 'COMPANY_ADMIN'
+				  AND company_member.status = 'ACTIVE'
+				  AND company.status = 'ACTIVE'
 				""";
 	}
 

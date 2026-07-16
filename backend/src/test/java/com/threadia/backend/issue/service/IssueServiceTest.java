@@ -3,6 +3,7 @@ package com.threadia.backend.issue.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -35,6 +36,7 @@ import com.threadia.backend.common.exception.AuthenticationFailedException;
 import com.threadia.backend.common.exception.ForbiddenException;
 import com.threadia.backend.company.domain.Company;
 import com.threadia.backend.company.domain.CompanyMemberRole;
+import com.threadia.backend.company.domain.CompanyStatus;
 import com.threadia.backend.company.service.CompanyMembershipService;
 import com.threadia.backend.issue.domain.Issue;
 import com.threadia.backend.issue.domain.IssuePriority;
@@ -158,6 +160,22 @@ class IssueServiceTest {
 		order.verify(companyMembershipService).hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN);
 		order.verify(companyMembershipService).requireActiveMember(10L, fixtures.authContext());
 		order.verify(projectMemberRepository).findByProject_IdAndUser_Id(20L, 1L);
+		verifyNoInteractions(issueRepository);
+	}
+
+	@Test
+	void listRejectsInactiveCompanyBeforeIssueLookup() {
+		Fixtures fixtures = fixtures(CompanyStatus.INACTIVE);
+		stubAuth(fixtures);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(fixtures.project()));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false);
+		doThrow(new ForbiddenException("회사 접근 권한이 없습니다.")).when(companyMembershipService).requireActiveMember(10L, fixtures.authContext());
+
+		assertThatThrownBy(() -> issueService.list("token", 20L))
+				.isInstanceOf(ForbiddenException.class)
+				.hasMessage("회사 접근 권한이 없습니다.");
+
+		verify(companyMembershipService).requireActiveMember(10L, fixtures.authContext());
 		verifyNoInteractions(issueRepository);
 	}
 
@@ -433,10 +451,14 @@ class IssueServiceTest {
 	}
 
 	private static Fixtures fixtures() {
+		return fixtures(CompanyStatus.ACTIVE);
+	}
+
+	private static Fixtures fixtures(CompanyStatus companyStatus) {
 		LocalDateTime now = LocalDateTime.now(FIXED_CLOCK);
 		User user = new User("member@example.com", "hashed", "member", null, UserStatus.ACTIVE, now, now);
 		setId(user, 1L);
-		Company company = new Company("Threadia", "Member", "workspace", "IT", null, "ACTIVE", user, now, now);
+		Company company = new Company("Threadia", "Member", "workspace", "IT", null, companyStatus, user, now, now);
 		setId(company, 10L);
 		Project project = new Project(
 				company,
