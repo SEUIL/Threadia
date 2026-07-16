@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.threadia.backend.common.auth.AuthContext;
 import com.threadia.backend.common.auth.AuthContextService;
 import com.threadia.backend.company.domain.CompanyMemberStatus;
+import com.threadia.backend.company.domain.CompanyStatus;
 import com.threadia.backend.company.repository.CompanyMemberRepository;
 
 @Service
@@ -29,6 +30,7 @@ public class UserCompanyMembershipService {
 						authContext.userId(),
 						CompanyMemberStatus.ACTIVE)
 				.stream()
+				.filter(membership -> membership.getCompany().getStatus() == CompanyStatus.ACTIVE)
 				.map(UserCompanyMembershipResponse::from)
 				.toList());
 	}
