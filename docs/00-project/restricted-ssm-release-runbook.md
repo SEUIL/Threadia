@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-14
-> **최종 수정**: 2026-07-15
-> **버전**: v0.3
+> **최종 수정**: 2026-07-16
+> **버전**: v0.5
 > **상태**: 검토 중
 > **태그**: aws, release, ssm, approval, runbook
 
@@ -14,7 +14,8 @@
 1. Network Change Set: compute subnet 전용 route table, S3 Gateway Endpoint, approved S3 managed prefix list HTTPS egress와 deterministic artifact `releases/*` GetObject/GetObjectVersion endpoint policy를 검토한다.
 2. SSM delivery Change Set: `repo:SEUIL/Threadia:environment:restricted-nonprod` exact OIDC subject, deterministic private bucket, exact host role/instance, fixed Command document와 IAM policy를 검토한다. fixed document는 caller parameter 없이 stack Region을 `AWS_REGION`과 `AWS_DEFAULT_REGION`에 고정 주입하며 helper는 이 Region을 검증해 모든 S3/SSM 호출에 명시한다. 이 operator role은 execute하지 않고 Change Set review까지만 수행한다.
 3. Host gate: Java는 archive의 Linux x86_64 runtime으로 제공한다. AMI에는 SSM Agent, AWS CLI, Python 3, tar, curl, systemd, `threadia` user와 root-owned service/helper만 준비한다. `bootstrap-host.sh`를 approved local artifact로 한 번 실행하며 package manager 또는 network access를 사용하지 않는다.
-4. Runtime gate: six Parameter Store SecureString과 master와 분리된 application DB user가 존재하고, parameter creation/rotation owner가 확인됐는지 검토한다.
+4. Runtime gate: 현재 restricted SSM delivery path는 여섯 Parameter Store SecureString, `THREADIA_DB_URL`, `THREADIA_DB_USERNAME`, `THREADIA_DB_PASSWORD`, `THREADIA_JWT_SECRET`, `THREADIA_COOKIE_SECURE`, `THREADIA_CORS_ALLOWED_ORIGIN`만 전달한다. master와 분리된 application DB user가 존재하고, parameter creation/rotation owner가 확인됐는지 검토한다.
+   이 경로는 `THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL`을 전달할 수 없다. `platform_admins`가 비어 있는 신규 배포는 matching ACTIVE user용 해당 키를 제공하는 별도 승인된 delivery contract, IAM, helper 변경이 확인되지 않으면 No-Go다. 실제 email은 문서나 log에 남기지 않는다.
 5. GitHub gate: `restricted-nonprod` Environment에 `main`만 custom branch policy로 설정하고 OIDC workflow variables와 workflow revision을 검토한다. release job 자체도 `refs/heads/main`만 허용하며 고정 concurrency group에서 이전 release를 취소하지 않고 직렬 실행한다.
 
 ## Release와 failure 처리
@@ -26,3 +27,9 @@ helper는 restart 후 약 120초 동안 systemd service가 active인지 확인�
 ## Legacy 경계
 
 CodeDeploy source와 이전 deploy skeleton은 삭제하지 않는다. 이 runbook의 SSM path가 승인 대상이며 legacy CodeDeploy source는 superseded reference로만 유지한다.
+
+## 변경 이력
+
+| 날짜 | 내용 |
+|---|---|
+| 2026-07-16 | 현재 restricted SSM delivery path가 여섯 SecureString만 전달하며 bootstrap email을 주입할 수 없음을 명시했다. `platform_admins`가 비어 있는 첫 배포의 No-Go 경계를 추가했다. |

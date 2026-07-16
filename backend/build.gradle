@@ -1,3 +1,8 @@
+import java.nio.channels.FileChannel
+import java.nio.channels.FileLock
+import java.nio.file.Files
+import java.nio.file.StandardOpenOption
+
 plugins {
 	id 'java'
 	id 'org.springframework.boot' version '3.5.16'
@@ -32,9 +37,38 @@ dependencies {
 	runtimeOnly 'com.mysql:mysql-connector-j'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
+	testRuntimeOnly 'com.h2database:h2'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+def testExecutionLockChannel
+def testExecutionFileLock
+def releaseTestExecutionLock = {
+	if (testExecutionFileLock != null && testExecutionFileLock.isValid()) {
+		testExecutionFileLock.release()
+	}
+	if (testExecutionLockChannel != null && testExecutionLockChannel.isOpen()) {
+		testExecutionLockChannel.close()
+	}
+}
+
+// Separate Gradle processes otherwise race on build/test-results/test/binary and corrupt XML generation.
+gradle.taskGraph.whenReady { taskGraph ->
+	if (taskGraph.hasTask(tasks.named('test').get())) {
+		def lockPath = layout.projectDirectory.file('.gradle/threadia-test-execution.lock').asFile.toPath()
+		Files.createDirectories(lockPath.parent)
+		testExecutionLockChannel = FileChannel.open(
+				lockPath,
+				StandardOpenOption.CREATE,
+				StandardOpenOption.WRITE)
+		testExecutionFileLock = testExecutionLockChannel.lock()
+	}
+}
+
+gradle.buildFinished {
+	releaseTestExecutionLock()
 }
