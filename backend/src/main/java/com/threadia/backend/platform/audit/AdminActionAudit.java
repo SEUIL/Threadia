@@ -28,8 +28,8 @@ public class AdminActionAudit {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	@ManyToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "support_case_id", nullable = false, foreignKey = @ForeignKey(name = "fk_aaa_case"))
+	@ManyToOne(fetch = FetchType.LAZY, optional = true)
+	@JoinColumn(name = "support_case_id", nullable = true, foreignKey = @ForeignKey(name = "fk_aaa_case"))
 	private SupportCase supportCase;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
