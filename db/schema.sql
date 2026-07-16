@@ -1,4 +1,5 @@
 DROP TABLE IF EXISTS admin_action_audits;
+DROP TABLE IF EXISTS system_settings;
 DROP TABLE IF EXISTS support_case_internal_notes;
 DROP TABLE IF EXISTS support_case_public_replies;
 DROP TABLE IF EXISTS support_cases;
@@ -64,6 +65,30 @@ CREATE TABLE platform_admins (
         ON DELETE RESTRICT ON UPDATE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE system_settings (
+    id                   BIGINT       NOT NULL AUTO_INCREMENT,
+    setting_key          VARCHAR(100) NOT NULL,
+    value_json           JSON         NOT NULL,
+    value_schema_version INT          NOT NULL DEFAULT 1,
+    version              BIGINT       NOT NULL DEFAULT 1,
+    created_at           DATETIME     NOT NULL,
+    updated_at           DATETIME     NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_system_settings_key (setting_key),
+    CONSTRAINT chk_system_settings_schema_version CHECK (value_schema_version > 0),
+    CONSTRAINT chk_system_settings_version CHECK (version > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO system_settings (setting_key, value_json, value_schema_version, version, created_at, updated_at) VALUES
+    ('SUPPORT_CASE_CATEGORIES', JSON_OBJECT('categories', JSON_ARRAY(JSON_OBJECT('code', 'ACCOUNT', 'label', '계정'), JSON_OBJECT('code', 'COMPANY', 'label', '회사'), JSON_OBJECT('code', 'PROJECT', 'label', '프로젝트'), JSON_OBJECT('code', 'BUG', 'label', '버그'), JSON_OBJECT('code', 'OTHER', 'label', '기타'))), 1, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP()),
+    ('REPORT_REASON_CATEGORIES', JSON_OBJECT('categories', JSON_ARRAY(JSON_OBJECT('code', 'SPAM', 'label', '스팸'), JSON_OBJECT('code', 'IMPERSONATION', 'label', '사칭'), JSON_OBJECT('code', 'MALICIOUS_CONTENT', 'label', '악성 콘텐츠'), JSON_OBJECT('code', 'PERMISSION_ABUSE', 'label', '권한 오남용'))), 1, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP()),
+    ('ENFORCEMENT_REASON_PRESETS', JSON_OBJECT('presets', JSON_ARRAY(JSON_OBJECT('code', 'POLICY_VIOLATION', 'label', '운영 정책 위반'))), 1, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP()),
+    ('ENFORCEMENT_DURATION_PRESETS', JSON_OBJECT('presets', JSON_ARRAY(JSON_OBJECT('code', 'ONE_DAY', 'durationDays', 1), JSON_OBJECT('code', 'SEVEN_DAYS', 'durationDays', 7), JSON_OBJECT('code', 'THIRTY_DAYS', 'durationDays', 30), JSON_OBJECT('code', 'INDEFINITE', 'durationDays', NULL))), 1, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP()),
+    ('REPLY_TEMPLATES', JSON_OBJECT('templates', JSON_ARRAY(JSON_OBJECT('code', 'DEFAULT', 'title', '기본 답변', 'body', '문의 내용을 확인하겠습니다.'))), 1, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP()),
+    ('ANNOUNCEMENT_BANNER', JSON_OBJECT('enabled', FALSE, 'message', NULL), 1, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP()),
+    ('SUPPORT_CENTER_STATUS', JSON_OBJECT('status', 'OPEN', 'message', '문의 접수가 가능합니다.'), 1, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP()),
+    ('RESULT_NOTIFICATION_POLICY', JSON_OBJECT('notifyOnPublicReply', TRUE, 'notifyOnCaseStatusChange', TRUE), 1, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP());
+
 CREATE TABLE support_cases (
     id               BIGINT       NOT NULL AUTO_INCREMENT,
     reporter_user_id BIGINT       NOT NULL,
@@ -123,8 +148,8 @@ CREATE TABLE admin_action_audits (
     actor_platform_admin_id     BIGINT       NULL,
     authority_source            ENUM('USER','PLATFORM_ADMIN') NOT NULL,
     authority_role              ENUM('PLATFORM_ADMIN','SUPER_ADMIN') NULL,
-    action                      ENUM('SUPPORT_CASE_CREATED','PUBLIC_REPLY_CREATED','INTERNAL_NOTE_CREATED','STATUS_CHANGED','COMPANY_STATUS_CHANGED') NOT NULL,
-    target_type                 ENUM('SUPPORT_CASE','PUBLIC_REPLY','INTERNAL_NOTE','COMPANY') NOT NULL,
+    action                      ENUM('SUPPORT_CASE_CREATED','PUBLIC_REPLY_CREATED','INTERNAL_NOTE_CREATED','STATUS_CHANGED','COMPANY_STATUS_CHANGED','SYSTEM_SETTING_REPLACED') NOT NULL,
+    target_type                 ENUM('SUPPORT_CASE','PUBLIC_REPLY','INTERNAL_NOTE','COMPANY','SYSTEM_SETTING') NOT NULL,
     target_id                   BIGINT       NOT NULL,
     reason                      VARCHAR(500) NOT NULL,
     before_state                LONGTEXT     NULL,

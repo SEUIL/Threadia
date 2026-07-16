@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-27
-> **최종 수정**: 2026-07-15
-> **버전**: v1.3
+> **최종 수정**: 2026-07-16
+> **버전**: v1.4
 > **상태**: 확정
 > **태그**: decision, db, schema, changelog
 
@@ -33,6 +33,16 @@ DB schema가 바뀌면 아래 항목을 기록한다.
 ---
 
 ## 3. 변경 이력
+
+### 2026-07-16 WBS 4.10.3 system settings typed catalog schema 추가
+
+| 항목 | 내용 |
+|---|---|
+| 변경 대상 | `system_settings`, `admin_action_audits.action`, `admin_action_audits.target_type`, clean-rebuild seed |
+| 변경 내용 | surrogate BIGINT `id`, unique `setting_key`, JSON value, `value_schema_version`, optimistic `version`, UTC timestamp와 positive version CHECK를 가진 `system_settings`를 추가했다. policy의 8개 canonical key를 schema version 1 minimal JSON으로 seed하며, audit enum에 `SYSTEM_SETTING_REPLACED`/`SYSTEM_SETTING`을 추가했다. |
+| 변경 이유 | WBS `4.10.3`의 code-owned typed operational settings catalog를 arbitrary settings CRUD 없이 whole-document replacement와 immutable before/after audit으로 구현하기 위해서다. |
+| 영향 범위 | local DB는 허용된 drop/recreate 후 `db/schema.sql` 재적용이 필요하다. 신규 JPA Entity/locking repository, key별 JSON validator, platform API, audit transaction과 schema/mapping test에 영향을 준다. Flyway/Liquibase, migration history table, 운영 배포 절차는 추가하지 않는다. |
+| 관련 문서 | `docs/02-requirements/S15-플랫폼-관리자-1차-범위-정의.md`, `docs/03-design/ERD.md`, `docs/04-api/API-명세서.md`, `docs/07-decisions/DB-schema-관리-정책.md`, `docs/07-decisions/기획문서-변경이력.md` |
 
 ### 2026-07-15 WBS 4.10.1 platform support case schema 추가
 

@@ -57,6 +57,7 @@ class MysqlSchemaValidationTests {
 			"support_case_internal_notes",
 			"admin_action_audits"
 	);
+	private static final List<String> SYSTEM_SETTINGS_TABLES = List.of("system_settings");
 
 	@MockitoBean
 	private PlatformAdminBootstrap platformAdminBootstrap;
@@ -429,6 +430,34 @@ class MysqlSchemaValidationTests {
 				"platform_admins",
 				"id");
 		assertCheckConstraint("chk_aaa_authority");
+	}
+
+	@Test
+	void appliesSchemaSqlAndCreatesSystemSettingsCatalogAndAuditEnums() {
+		applySchemaSql();
+
+		Set<String> existingTables = jdbcTemplate.queryForList("""
+				SELECT table_name FROM information_schema.tables
+				WHERE table_schema = DATABASE() AND table_name = 'system_settings'
+				""", String.class).stream().collect(Collectors.toSet());
+		assertThat(existingTables).containsExactlyInAnyOrderElementsOf(SYSTEM_SETTINGS_TABLES);
+		assertRequiredColumn("system_settings", "setting_key", "varchar");
+		assertRequiredColumn("system_settings", "value_json", "json");
+		assertRequiredColumn("system_settings", "value_schema_version", "int");
+		assertRequiredColumn("system_settings", "version", "bigint");
+		assertRequiredColumn("system_settings", "created_at", "datetime");
+		assertRequiredColumn("system_settings", "updated_at", "datetime");
+		assertIndex("system_settings", "uq_system_settings_key", "setting_key");
+		assertUniqueConstraint("system_settings", "uq_system_settings_key");
+		assertCheckConstraint("chk_system_settings_schema_version");
+		assertCheckConstraint("chk_system_settings_version");
+		assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM system_settings", Integer.class)).isEqualTo(8);
+		assertThat(jdbcTemplate.queryForList("SELECT setting_key FROM system_settings", String.class))
+				.containsExactlyInAnyOrder(
+						"SUPPORT_CASE_CATEGORIES", "REPORT_REASON_CATEGORIES", "ENFORCEMENT_REASON_PRESETS", "ENFORCEMENT_DURATION_PRESETS",
+						"REPLY_TEMPLATES", "ANNOUNCEMENT_BANNER", "SUPPORT_CENTER_STATUS", "RESULT_NOTIFICATION_POLICY");
+		assertEnumColumn("admin_action_audits", "action", null, "SYSTEM_SETTING_REPLACED");
+		assertEnumColumn("admin_action_audits", "target_type", null, "SYSTEM_SETTING");
 	}
 
 	private void applySchemaSql() {
