@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-07
-> **최종 수정**: 2026-07-07
-> **버전**: v0.3 Level 3 실행 row 반영
+> **최종 수정**: 2026-07-16
+> **버전**: v0.5 WBS 4.10.4 lifecycle 범위 정렬
 > **상태**: 검토 중
 > **태그**: decision, sprint-3, scope, backlog, platform-admin
 
@@ -21,7 +21,7 @@
 | Sprint 1.5 | Company invitation 진행/계획 기준 |
 | Sprint 2 | Company/RBAC/Project foundation 계획, Issue/Kanban은 capacity candidate |
 | Backlog 4.x | Gate 3 완료 기준 Sprint 3 `4.1~4.14` parent 구조와 선택적 `4.x.y` Level 3 실행 row 반영 완료 |
-| S15 | `3.7~3.7.5` Sprint 2 planning gate와 Go/No-Go handoff 기준 존재, Sprint 3 구현/결정 primary row는 `4.10`, 실행 row는 `4.10.1~4.10.4` |
+| S15 | `3.7~3.7.5` Sprint 2 planning gate와 Go/No-Go handoff 기준 존재. `4.10.3` 정책 결정은 확정됐고, `4.10.2` enforcement, `4.10.3` system settings, `4.10.4` audit/operation logs 및 platform admin lifecycle/grant/revoke 구현은 별도 미착수 작업이다. |
 
 ## 3. Sprint 3 범위 모델
 
@@ -43,7 +43,7 @@ Sprint 3는 기존 `WBS 4.x Backlog Development`를 실행 가능한 Sprint 3 �
 | 항목 | 결정 |
 |---|---|
 | 기간, capacity, Owner, Reviewer | Sprint 3 초안에서는 공란으로 둔다. |
-| S15 상세 확정 | `3.7~3.7.5` planning gate와 Go/No-Go handoff를 전제로 `4.10`에서 상세 확정과 구현을 추적한다. |
+| S15 상세 확정 | `4.10.3` 정책 결정은 확정했다. `4.10.2` enforcement, `4.10.3` system settings, `4.10.4` audit/operation logs 및 platform admin lifecycle/grant/revoke 구현은 별도 작업으로 추적한다. |
 | 동시 문서 편집 | Sprint 3 기본안은 version/revision 기반 optimistic locking이다. CRDT 또는 실시간 공동 편집은 후속 변경 가능성을 남긴다. |
 | 고급 DM 모델 | 기존 1:1 전용 모델을 room + participants 구조로 일반화하는 방향을 권장한다. 1:1과 group DM을 같은 room model로 처리한다. |
 | 알림 scope | `GLOBAL` preference 계약을 유지한다. `PROJECT` scope는 `PROJECT_NOTIFICATION_SCOPE_DEFERRED` API boundary이며 요구사항추적표 primary row로 backfill하지 않는다. |
@@ -63,7 +63,7 @@ Sprint 3는 기존 `WBS 4.x Backlog Development`를 실행 가능한 Sprint 3 �
 | Thread / Chat / DM | `THREAD-01~04`, `CHAT-01~03`, `DEFER-05~06` | 쓰레드, 프로젝트 채팅, 1:1 DM, 다자간 DM, read receipt. 실행 row는 `4.7.1~4.7.4` |
 | Notification | `NOTI-01` | 알림 목록, 읽음 처리 core. `NOTI-02/03`은 현재 계약/reference row로 유지 |
 | Conditional extensions | `FEED-01`, `SEARCH-01`, `DASH-01~04` | activity feed, 검색, 프로젝트 dashboard. 실행 row는 `4.9.1~4.9.3` |
-| S15 Platform Admin | `DEFER-01` 재분해 | 문의/신고, 사용자 정지, 회사 비활성화, 시스템 설정, 운영 로그. 실행 row는 `4.10.1~4.10.4` |
+| S15 Platform Admin | `DEFER-01` 재분해 | 문의/신고, 사용자 정지, 회사 비활성화, 시스템 설정, audit/operation logs 및 platform admin lifecycle/grant/revoke. 실행 row는 `4.10.1~4.10.4` |
 | Attachment | `ATTACH-01` | S3 presigned URL 기반 첨부. 실행 row는 `4.11.1~4.11.3` |
 | Restore / permanent delete | 보류 API 코드 승격 | project restore, issue/document permanent delete 정책 및 구현. 실행 row는 `4.13.1~4.13.3` |
 
@@ -108,7 +108,7 @@ Sprint 3는 기존 `WBS 4.x Backlog Development`를 실행 가능한 Sprint 3 �
 |---|---|---|
 | `4.7` | `4.7.1~4.7.4` | thread core, project chat, 1:1 DM, group DM/read receipt decision |
 | `4.9` | `4.9.1~4.9.3` | activity feed, search decision, dashboard aggregate |
-| `4.10` | `4.10.1~4.10.4` | support cases, enforcement, system settings decision, audit/operation logs |
+| `4.10` | `4.10.1~4.10.4` | support cases, enforcement, system settings decision, audit/operation logs 및 platform admin lifecycle/grant/revoke |
 | `4.11` | `4.11.1~4.11.3` | attachment policy, presigned URL, metadata/validation |
 | `4.12` | `4.12.1~4.12.3` | version/revision policy, conflict API/backend, conflict UI/검증 |
 | `4.13` | `4.13.1~4.13.3` | retention/audit policy, project restore, permanent delete |

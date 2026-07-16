@@ -6,6 +6,8 @@ import com.threadia.backend.auth.domain.User;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.ForeignKey;
 import jakarta.persistence.GeneratedValue;
@@ -39,7 +41,8 @@ public class Company {
 	private String logoUrl;
 
 	@Column(nullable = false, length = 50)
-	private String status = "ACTIVE";
+	@Enumerated(EnumType.STRING)
+	private CompanyStatus status = CompanyStatus.ACTIVE;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "created_by_user_id", nullable = false, foreignKey = @ForeignKey(name = "fk_companies_created_by"))
@@ -60,7 +63,7 @@ public class Company {
 			String description,
 			String industryCategory,
 			String logoUrl,
-			String status,
+			CompanyStatus status,
 			User createdBy,
 			LocalDateTime createdAt,
 			LocalDateTime updatedAt) {
@@ -119,11 +122,11 @@ public class Company {
 		this.logoUrl = logoUrl;
 	}
 
-	public String getStatus() {
+	public CompanyStatus getStatus() {
 		return status;
 	}
 
-	public void setStatus(String status) {
+	public void setStatus(CompanyStatus status) {
 		this.status = status;
 	}
 

@@ -47,6 +47,8 @@ class MysqlSchemaValidationTests {
 			"documents",
 			"document_issue_links"
 	);
+	private static final List<String> DIRECT_MESSAGE_TABLES = List.of("direct_message_rooms", "direct_messages", "dm_room_user_states");
+	private static final List<String> PROJECT_CHAT_TABLES = List.of("messages", "project_chat_member_states");
 	private static final List<String> PLATFORM_SUPPORT_TABLES = List.of(
 			"platform_admin_bootstrap_locks",
 			"platform_admins",
@@ -142,6 +144,7 @@ class MysqlSchemaValidationTests {
 		applySchemaSql();
 
 		assertRequiredColumn("projects", "company_id", "bigint");
+		assertEnumColumn("companies", "status", "ACTIVE", "ACTIVE", "INACTIVE");
 		assertRequiredColumn("projects", "name", "varchar");
 		assertRequiredColumn("projects", "project_key", "varchar");
 		assertEnumColumn("projects", "status", "PLANNING", "PLANNING", "ACTIVE", "PAUSED", "COMPLETED", "ARCHIVED");
@@ -277,6 +280,61 @@ class MysqlSchemaValidationTests {
 	}
 
 	@Test
+	void appliesSchemaSqlAndCreatesDirectMessageTablesAndConstraints() {
+		applySchemaSql();
+		Set<String> existingTables = jdbcTemplate.queryForList("""
+				SELECT table_name FROM information_schema.tables
+				WHERE table_schema = DATABASE()
+				  AND table_name IN ('direct_message_rooms', 'direct_messages', 'dm_room_user_states')
+				""", String.class).stream().collect(Collectors.toSet());
+		assertThat(existingTables).containsExactlyInAnyOrderElementsOf(DIRECT_MESSAGE_TABLES);
+		assertIndex("direct_message_rooms", "uq_dmr_company_users", "company_id", "user1_id", "user2_id");
+		assertUniqueConstraint("direct_message_rooms", "uq_dmr_company_users");
+		assertForeignKey("direct_message_rooms", "fk_dmr_company", "company_id", "companies", "id");
+		assertForeignKey("direct_message_rooms", "fk_dmr_user1", "user1_id", "users", "id");
+		assertForeignKey("direct_message_rooms", "fk_dmr_user2", "user2_id", "users", "id");
+		assertCheckConstraint("chk_dmr_user_order");
+		assertIndex("direct_messages", "idx_dm_room_created", "room_id", "created_at", "id");
+		assertForeignKey("direct_messages", "fk_dm_room", "room_id", "direct_message_rooms", "id");
+		assertForeignKey("direct_messages", "fk_dm_sender", "sender_user_id", "users", "id");
+		assertIndex("dm_room_user_states", "PRIMARY", "room_id", "user_id");
+		assertForeignKey("dm_room_user_states", "fk_dmrus_room", "room_id", "direct_message_rooms", "id");
+		assertForeignKey("dm_room_user_states", "fk_dmrus_last_read", "last_read_direct_message_id", "direct_messages", "id");
+	}
+
+	@Test
+	void appliesSchemaSqlAndCreatesProjectChatTablesAndReferenceConstraints() {
+		applySchemaSql();
+		Set<String> existingTables = jdbcTemplate.queryForList("""
+				SELECT table_name FROM information_schema.tables
+				WHERE table_schema = DATABASE() AND table_name IN ('messages', 'project_chat_member_states')
+				""", String.class).stream().collect(Collectors.toSet());
+		assertThat(existingTables).containsExactlyInAnyOrderElementsOf(PROJECT_CHAT_TABLES);
+
+		assertRequiredColumn("messages", "project_id", "bigint");
+		assertRequiredColumn("messages", "author_user_id", "bigint");
+		assertNullableColumn("messages", "thread_id", "bigint");
+		assertRequiredColumn("messages", "content", "text");
+		assertRequiredColumn("messages", "created_at", "datetime");
+		assertIndex("messages", "idx_messages_project_created", "project_id", "created_at", "id");
+		assertForeignKey("messages", "fk_messages_project", "project_id", "projects", "id");
+		assertForeignKey("messages", "fk_messages_author", "author_user_id", "users", "id");
+		assertForeignKey("messages", "fk_messages_thread", "thread_id", "threads", "id");
+
+		assertRequiredColumn("project_chat_member_states", "project_id", "bigint");
+		assertRequiredColumn("project_chat_member_states", "user_id", "bigint");
+		assertNullableColumn("project_chat_member_states", "last_read_message_id", "bigint");
+		assertNullableColumn("project_chat_member_states", "last_read_at", "datetime");
+		assertRequiredColumn("project_chat_member_states", "updated_at", "datetime");
+		assertIndex("project_chat_member_states", "PRIMARY", "project_id", "user_id");
+		assertIndex("project_chat_member_states", "idx_pcms_user", "user_id");
+		assertIndex("project_chat_member_states", "idx_pcms_last_read", "last_read_message_id");
+		assertForeignKey("project_chat_member_states", "fk_pcms_project", "project_id", "projects", "id");
+		assertForeignKey("project_chat_member_states", "fk_pcms_user", "user_id", "users", "id");
+		assertForeignKey("project_chat_member_states", "fk_pcms_last_read", "last_read_message_id", "messages", "id");
+	}
+
+	@Test
 	void appliesSchemaSqlAndCreatesPlatformSupportTables() {
 		applySchemaSql();
 
@@ -360,6 +418,7 @@ class MysqlSchemaValidationTests {
 		assertNullableEnumColumn("admin_action_audits", "authority_role", "PLATFORM_ADMIN", "SUPER_ADMIN");
 		assertRequiredColumn("admin_action_audits", "reason", "varchar");
 		assertNullableColumn("admin_action_audits", "before_state", "longtext");
+		assertNullableColumn("admin_action_audits", "support_case_id", "bigint");
 		assertRequiredColumn("admin_action_audits", "after_state", "longtext");
 		assertForeignKey("admin_action_audits", "fk_aaa_case", "support_case_id", "support_cases", "id");
 		assertForeignKey("admin_action_audits", "fk_aaa_actor", "actor_user_id", "users", "id");

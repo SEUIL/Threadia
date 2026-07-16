@@ -24,12 +24,15 @@ import com.threadia.backend.common.error.ErrorResponse;
 import com.threadia.backend.company.exception.CompanyMemberConflictException;
 import com.threadia.backend.company.exception.CompanyMemberNotFoundException;
 import com.threadia.backend.company.exception.CompanyNotFoundException;
+import com.threadia.backend.company.exception.CompanyStatusConflictException;
 import com.threadia.backend.company.exception.DepartmentConflictException;
 import com.threadia.backend.company.exception.DepartmentNotFoundException;
 import com.threadia.backend.config.jwt.JwtAuthenticationException;
 import com.threadia.backend.document.exception.DocumentConflictException;
 import com.threadia.backend.document.exception.DocumentLinkNotFoundException;
 import com.threadia.backend.document.exception.DocumentNotFoundException;
+import com.threadia.backend.directmessage.exception.DirectMessageRoomNotFoundException;
+import com.threadia.backend.directmessage.exception.DirectMessageValidationException;
 import com.threadia.backend.invitation.exception.InvitationConflictException;
 import com.threadia.backend.invitation.exception.InvitationNotFoundException;
 import com.threadia.backend.issue.exception.IssueNotFoundException;
@@ -41,6 +44,9 @@ import com.threadia.backend.project.exception.ProjectMemberNotFoundException;
 import com.threadia.backend.project.exception.ProjectConflictException;
 import com.threadia.backend.project.exception.ProjectNotFoundException;
 import com.threadia.backend.project.exception.ProjectValidationException;
+import com.threadia.backend.projectchat.exception.MessageNotFoundException;
+import com.threadia.backend.projectchat.exception.ProjectChatConflictException;
+import com.threadia.backend.projectchat.exception.ProjectChatValidationException;
 import com.threadia.backend.supportcase.exception.SupportCaseConflictException;
 import com.threadia.backend.supportcase.exception.SupportCaseNotFoundException;
 import com.threadia.backend.supportcase.exception.SupportCaseValidationException;
@@ -94,10 +100,15 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(body));
 	}
 
-	@ExceptionHandler({ProjectValidationException.class, SupportCaseValidationException.class})
+	@ExceptionHandler({ProjectValidationException.class, SupportCaseValidationException.class, DirectMessageValidationException.class})
 	public ResponseEntity<ErrorResponse> handleProjectValidation(RuntimeException ex) {
 		ErrorBody body = ErrorBody.of("VALIDATION_ERROR", ex.getMessage());
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(body));
+	}
+
+	@ExceptionHandler(ProjectChatValidationException.class)
+	public ResponseEntity<ErrorResponse> handleProjectChatValidation(ProjectChatValidationException ex) {
+		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(ErrorBody.of("VALIDATION_ERROR", ex.getMessage())));
 	}
 
 	@ExceptionHandler(UserNotFoundException.class)
@@ -112,6 +123,8 @@ public class GlobalExceptionHandler {
 			DepartmentNotFoundException.class,
 			ProjectMemberNotFoundException.class,
 			ProjectNotFoundException.class,
+			MessageNotFoundException.class,
+			DirectMessageRoomNotFoundException.class,
 			IssueNotFoundException.class,
 			SprintNotFoundException.class,
 			DocumentNotFoundException.class,
@@ -125,6 +138,7 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler({
 			DepartmentConflictException.class,
+			CompanyStatusConflictException.class,
 			CompanyMemberConflictException.class,
 			ProjectMemberConflictException.class,
 			ProjectConflictException.class,
@@ -135,6 +149,11 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<ErrorResponse> handleCompanyConflict(RuntimeException ex) {
 		ErrorBody body = ErrorBody.of("CONFLICT", ex.getMessage());
 		return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(body));
+	}
+
+	@ExceptionHandler(ProjectChatConflictException.class)
+	public ResponseEntity<ErrorResponse> handleProjectChatConflict(ProjectChatConflictException ex) {
+		return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(ErrorBody.of("THREAD_DEFERRED", ex.getMessage())));
 	}
 
 	@ExceptionHandler(InvitationNotFoundException.class)

@@ -21,6 +21,7 @@ import com.threadia.backend.company.domain.Company;
 import com.threadia.backend.company.domain.CompanyMember;
 import com.threadia.backend.company.domain.CompanyMemberRole;
 import com.threadia.backend.company.domain.CompanyMemberStatus;
+import com.threadia.backend.company.domain.CompanyStatus;
 import com.threadia.backend.company.repository.CompanyMemberRepository;
 import com.threadia.backend.company.repository.CompanyRepository;
 import com.threadia.backend.config.jwt.AuthenticatedUser;
@@ -81,6 +82,7 @@ public class CompanyInvitationService {
 		User requester = activeRequester(accessToken);
 		assertCompanyAdmin(companyId, requester.getId());
 		Company company = companyForUpdate(companyId);
+		requireActiveCompany(company);
 		User invitee = activeInvitee(request.inviteeUserId());
 		LocalDateTime now = LocalDateTime.now(clock);
 		assertInviteeCanBeInvited(companyId, invitee.getId(), now);
@@ -103,7 +105,7 @@ public class CompanyInvitationService {
 	public CompanyInvitationsData list(String accessToken, Long companyId) {
 		User requester = activeRequester(accessToken);
 		assertCompanyAdmin(companyId, requester.getId());
-		company(companyId);
+		requireActiveCompany(company(companyId));
 		List<InvitationResponse> invitations = invitationRepository
 				.findByCompany_IdAndScopeTypeOrderByCreatedAtDesc(companyId, InvitationScopeType.COMPANY)
 				.stream()
@@ -119,6 +121,7 @@ public class CompanyInvitationService {
 		List<InvitationResponse> invitations = invitationRepository
 				.findByInvitee_IdAndScopeTypeOrderByCreatedAtDesc(requester.getId(), InvitationScopeType.COMPANY)
 				.stream()
+				.filter(invitation -> invitation.getCompany().getStatus() == CompanyStatus.ACTIVE)
 				.map(this::expirePendingIfNeeded)
 				.map(CompanyInvitationService::toResponse)
 				.toList();
@@ -129,6 +132,7 @@ public class CompanyInvitationService {
 	public InvitationActionData accept(String accessToken, Long invitationId) {
 		User requester = activeRequester(accessToken);
 		Invitation invitation = invitationForUpdate(invitationId);
+		requireActiveCompany(invitation.getCompany());
 		assertCompanyInvitee(invitation, requester.getId());
 		assertPending(invitation);
 		LocalDateTime now = LocalDateTime.now(clock);
@@ -166,6 +170,7 @@ public class CompanyInvitationService {
 	public InvitationActionData decline(String accessToken, Long invitationId) {
 		User requester = activeRequester(accessToken);
 		Invitation invitation = invitationForUpdate(invitationId);
+		requireActiveCompany(invitation.getCompany());
 		assertCompanyInvitee(invitation, requester.getId());
 		assertPending(invitation);
 		LocalDateTime now = LocalDateTime.now(clock);
@@ -179,6 +184,7 @@ public class CompanyInvitationService {
 	public InvitationActionData cancel(String accessToken, Long invitationId) {
 		User requester = activeRequester(accessToken);
 		Invitation invitation = invitationForUpdate(invitationId);
+		requireActiveCompany(invitation.getCompany());
 		assertCompanyInvitation(invitation);
 		assertCompanyAdmin(invitation.getCompany().getId(), requester.getId());
 		assertPending(invitation);
@@ -214,6 +220,12 @@ public class CompanyInvitationService {
 				CompanyMemberStatus.ACTIVE);
 		if (!companyAdmin) {
 			throw new ForbiddenException("회사 관리자 권한이 필요합니다.");
+		}
+	}
+
+	private static void requireActiveCompany(Company company) {
+		if (company.getStatus() != CompanyStatus.ACTIVE) {
+			throw new ForbiddenException("비활성 회사에는 접근할 수 없습니다.");
 		}
 	}
 
