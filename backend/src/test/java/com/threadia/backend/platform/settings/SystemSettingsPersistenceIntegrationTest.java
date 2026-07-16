@@ -6,7 +6,6 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.time.Duration;
-import java.sql.SQLException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -17,16 +16,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.dao.CannotAcquireLockException;
-import org.springframework.dao.PessimisticLockingFailureException;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.hibernate.exception.LockAcquisitionException;
-
-import jakarta.persistence.LockTimeoutException;
-import jakarta.persistence.PessimisticLockException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -61,7 +53,6 @@ class SystemSettingsPersistenceIntegrationTest {
 	@Autowired private PlatformAdminRepository platformAdminRepository;
 	@Autowired private ObjectMapper objectMapper;
 	@Autowired private PlatformTransactionManager transactionManager;
-	@Autowired private JdbcTemplate jdbcTemplate;
 	@MockitoBean private PlatformAdminAccessService platformAdminAccessService;
 	@MockitoBean private PlatformAdminBootstrap platformAdminBootstrap;
 
@@ -118,7 +109,7 @@ class SystemSettingsPersistenceIntegrationTest {
 	}
 
 	@Test
-	void pessimisticWriteLockTimesOutInIndependentTransaction() throws Exception {
+	void pessimisticWriteLockContentionReturnsVersionConflictThroughReplace() throws Exception {
 		CountDownLatch firstHasLock = new CountDownLatch(1);
 		CountDownLatch releaseFirstLock = new CountDownLatch(1);
 		ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -133,21 +124,24 @@ class SystemSettingsPersistenceIntegrationTest {
 
 			Future<Throwable> second = executor.submit(() -> {
 				try {
-					return transactionTemplate().execute(status -> {
-						jdbcTemplate.execute("SET LOCK_TIMEOUT 100");
-						try {
-							settingRepository.findByKeyForUpdate(SystemSettingKey.SUPPORT_CENTER_STATUS).orElseThrow();
-							return null;
-						} catch (Throwable throwable) {
-							throw rethrow(throwable);
-						}
-					});
+					service.replace("token", SystemSettingKey.SUPPORT_CENTER_STATUS,
+							new ReplaceSystemSettingRequest(json("{\"status\":\"DELAYED\",\"message\":\"contended\"}"), setting.getVersion(), "동시 변경"));
+					return null;
 				} catch (Throwable throwable) {
 					return throwable;
 				}
 			});
 			Throwable lockFailure = second.get(CONCURRENCY_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
-			assertThat(isLockFailure(lockFailure)).isTrue();
+			assertThat(lockFailure)
+					.isInstanceOfSatisfying(SystemSettingConflictException.class,
+							conflict -> assertThat(conflict.getCode()).isEqualTo("SYSTEM_SETTING_VERSION_CONFLICT"));
+			releaseFirstLock.countDown();
+			first.get(CONCURRENCY_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
+			SystemSetting persisted = settingRepository.findById(setting.getId()).orElseThrow();
+			assertThat(persisted.getVersion()).isEqualTo(1L);
+			assertThat(persisted.getValue().path("status").asText()).isEqualTo("OPEN");
+			assertThat(persisted.getValue().path("message").asText()).isEqualTo("before private message");
+			assertThat(auditRepository.findAll()).isEmpty();
 		} finally {
 			releaseFirstLock.countDown();
 			executor.shutdownNow();
@@ -180,31 +174,4 @@ class SystemSettingsPersistenceIntegrationTest {
 		}
 	}
 
-	private static boolean isLockFailure(Throwable throwable) {
-		for (Throwable cause = throwable; cause != null; cause = cause.getCause()) {
-			if (cause instanceof CannotAcquireLockException
-					|| cause instanceof PessimisticLockingFailureException
-					|| cause instanceof LockAcquisitionException
-					|| cause instanceof PessimisticLockException
-					|| cause instanceof LockTimeoutException) {
-				return true;
-			}
-			if (cause instanceof SQLException sqlException
-					&& "HYT00".equals(sqlException.getSQLState())
-					&& sqlException.getErrorCode() == 50200) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	private static RuntimeException rethrow(Throwable throwable) {
-		if (throwable instanceof RuntimeException runtimeException) {
-			return runtimeException;
-		}
-		if (throwable instanceof Error error) {
-			throw error;
-		}
-		return new IllegalStateException(throwable);
-	}
 }

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +22,9 @@ import com.threadia.backend.platform.audit.AuditTargetType;
 import com.threadia.backend.platform.domain.PlatformAdminRole;
 import com.threadia.backend.platform.service.PlatformAdminAccessService;
 import com.threadia.backend.platform.service.PlatformAdminAuthority;
+
+import jakarta.persistence.LockTimeoutException;
+import jakarta.persistence.PessimisticLockException;
 
 @Service
 public class SystemSettingsService {
@@ -79,8 +83,13 @@ public class SystemSettingsService {
 			throw new SystemSettingValidationException("expectedVersion은 양수여야 합니다.");
 		}
 		catalogValidator.validate(key, request.value());
-		SystemSetting setting = settingRepository.findByKeyForUpdate(key)
-				.orElseThrow(() -> new SystemSettingNotFoundException(key));
+		SystemSetting setting;
+		try {
+			setting = settingRepository.findByKeyForUpdate(key)
+					.orElseThrow(() -> new SystemSettingNotFoundException(key));
+		} catch (LockTimeoutException | PessimisticLockException | PessimisticLockingFailureException exception) {
+			throw new SystemSettingConflictException("SYSTEM_SETTING_VERSION_CONFLICT", "시스템 설정 버전이 최신 상태가 아닙니다.");
+		}
 		if (setting.getVersion() != request.expectedVersion()) {
 			throw new SystemSettingConflictException("SYSTEM_SETTING_VERSION_CONFLICT", "시스템 설정 버전이 최신 상태가 아닙니다.");
 		}

@@ -18,12 +18,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.PessimisticLockingFailureException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.threadia.backend.auth.domain.User;
@@ -37,6 +41,9 @@ import com.threadia.backend.platform.domain.PlatformAdminRole;
 import com.threadia.backend.platform.service.PlatformAdminAccessService;
 import com.threadia.backend.platform.service.PlatformAdminAuthority;
 import com.threadia.backend.supportcase.exception.SupportCaseValidationException;
+
+import jakarta.persistence.LockTimeoutException;
+import jakarta.persistence.PessimisticLockException;
 
 @ExtendWith(MockitoExtension.class)
 class SystemSettingsServiceTest {
@@ -129,6 +136,20 @@ class SystemSettingsServiceTest {
 		verifyNoInteractions(auditService);
 	}
 
+	@ParameterizedTest
+	@MethodSource("lockContentionExceptions")
+	void convertsRepositoryLockContentionToVersionConflict(RuntimeException lockFailure) throws Exception {
+		when(accessService.requireAdmin("token")).thenReturn(new PlatformAdminAuthority(actor, superAdmin));
+		when(settingRepository.findByKeyForUpdate(SystemSettingKey.SUPPORT_CENTER_STATUS)).thenThrow(lockFailure);
+
+		assertThatThrownBy(() -> service.replace("token", SystemSettingKey.SUPPORT_CENTER_STATUS,
+				new ReplaceSystemSettingRequest(json("{\"status\":\"DELAYED\",\"message\":\"응답 지연\"}"), 1L, "운영 상태 변경")))
+				.isInstanceOf(SystemSettingConflictException.class)
+				.extracting("code")
+				.isEqualTo("SYSTEM_SETTING_VERSION_CONFLICT");
+		verifyNoInteractions(auditService);
+	}
+
 	@Test
 	void validatesReasonAfterTrimUsingThreeToFiveHundredCharacterBoundary() throws Exception {
 		when(accessService.requireAdmin("token")).thenReturn(new PlatformAdminAuthority(actor, superAdmin));
@@ -161,6 +182,12 @@ class SystemSettingsServiceTest {
 
 	private static Map<?, ?> snapshotArgument(Object value) {
 		return Map.copyOf((Map<?, ?>) value);
+	}
+	private static Stream<RuntimeException> lockContentionExceptions() {
+		return Stream.of(
+				new LockTimeoutException("lock timeout"),
+				new PessimisticLockException("pessimistic lock"),
+				new PessimisticLockingFailureException("pessimistic locking failure"));
 	}
 	private com.fasterxml.jackson.databind.JsonNode json(String value) throws Exception { return objectMapper.readTree(value); }
 	private static void setField(Object target, String fieldName, Object value) throws Exception { Field field = target.getClass().getDeclaredField(fieldName); field.setAccessible(true); field.set(target, value); }
