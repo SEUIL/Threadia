@@ -20,6 +20,12 @@ export interface IssueResponse {
   description: string | null;
   priority: IssuePriority;
   assigneeUserId: number | null;
+  /**
+   * 등록자. 표시용이 아니라 **권한 판정용**이다 — trash/restore는 P/C 또는 등록자에게
+   * 허용되므로(backend IssueService.trashOrRestore) 이 값과 현재 사용자를 비교해야
+   * "내가 등록한 이슈" 경로를 판정할 수 있다. reporter는 immutable이다.
+   */
+  reporterUserId: number | null;
   sprintId: number | null;
   dueDate: string | null; // yyyy-MM-dd
   sourceType: IssueSourceType;

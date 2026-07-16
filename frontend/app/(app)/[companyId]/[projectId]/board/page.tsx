@@ -16,8 +16,12 @@ import { CSS } from "@dnd-kit/utilities";
 import { invitationErrorMessage } from "@/lib/invitation";
 import { issueService } from "@/services/issue.service";
 import { projectService } from "@/services/project.service";
+import { projectMemberService } from "@/services/project-member.service";
+import { useAuth } from "@/contexts/AuthContext";
+import { IssueDetailModal } from "@/components/issues/IssueDetailModal";
 import type { IssueResponse, IssueStatus } from "@/types/issue.types";
 import type { ProjectViewerData } from "@/types/project.types";
+import type { ProjectMemberResponse } from "@/types/project-member.types";
 
 type Role = "A" | "P" | "C";
 type LoadState = "loading" | "ready" | "error";
@@ -93,11 +97,15 @@ function DraggableIssueCard({
 
 export default function BoardPage() {
   const params = useParams<{ companyId: string; projectId: string }>();
+  const { user } = useAuth();
   const [pageState, setPageState] = useState<LoadState>("loading");
   const [pageError, setPageError] = useState<string | null>(null);
   const [issues, setIssues] = useState<IssueResponse[]>([]);
   const [role, setRole] = useState<Role | null>(null);
+  const [members, setMembers] = useState<ProjectMemberResponse[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  // 상세 모달로 연 이슈. 카드 확장(expandedId)은 상태 변경용으로 그대로 둔다.
+  const [detailId, setDetailId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
@@ -120,13 +128,29 @@ export default function BoardPage() {
     }
   }, [params.projectId]);
 
+  // 담당자 select용. 보드 본체와 분리해서 이것만 실패해도 화면이 죽지 않게 한다
+  // (S12에서 나온 F-3 회귀와 같은 이유). 실패하면 담당자 목록만 비어 보인다.
+  const loadMembers = useCallback(async () => {
+    try {
+      const { data } = await projectMemberService.list(params.projectId, { status: "ACTIVE" });
+      setMembers(data.data.projectMembers);
+    } catch {
+      setMembers([]);
+    }
+  }, [params.projectId]);
+
   useEffect(() => {
     (async () => {
-      await loadBoard();
+      await Promise.all([loadBoard(), loadMembers()]);
     })();
-  }, [loadBoard]);
+  }, [loadBoard, loadMembers]);
 
   const allowedStatuses = useMemo(() => (role ? statusOptionsFor(role) : []), [role]);
+  // id로 들고 목록에서 찾는다 — 이슈 객체를 복사해두면 상태 변경 후 모달이 옛 값을 보여준다.
+  const detailIssue = useMemo(
+    () => issues.find((issue) => issue.id === detailId) ?? null,
+    [issues, detailId]
+  );
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const changeStatus = async (issue: IssueResponse, nextStatus: IssueStatus) => {
@@ -258,6 +282,13 @@ export default function BoardPage() {
 
                         {expanded && (
                           <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
+                            <button
+                              type="button"
+                              onClick={() => setDetailId(issue.id)}
+                              className="self-start rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground transition-colors duration-fast hover:bg-primary-subtle"
+                            >
+                              상세 열기
+                            </button>
                             <label className="text-xs text-muted">
                               상태
                               <select
@@ -290,6 +321,22 @@ export default function BoardPage() {
           })}
         </div>
       </DndContext>
+
+      <IssueDetailModal
+        issue={detailIssue}
+        canManage={role !== null && role !== "A"}
+        isReporter={detailIssue?.reporterUserId != null && detailIssue.reporterUserId === user?.id}
+        members={members}
+        onClose={() => setDetailId(null)}
+        onUpdated={(updated) =>
+          // trash된 이슈는 목록(includeTrashed=false 기본)에서 사라지는 게 맞다.
+          setIssues((current) =>
+            updated.trashedAt !== null
+              ? current.filter((item) => item.id !== updated.id)
+              : current.map((item) => (item.id === updated.id ? updated : item))
+          )
+        }
+      />
     </div>
   );
 }
