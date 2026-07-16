@@ -3,6 +3,7 @@ package com.threadia.backend.company.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 import java.util.Optional;
 
@@ -18,18 +19,25 @@ import com.threadia.backend.company.domain.CompanyMember;
 import com.threadia.backend.company.domain.CompanyMemberRole;
 import com.threadia.backend.company.domain.CompanyMemberStatus;
 import com.threadia.backend.company.repository.CompanyMemberRepository;
+import com.threadia.backend.company.repository.CompanyRepository;
+import com.threadia.backend.company.domain.Company;
+import com.threadia.backend.company.domain.CompanyStatus;
 
 @ExtendWith(MockitoExtension.class)
 class CompanyMembershipServiceTest {
 
 	@Mock
 	private CompanyMemberRepository companyMemberRepository;
+	@Mock private CompanyRepository companyRepository;
 
 	private CompanyMembershipService companyMembershipService;
 
 	@BeforeEach
 	void setUp() {
-		companyMembershipService = new CompanyMembershipService(companyMemberRepository);
+		companyMembershipService = new CompanyMembershipService(companyMemberRepository, companyRepository);
+		Company company = org.mockito.Mockito.mock(Company.class);
+		lenient().when(company.getStatus()).thenReturn(CompanyStatus.ACTIVE);
+		lenient().when(companyRepository.findById(10L)).thenReturn(Optional.of(company));
 	}
 
 	@Test
@@ -87,5 +95,16 @@ class CompanyMembershipServiceTest {
 				10L,
 				new AuthContext(1L, "user@example.com")))
 				.isInstanceOf(ForbiddenException.class);
+	}
+
+	@Test
+	void inactiveCompanyRejectsMembershipBeforeMembershipRepositoryLookup() {
+		Company company = org.mockito.Mockito.mock(Company.class);
+		when(company.getStatus()).thenReturn(CompanyStatus.INACTIVE);
+		when(companyRepository.findById(10L)).thenReturn(Optional.of(company));
+
+		assertThatThrownBy(() -> companyMembershipService.requireActiveMember(10L, new AuthContext(1L, "user@example.com")))
+				.isInstanceOf(ForbiddenException.class);
+		org.mockito.Mockito.verifyNoInteractions(companyMemberRepository);
 	}
 }
