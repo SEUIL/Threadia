@@ -7,11 +7,13 @@ import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.data.jpa.repository.Query;
 
 import com.threadia.backend.document.domain.Document;
 import com.threadia.backend.document.domain.DocumentIssueLink;
 import com.threadia.backend.document.domain.DocumentType;
+import com.threadia.backend.platform.bootstrap.PlatformAdminBootstrap;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
@@ -21,6 +23,9 @@ import jakarta.persistence.EntityManagerFactory;
 		"threadia.jwt.secret=01234567890123456789012345678901"
 })
 class DocumentRepositoryJpaQueryCompilationTests {
+	@MockitoBean
+	private PlatformAdminBootstrap platformAdminBootstrap;
+
 	@Autowired
 	private EntityManagerFactory entityManagerFactory;
 
