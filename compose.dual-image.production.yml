@@ -1,3 +1,5 @@
+name: threadia-compose-dual
+
 services:
   frontend:
     image: ${THREADIA_FRONTEND_IMAGE:?THREADIA_FRONTEND_IMAGE is required}
