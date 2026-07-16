@@ -1,9 +1,9 @@
-# Threadia ERD v2.1
+# Threadia ERD v2.2
 
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-15  
-> **최종 수정**: 2026-07-15
-> **버전**: v2.1 WBS 4.10.1 platform support case schema 반영
+> **최종 수정**: 2026-07-16
+> **버전**: v2.2 WBS 4.10.3 system settings schema 반영
 > **상태**: 확정
 > **태그**: erd, db, schema, auth, invitation
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
@@ -13,7 +13,7 @@
 
 > **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows다. DB schema는 `docs/03-design/ERD.md`와 `db/schema.sql`을 기준으로 관리하고, Spring Boot/JPA는 schema 생성이 아니라 mapping 검증에 사용한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
-> **Sprint 3 기준선 메모**: 현재 ERD 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, Sprint 3 decision-needed, 유지 보류 항목을 분리한다. S15 WBS `4.10.1`의 platform authorization, support case, reply/note, immutable audit table은 확정 schema로 반영한다. enforcement, settings, admin lifecycle, dashboard, notification과 나머지 decision-needed 항목은 concrete schema를 추가하지 않는다.
+> **Sprint 3 기준선 메모**: 현재 ERD 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, Sprint 3 decision-needed, 유지 보류 항목을 분리한다. S15 WBS `4.10.1`의 platform authorization, support case, reply/note, immutable audit table과 WBS `4.10.3`의 typed system settings catalog는 확정 schema로 반영한다. enforcement, admin lifecycle, dashboard, notification과 나머지 decision-needed 항목은 concrete schema를 추가하지 않는다.
 
 
 ## 0. DB schema 관리 기준
@@ -80,6 +80,7 @@ Spring Boot JPA Entity는 DB를 자동 생성하거나 수정하는 기준이 �
 | 고객센터 | `support_case_public_replies` | 사용자에게 공개되는 관리자 답변 | WBS 4.10.1 구현 |
 | 고객센터 | `support_case_internal_notes` | 플랫폼 관리자 전용 내부 메모 | WBS 4.10.1 구현 |
 | 운영 감사 | `admin_action_audits` | support case mutation 불변 audit 원장 | WBS 4.10.1 foundation |
+| 시스템 설정 | `system_settings` | code-owned 8개 운영 catalog의 versioned JSON value | WBS 4.10.3 구현 |
 
 ---
 
@@ -139,6 +140,7 @@ erDiagram
     platform_admins ||--o{ support_case_public_replies : "작성"
     platform_admins ||--o{ support_case_internal_notes : "작성"
     platform_admins ||--o{ admin_action_audits : "관리자행위"
+    system_settings ||--o{ admin_action_audits : "설정변경감사"
 ```
 
 ---
@@ -291,13 +293,28 @@ CHECK는 `INQUIRY`의 target 두 field가 모두 NULL이고 `REPORT`의 `target_
 | actor_platform_admin_id | BIGINT | FK → platform_admins.id, NULL | platform action 권한 row |
 | authority_source | ENUM('USER','PLATFORM_ADMIN') | NOT NULL | 권한 원천 |
 | authority_role | ENUM('PLATFORM_ADMIN','SUPER_ADMIN') | NULL | platform action 당시 role |
-| action | ENUM | NOT NULL | case 생성, public reply, internal note, 상태 변경 |
-| target_type, target_id | ENUM, BIGINT | NOT NULL | mutation 대상 종류와 ID |
+| action | ENUM | NOT NULL | case 생성, public reply, internal note, 상태 변경, system setting whole-document replacement |
+| target_type, target_id | ENUM, BIGINT | NOT NULL | mutation 대상 종류와 ID. `SYSTEM_SETTING`은 `system_settings.id`를 target ID로 기록하는 audit-only logical relation |
 | reason | VARCHAR(500) | NOT NULL | body와 분리된 audit 사유 |
 | before_state, after_state | LONGTEXT | before NULL 가능, after NOT NULL | JSON 변경 전후 snapshot |
 | created_at | DATETIME | NOT NULL | UTC 감사 시각 |
 
 audit entity는 update/delete API와 setter를 제공하지 않는다. mutation과 같은 transaction에서 insert하며 audit insert 실패는 mutation rollback 조건이다.
+
+#### system_settings
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | audit target으로 사용하는 surrogate ID |
+| setting_key | VARCHAR(100) | UNIQUE, NOT NULL | code-owned stable catalog key |
+| value_json | JSON | NOT NULL | key별 validator가 검증한 whole-document value |
+| value_schema_version | INT | NOT NULL, DEFAULT 1, CHECK > 0 | 해당 key JSON schema version |
+| version | BIGINT | NOT NULL, DEFAULT 1, CHECK > 0 | replacement optimistic version |
+| created_at, updated_at | DATETIME | NOT NULL | UTC 생성/수정 시각 |
+
+허용 key는 정확히 `SUPPORT_CASE_CATEGORIES`, `REPORT_REASON_CATEGORIES`, `ENFORCEMENT_REASON_PRESETS`, `ENFORCEMENT_DURATION_PRESETS`, `REPLY_TEMPLATES`, `ANNOUNCEMENT_BANNER`, `SUPPORT_CENTER_STATUS`, `RESULT_NOTIFICATION_POLICY` 8개다. 일반 arbitrary key CRUD는 제공하지 않는다. 각 JSON value는 code-owned validator가 object shape와 unknown field를 거부하며, write는 전체 document replacement만 허용한다. clean-rebuild seed는 policy 예시만 사용한 schema version 1의 최소 self-describing JSON으로 생성한다.
+
+`PLATFORM_ADMIN`과 `SUPER_ADMIN`은 catalog를 조회할 수 있고 `SUPER_ADMIN`만 write할 수 있다. write는 positive expected version을 요구하며 stale version과 동일 JSON value no-op을 각각 409로 거부한다. row는 transaction 안에서 pessimistic lock으로 읽고 version을 정확히 한 번 증가시키며, value의 bounded before/after snapshot과 reason을 `admin_action_audits`에 같은 transaction으로 저장한다. audit insert 실패는 setting replacement도 rollback한다.
 
 ### 4.6 activity_events
 
@@ -719,7 +736,7 @@ DB FK와 CHECK만으로 표현하기 어려운 tenant/project/다형성 정합�
 
 | 항목 | 현재 경계 |
 |---|---|
-| S15 후속 범위 | WBS `4.10.1` schema는 위에서 확정했다. 사용자/회사 enforcement, settings, admin lifecycle, dashboard, notification schema는 후속 결정 전 추가하지 않는다. |
+| S15 후속 범위 | WBS `4.10.1` support case와 WBS `4.10.3` typed system settings schema는 위에서 확정했다. 사용자/회사 enforcement, admin lifecycle, dashboard, notification schema는 후속 결정 전 추가하지 않는다. |
 | Attachment | S3 presigned URL, metadata, 권한, 크기, MIME 정책 결정 전까지 `attachments` table 계약을 추가하지 않는다. |
 | Document versioning | optimistic locking 우선안은 decision-needed다. `documents.version` column 또는 별도 version table 여부는 미정이다. |
 | Advanced DM | 1:1 DM 현재 schema를 유지한다. participants table과 read receipt schema는 decision-needed다. |
@@ -745,7 +762,7 @@ DB FK와 CHECK만으로 표현하기 어려운 tenant/project/다형성 정합�
 - `threads` 자동 생성 vs 수동 생성 정책.
 - `activity_events`와 `notification_events`는 분리 운영한다. activity 이벤트가 notification 이벤트를 생성하는 조건은 구현 단계에서 이벤트별로 제한한다.
 - 범용 attachments 테이블과 S3 presigned URL 상세 정책은 Sprint 3 decision-needed로 확정.
-- S15 WBS `4.10.1` 외 enforcement/settings/admin lifecycle/dashboard/notification exact schema는 후속 결정으로 유지.
+- S15 WBS `4.10.1`, `4.10.3` 외 enforcement/admin lifecycle/dashboard/notification exact schema는 후속 결정으로 유지.
 - document optimistic locking용 exact schema는 Sprint 3 decision-needed로 확정.
 - DM participants/read receipt schema와 PROJECT notification scope schema는 Sprint 3 decision-needed로 확정.
 - project restore와 issue/document permanent delete schema 영향은 Sprint 3 decision-needed로 확정.
