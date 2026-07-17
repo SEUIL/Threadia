@@ -37,6 +37,8 @@ import com.threadia.backend.invitation.exception.InvitationConflictException;
 import com.threadia.backend.invitation.exception.InvitationNotFoundException;
 import com.threadia.backend.issue.exception.IssueNotFoundException;
 import com.threadia.backend.issue.exception.IssueConflictException;
+import com.threadia.backend.notification.exception.NotificationRecipientNotFoundException;
+import com.threadia.backend.notification.exception.NotificationValidationException;
 import com.threadia.backend.sprint.exception.SprintConflictException;
 import com.threadia.backend.sprint.exception.SprintNotFoundException;
 import com.threadia.backend.project.exception.ProjectMemberConflictException;
@@ -103,7 +105,12 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(body));
 	}
 
-	@ExceptionHandler({ProjectValidationException.class, SupportCaseValidationException.class, DirectMessageValidationException.class, SystemSettingValidationException.class})
+	@ExceptionHandler({
+			ProjectValidationException.class,
+			SupportCaseValidationException.class,
+			DirectMessageValidationException.class,
+			SystemSettingValidationException.class,
+			NotificationValidationException.class})
 	public ResponseEntity<ErrorResponse> handleProjectValidation(RuntimeException ex) {
 		ErrorBody body = ErrorBody.of("VALIDATION_ERROR", ex.getMessage());
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(body));
@@ -127,6 +134,7 @@ public class GlobalExceptionHandler {
 			ProjectMemberNotFoundException.class,
 			ProjectNotFoundException.class,
 			MessageNotFoundException.class,
+			NotificationRecipientNotFoundException.class,
 			DirectMessageRoomNotFoundException.class,
 			IssueNotFoundException.class,
 			SprintNotFoundException.class,
