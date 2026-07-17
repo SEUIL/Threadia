@@ -36,6 +36,21 @@ bootstrap = (BASE.parent.parent / "scripts/ssm-delivery/bootstrap-host.sh").read
 runbook = (BASE.parent.parent / "docs/00-project/restricted-ssm-release-runbook.md").read_text(encoding="utf-8")
 architecture = (BASE.parent.parent / "docs/05-architecture/GitHub-OIDC-SSM-EC2-배포-설계.md").read_text(encoding="utf-8")
 version_pattern = "^[A-Za-z0-9._+=/-]{1,1000}[A-Za-z0-9._+=/-]{0,24}$"
+required_runtime_parameters = {
+    "/threadia/restricted-nonprod/runtime/THREADIA_DB_URL",
+    "/threadia/restricted-nonprod/runtime/THREADIA_DB_USERNAME",
+    "/threadia/restricted-nonprod/runtime/THREADIA_DB_PASSWORD",
+    "/threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET",
+    "/threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE",
+    "/threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN",
+}
+optional_mail_runtime_parameters = {
+    "/threadia/restricted-nonprod/runtime/MAIL_HOST",
+    "/threadia/restricted-nonprod/runtime/MAIL_PORT",
+    "/threadia/restricted-nonprod/runtime/MAIL_USERNAME",
+    "/threadia/restricted-nonprod/runtime/MAIL_PASSWORD",
+    "/threadia/restricted-nonprod/runtime/NOTIFICATION_FROM_EMAIL",
+}
 
 for source_name, source in (("template", template), ("network", network)):
     for prohibited in ("AWS::CodeDeploy", "AWS-RunShellScript", "NatGateway", "MapPublicIpOnLaunch: true", "0.0.0.0/0"):
@@ -109,15 +124,8 @@ assert "${ExistingEc2InstanceId}" in github_role
 assert "ssm:GetParametersByPath" not in template
 assert "secretsmanager:" not in template.lower()
 assert "ManageMasterUserPassword" not in template
-mail_runtime_parameters = (
-    "MAIL_HOST",
-    "MAIL_PORT",
-    "MAIL_USERNAME",
-    "MAIL_PASSWORD",
-    "NOTIFICATION_FROM_EMAIL",
-)
-assert template.count("parameter/threadia/restricted-nonprod/runtime/") == 11
-assert all(f"runtime/{parameter}" in template for parameter in mail_runtime_parameters)
+runtime_parameter_arns = set(re.findall(r"parameter(/threadia/restricted-nonprod/runtime/[A-Z_]+)", template))
+assert runtime_parameter_arns == required_runtime_parameters | optional_mail_runtime_parameters
 assert "Resource: '*'" in template and "Action: ssm:GetCommandInvocation" in template
 assert "AWS-RunShellScript" not in template
 assert f"allowedPattern: '{version_pattern}'" in template
@@ -307,6 +315,12 @@ assert '[[ -n "${AWS_REGION:-}" ]] || fail "AWS_REGION is required"' in release_
 assert '[[ "$AWS_REGION" =~ ^[a-z]{2}(-[a-z0-9]+)+-[0-9]+$ ]] || fail "invalid AWS_REGION"' in release_helper
 assert 'aws s3api get-object --region "$AWS_REGION"' in release_helper
 assert 'aws ssm get-parameters --region "$AWS_REGION"' in release_helper
+assert release_helper.count('aws ssm get-parameters --region "$AWS_REGION" --with-decryption --names') == 2
+assert all(parameter in release_helper for parameter in required_runtime_parameters | optional_mail_runtime_parameters)
+assert 'if not returned and invalid == set(optional):' in release_helper
+assert 'if returned != set(optional) or invalid:' in release_helper
+assert 'raise SystemExit("optional runtime parameter is blank: " + parameter_name)' in release_helper
+assert 'raise SystemExit("optional runtime parameter contains an unsupported control character: " + parameter_name)' in release_helper
 assert 'previous_env="$stage/runtime.env.previous"' in release_helper
 assert 'cp -a "$RUNTIME_ENV" "$previous_env"' in release_helper
 assert 'install -o root -g threadia -m 0640 "$previous_env" "$RUNTIME_ENV"' in release_helper
