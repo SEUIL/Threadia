@@ -150,6 +150,11 @@ Resources:
               - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET
               - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE
               - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/MAIL_HOST
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/MAIL_PORT
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/MAIL_USERNAME
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/MAIL_PASSWORD
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/NOTIFICATION_FROM_EMAIL
   ArtifactBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:

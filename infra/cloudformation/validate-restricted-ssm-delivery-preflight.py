@@ -109,7 +109,15 @@ assert "${ExistingEc2InstanceId}" in github_role
 assert "ssm:GetParametersByPath" not in template
 assert "secretsmanager:" not in template.lower()
 assert "ManageMasterUserPassword" not in template
-assert template.count("parameter/threadia/restricted-nonprod/runtime/") == 6
+mail_runtime_parameters = (
+    "MAIL_HOST",
+    "MAIL_PORT",
+    "MAIL_USERNAME",
+    "MAIL_PASSWORD",
+    "NOTIFICATION_FROM_EMAIL",
+)
+assert template.count("parameter/threadia/restricted-nonprod/runtime/") == 11
+assert all(f"runtime/{parameter}" in template for parameter in mail_runtime_parameters)
 assert "Resource: '*'" in template and "Action: ssm:GetCommandInvocation" in template
 assert "AWS-RunShellScript" not in template
 assert f"allowedPattern: '{version_pattern}'" in template
