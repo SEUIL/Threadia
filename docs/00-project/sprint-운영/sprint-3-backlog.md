@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-07
 > **최종 수정**: 2026-07-17
-> **버전**: v0.8 WBS 4.7.4 DEFER-05/06 이번 개발 기간 보류 반영
+> **버전**: v0.9 WBS 4.8.1 Notification Backend / 4.8.2 Frontend 실행 분리 반영
 > **상태**: 검토 중
 > **태그**: sprint-3, backlog, wbs, platform-admin, extension
 
@@ -18,7 +18,7 @@
 1. 기간, capacity, Owner, Reviewer, 지원 담당은 일단 공란으로 둔다.
 2. 기존 `4.x`를 Sprint 3 root와 병목 방지형 Level 2 parent row로 재작성한다.
 3. 너무 작은 작업 row로 과분할하지 않는다. WBS row는 PR, 문서 변경 묶음, API/화면 vertical slice, QA gate처럼 검증 가능한 단위로 둔다.
-4. Level 3 row는 `4.2`, `4.7`, `4.9`, `4.10`, `4.11`, `4.12`, `4.13`처럼 decision, 정책, 구현, 검증 순서가 실제로 갈리는 parent에만 둔다.
+4. Level 3 row는 `4.2`, `4.7`, `4.8`, `4.9`, `4.10`, `4.11`, `4.12`, `4.13`처럼 decision, 정책, 구현, 검증 순서가 실제로 갈리는 parent에만 둔다.
 5. 쉬운 작업은 Owner 1명만 배정하고 지원 담당은 공란으로 둔다. 어려운 작업이나 cross-domain 작업에만 지원 담당 1명을 둔다.
 6. `decision-needed` 항목은 구현 row와 분리한다.
 7. `선행 WBS ID`, `의존 유형`, `착수 가능 조건`, `병렬 그룹`, `의존성`을 채워 팀원이 자율적으로 착수 여부를 판단할 수 있게 한다.
@@ -44,7 +44,7 @@
 | 4.5 | 2 | Message / Link | 메시지→이슈와 문서 이벤트 알림 연결 | 4.4, 4.6, 4.7 | Cross-domain | Issue, Document, Chat 최소 저장 흐름 확인 | S3-Linking | 계획 | P1 | Sprint 3 후보 |
 | 4.6 | 2 | Documents / Graph | 문서·회의록, Markdown editor, 그래프 | 3.3, 4.1 | API+Frontend | Project foundation과 문서/그래프 canonical 반영 기준 확인 | S3-Docs | 계획 | P0 | Sprint 3 후보 |
 | 4.7 | 2 | Thread / Chat / DM | 쓰레드, 프로젝트 채팅, 1:1 DM | 3.1, 3.3, 4.1 | API+Frontend | project message와 1:1 DM 기준 확인 | S3-Communication | 계획 | P0 | Sprint 3 후보 |
-| 4.8 | 2 | Notification | 알림 core | 4.3, 4.4, 4.6, 4.7 | Event integration | event source와 recipient 정책 확인 | S3-Events | 계획 | P0 | Sprint 3 후보 |
+| 4.8 | 2 | Notification | 알림 core | 4.3, 4.4, 4.6, 4.7 | Backend+Frontend | 기존 알림 DDL을 사용하는 inbox/read-state core를 먼저 구현하고 producer 연계는 별도 정책 승인 후 진행 | S3-Events | 진행 중 | P0 | Sprint 3 후보 |
 | 4.9 | 2 | Conditional Extensions | activity feed, search, dashboard | 4.4, 4.6, 4.8 | Decision+API | MySQL 우선 검색 방식과 dashboard/feed source 확인 | S3-Extensions | 계획 | P1 | decision-needed |
 | 4.10 | 2 | S15 Platform Admin | S15 상세 확정과 구현 | 3.7.1~3.7.5, 3.1~3.4, 4.1 | Implementation+Decision | `3.7~3.7.5` planning gate와 Go/No-Go handoff 확인 | S3-Platform | 계획 | P1 | Sprint 3 primary row |
 | 4.11 | 2 | Attachment | S3 presigned attachment 정책 결정과 구현 | 4.4, 4.6, 4.7 | Decision+Implementation | 대상 범위, 권한, 크기, MIME, 만료 기준 결정 | S3-Attachment | 계획 | P1 | decision-needed |
@@ -64,6 +64,8 @@ Level 3 row는 전체 `4.x`를 기계적으로 쪼갠 것이 아니라, 실제 �
 | `4.7` | `4.7.2` | project chat 구현 | Sprint 3 후보 |
 | `4.7` | `4.7.3` | 1:1 DM 구현 | Sprint 3 후보 |
 | `4.7` | `4.7.4` | group DM/read receipt 이번 개발 기간 보류 기록 | 보류, 향후 재검토 |
+| `4.8` | `4.8.1` | Backend: 기존 `notification_events`, `notification_recipients` 기반 inbox 목록, unread count, 개별 read, 조건부 read-all 구현 | Backend-only, 진행 중, producer/preferences/push 미포함 |
+| `4.8` | `4.8.2` | Frontend: S11 알림 inbox UI와 WBS 4.8.1 API 연동 | Frontend-only, `4.8.1` 의존, planned only, 0%, Owner 정철진 |
 | `4.9` | `4.9.1` | activity feed 최소 구현 | Sprint 3 후보 |
 | `4.9` | `4.9.2` | search 방식 결정 | decision-needed |
 | `4.9` | `4.9.3` | dashboard aggregate 구현 | Sprint 3 후보 |
@@ -94,7 +96,7 @@ Level 3 row는 전체 `4.x`를 기계적으로 쪼갠 것이 아니라, 실제 �
 | 4.5 | `LINK-01`, `LINK-03` | messages, issues, documents, threads | 메시지→이슈와 문서 이벤트 알림 연결 흐름 | Owner 1명, cross-domain이면 지원 1명 | project message만 이슈 전환 가능하고 문서 이벤트 알림 경계가 확인된다 | test, curl, DB 확인 |
 | 4.6 | `DOC-01~04`, `GRAPH-01~02`, `LINK-02` | documents, document_issue_links, graph, S07, S08 | 문서/회의록과 graph vertical slice | Owner 1명, 지원 1명 가능 | 문서 CRUD, 휴지통/복원, graph node/edge 조회 가능 | test, curl, 브라우저 확인 |
 | 4.7 | `THREAD-01~04`, `CHAT-01~03` | threads, messages, DM rooms, S09, S10 | thread/chat/1:1 DM communication vertical slice | Owner 1명 | thread, project chat, 1:1 DM, unread/read 위치 기준 확인. `4.7.4`는 완료가 아닌 이번 개발 기간 보류 기록으로 유지 | test, curl, 브라우저 확인 |
-| 4.8 | `NOTI-01` | notification events, recipients, preferences, S11 | notification 목록/읽음 core | Owner 1명, event source 연계 시 지원 1명 | notification 목록/읽음과 invitation event boundary 확인 | test, curl, 브라우저 확인 |
+| 4.8 | `NOTI-01` | notification events, recipients, S11 | notification inbox/read-state core와 후속 Frontend 연동 | `4.8.1` Backend Owner 1명, `4.8.2` Frontend Owner 정철진 | Backend 목록/unread/read/read-all 검증 후 Frontend 연동. producer matrix와 preferences는 별도 범위 | Backend test/build/curl, 후속 브라우저 확인 |
 | 4.9 | `FEED-01`, `SEARCH-01`, `DASH-01~04` | activity_events, `/search`, `/dashboard` | 조건부 확장 decision과 MySQL 우선 구현 | Owner 1명, 검색 결정 시 지원 공란 | feed/search/dashboard 범위와 검색 방식 결정이 남는다 | decision record, test, curl |
 | 4.10 | `DEFER-01` | S15, platform_admins, support_cases, audit log | S15 planning gate 이후 구현/결정 vertical slice | Owner 1명, 보안/감사 위험으로 지원 1명 가능 | `3.7~3.7.5` Go/No-Go handoff를 확인하고 `users.role` 없이 platform admin 분리와 audit 기준 확인 | 문서 review, test, curl, 보안 review |
 | 4.11 | `ATTACH-01` | attachments, S3 presigned URL, S05/S08/S09 | attachment 정책 결정과 구현 | Owner 1명, 인프라 연동 시 지원 1명 가능 | presigned upload/download, metadata, 권한 확인 | decision record, test, curl |
@@ -136,4 +138,4 @@ Level 3 row는 전체 `4.x`를 기계적으로 쪼갠 것이 아니라, 실제 �
 2. S15는 `3.7~3.7.5` Sprint 2 planning gate와 Go/No-Go handoff를 전제로 `4.10`에서 상세 확정과 구현을 추적한다.
 3. optimistic locking, DM room model, MySQL 우선 검색, S3 presigned URL은 현재 권장안이며 구현 중 변경될 수 있다.
 4. permanent delete는 참조 무결성과 audit 정책이 확정되지 않으면 구현 row로 넘어가면 안 된다.
-5. 요구사항추적표 primary WBS ID는 기능 ID별 단일 값을 원칙으로 한다. Level 3 row를 추가해도 Profile/Hub 관련 primary는 `4.2`, `LINK-02`와 `DOC-02` primary는 `4.6`, `DEFER-04` primary는 `4.12`, `NOTI-01` primary는 `4.8`이다. `4.2.1`과 `4.2.2`는 parent `4.2`의 실행 분리 row이며 parent 완료를 의미하지 않는다.
+5. 요구사항추적표 primary WBS ID는 기능 ID별 단일 값을 원칙으로 한다. Level 3 row를 추가해도 Profile/Hub 관련 primary는 `4.2`, `LINK-02`와 `DOC-02` primary는 `4.6`, `DEFER-04` primary는 `4.12`, `NOTI-01` primary는 `4.8`이다. `4.2.1`/`4.2.2`와 `4.8.1`/`4.8.2`는 각 parent의 실행 분리 row이며 parent 완료를 의미하지 않는다.

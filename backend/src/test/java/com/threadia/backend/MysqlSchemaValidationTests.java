@@ -49,6 +49,7 @@ class MysqlSchemaValidationTests {
 	);
 	private static final List<String> DIRECT_MESSAGE_TABLES = List.of("direct_message_rooms", "direct_messages", "dm_room_user_states");
 	private static final List<String> PROJECT_CHAT_TABLES = List.of("messages", "project_chat_member_states");
+	private static final List<String> NOTIFICATION_TABLES = List.of("notification_events", "notification_recipients");
 	private static final List<String> PLATFORM_SUPPORT_TABLES = List.of(
 			"platform_admin_bootstrap_locks",
 			"platform_admins",
@@ -333,6 +334,44 @@ class MysqlSchemaValidationTests {
 		assertForeignKey("project_chat_member_states", "fk_pcms_project", "project_id", "projects", "id");
 		assertForeignKey("project_chat_member_states", "fk_pcms_user", "user_id", "users", "id");
 		assertForeignKey("project_chat_member_states", "fk_pcms_last_read", "last_read_message_id", "messages", "id");
+	}
+
+	@Test
+	void appliesSchemaSqlAndCreatesNotificationInboxTablesAndReferenceConstraints() {
+		applySchemaSql();
+		Set<String> existingTables = jdbcTemplate.queryForList("""
+				SELECT table_name FROM information_schema.tables
+				WHERE table_schema = DATABASE()
+				  AND table_name IN ('notification_events', 'notification_recipients')
+				""", String.class).stream().collect(Collectors.toSet());
+		assertThat(existingTables).containsExactlyInAnyOrderElementsOf(NOTIFICATION_TABLES);
+
+		assertNullableColumn("notification_events", "activity_event_id", "bigint");
+		assertNullableColumn("notification_events", "company_id", "bigint");
+		assertNullableColumn("notification_events", "project_id", "bigint");
+		assertNullableColumn("notification_events", "actor_user_id", "bigint");
+		assertRequiredColumn("notification_events", "type", "varchar");
+		assertRequiredColumn("notification_events", "target_type", "varchar");
+		assertRequiredColumn("notification_events", "target_id", "bigint");
+		assertRequiredColumn("notification_events", "title", "varchar");
+		assertNullableColumn("notification_events", "body", "text");
+		assertNullableColumn("notification_events", "metadata_json", "json");
+		assertRequiredColumn("notification_events", "created_at", "datetime");
+		assertIndex("notification_events", "idx_ne_company_project_type", "company_id", "project_id", "type");
+		assertForeignKey("notification_events", "fk_ne_activity", "activity_event_id", "activity_events", "id");
+		assertForeignKey("notification_events", "fk_ne_company", "company_id", "companies", "id");
+		assertForeignKey("notification_events", "fk_ne_project", "project_id", "projects", "id");
+		assertForeignKey("notification_events", "fk_ne_actor", "actor_user_id", "users", "id");
+
+		assertRequiredColumn("notification_recipients", "notification_event_id", "bigint");
+		assertRequiredColumn("notification_recipients", "recipient_user_id", "bigint");
+		assertNullableColumn("notification_recipients", "read_at", "datetime");
+		assertRequiredColumn("notification_recipients", "created_at", "datetime");
+		assertIndex("notification_recipients", "uq_nr_event_recipient", "notification_event_id", "recipient_user_id");
+		assertIndex("notification_recipients", "idx_nr_recipient_read_created", "recipient_user_id", "read_at", "created_at", "id");
+		assertUniqueConstraint("notification_recipients", "uq_nr_event_recipient");
+		assertForeignKey("notification_recipients", "fk_nr_event", "notification_event_id", "notification_events", "id");
+		assertForeignKey("notification_recipients", "fk_nr_recipient", "recipient_user_id", "users", "id");
 	}
 
 	@Test
