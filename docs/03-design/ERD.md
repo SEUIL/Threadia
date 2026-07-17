@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-15  
 > **최종 수정**: 2026-07-17
-> **버전**: v2.3 WBS 4.10.3 system settings schema와 DEFER-05/06 이번 개발 기간 보류 반영
+> **버전**: v2.4 WBS 4.8.1 notification inbox/read-state 경계 반영
 > **상태**: 확정
 > **태그**: erd, db, schema, auth, invitation
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
@@ -13,7 +13,7 @@
 
 > **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows다. DB schema는 `docs/03-design/ERD.md`와 `db/schema.sql`을 기준으로 관리하고, Spring Boot/JPA는 schema 생성이 아니라 mapping 검증에 사용한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
-> **Sprint 3 기준선 메모**: 현재 ERD 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, Sprint 3 decision-needed, 유지 보류 항목을 분리한다. S15 WBS `4.10.1`의 platform authorization, support case, reply/note, immutable audit table과 WBS `4.10.3`의 typed system settings catalog는 확정 schema로 반영한다. enforcement, admin lifecycle, dashboard, notification과 나머지 decision-needed 항목은 concrete schema를 추가하지 않는다.
+> **Sprint 3 기준선 메모**: 현재 ERD 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, Sprint 3 decision-needed, 유지 보류 항목을 분리한다. S15 WBS `4.10.1`의 platform authorization, support case, reply/note, immutable audit table과 WBS `4.10.3`의 typed system settings catalog는 확정 schema로 반영한다. WBS `4.8.1` notification core는 기존 `notification_events`, `notification_recipients` DDL의 inbox/read-state 경계를 사용하며 schema를 변경하지 않는다. producer matrix, preferences, enforcement, admin lifecycle, dashboard와 나머지 decision-needed 항목은 이번 변경에서 concrete schema를 추가하지 않는다.
 
 
 ## 0. DB schema 관리 기준
@@ -676,6 +676,9 @@ summary table은 원본이 아니라 read model이다. 원본은 `issues`, `docu
 - `activity_events`와 통합하지 않는다. 필요 시 activity 이벤트에서 notification 이벤트를 생성하는 연계만 허용한다.
 - `GET /api/v1/notifications` 응답 예시는 `title`, `body`, `target`, `readAt`을 포함한다. 따라서 표시용 `title`/`body`를 “응답 스키마 없음”을 이유로 제거하지 않는다. 다만 `route`, `payload_json` 같은 추가 스냅샷 column은 API 계약 확정 전까지 보류한다.
 - invitation 관련 event는 내부 원장 기록 후보이며 Sprint 1.5 완료 조건은 아니다.
+- WBS `4.8.1`에서 허용하는 `type`은 `ISSUE_ASSIGNED`, `ISSUE_STATUS_CHANGED`, `THREAD_COMMENTED`, `MENTIONED`, `DOCUMENT_UPDATED`, `DOCUMENT_LINKED_TO_ISSUE`, `SPRINT_STARTED`, `SPRINT_ENDED`, `PROJECT_MESSAGE`, `DIRECT_MESSAGE`, `MEMBER_ADDED`, `ROLE_CHANGED`다.
+- target type은 `ISSUE`, `DOCUMENT`, `MESSAGE`, `THREAD`, `DIRECT_MESSAGE_ROOM`, `PROJECT`, `SPRINT`로 제한한다. 이 catalog는 애플리케이션 enum과 API validation 기준이며 기존 `VARCHAR(50)` DDL은 변경하지 않는다.
+- 이번 slice는 이미 저장된 event를 inbox에 제공하는 consumer boundary다. producer wiring, event publisher와 event/recipient matrix는 별도 정책 승인 전 구현하지 않는다.
 
 ### 5.19 notification_recipients
 
@@ -690,6 +693,9 @@ summary table은 원본이 아니라 read model이다. 원본은 `issues`, `docu
 - UNIQUE KEY (`notification_event_id`, `recipient_user_id`).
 - INDEX (`recipient_user_id`, `read_at`, `created_at`, `id`).
 - API는 로그인 사용자 소유의 수신 알림만 읽음 처리한다.
+- 목록과 unread count, read-all은 항상 `recipient_user_id = current active user`를 강제한다. 목록 keyset은 `created_at DESC, id DESC`이며 cursor는 사용자와 정규화 filter를 HMAC으로 결합한다.
+- 개별 read는 소유 row를 잠그고 `read_at IS NULL`일 때만 server UTC를 기록한다. 반복 호출은 최초 `read_at`을 보존한다. 다른 사용자 소유 row는 403, 없는 row는 404다.
+- read-all은 선택적 company/project/type filter와 `read_at IS NULL` 조건으로 본인 row만 갱신한다. `company_id`/`project_id` scope는 ACTIVE membership과 project-company 일치를 service policy로 검증한다.
 
 ### 5.20 notification_preferences
 

@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
 > **최종 수정**: 2026-07-17
-> **버전**: v3.1 WBS 4.10.3 typed system settings Backend 계약과 DEFER-05/06 이번 개발 기간 보류 반영
+> **버전**: v3.2 WBS 4.8.1 Notification Core Backend 계약 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -13,7 +13,7 @@
 
 > **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows이며, DB는 ERD 기반 `db/schema.sql`과 문서 변경이력으로 관리한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
-> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, Sprint 3 decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15 WBS `4.10.1` support case와 WBS `4.10.3` typed system settings Backend 계약을 확정하며 enforcement, admin lifecycle, dashboard, notification, Frontend는 후속 범위다. attachment, document optimistic locking, advanced DM, PROJECT notification scope, project restore, permanent delete는 선행 결정 전 full endpoint contract나 request/response body를 만들지 않는다.
+> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, Sprint 3 decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15 WBS `4.10.1` support case, WBS `4.10.3` typed system settings, WBS `4.8.1` notification inbox/read-state Backend 계약을 확정한다. notification producer matrix, preferences, push/WebSocket, Frontend와 enforcement, admin lifecycle, dashboard는 후속 범위다. attachment, document optimistic locking, advanced DM, PROJECT notification preference scope, project restore, permanent delete는 선행 결정 전 full endpoint contract나 request/response body를 만들지 않는다.
 
 
 ## 1. 공통 규칙
@@ -420,17 +420,33 @@ Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PL
 | GET | `/api/v1/notification-preferences` | A/P/C | 알림 설정 조회 |
 | PUT | `/api/v1/notification-preferences` | A/P/C | 전체/이벤트별 on/off 설정 |
 
-알림 목록, 읽음 처리, unread count는 Sprint 3 후보이며 primary WBS는 `NOTI-01`=`4.8`이다. `GLOBAL` scope preference는 현재 계약으로 유지한다. `PROJECT` scope preference는 Sprint 3 decision-needed API boundary이며 실제 지원 기준 확정 전에는 `PROJECT_NOTIFICATION_SCOPE_DEFERRED`로 처리한다. `NOTI-02/03`은 현재 계약/reference row로 유지하고 요구사항추적표 primary WBS backfill 대상에서 제외한다.
+알림 목록, 읽음 처리, unread count의 Backend 구현 row는 `4.8.1`, 후속 S11 Frontend 연동 row는 `4.8.2`다. 요구사항 추적의 primary WBS는 child가 아니라 `NOTI-01`=`4.8`을 유지한다. `GLOBAL` scope preference는 reference 계약으로만 유지한다. `PROJECT` scope preference는 Sprint 3 decision-needed API boundary이며 실제 지원 기준 확정 전에는 `PROJECT_NOTIFICATION_SCOPE_DEFERRED`로 처리한다. `NOTI-02/03`은 현재 계약/reference row로 유지하고 요구사항추적표 primary WBS backfill 대상에서 제외한다.
 
 `notificationRecipientId`는 `notification_recipients.id`를 의미한다. API는 로그인 사용자 소유의 수신 알림만 읽음 처리한다.
 
-알림 원본 저장소는 MySQL의 `notification_events`, `notification_recipients`, `notification_preferences`를 사용한다. Redis는 unread count와 실시간 push 보조 cache가 필요해진 뒤 조건부 확장으로 검토한다. NoSQL 알림/활동 저장소는 Sprint 1에서 제공하지 않는다.
+WBS `4.8.1`은 MySQL의 기존 `notification_events`, `notification_recipients`만 JPA mapping하여 inbox/read-state core를 제공한다. `notification_preferences` API와 producer wiring/event-recipient matrix는 이번 slice에 포함하지 않는다. Redis, push/WebSocket, NoSQL 알림 저장소도 제공하지 않는다.
 
-### 9.1 Notifications Error Cases
+### 9.1 WBS 4.8.1 Notification Core 정책
+
+- 알림 `type` catalog는 `ISSUE_ASSIGNED`, `ISSUE_STATUS_CHANGED`, `THREAD_COMMENTED`, `MENTIONED`, `DOCUMENT_UPDATED`, `DOCUMENT_LINKED_TO_ISSUE`, `SPRINT_STARTED`, `SPRINT_ENDED`, `PROJECT_MESSAGE`, `DIRECT_MESSAGE`, `MEMBER_ADDED`, `ROLE_CHANGED`로 고정한다.
+- target type catalog는 `ISSUE`, `DOCUMENT`, `MESSAGE`, `THREAD`, `DIRECT_MESSAGE_ROOM`, `PROJECT`, `SPRINT`로 고정한다.
+- `GET /notifications` query는 선택적 `companyId`, `projectId`, `type`, `unreadOnly`, `cursor`, `size`를 받는다. `unreadOnly` 기본값은 `false`, `size` 기본값은 20이며 허용 범위는 1~100이다.
+- 목록은 `notification_recipients.created_at DESC, notification_recipients.id DESC` keyset 순서다. cursor는 opaque URL-safe HMAC 서명값이며 사용자 ID, 정규화된 `companyId`/`projectId`/`type`/`unreadOnly`, 마지막 `(createdAt,id)`를 결합한다. 변조되거나 다른 사용자·filter에서 재사용한 cursor는 `400 VALIDATION_ERROR`다.
+- 모든 목록, unread count, read-all query/update는 `recipient_user_id = current active user`를 강제한다. filter 없는 본인 inbox 조회는 허용한다.
+- `companyId` filter는 해당 회사 ACTIVE membership이 필요하다. `projectId` filter는 프로젝트 회사의 ACTIVE `COMPANY_ADMIN` 또는 ACTIVE company member이면서 ACTIVE project member여야 한다. 두 filter를 함께 보내면 프로젝트의 회사와 일치해야 하며 불일치는 `400 VALIDATION_ERROR`다.
+- `GET /notifications/unread-count`는 선택적 `companyId`, `projectId`, `type`을 목록과 같은 scope 규칙으로 적용하고 `read_at IS NULL`인 본인 row만 계산한다.
+- 개별 read는 `notification_recipients.id`를 잠근 뒤 본인 소유인지 검사한다. 없는 ID는 404, 다른 사용자 소유 ID는 403이다. 최초 호출에만 server UTC `read_at`을 기록하고 반복 호출은 기존 `readAt`을 보존하는 idempotent 동작이다.
+- read-all body의 `companyId`, `projectId`, `type`은 모두 선택적이며 빈 object는 본인의 모든 unread 알림을 대상으로 한다. scope와 type 검증 후 `read_at IS NULL`인 matching row만 한 번에 갱신하고 실제 변경 row 수를 `updatedCount`로 반환한다.
+- 이번 Backend slice는 기존 알림 row를 조회·읽음 처리하는 consumer boundary다. 알림 producer, event publisher, event/recipient matrix, preferences, Push/WebSocket/Redis와 Frontend 구현 완료를 의미하지 않는다.
+
+### 9.2 Notifications Error Cases
 
 | API | 상황 | HTTP | `error.code` | message 예시 |
 |---|---|---:|---|---|
 | `GET /notifications` | `type` enum 값 오류 | 400 | `VALIDATION_ERROR` | 알림 조회 조건이 올바르지 않습니다. |
+| `GET /notifications` | `size`가 1~100 범위를 벗어남 | 400 | `VALIDATION_ERROR` | 알림 목록 size는 1 이상 100 이하여야 합니다. |
+| `GET /notifications` | cursor 변조 또는 사용자/filter 재사용 | 400 | `VALIDATION_ERROR` | 알림 목록 cursor가 올바르지 않습니다. |
+| `GET /notifications` | `companyId`와 `projectId`의 회사 불일치 | 400 | `VALIDATION_ERROR` | companyId와 projectId의 회사 범위가 일치하지 않습니다. |
 | `GET /notifications` | 접근 권한 없는 `companyId` 또는 `projectId` 지정 | 403 | `FORBIDDEN` | 해당 범위의 알림을 조회할 수 없습니다. |
 | `GET /notifications/unread-count` | 접근 권한 없는 `companyId` 또는 `projectId` 지정 | 403 | `FORBIDDEN` | 해당 범위의 알림 수를 조회할 수 없습니다. |
 | `POST /notifications/{notificationRecipientId}/read` | `notificationRecipientId`가 존재하지 않음 | 404 | `NOT_FOUND` | 알림을 찾을 수 없습니다. |
@@ -1959,6 +1975,8 @@ Query Params 예시:
 companyId=10&projectId=20&type=MENTIONED&unreadOnly=true&cursor=next_cursor&size=20
 ```
 
+`companyId`, `projectId`, `type`, `unreadOnly`, `cursor`, `size`는 모두 선택적이다. `unreadOnly=false`, `size=20`이 기본값이다. `cursor`는 client가 해석하거나 조립하지 않는 opaque 값이며 같은 사용자와 같은 정규화 filter에서만 사용할 수 있다.
+
 Response 200:
 
 ```json
@@ -1984,6 +2002,8 @@ Response 200:
 ```
 
 #### GET `/api/v1/notifications/unread-count`
+
+선택적 query `companyId`, `projectId`, `type`을 지원하며 목록과 같은 scope/type 검증을 적용한다.
 
 Response 200:
 
@@ -2021,6 +2041,8 @@ Request Body:
   "projectId": 20
 }
 ```
+
+세 필드는 모두 선택적이다. `{}`는 현재 ACTIVE 사용자의 모든 unread 알림을 읽음 처리한다. 이미 읽은 row의 `readAt`은 변경하지 않는다.
 
 Response 200:
 
