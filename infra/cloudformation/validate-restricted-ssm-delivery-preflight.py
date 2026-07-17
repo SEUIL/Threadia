@@ -41,6 +41,29 @@ dual_image_manifest_helper = (BASE.parent.parent / "scripts/ecr-compose-deploy/d
 runbook = (BASE.parent.parent / "docs/00-project/restricted-ssm-release-runbook.md").read_text(encoding="utf-8")
 architecture = (BASE.parent.parent / "docs/05-architecture/GitHub-OIDC-SSM-EC2-배포-설계.md").read_text(encoding="utf-8")
 version_pattern = "^[A-Za-z0-9._+=/-]{1,1000}[A-Za-z0-9._+=/-]{0,24}$"
+required_runtime_parameters = {
+    "/threadia/restricted-nonprod/runtime/THREADIA_DB_URL",
+    "/threadia/restricted-nonprod/runtime/THREADIA_DB_USERNAME",
+    "/threadia/restricted-nonprod/runtime/THREADIA_DB_PASSWORD",
+    "/threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET",
+    "/threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE",
+    "/threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN",
+}
+optional_mail_runtime_parameters = {
+    "/threadia/restricted-nonprod/runtime/MAIL_HOST",
+    "/threadia/restricted-nonprod/runtime/MAIL_PORT",
+    "/threadia/restricted-nonprod/runtime/MAIL_USERNAME",
+    "/threadia/restricted-nonprod/runtime/MAIL_PASSWORD",
+    "/threadia/restricted-nonprod/runtime/NOTIFICATION_FROM_EMAIL",
+}
+
+
+def optional_mail_group_action(returned: set[str], invalid: set[str]) -> str:
+    if not returned and invalid == optional_mail_runtime_parameters:
+        return "omit"
+    if returned == optional_mail_runtime_parameters and not invalid:
+        return "materialize"
+    return "reject"
 
 for source_name, source in (("template", template), ("network", network)):
     for prohibited in ("AWS::CodeDeploy", "AWS-RunShellScript", "NatGateway", "MapPublicIpOnLaunch: true", "0.0.0.0/0"):
@@ -118,7 +141,8 @@ assert "${ExistingEc2InstanceId}" in github_role
 assert "ssm:GetParametersByPath" not in template
 assert "secretsmanager:" not in template.lower()
 assert "ManageMasterUserPassword" not in template
-assert template.count("parameter/threadia/restricted-nonprod/runtime/") == 6
+runtime_parameter_arns = set(re.findall(r"parameter(/threadia/restricted-nonprod/runtime/[A-Z_]+)", template))
+assert runtime_parameter_arns == required_runtime_parameters | optional_mail_runtime_parameters
 assert "Resource: '*'" in template and "Action: ssm:GetCommandInvocation" in template
 assert "AWS-RunShellScript" not in template
 dual_image_document = template.split("DualImageReleaseCommandDocument:", 1)[1].split("HelperMaintenanceCommandDocument:", 1)[0]
@@ -430,6 +454,27 @@ runtime_env_writer = release_helper.split(
 compile(runtime_env_writer, "runtime-env-writer", "exec")
 assert "escaped_value = value.replace(" in runtime_env_writer
 assert "value.replace(chr(92)" not in runtime_env_writer
+assert release_helper.count('aws ssm get-parameters --region "$AWS_REGION" --with-decryption --names') == 2
+assert "ssm:GetParametersByPath" not in release_helper
+assert all(parameter in release_helper for parameter in required_runtime_parameters | optional_mail_runtime_parameters)
+required_parameter_fetch = release_helper.split('parameters_json="$stage/runtime-parameters.json"', 1)[1].split("python3 -", 1)[0]
+mail_parameter_fetch = release_helper.split('mail_parameters_json="$stage/mail-runtime-parameters.json"', 1)[1].split("python3 -", 1)[0]
+assert all(parameter in required_parameter_fetch for parameter in required_runtime_parameters)
+assert not any(parameter in required_parameter_fetch for parameter in optional_mail_runtime_parameters)
+assert all(parameter in mail_parameter_fetch for parameter in optional_mail_runtime_parameters)
+assert not any(parameter in mail_parameter_fetch for parameter in required_runtime_parameters)
+assert optional_mail_group_action(set(), optional_mail_runtime_parameters) == "omit"
+assert optional_mail_group_action(optional_mail_runtime_parameters, set()) == "materialize"
+assert optional_mail_group_action({next(iter(optional_mail_runtime_parameters))}, set()) == "reject"
+assert optional_mail_group_action(set(), {next(iter(optional_mail_runtime_parameters))}) == "reject"
+assert 'if not returned and invalid == set(optional):' in release_helper
+assert 'if returned != set(optional) or invalid:' in release_helper
+assert 'affected = sorted(invalid | (set(optional) - returned))' in release_helper
+assert 'with open(sys.argv[2], "a", encoding="utf-8") as target:' in release_helper
+assert 'raise SystemExit("optional runtime parameter group is incomplete or invalid: " + ", ".join(affected))' in release_helper
+assert 'if value == "":' in release_helper
+assert 'raise SystemExit("optional runtime parameter is blank: " + parameter_name)' in release_helper
+assert 'escaped_value = value.replace(chr(92), chr(92) * 2).replace(chr(34), chr(92) + chr(34))' in release_helper
 assert 'previous_env="$stage/runtime.env.previous"' in release_helper
 assert 'cp -a "$RUNTIME_ENV" "$previous_env"' in release_helper
 assert 'install -o root -g threadia -m 0640 "$previous_env" "$RUNTIME_ENV"' in release_helper
