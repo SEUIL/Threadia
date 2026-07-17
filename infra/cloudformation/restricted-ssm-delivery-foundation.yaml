@@ -137,6 +137,11 @@ Resources:
               - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET
               - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE
               - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/MAIL_HOST
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/MAIL_PORT
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/MAIL_USERNAME
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/MAIL_PASSWORD
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/NOTIFICATION_FROM_EMAIL
   ArtifactBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -213,4 +218,4 @@ Outputs:
     Value: !Ref ReleaseCommandDocument
   RuntimeParameterNames:
     Description: Exact SecureString names that the approved platform owner must create and rotate outside this template.
-    Value: /threadia/restricted-nonprod/runtime/{THREADIA_DB_URL,THREADIA_DB_USERNAME,THREADIA_DB_PASSWORD,THREADIA_JWT_SECRET,THREADIA_COOKIE_SECURE,THREADIA_CORS_ALLOWED_ORIGIN}
+    Value: /threadia/restricted-nonprod/runtime/{THREADIA_DB_URL,THREADIA_DB_USERNAME,THREADIA_DB_PASSWORD,THREADIA_JWT_SECRET,THREADIA_COOKIE_SECURE,THREADIA_CORS_ALLOWED_ORIGIN,MAIL_HOST,MAIL_PORT,MAIL_USERNAME,MAIL_PASSWORD,NOTIFICATION_FROM_EMAIL}
