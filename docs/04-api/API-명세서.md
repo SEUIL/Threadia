@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-07-16
-> **버전**: v3.0 WBS 4.10.3 typed system settings Backend 계약 반영
+> **최종 수정**: 2026-07-17
+> **버전**: v3.1 WBS 4.10.3 typed system settings Backend 계약과 DEFER-05/06 이번 개발 기간 보류 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -402,7 +402,7 @@ Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PL
 - mark-read body는 `lastReadDirectMessageId`만 받는다. client `readAt`은 허용하지 않으며 server UTC로만 저장한다. 포인터는 같은 room 메시지여야 하고 뒤로 이동하지 않는다.
 - unread는 현재 사용자가 보낸 메시지를 제외하고 개인별 `dm_room_user_states.last_read_direct_message_id`로 계산한다. 상대방 read receipt는 제공하지 않는다.
 
-1:1 DM core는 WBS 4.7.3.1 Backend 구현 범위다. 다자간 DM, DM room + participants 일반화, DM 상대 read receipt, DM 메시지 삭제, DM 메시지 이슈 전환은 선행 결정 전 full endpoint contract를 만들지 않는다.
+1:1 DM core는 WBS 4.7.3.1 Backend 구현 범위다. 다자간 DM, DM room + participants 일반화, DM 상대 read receipt는 이번 개발 기간 보류다. 영구 제외하지 않으며 향후 재검토 전 endpoint, request/response contract, schema, frontend 구현을 추가하지 않는다. DM 메시지 삭제와 DM 메시지 이슈 전환도 full endpoint contract를 만들지 않는다.
 
 ---
 
@@ -606,9 +606,9 @@ JSON value의 top-level/object field는 key별 code-owned validator가 검증한
 | 구분 | API/기능 | 처리 | 이유 |
 |---|---|---|---|
 | 후속 범위 | S15 platform enforcement/lifecycle | WBS `4.10.1`, `4.10.3` 외 full endpoint 미정 | 사용자/회사 enforcement, grant/revoke, dashboard, notification, Frontend는 이번 slice에서 제외 |
-| Sprint 3 decision-needed | 다자간 DM 방 | full endpoint 미정 | DM room + participants 모델 결정 필요 |
+| 이번 개발 기간 보류 | 다자간 DM 방 | full endpoint 미정 | 향후 재검토 전 endpoint, request/response contract, schema, frontend 구현을 추가하지 않음 |
 | 보류 | DM 메시지 삭제 | 미제공 | 전송/조회/unread 중심 |
-| Sprint 3 decision-needed | DM 상대 read receipt | full endpoint 미정 | read receipt 정책 결정 필요 |
+| 이번 개발 기간 보류 | DM 상대 read receipt | full endpoint 미정 | 향후 재검토 전 endpoint, request/response contract, schema, frontend 구현을 추가하지 않음 |
 | 보류 | DM 메시지→이슈 전환 | `DM_MESSAGE_CANNOT_CREATE_ISSUE` | DM은 사적 소통 |
 | 보류 | Thread→DM 공유 | `THREAD_DM_SHARE_DEFERRED` | 정책 미정 |
 | 보류 | Thread→Issue 추가 연결 | `THREAD_ISSUE_LINK_DEFERRED` | 데이터 모델 미정 |

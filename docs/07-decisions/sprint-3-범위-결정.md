@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-07
-> **최종 수정**: 2026-07-16
-> **버전**: v0.5 WBS 4.10.4 lifecycle 범위 정렬
+> **최종 수정**: 2026-07-17
+> **버전**: v0.6 DEFER-05/06 이번 개발 기간 보류 반영
 > **상태**: 검토 중
 > **태그**: decision, sprint-3, scope, backlog, platform-admin
 
@@ -32,7 +32,7 @@ Sprint 3는 기존 `WBS 4.x Backlog Development`를 실행 가능한 Sprint 3 �
 | Backlog core | Sprint 3 committed 후보로 승격한다. |
 | S15 platform admin | 선행 WBS 해결 후 상세 확정과 구현을 Sprint 3 범위에 포함한다. |
 | 조건부 확장 | activity feed, search, dashboard를 Sprint 3 범위로 올리되, 검색 방식 결정 row를 선행한다. |
-| 고급 DM | 다자간 DM과 read receipt를 Sprint 3 범위로 올리되, DM room model 전환을 선행한다. |
+| 고급 DM | 다자간 DM과 상대 read receipt는 이번 개발 기간에서 보류한다. 향후 재검토는 가능하나 API, schema, frontend 구현은 추가하지 않는다. |
 | 고급 문서 | 실시간 공동 편집 대신 optimistic locking 기반 충돌 감지를 우선한다. 변경 가능성을 명시한다. |
 | 고급 알림 | `NOTI-01` 알림 목록/읽음 처리를 Sprint 3 primary로 둔다. `NOTI-02/03`은 현재 계약/reference, `PROJECT_NOTIFICATION_SCOPE_DEFERRED`는 API boundary로 유지한다. |
 | 첨부 | S3 presigned URL 정책 결정을 선행하고 구현 범위를 확정한다. |
@@ -45,7 +45,7 @@ Sprint 3는 기존 `WBS 4.x Backlog Development`를 실행 가능한 Sprint 3 �
 | 기간, capacity, Owner, Reviewer | Sprint 3 초안에서는 공란으로 둔다. |
 | S15 상세 확정 | `4.10.3` 정책 결정은 확정했다. `4.10.2` enforcement, `4.10.3` system settings, `4.10.4` audit/operation logs 및 platform admin lifecycle/grant/revoke 구현은 별도 작업으로 추적한다. |
 | 동시 문서 편집 | Sprint 3 기본안은 version/revision 기반 optimistic locking이다. CRDT 또는 실시간 공동 편집은 후속 변경 가능성을 남긴다. |
-| 고급 DM 모델 | 기존 1:1 전용 모델을 room + participants 구조로 일반화하는 방향을 권장한다. 1:1과 group DM을 같은 room model로 처리한다. |
+| 고급 DM 모델 | 이번 개발 기간에는 1:1 전용 모델을 유지한다. 다자간 DM과 상대 read receipt는 향후 재검토 항목이며 room + participants 일반화와 구현은 추가하지 않는다. |
 | 알림 scope | `GLOBAL` preference 계약을 유지한다. `PROJECT` scope는 `PROJECT_NOTIFICATION_SCOPE_DEFERRED` API boundary이며 요구사항추적표 primary row로 backfill하지 않는다. |
 | 검색 방식 | MySQL `LIKE/FULLTEXT` 우선과 검색 엔진 도입 여부를 WBS 결정 row로 둔다. 기본 권장안은 MySQL 우선이다. |
 | 첨부 방식 | S3 presigned upload/download, metadata table, 권한, 크기, MIME 정책을 WBS 결정 row로 둔다. |
@@ -60,7 +60,7 @@ Sprint 3는 기존 `WBS 4.x Backlog Development`를 실행 가능한 Sprint 3 �
 | Sprint / Issue / Kanban | `SPRINT-01~02`, `ISSUE-01~04`, `KANBAN-01~02` | Sprint 운영, 이슈 CRUD, 5컬럼 칸반, 휴지통/복원 |
 | Message / Issue / Document link | `LINK-01`, `LINK-03` | 메시지에서 이슈 생성, 문서 이벤트 알림 후보. `LINK-02` 문서-이슈 연결 primary WBS는 `4.6` |
 | Documents / Graph | `DOC-01~04`, `GRAPH-01~02`, `LINK-02` | Markdown 문서, 회의록, graph 조회, 문서-이슈 edge |
-| Thread / Chat / DM | `THREAD-01~04`, `CHAT-01~03`, `DEFER-05~06` | 쓰레드, 프로젝트 채팅, 1:1 DM, 다자간 DM, read receipt. 실행 row는 `4.7.1~4.7.4` |
+| Thread / Chat / DM | `THREAD-01~04`, `CHAT-01~03`, `DEFER-05~06` | 쓰레드, 프로젝트 채팅, 1:1 DM. `DEFER-05~06`과 `4.7.4`는 완료가 아닌 이번 개발 기간 보류 기록으로 유지하며 향후 재검토한다. |
 | Notification | `NOTI-01` | 알림 목록, 읽음 처리 core. `NOTI-02/03`은 현재 계약/reference row로 유지 |
 | Conditional extensions | `FEED-01`, `SEARCH-01`, `DASH-01~04` | activity feed, 검색, 프로젝트 dashboard. 실행 row는 `4.9.1~4.9.3` |
 | S15 Platform Admin | `DEFER-01` 재분해 | 문의/신고, 사용자 정지, 회사 비활성화, 시스템 설정, audit/operation logs 및 platform admin lifecycle/grant/revoke. 실행 row는 `4.10.1~4.10.4` |
@@ -73,7 +73,7 @@ Sprint 3는 기존 `WBS 4.x Backlog Development`를 실행 가능한 Sprint 3 �
 |---|---|---|
 | S15 ERD/API/화면 상세 | 현재는 1차 범위와 인가 모델만 있음 | 상세 확정 row 후 구현 row로 분리 |
 | 동시 문서 편집 | 실시간 공동 편집은 구현 부담이 큼 | optimistic locking 우선, 실시간은 후속 변경 가능 |
-| 다자간 DM | 현재 ERD는 1:1 unique 구조에 가까움 | room + participants 모델 전환 결정 후 구현 |
+| 다자간 DM과 상대 read receipt | 현재 ERD는 1:1 unique 구조에 가까움 | 이번 개발 기간에는 보류한다. 향후 재검토 전 API, schema, frontend 구현을 추가하지 않는다. |
 | PROJECT 알림 설정 | 기존 API는 PROJECT scope를 deferred 처리 | API boundary code로 유지하고 요구사항추적표 primary WBS backfill 대상에서 제외 |
 | 검색 | 검색 엔진 도입 여부가 미정 | 결정 row 후 MySQL 우선 구현 |
 | 첨부 | S3, metadata, 권한, 파일 제한 정책 필요 | 정책 결정 row 후 구현 |
@@ -89,8 +89,8 @@ Sprint 3는 기존 `WBS 4.x Backlog Development`를 실행 가능한 Sprint 3 �
 | `docs/02-requirements/기능-시나리오-API-ERD-추적표.md` | Sprint 3 승격 기능의 API/ERD/화면 추적성을 갱신한다. |
 | `docs/03-design/화면정의서.md` | S15 상세, project dashboard, 고급 DM/알림/문서 editing 화면 상태를 반영한다. |
 | `docs/03-design/ERD.md` | `platform_admins`, `support_cases`, audit log, attachments, DM participants, notification project scope, document versioning을 반영한다. |
-| `docs/04-api/API-명세서.md` | S15, feed/search/dashboard, attachment, project notification scope, group DM/read receipt, document version conflict API를 추가한다. |
-| `docs/07-decisions/보류-기능-최종표.md` | Sprint 3로 승격한 항목을 보류에서 제거하거나 Sprint 3 포함으로 상태를 바꾼다. |
+| `docs/04-api/API-명세서.md` | S15, feed/search/dashboard, attachment, project notification scope, document version conflict API를 추가한다. 다자간 DM/read receipt는 이번 개발 기간 보류 경계로 유지한다. |
+| `docs/07-decisions/보류-기능-최종표.md` | 다자간 DM과 상대 read receipt를 이번 개발 기간 보류, 향후 재검토 항목으로 기록한다. |
 | `docs/07-decisions/기획문서-변경이력.md` | Sprint 3 scope 승격 변경 묶음을 추가한다. |
 
 ## 8. WBS 반영 원칙
@@ -106,7 +106,7 @@ Sprint 3는 기존 `WBS 4.x Backlog Development`를 실행 가능한 Sprint 3 �
 
 | Parent | Level 3 row | 범위 |
 |---|---|---|
-| `4.7` | `4.7.1~4.7.4` | thread core, project chat, 1:1 DM, group DM/read receipt decision |
+| `4.7` | `4.7.1~4.7.4` | thread core, project chat, 1:1 DM. `4.7.4`는 이번 개발 기간 보류 기록이며 완료가 아님 |
 | `4.9` | `4.9.1~4.9.3` | activity feed, search decision, dashboard aggregate |
 | `4.10` | `4.10.1~4.10.4` | support cases, enforcement, system settings decision, audit/operation logs 및 platform admin lifecycle/grant/revoke |
 | `4.11` | `4.11.1~4.11.3` | attachment policy, presigned URL, metadata/validation |
