@@ -119,8 +119,8 @@ assert "token.actions.githubusercontent.com:sub: repo:SEUIL/Threadia:environment
 assert "StringLike:" not in template.split("GitHubDeployRole:", 1)[1].split("ExistingEc2DeliveryPolicy:", 1)[0]
 github_role = template.split("GitHubDeployRole:", 1)[1].split("ExistingEc2DeliveryPolicy:", 1)[0]
 assert "${ReleaseCommandDocument}" in github_role
-assert "threadia-restricted-ssm-delivery-helper-maintenance-v2" in github_role
-assert "${HelperMaintenanceCommandDocumentV2}" not in github_role
+assert "${HelperMaintenanceCommandDocumentV2}" in github_role
+assert "threadia-restricted-ssm-delivery-helper-maintenance-v2" not in github_role
 assert "${HelperMaintenanceCommandDocument}" not in github_role
 assert "${ExistingEc2InstanceId}" in github_role
 assert "ssm:GetParametersByPath" not in template
@@ -147,23 +147,14 @@ assert "parameters:" not in helper_document
 assert "{{ " not in helper_document
 assert "aws:runShellScript" in helper_document
 assert "aws s3api get-object" in helper_document
-legacy_helper_key = "releases/97d6f8789280336f9cb2f72a786e57b95d915f19/29418381683-1/apply-release"
-legacy_helper_version_id = "jLhUyDqaJxl7LYwMMSIGFmLka4UtqCwe"
-legacy_helper_sha256 = "586e284d82f5a0f9496b8201257efca7e1502344357567b420a21d8a51ac3b68"
 legacy_helper_get_object = (
     "aws s3api get-object --region '${AWS::Region}' --bucket '${ArtifactBucket}' "
-    f"--key '{legacy_helper_key}' --version-id '{legacy_helper_version_id}' \"$DOWNLOAD\" >/dev/null"
+    "--key '${HelperArtifactKey}' --version-id '${HelperArtifactVersionId}' \"$DOWNLOAD\" >/dev/null"
 )
 assert helper_document.count(legacy_helper_get_object) == 1
-assert helper_document.count(f"'{legacy_helper_key}'") == 1
-assert helper_document.count(f"'{legacy_helper_version_id}'") == 1
-assert helper_document.count(f"'{legacy_helper_sha256}'") == 3
-for helper_artifact_substitution in (
-    "${HelperArtifactKey}",
-    "${HelperArtifactVersionId}",
-    "${HelperArtifactSha256}",
-):
-    assert helper_artifact_substitution not in helper_document
+assert helper_document.count("'${HelperArtifactKey}'") == 1
+assert helper_document.count("'${HelperArtifactVersionId}'") == 1
+assert helper_document.count("'${HelperArtifactSha256}'") == 3
 assert "bash -n \"$DOWNLOAD\"" in helper_document
 assert "bash -n \"$STAGED\"" in helper_document
 assert "bash -n \"$TARGET\"" in helper_document
