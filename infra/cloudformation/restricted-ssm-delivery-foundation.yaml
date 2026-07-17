@@ -30,18 +30,6 @@ Parameters:
     Type: String
     Description: Approved SHA-256 digest for the exact release helper artifact version.
     AllowedPattern: '^[a-f0-9]{64}$'
-  ServiceUnitArtifactKey:
-    Type: String
-    Description: Approved immutable S3 key for the Threadia systemd service unit.
-    AllowedPattern: '^releases/[0-9a-f]{40}/[0-9]+-[0-9]+/threadia-backend\.service$'
-  ServiceUnitArtifactVersionId:
-    Type: String
-    Description: Exact approved S3 VersionId for the service unit artifact.
-    AllowedPattern: '^[A-Za-z0-9._+=/-]{1,1000}[A-Za-z0-9._+=/-]{0,24}$'
-  ServiceUnitArtifactSha256:
-    Type: String
-    Description: Approved SHA-256 digest for the exact service unit artifact version.
-    AllowedPattern: '^[a-f0-9]{64}$'
 
 Resources:
   GitHubOidcProvider:
@@ -118,18 +106,12 @@ Resources:
                 Effect: Allow
                 Action: s3:PutObject
                 Resource: !Sub ${ArtifactBucket.Arn}/releases/*
-              - Sid: ReadVersionedReleaseObjectsForRollbackValidation
-                Effect: Allow
-                Action: [s3:GetObject, s3:GetObjectVersion]
-                Resource: !Sub ${ArtifactBucket.Arn}/releases/*
               - Sid: InvokeOnlyTheFixedDocumentOnTheExactHost
                 Effect: Allow
                 Action: ssm:SendCommand
                 Resource:
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${ReleaseCommandDocument}
-                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${DualImageReleaseCommandDocument}
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${HelperMaintenanceCommandDocument}
-                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${ServiceUnitMaintenanceCommandDocument}
                   - !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${ExistingEc2InstanceId}
               - Sid: ReadOnlyOwnCommandInvocationStatus
                 Effect: Allow
@@ -168,11 +150,6 @@ Resources:
               - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET
               - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE
               - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN
-              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/MAIL_HOST
-              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/MAIL_PORT
-              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/MAIL_USERNAME
-              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/MAIL_PASSWORD
-              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/NOTIFICATION_FROM_EMAIL
   ArtifactBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -239,28 +216,6 @@ Resources:
                   /usr/local/lib/threadia-release/apply-release
                   '${ArtifactBucket}' '{{ ArtifactKey }}' '{{ ArtifactVersionId }}'
                   '{{ ArtifactSha256 }}' '{{ ReleaseId }}'
-  DualImageReleaseCommandDocument:
-    Type: AWS::SSM::Document
-    Properties:
-      DocumentType: Command
-      DocumentFormat: YAML
-      TargetType: /AWS::EC2::Instance
-      Content:
-        schemaVersion: '2.2'
-        description: Download one versioned dual-image release manifest and invoke the fixed Compose release helper.
-        parameters:
-          ReleaseManifestRef:
-            type: String
-            interpolationType: ENV_VAR
-            allowedPattern: '^releases/[0-9a-f]{40}/[0-9]+-[0-9]+/dual-image-release-[0-9a-f]{40}-[0-9]+-[0-9]+\.env@[A-Za-z0-9._+=/-]{1,1024}$'
-        mainSteps:
-          - action: aws:runShellScript
-            name: ApplyVersionedDualImageReleaseManifest
-            inputs:
-              timeoutSeconds: '540'
-              runCommand:
-                - !Sub >-
-                  exec /usr/local/lib/threadia-compose/deploy-release-manifest "$SSM_ReleaseManifestRef"
   HelperMaintenanceCommandDocument:
     Type: AWS::SSM::Document
     Properties:
@@ -325,89 +280,6 @@ Resources:
                     trap - ERR INT TERM EXIT
                     cleanup
 
-  ServiceUnitMaintenanceCommandDocument:
-    Type: AWS::SSM::Document
-    Properties:
-      DocumentType: Command
-      DocumentFormat: YAML
-      TargetType: /AWS::EC2::Instance
-      Content:
-        schemaVersion: '2.2'
-        description: Atomically install the CloudFormation-pinned Threadia service unit and health-verify rollback without runtime configuration access.
-        mainSteps:
-          - action: aws:runShellScript
-            name: InstallPinnedServiceUnit
-            inputs:
-              timeoutSeconds: '540'
-              runCommand:
-                - !Sub |
-                    set -euo pipefail
-                    readonly TARGET=/etc/systemd/system/threadia-backend.service
-                    readonly SERVICE_NAME=threadia-backend.service
-                    readonly HOST_LOCK=/run/threadia-release-maintenance.lock
-                    readonly READINESS_TIMEOUT_SECONDS=120
-                    readonly READINESS_INTERVAL_SECONDS=2
-                    success=false
-                    backup_ready=false
-                    [[ "$(id -u)" -eq 0 ]]
-                    for command in aws sha256sum install mv mktemp flock cp grep systemctl systemd-analyze curl sleep rm cut id; do
-                      command -v "$command" >/dev/null 2>&1
-                    done
-                    [[ -f "$TARGET" ]]
-                    exec 9>"$HOST_LOCK"
-                    flock -n 9 || { printf '%s\n' 'another release or maintenance operation is active' >&2; exit 1; }
-                    readonly STAGING_DIR="$(mktemp -d /etc/systemd/system/.threadia-backend.service.XXXXXX)"
-                    readonly DOWNLOAD="$STAGING_DIR/threadia-backend.service.download"
-                    readonly STAGED="$STAGING_DIR/threadia-backend.service"
-                    readonly BACKUP="$STAGING_DIR/threadia-backend.service.backup"
-
-                    verify_health() {
-                      local deadline=$((SECONDS + READINESS_TIMEOUT_SECONDS))
-                      while (( SECONDS < deadline )); do
-                        systemctl is-active --quiet "$SERVICE_NAME" && \
-                          curl --fail --silent --show-error --connect-timeout 1 --max-time 2 http://127.0.0.1:8080/actuator/health >/dev/null && return 0
-                        sleep "$READINESS_INTERVAL_SECONDS"
-                      done
-                      return 1
-                    }
-
-                    restore() {
-                      local status="$1"
-                      trap - ERR INT TERM EXIT
-                      if [[ "$success" != true && "$backup_ready" == true && -f "$BACKUP" ]]; then
-                        mv -Tf "$BACKUP" "$TARGET"
-                        systemctl daemon-reload
-                        systemctl restart "$SERVICE_NAME"
-                        verify_health
-                      fi
-                      exit "$status"
-                    }
-
-                    trap 'restore "$?"' ERR EXIT
-                    trap 'restore 130' INT
-                    trap 'restore 143' TERM
-                    umask 027
-                    cleanup() {
-                      rm -rf "$STAGING_DIR"
-                    }
-                    aws s3api get-object --region '${AWS::Region}' --bucket '${ArtifactBucket}' --key '${ServiceUnitArtifactKey}' --version-id '${ServiceUnitArtifactVersionId}' "$DOWNLOAD" >/dev/null
-                    [[ "$(sha256sum "$DOWNLOAD" | cut -d ' ' -f1)" == '${ServiceUnitArtifactSha256}' ]]
-                    grep -Fx 'Environment=MANAGEMENT_HEALTH_MAIL_ENABLED=false' "$DOWNLOAD"
-                    install -o root -g root -m 0644 "$DOWNLOAD" "$STAGED"
-                    [[ "$(sha256sum "$STAGED" | cut -d ' ' -f1)" == '${ServiceUnitArtifactSha256}' ]]
-                    grep -Fx 'Environment=MANAGEMENT_HEALTH_MAIL_ENABLED=false' "$STAGED"
-                    systemd-analyze verify "$STAGED"
-                    cp -p "$TARGET" "$BACKUP"
-                    backup_ready=true
-                    mv -Tf "$STAGED" "$TARGET"
-                    [[ "$(sha256sum "$TARGET" | cut -d ' ' -f1)" == '${ServiceUnitArtifactSha256}' ]]
-                    systemctl daemon-reload
-                    systemctl restart "$SERVICE_NAME"
-                    verify_health
-                    success=true
-                    trap - ERR INT TERM EXIT
-                    cleanup
-
 Outputs:
   ArtifactBucketName:
     Value: !Ref ArtifactBucket
@@ -415,12 +287,8 @@ Outputs:
     Value: !GetAtt GitHubDeployRole.Arn
   ReleaseCommandDocumentName:
     Value: !Ref ReleaseCommandDocument
-  DualImageReleaseCommandDocumentName:
-    Value: !Ref DualImageReleaseCommandDocument
   HelperMaintenanceCommandDocumentName:
     Value: !Ref HelperMaintenanceCommandDocument
-  ServiceUnitMaintenanceCommandDocumentName:
-    Value: !Ref ServiceUnitMaintenanceCommandDocument
   RuntimeParameterNames:
     Description: Exact SecureString names that the approved platform owner must create and rotate outside this template.
-    Value: /threadia/restricted-nonprod/runtime/{THREADIA_DB_URL,THREADIA_DB_USERNAME,THREADIA_DB_PASSWORD,THREADIA_JWT_SECRET,THREADIA_COOKIE_SECURE,THREADIA_CORS_ALLOWED_ORIGIN,MAIL_HOST,MAIL_PORT,MAIL_USERNAME,MAIL_PASSWORD,NOTIFICATION_FROM_EMAIL}
+    Value: /threadia/restricted-nonprod/runtime/{THREADIA_DB_URL,THREADIA_DB_USERNAME,THREADIA_DB_PASSWORD,THREADIA_JWT_SECRET,THREADIA_COOKIE_SECURE,THREADIA_CORS_ALLOWED_ORIGIN}
