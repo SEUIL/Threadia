@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-07-14  
-> **최종 수정**: 2026-07-15
-> **버전**: v0.6
+> **최종 수정**: 2026-07-17
+> **버전**: v0.7
 > **상태**: 검토 중  
 > **태그**: aws, release, ssm, approval, runbook
 
@@ -14,7 +14,8 @@
 1. Network Change Set: compute subnet 전용 route table, S3 Gateway Endpoint, approved S3 managed prefix list HTTPS egress와 deterministic artifact `releases/*` GetObject/GetObjectVersion endpoint policy를 검토한다.
 2. SSM delivery Change Set: `repo:SEUIL/Threadia:environment:restricted-nonprod` exact OIDC subject, deterministic private bucket, exact host role/instance, fixed Command document와 IAM policy를 검토한다. fixed document는 caller parameter 없이 stack Region을 `AWS_REGION`과 `AWS_DEFAULT_REGION`에 고정 주입하며 helper는 이 Region을 검증해 모든 S3/SSM 호출에 명시한다. 이 operator role은 execute하지 않고 Change Set review까지만 수행한다.
 3. Host gate: Java는 archive의 Linux x86_64 runtime으로 제공한다. AMI에는 SSM Agent, AWS CLI, Python 3, tar, curl, `flock`, systemd, `threadia` user와 root-owned service/helper만 준비한다. `bootstrap-host.sh`를 approved local artifact로 한 번 실행하며 package manager 또는 network access를 사용하지 않는다. helper maintenance는 `apply-release`만 갱신한다. service unit revision이 `Environment=MANAGEMENT_HEALTH_MAIL_ENABLED=false`를 포함하는지 확인하고, 누락 시 아래 service-unit maintenance channel의 별도 Change Set 승인으로만 remediation한다.
-4. Runtime gate: six Parameter Store SecureString과 master와 분리된 application DB user가 존재하고, parameter creation/rotation owner가 확인됐는지 검토한다.
+4. Runtime gate: restricted SSM delivery path는 여섯 필수 Parameter Store SecureString, `THREADIA_DB_URL`, `THREADIA_DB_USERNAME`, `THREADIA_DB_PASSWORD`, `THREADIA_JWT_SECRET`, `THREADIA_COOKIE_SECURE`, `THREADIA_CORS_ALLOWED_ORIGIN`을 전달한다. optional MAIL group은 `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `NOTIFICATION_FROM_EMAIL` 다섯 SecureString 전체만 허용한다. 다섯 값이 모두 absent이면 기존 six-key release와 동일하게 MAIL env를 생략하고, 다섯 값이 모두 non-empty이고 control character가 없을 때만 함께 materialize한다. blank·partial·missing·invalid 조합은 activation 전에 parameter name만 표시하고 실패하며 AWS CLI read error는 absent가 아니라 release failure다. master와 분리된 application DB user가 존재하고, parameter creation/rotation owner가 확인됐는지 검토한다.
+   MAIL group을 제공하거나 SMTP 발송을 운영하기 전에는 SES Production access와 SES SMTP PrivateLink가 모두 승인·적용됐는지 확인한다. identity/DKIM 검증만으로는 충분하지 않으며, pending network PrivateLink 변경은 이 release change와 분리한다.
 5. GitHub gate: `restricted-nonprod` Environment에 `main`만 custom branch policy로 설정하고 OIDC workflow variables와 workflow revision을 검토한다. release job 자체도 `refs/heads/main`만 허용하며 고정 concurrency group에서 이전 release를 취소하지 않고 직렬 실행한다.
 6. Helper maintenance gate: helper artifact workflow가 `apply-release` 한 파일을 `releases/<commit>/<run>-<attempt>/apply-release`에 upload한 뒤 기록한 key, S3 VersionId, SHA-256, commit, run evidence를 승인한다. artifact publish는 host를 mutate하지 않아 별도 concurrency group을 사용한다. 같은 triple을 Change Set의 helper parameter 세 개에 pin하고, Change Set에서 parameterless maintenance document와 exact host만 변경되는지 검토한다.
 7. Service-unit maintenance gate: service-unit artifact workflow가 `threadia-backend.service` 한 파일을 `releases/<commit>/<run>-<attempt>/threadia-backend.service`에 upload하기 전에 mail-health sentinel과 `systemd-analyze verify`를 통과했는지 확인한다. 기록된 key, S3 VersionId, SHA-256, commit, run evidence triple을 service-unit parameter 세 개에 pin하고, Change Set에서 parameterless service-unit document, GitHub role의 해당 document ARN, exact host만 변경되는지 검토한다. document revision lifecycle에는 `ssm:UpdateDocumentDefaultVersion`가 필요하므로 live rollout 전 SSM document version capacity와 non-default version 정리를 별도 검토한다.
@@ -32,3 +33,9 @@ Service-unit maintenance는 helper maintenance와 별도 channel이며 `threadia
 ## Legacy 경계
 
 CodeDeploy source와 이전 deploy skeleton은 삭제하지 않는다. 이 runbook의 SSM path가 승인 대상이며 legacy CodeDeploy source는 superseded reference로만 유지한다.
+
+## 변경 이력
+
+| 날짜 | 내용 |
+|---|---|
+| 2026-07-17 | optional all-or-none MAIL five-key runtime contract와 blank·partial group pre-activation failure, SES Production access·PrivateLink gate를 추가했다. |
