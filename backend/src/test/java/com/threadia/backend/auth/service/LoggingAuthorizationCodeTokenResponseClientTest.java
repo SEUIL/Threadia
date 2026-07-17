@@ -45,7 +45,8 @@ class LoggingAuthorizationCodeTokenResponseClientTest {
 		try {
 			assertThatThrownBy(() -> client.getTokenResponse(request)).isSameAs(exception);
 			assertThat(appender.list).extracting(ILoggingEvent::getFormattedMessage)
-					.containsExactly("OAuth2 token exchange failed: providerErrorCategory=invalid_grant");
+					.containsExactly(
+							"OAuth2 token exchange failed: providerErrorCategory=invalid_grant, causeSimpleClassNames=[]");
 			assertThat(appender.list.get(0).getFormattedMessage())
 					.doesNotContain("authorization code must not be logged");
 		} finally {
@@ -66,9 +67,59 @@ class LoggingAuthorizationCodeTokenResponseClientTest {
 		try {
 			assertThatThrownBy(() -> client.getTokenResponse(request)).isSameAs(exception);
 			assertThat(appender.list).extracting(ILoggingEvent::getFormattedMessage)
-					.containsExactly("OAuth2 token exchange failed: providerErrorCategory=other_provider_error");
+					.containsExactly(
+							"OAuth2 token exchange failed: providerErrorCategory=other_provider_error, causeSimpleClassNames=[]");
 			assertThat(appender.list.get(0).getFormattedMessage())
 					.doesNotContain("provider response must not be logged");
+		} finally {
+			detachAppender(appender);
+		}
+	}
+
+	@Test
+	void nested_cause_class_names를_최대_5개까지만_로그하고_원본_예외를_그대로_재전파한다() {
+		OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> delegate = mock();
+		OAuth2AuthorizationCodeGrantRequest request = mock();
+		OAuth2AuthorizationException exception = new OAuth2AuthorizationException(
+				new OAuth2Error("vendor_specific_error", null, null));
+		exception.initCause(new TlsHandshakeFailure("tls" ,
+				new CertificateValidationFailure("cert", new SocketReadFailure("socket",
+						new HttpResponseParsingFailure("http", new JsonDecodingFailure("json",
+								new SecretBackoffFailure("secret", null)))))));
+		when(delegate.getTokenResponse(request)).thenThrow(exception);
+		LoggingAuthorizationCodeTokenResponseClient client = new LoggingAuthorizationCodeTokenResponseClient(delegate);
+		ListAppender<ILoggingEvent> appender = attachAppender();
+
+		try {
+			assertThatThrownBy(() -> client.getTokenResponse(request)).isSameAs(exception);
+			assertThat(appender.list).extracting(ILoggingEvent::getFormattedMessage).containsExactly(
+					"OAuth2 token exchange failed: providerErrorCategory=other_provider_error, causeSimpleClassNames=[TlsHandshakeFailure, CertificateValidationFailure, SocketReadFailure, HttpResponseParsingFailure, JsonDecodingFailure]");
+			assertThat(appender.list.get(0).getFormattedMessage()).doesNotContain("tls", "cert", "socket", "http", "json", "secret");
+		} finally {
+			detachAppender(appender);
+		}
+	}
+
+	@Test
+	void cyclic_cause를_순환_방지로_안전하게_로그하고_원본_예외를_그대로_재전파한다() {
+		OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> delegate = mock();
+		OAuth2AuthorizationCodeGrantRequest request = mock();
+		OAuth2AuthorizationException exception = new OAuth2AuthorizationException(
+				new OAuth2Error("invalid_grant", null, null));
+		CyclicHandshakeFailure cyclicHandshakeFailure = new CyclicHandshakeFailure("handshake");
+		CyclicTransportFailure cyclicTransportFailure = new CyclicTransportFailure("transport");
+		cyclicHandshakeFailure.initCause(cyclicTransportFailure);
+		cyclicTransportFailure.initCause(cyclicHandshakeFailure);
+		exception.initCause(cyclicHandshakeFailure);
+		when(delegate.getTokenResponse(request)).thenThrow(exception);
+		LoggingAuthorizationCodeTokenResponseClient client = new LoggingAuthorizationCodeTokenResponseClient(delegate);
+		ListAppender<ILoggingEvent> appender = attachAppender();
+
+		try {
+			assertThatThrownBy(() -> client.getTokenResponse(request)).isSameAs(exception);
+			assertThat(appender.list).extracting(ILoggingEvent::getFormattedMessage).containsExactly(
+					"OAuth2 token exchange failed: providerErrorCategory=invalid_grant, causeSimpleClassNames=[CyclicHandshakeFailure, CyclicTransportFailure]");
+			assertThat(appender.list.get(0).getFormattedMessage()).doesNotContain("handshake", "transport");
 		} finally {
 			detachAppender(appender);
 		}
@@ -86,5 +137,53 @@ class LoggingAuthorizationCodeTokenResponseClientTest {
 		Logger logger = (Logger) LoggerFactory.getLogger(LoggingAuthorizationCodeTokenResponseClient.class);
 		logger.detachAppender(appender);
 		appender.stop();
+	}
+
+	private static final class TlsHandshakeFailure extends RuntimeException {
+		private TlsHandshakeFailure(String message, Throwable cause) {
+			super(message, cause);
+		}
+	}
+
+	private static final class CertificateValidationFailure extends RuntimeException {
+		private CertificateValidationFailure(String message, Throwable cause) {
+			super(message, cause);
+		}
+	}
+
+	private static final class SocketReadFailure extends RuntimeException {
+		private SocketReadFailure(String message, Throwable cause) {
+			super(message, cause);
+		}
+	}
+
+	private static final class HttpResponseParsingFailure extends RuntimeException {
+		private HttpResponseParsingFailure(String message, Throwable cause) {
+			super(message, cause);
+		}
+	}
+
+	private static final class JsonDecodingFailure extends RuntimeException {
+		private JsonDecodingFailure(String message, Throwable cause) {
+			super(message, cause);
+		}
+	}
+
+	private static final class SecretBackoffFailure extends RuntimeException {
+		private SecretBackoffFailure(String message, Throwable cause) {
+			super(message, cause);
+		}
+	}
+
+	private static final class CyclicHandshakeFailure extends RuntimeException {
+		private CyclicHandshakeFailure(String message) {
+			super(message);
+		}
+	}
+
+	private static final class CyclicTransportFailure extends RuntimeException {
+		private CyclicTransportFailure(String message) {
+			super(message);
+		}
 	}
 }
