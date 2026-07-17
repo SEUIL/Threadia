@@ -335,16 +335,16 @@ Resources:
                     trap 'restore 143' TERM
                     umask 027
                     [[ -f "$TARGET" ]]
-                    aws s3api get-object --region '${AWS::Region}' --bucket '${ArtifactBucket}' --key '${HelperArtifactKey}' --version-id '${HelperArtifactVersionId}' "$DOWNLOAD" >/dev/null
-                    [[ "$(sha256sum "$DOWNLOAD" | cut -d ' ' -f1)" == '${HelperArtifactSha256}' ]]
+                    aws s3api get-object --region '${AWS::Region}' --bucket '${ArtifactBucket}' --key 'releases/97d6f8789280336f9cb2f72a786e57b95d915f19/29418381683-1/apply-release' --version-id 'jLhUyDqaJxl7LYwMMSIGFmLka4UtqCwe' "$DOWNLOAD" >/dev/null
+                    [[ "$(sha256sum "$DOWNLOAD" | cut -d ' ' -f1)" == '586e284d82f5a0f9496b8201257efca7e1502344357567b420a21d8a51ac3b68' ]]
                     bash -n "$DOWNLOAD"
                     install -o root -g root -m 0750 "$DOWNLOAD" "$STAGED"
-                    [[ "$(sha256sum "$STAGED" | cut -d ' ' -f1)" == '${HelperArtifactSha256}' ]]
+                    [[ "$(sha256sum "$STAGED" | cut -d ' ' -f1)" == '586e284d82f5a0f9496b8201257efca7e1502344357567b420a21d8a51ac3b68' ]]
                     bash -n "$STAGED"
                     cp -p "$TARGET" "$BACKUP"
                     backup_ready=true
                     mv -Tf "$STAGED" "$TARGET"
-                    [[ "$(sha256sum "$TARGET" | cut -d ' ' -f1)" == '${HelperArtifactSha256}' ]]
+                    [[ "$(sha256sum "$TARGET" | cut -d ' ' -f1)" == '586e284d82f5a0f9496b8201257efca7e1502344357567b420a21d8a51ac3b68' ]]
                     bash -n "$TARGET"
                     success=true
                     trap - ERR INT TERM EXIT
