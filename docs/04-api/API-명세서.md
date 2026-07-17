@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
 > **최종 수정**: 2026-07-17
-> **버전**: v3.4 WBS 4.9.4 Search Backend response contract 정정
+> **버전**: v3.5 SEARCH-01 Level 4 Backend/Frontend 계층 정정
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -13,7 +13,7 @@
 
 > **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows이며, DB는 ERD 기반 `db/schema.sql`과 문서 변경이력으로 관리한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
-> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, Sprint 3 decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15 WBS `4.10.1` support case, WBS `4.10.3` typed system settings, WBS `4.8.1` notification inbox/read-state, WBS `4.9.4` 프로젝트 범위 Search Backend 계약을 확정한다. notification producer matrix, preferences, push/WebSocket, Frontend와 enforcement, admin lifecycle, dashboard는 후속 범위다. attachment, document optimistic locking, advanced DM, PROJECT notification preference scope, project restore, permanent delete는 선행 결정 전 full endpoint contract나 request/response body를 만들지 않는다.
+> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, Sprint 3 decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15 WBS `4.10.1` support case, WBS `4.10.3` typed system settings, WBS `4.8.1` notification inbox/read-state, WBS `4.9.4.1` 프로젝트 범위 Search Backend 계약을 확정한다. `4.9.4`는 진행 중 50% parent이며 `4.9.4.2` Frontend 구현은 계획/0% 상태다. notification producer matrix, preferences, push/WebSocket, Frontend와 enforcement, admin lifecycle, dashboard는 후속 범위다. attachment, document optimistic locking, advanced DM, PROJECT notification preference scope, project restore, permanent delete는 선행 결정 전 full endpoint contract나 request/response body를 만들지 않는다.
 
 
 ## 1. 공통 규칙
@@ -466,7 +466,7 @@ WBS `4.8.1`은 MySQL의 기존 `notification_events`, `notification_recipients`�
 | Method | Endpoint | 권한 | 설명 | 상태 |
 |---|---|---|---|---|
 | GET | `/api/v1/projects/{projectId}/activity-events` | A/P/C | 프로젝트 활동 피드 조회 | Sprint 3 후보 |
-| GET | `/api/v1/search` | A/P/C | 프로젝트 내부 통합 검색 | WBS `4.9.4` Backend 구현 |
+| GET | `/api/v1/search` | A/P/C | 프로젝트 내부 통합 검색 | WBS `4.9.4.1` Backend 구현 완료 |
 | GET | `/api/v1/projects/{projectId}/dashboard` | A/P/C | 프로젝트 홈/대시보드 summary | Sprint 3 후보 |
 
 ### 10.1 활동 피드
@@ -476,9 +476,9 @@ WBS `4.8.1`은 MySQL의 기존 `notification_events`, `notification_recipients`�
 - push 메시지는 새 이벤트 신호만 보내고, 클라이언트는 REST API로 feed를 재조회한다.
 - Redis cache key 예시: `activity:project:{projectId}:latest`.
 
-### 10.2 WBS 4.9.4 통합 검색 Backend 정책
+### 10.2 WBS 4.9.4.1 통합 검색 Backend 정책
 
-`GET /api/v1/search`는 인증된 ACTIVE 사용자가 권한 있는 하나의 프로젝트 안에서 통합 검색을 수행하는 Backend 계약이다. 검색 방식은 WBS `4.9.2` 결정에 따라 MySQL `LIKE`를 사용한다.
+`GET /api/v1/search`는 인증된 ACTIVE 사용자가 권한 있는 하나의 프로젝트 안에서 통합 검색을 수행하는 Backend 계약이다. 검색 방식은 WBS `4.9.2.1` 완료 결정에 따라 MySQL `LIKE`를 사용한다. `4.9.2`와 `4.9.4`는 진행 중 50% parent이며, `4.9.2.2`와 `4.9.4.2` Frontend row는 계획/0% 상태다.
 
 #### Request
 
