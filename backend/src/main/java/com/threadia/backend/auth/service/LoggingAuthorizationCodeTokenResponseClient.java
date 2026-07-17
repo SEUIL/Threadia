@@ -1,5 +1,9 @@
 package com.threadia.backend.auth.service;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -35,8 +39,8 @@ public final class LoggingAuthorizationCodeTokenResponseClient
 		try {
 			return delegate.getTokenResponse(authorizationCodeGrantRequest);
 		} catch (OAuth2AuthorizationException exception) {
-			log.warn("OAuth2 token exchange failed: providerErrorCategory={}",
-					resolveProviderErrorCategory(exception));
+			log.warn("OAuth2 token exchange failed: providerErrorCategory={}, causeSimpleClassNames={}",
+					resolveProviderErrorCategory(exception), resolveCauseSimpleClassNames(exception));
 			throw exception;
 		}
 	}
@@ -44,5 +48,18 @@ public final class LoggingAuthorizationCodeTokenResponseClient
 	static String resolveProviderErrorCategory(OAuth2AuthorizationException exception) {
 		String errorCode = exception.getError().getErrorCode();
 		return ALLOWED_PROVIDER_ERROR_CODES.contains(errorCode) ? errorCode : OTHER_PROVIDER_ERROR;
+	}
+
+	static List<String> resolveCauseSimpleClassNames(Throwable throwable) {
+		List<String> causeSimpleClassNames = new ArrayList<>(5);
+		Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+		Throwable current = throwable.getCause();
+
+		while (current != null && causeSimpleClassNames.size() < 5 && visited.add(current)) {
+			causeSimpleClassNames.add(current.getClass().getSimpleName());
+			current = current.getCause();
+		}
+
+		return List.copyOf(causeSimpleClassNames);
 	}
 }
