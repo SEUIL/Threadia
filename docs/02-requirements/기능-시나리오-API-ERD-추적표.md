@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-15  
 > **최종 수정**: 2026-07-17
-> **버전**: v1.6 SEARCH-01 Search Backend 구현과 고급 검색 보류 추적 반영
+> **버전**: v1.7 SEARCH-01 Level 4 Backend/Frontend 계층 정정
 > **상태**: 확정
 > **태그**: requirements, traceability, api, erd
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
@@ -85,7 +85,7 @@
 | 기능 | 기능 ID | 연결 시나리오 | API | ERD/기술 원장 | Sprint 3 처리 | 보류/제외 경계 |
 |---|---|---|---|---|---|---|
 | 프로젝트 활동 피드 | FEED-01 | 조건부 확장 흐름 | `GET /api/v1/projects/{projectId}/activity-events` | `activity_events`, STOMP push, Redis cache | Sprint 3 후보 | NoSQL feed store 제외 |
-| 통합 검색 | SEARCH-01 | 조건부 확장 흐름 | `GET /api/v1/search` | MySQL `LIKE` | WBS `4.9.2` 결정 완료, `4.9.4` Backend 구현 완료 | FULLTEXT, 외부 검색 엔진, Redis, schema, Frontend와 고급 검색은 보류 |
+| 통합 검색 | SEARCH-01 | 조건부 확장 흐름 | `GET /api/v1/search` | MySQL `LIKE` | `4.9.2`와 `4.9.4` 진행 중 50% parent, `4.9.2.1` 결정 완료, `4.9.4.1` Backend 구현 완료, `4.9.2.2`/`4.9.4.2` Frontend 계획 0% | FULLTEXT, 외부 검색 엔진, Redis, schema, type filter, source별 결과 필드, Frontend와 고급 검색은 보류 |
 | 프로젝트 홈/대시보드 | DASH-01~04 | 조건부 확장 흐름 | `GET /api/v1/projects/{projectId}/dashboard` | MySQL aggregate, `project_dashboard_summaries`, Redis cache | Sprint 3 후보 | 별도 OLAP/검색 엔진 제외 |
 | 파일/이미지 첨부 | ATTACH-01 | MVP 이후/보류 흐름 | `/api/v1/attachments` 미제공 | attachments 테이블/S3 presigned URL 정책 | Sprint 3 decision-needed | 회사 로고와 프로필 URL은 별도 처리 |
 
@@ -135,7 +135,7 @@
 - [x] 모든 주요 사용자 시나리오가 API 명세서의 endpoint 또는 명시적 비API 정책과 연결된다.
 - [x] API에서 생성·수정·조회하는 주요 데이터가 ERD 테이블과 연결된다.
 - [x] `소셜 로그인`, `비밀번호 찾기/재설정`, `프로필 사진`은 Sprint 1/MVP 범위로 추적된다.
-- [x] `FEED/DASH`는 Sprint 3 후보, `SEARCH-01`은 WBS `4.9.2` 결정 및 `4.9.4` Backend 구현 완료로, `ATTACH`는 Sprint 3 decision-needed로 추적된다.
+- [x] `FEED/DASH`는 Sprint 3 후보, `SEARCH-01`은 `4.9.2`와 `4.9.4` 진행 중 50% parent 아래 `4.9.2.1` 결정 및 `4.9.4.1` Backend 구현 완료, `4.9.2.2`/`4.9.4.2` Frontend 계획 0%로, `ATTACH`는 Sprint 3 decision-needed로 추적된다.
 - [x] 보류 기능은 필수 시나리오에서 제거되거나 제한 조건으로 명시된다.
 - [x] Redis, STOMP push, summary table은 원본 데이터가 아닌 조건부 확장 계층으로 추적된다.
 - [x] `activity_events`와 `notification_events` 운영상 분리 기준을 확정했다. 두 저장소는 통합하지 않고 필요 시 activity 이벤트에서 notification 이벤트를 생성하는 연계만 허용한다.
