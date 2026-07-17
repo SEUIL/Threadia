@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
 > **최종 수정**: 2026-07-17
-> **버전**: v3.2 WBS 4.8.1 Notification Core Backend 계약 반영
+> **버전**: v3.4 WBS 4.9.4 Search Backend response contract 정정
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -13,7 +13,7 @@
 
 > **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows이며, DB는 ERD 기반 `db/schema.sql`과 문서 변경이력으로 관리한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
-> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, Sprint 3 decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15 WBS `4.10.1` support case, WBS `4.10.3` typed system settings, WBS `4.8.1` notification inbox/read-state Backend 계약을 확정한다. notification producer matrix, preferences, push/WebSocket, Frontend와 enforcement, admin lifecycle, dashboard는 후속 범위다. attachment, document optimistic locking, advanced DM, PROJECT notification preference scope, project restore, permanent delete는 선행 결정 전 full endpoint contract나 request/response body를 만들지 않는다.
+> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, Sprint 3 decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15 WBS `4.10.1` support case, WBS `4.10.3` typed system settings, WBS `4.8.1` notification inbox/read-state, WBS `4.9.4` 프로젝트 범위 Search Backend 계약을 확정한다. notification producer matrix, preferences, push/WebSocket, Frontend와 enforcement, admin lifecycle, dashboard는 후속 범위다. attachment, document optimistic locking, advanced DM, PROJECT notification preference scope, project restore, permanent delete는 선행 결정 전 full endpoint contract나 request/response body를 만들지 않는다.
 
 
 ## 1. 공통 규칙
@@ -466,7 +466,7 @@ WBS `4.8.1`은 MySQL의 기존 `notification_events`, `notification_recipients`�
 | Method | Endpoint | 권한 | 설명 | 상태 |
 |---|---|---|---|---|
 | GET | `/api/v1/projects/{projectId}/activity-events` | A/P/C | 프로젝트 활동 피드 조회 | Sprint 3 후보 |
-| GET | `/api/v1/search` | A/P/C | 프로젝트 내부 통합 검색 | Sprint 3 decision-needed |
+| GET | `/api/v1/search` | A/P/C | 프로젝트 내부 통합 검색 | WBS `4.9.4` Backend 구현 |
 | GET | `/api/v1/projects/{projectId}/dashboard` | A/P/C | 프로젝트 홈/대시보드 summary | Sprint 3 후보 |
 
 ### 10.1 활동 피드
@@ -476,11 +476,72 @@ WBS `4.8.1`은 MySQL의 기존 `notification_events`, `notification_recipients`�
 - push 메시지는 새 이벤트 신호만 보내고, 클라이언트는 REST API로 feed를 재조회한다.
 - Redis cache key 예시: `activity:project:{projectId}:latest`.
 
-### 10.2 통합 검색
+### 10.2 WBS 4.9.4 통합 검색 Backend 정책
 
-- 1차 검색 대상: Issue, Document, Thread, Project Message.
-- MySQL `LIKE` 또는 FULLTEXT를 우선 사용한다.
-- MySQL `LIKE` 또는 FULLTEXT 우선 여부는 Sprint 3 decision-needed다. Typesense/Meilisearch는 기본 계약에 넣지 않는다.
+`GET /api/v1/search`는 인증된 ACTIVE 사용자가 권한 있는 하나의 프로젝트 안에서 통합 검색을 수행하는 Backend 계약이다. 검색 방식은 WBS `4.9.2` 결정에 따라 MySQL `LIKE`를 사용한다.
+
+#### Request
+
+```http
+GET /api/v1/search?projectId=20&q=로그인&size=20
+```
+
+| Parameter | 필수 | 규칙 |
+|---|---|---|
+| `projectId` | 필수 | 검색 범위가 되는 프로젝트 ID다. |
+| `q` | 필수 | 앞뒤 공백을 제거한 nonblank 문자열이며 최대 100자다. |
+| `cursor` | 선택 | 서버가 발급한 opaque signed cursor다. |
+| `size` | 선택 | 양수만 허용한다. 기본값은 20이고 50을 초과하면 50으로 cap한다. |
+
+#### 검색 대상과 가시성
+
+- source type은 `ISSUE`, `DOCUMENT`, `THREAD`, `PROJECT_MESSAGE` 네 가지다.
+- Issue는 `issueKey`, `title`, `description`을 검색하며 trashed Issue는 제외한다.
+- Document는 `title`, `content`를 검색하며 trashed Document는 제외한다.
+- Thread는 `topic`과 replies를 검색한다.
+- Project Message는 top-level 메시지만 검색한다. Thread reply, DM 메시지, 다른 프로젝트 메시지는 검색 대상이 아니다.
+- 모든 source는 기존 ACTIVE company membership과 ACTIVE project membership, 또는 기존 company/project admin authorization을 먼저 적용한다. 권한 없는 프로젝트와 항목은 결과에 노출하지 않는다.
+
+#### Query, 정렬, cursor
+
+- query는 parameterized literal `LIKE`로 처리한다. `%`, `_`, `\\`는 literal로 검색되도록 escape하고 SQL 문자열을 조합하지 않는다.
+- 결과는 `(sortAt DESC, type ASC, id DESC)`로 정렬한다. `sortAt`은 source의 검색 정렬 시각이며, 같은 값에서도 중복이나 누락 없이 순서를 결정한다.
+- cursor는 사용자 ID, `projectId`, trim된 `q`, 마지막 `(sortAt, type, id)`와 sort definition에 결합한 signed 값이다. 변조하거나 다른 사용자, 프로젝트, query에서 재사용하면 `400 VALIDATION_ERROR`다.
+
+#### Response
+
+성공 응답은 `ApiResponse<SearchData>`이며 `data.results`와 `data.nextCursor`를 사용한다. 모든 result는 `id`, `type`, `title`, `snippet`, `sortAt`만 포함한다. source별 원본 field나 `projectId`는 반환하지 않는다. 다음 page가 없으면 `data.nextCursor`는 `null`이다.
+
+```json
+{
+  "data": {
+    "results": [
+      {
+        "id": 101,
+        "type": "ISSUE",
+        "title": "로그인 오류",
+        "snippet": "로그인 화면에서 오류가 발생한다.",
+        "sortAt": "2026-07-17T03:00:00Z"
+      }
+    ],
+    "nextCursor": "next_cursor"
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+#### Error cases
+
+| 상황 | HTTP | `error.code` |
+|---|---:|---|
+| `projectId` 또는 `q` 누락, blank `q`, 100자 초과 query, 양수가 아닌 `size` | 400 | `VALIDATION_ERROR` |
+| 변조된 cursor 또는 다른 사용자/project/query에 재사용한 cursor | 400 | `VALIDATION_ERROR` |
+| 인증되지 않았거나 ACTIVE 사용자가 아님 | 401 | `UNAUTHORIZED` |
+| 기존 authorization 정책상 프로젝트 검색 권한이 없음 | 403 | `FORBIDDEN` |
+
+#### 비범위
+
+MySQL FULLTEXT, 외부 검색 엔진, Redis, DB schema/index 변경, Frontend, 한국어 형태소 분석, 초성·오타·동의어·fuzzy·autocomplete 검색은 이 Backend slice에 포함하지 않는다.
 
 ### 10.3 프로젝트 대시보드
 
