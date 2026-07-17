@@ -221,6 +221,71 @@ Resources:
                   /usr/local/lib/threadia-release/apply-release
                   '${ArtifactBucket}' '{{ ArtifactKey }}' '{{ ArtifactVersionId }}'
                   '{{ ArtifactSha256 }}' '{{ ReleaseId }}'
+  HelperMaintenanceCommandDocumentV2:
+    Type: AWS::SSM::Document
+    Properties:
+      Name: threadia-restricted-ssm-delivery-helper-maintenance-v2
+      UpdateMethod: NewVersion
+      DocumentType: Command
+      DocumentFormat: YAML
+      TargetType: /AWS::EC2::Instance
+      Content:
+        schemaVersion: '2.2'
+        description: Atomically install the CloudFormation-pinned release helper without service or Parameter Store access.
+        mainSteps:
+          - action: aws:runShellScript
+            name: InstallPinnedReleaseHelper
+            inputs:
+              runCommand:
+                - !Sub |
+                    set -euo pipefail
+                    readonly TARGET=/usr/local/lib/threadia-release/apply-release
+                    readonly HOST_LOCK=/run/threadia-release-maintenance.lock
+                    success=false
+                    backup_ready=false
+                    [[ "$(id -u)" -eq 0 ]]
+                    for command in aws sha256sum bash install mv mktemp flock cp; do
+                      command -v "$command" >/dev/null 2>&1
+                    done
+                    exec 9>"$HOST_LOCK"
+                    flock -n 9 || { printf '%s\n' 'another release or helper maintenance operation is active' >&2; exit 1; }
+                    readonly DOWNLOAD="$(mktemp /usr/local/lib/threadia-release/.apply-release.download.XXXXXX)"
+                    readonly STAGED="$(mktemp /usr/local/lib/threadia-release/.apply-release.install.XXXXXX)"
+                    readonly BACKUP="$(mktemp /usr/local/lib/threadia-release/.apply-release.backup.XXXXXX)"
+
+                    cleanup() {
+                      rm -f "$DOWNLOAD" "$STAGED" "$BACKUP"
+                    }
+
+                    restore() {
+                      local status="$1"
+                      trap - ERR INT TERM EXIT
+                      if [[ "$success" != true && "$backup_ready" == true && -f "$BACKUP" ]]; then
+                        mv -Tf "$BACKUP" "$TARGET"
+                      fi
+                      cleanup
+                      exit "$status"
+                    }
+
+                    trap 'restore "$?"' ERR EXIT
+                    trap 'restore 130' INT
+                    trap 'restore 143' TERM
+                    umask 027
+                    [[ -f "$TARGET" ]]
+                    aws s3api get-object --region '${AWS::Region}' --bucket '${ArtifactBucket}' --key '${HelperArtifactKey}' --version-id '${HelperArtifactVersionId}' "$DOWNLOAD" >/dev/null
+                    [[ "$(sha256sum "$DOWNLOAD" | cut -d ' ' -f1)" == '${HelperArtifactSha256}' ]]
+                    bash -n "$DOWNLOAD"
+                    install -o root -g root -m 0750 "$DOWNLOAD" "$STAGED"
+                    [[ "$(sha256sum "$STAGED" | cut -d ' ' -f1)" == '${HelperArtifactSha256}' ]]
+                    bash -n "$STAGED"
+                    cp -p "$TARGET" "$BACKUP"
+                    backup_ready=true
+                    mv -Tf "$STAGED" "$TARGET"
+                    [[ "$(sha256sum "$TARGET" | cut -d ' ' -f1)" == '${HelperArtifactSha256}' ]]
+                    bash -n "$TARGET"
+                    success=true
+                    trap - ERR INT TERM EXIT
+                    cleanup
   HelperMaintenanceCommandDocument:
     Type: AWS::SSM::Document
     Properties:
@@ -285,7 +350,6 @@ Resources:
                     success=true
                     trap - ERR INT TERM EXIT
                     cleanup
-
 Outputs:
   ArtifactBucketName:
     Value: !Ref ArtifactBucket
