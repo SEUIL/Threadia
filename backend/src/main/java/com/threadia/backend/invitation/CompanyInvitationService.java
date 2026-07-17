@@ -292,6 +292,8 @@ public class CompanyInvitationService {
 				invitation.getCompany().getId(),
 				invitation.getCompany().getName(),
 				invitation.getProjectId(),
+				// 이 서비스는 COMPANY scope만 다룬다 — projectId도 항상 null이다.
+				null,
 				invitation.getInviter().getId(),
 				invitation.getInviter().getNickname(),
 				invitation.getInvitee().getId(),
