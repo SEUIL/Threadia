@@ -133,6 +133,10 @@ assert "HelperArtifactKey:" in template
 assert "HelperArtifactVersionId:" in template
 assert "HelperArtifactSha256:" in template
 assert "HelperMaintenanceCommandDocument:" in template
+assert template.count("HelperMaintenanceCommandDocumentV2:") == 1
+helper_document_v2 = template.split("HelperMaintenanceCommandDocumentV2:", 1)[1].split("HelperMaintenanceCommandDocument:", 1)[0]
+assert "Name: threadia-restricted-ssm-delivery-helper-maintenance-v2" in helper_document_v2
+assert "UpdateMethod: NewVersion" in helper_document_v2
 helper_document = template.split("HelperMaintenanceCommandDocument:", 1)[1].split("Outputs:", 1)[0]
 assert "parameters:" not in helper_document
 assert "{{ " not in helper_document
@@ -181,12 +185,7 @@ assert "ssm:GetParametersByPath" in service_text
 assert "ssm:SendCommand" in service_text
 assert "secretsmanager:*" in service_text
 assert "AllowManageFixedCommandDocument" in service_text
-fixed_command_document = next(
-    statement
-    for statement in service_policy["Statement"]
-    if statement["Sid"] == "AllowManageFixedCommandDocument"
-)
-assert fixed_command_document["Action"] == [
+expected_document_lifecycle_actions = {
     "ssm:CreateDocument",
     "ssm:DescribeDocument",
     "ssm:GetDocument",
@@ -195,15 +194,32 @@ assert fixed_command_document["Action"] == [
     "ssm:DeleteDocument",
     "ssm:AddTagsToResource",
     "ssm:RemoveTagsFromResource",
-]
-assert fixed_command_document["Resource"] == "arn:aws:ssm:ap-northeast-2:<AWS_ACCOUNT_ID>:document/threadia-restricted-ssm-delivery-ReleaseCommandDocument-*"
-helper_maintenance_document = next(
-    statement
-    for statement in service_policy["Statement"]
-    if statement["Sid"] == "AllowManageFixedHelperMaintenanceCommandDocument"
+}
+
+
+def require_exact_document_lifecycle_statement(sid, resource):
+    statements = [statement for statement in service_policy["Statement"] if statement.get("Sid") == sid]
+    assert len(statements) == 1, f"service policy: expected exactly one {sid} statement"
+    statement = statements[0]
+    assert statement["Effect"] == "Allow"
+    actions = statement["Action"]
+    assert isinstance(actions, list) and len(actions) == len(expected_document_lifecycle_actions)
+    assert set(actions) == expected_document_lifecycle_actions
+    assert statement["Resource"] == resource
+
+
+require_exact_document_lifecycle_statement(
+    "AllowManageFixedCommandDocument",
+    "arn:aws:ssm:ap-northeast-2:<AWS_ACCOUNT_ID>:document/threadia-restricted-ssm-delivery-ReleaseCommandDocument-*",
 )
-assert helper_maintenance_document["Action"] == fixed_command_document["Action"]
-assert helper_maintenance_document["Resource"] == "arn:aws:ssm:ap-northeast-2:<AWS_ACCOUNT_ID>:document/threadia-restricted-ssm-delivery-HelperMaintenanceCommandDocument-*"
+require_exact_document_lifecycle_statement(
+    "AllowManageFixedHelperMaintenanceCommandDocument",
+    "arn:aws:ssm:ap-northeast-2:<AWS_ACCOUNT_ID>:document/threadia-restricted-ssm-delivery-HelperMaintenanceCommandDocument-*",
+)
+require_exact_document_lifecycle_statement(
+    "ManageThreadiaRestrictedSsmDeliveryHelperMaintenanceV2",
+    "arn:aws:ssm:ap-northeast-2:<AWS_ACCOUNT_ID>:document/threadia-restricted-ssm-delivery-helper-maintenance-v2",
+)
 assert "restricted-ssm-delivery-GitHubDeployRole-*" in service_text
 operator_text = json.dumps(operator_policy)
 assert "threadia-restricted-ssm-delivery" in operator_text
