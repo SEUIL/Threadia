@@ -36,14 +36,15 @@ class ProjectSearchRepositoryTest {
 		ArgumentCaptor<Object[]> parameters = ArgumentCaptor.forClass(Object[].class);
 		verify(jdbcTemplate).query(sql.capture(), ArgumentMatchers.<RowMapper<ProjectSearchRepository.SearchRow>>any(), parameters.capture());
 		assertThat(sql.getValue())
-				.contains("i.project_id = ?", "d.project_id = ?", "t.project_id = ?", "reply.project_id = ?", "m.project_id = ?")
+				.contains("i.project_id = ?", "d.project_id = ?", "t.project_id = ?", "m.project_id = ?")
 				.contains("i.trashed_at is null", "d.trashed_at is null")
 				.contains("i.issue_key like ? escape '\\\\'")
 				.contains("select 'PROJECT_MESSAGE' as source_type")
-				.contains("or exists (", "reply.thread_id = t.id", "m.thread_id is null")
+				.contains("or exists (", "from thread_comments reply", "reply.thread_id = t.id", "m.thread_id is null")
+				.doesNotContain("from messages reply", "reply.project_id = ?")
 				.contains("escape '\\\\'")
 				.contains("order by sort_at desc, source_type asc, source_id desc");
-		assertThat(parameters.getValue()).containsExactly(20L, "%release%", "%release%", "%release%", 20L, "%release%", "%release%", 20L, "%release%", 20L, "%release%", 20L, "%release%", 21);
+		assertThat(parameters.getValue()).containsExactly(20L, "%release%", "%release%", "%release%", 20L, "%release%", "%release%", 20L, "%release%", "%release%", 20L, "%release%", 21);
 	}
 
 	@Test

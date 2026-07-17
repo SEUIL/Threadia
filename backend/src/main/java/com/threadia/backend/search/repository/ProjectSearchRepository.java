@@ -40,9 +40,8 @@ public class ProjectSearchRepository {
 				          t.topic like ? escape '\\\\'
 				          or exists (
 				              select 1
-				              from messages reply
-				              where reply.project_id = ?
-				                and reply.thread_id = t.id
+				              from thread_comments reply
+				              where reply.thread_id = t.id
 				                and reply.content like ? escape '\\\\'
 				          )
 				      )
@@ -54,7 +53,7 @@ public class ProjectSearchRepository {
 				      and m.content like ? escape '\\\\'
 				) search_results
 				""");
-		List<Object> parameters = new ArrayList<>(List.of(projectId, pattern, pattern, pattern, projectId, pattern, pattern, projectId, pattern, projectId, pattern, projectId, pattern));
+		List<Object> parameters = new ArrayList<>(List.of(projectId, pattern, pattern, pattern, projectId, pattern, pattern, projectId, pattern, pattern, projectId, pattern));
 		if (cursor != null) {
 			sql.append("""
 					where sort_at < ?

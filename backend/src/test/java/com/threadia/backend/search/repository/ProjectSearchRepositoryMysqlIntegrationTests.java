@@ -64,8 +64,8 @@ class ProjectSearchRepositoryMysqlIntegrationTests {
 
 		jdbcTemplate.update("insert into threads (project_id, target_type, target_id, topic, created_by_user_id, created_at, updated_at) values (?, 'ISSUE', ?, ?, ?, ?, ?)", projectId, issueId, "Unmatched topic", userId, SAME_TIMESTAMP, SAME_TIMESTAMP);
 		threadId = jdbcTemplate.queryForObject("select id from threads where project_id = ? and target_id = ?", Long.class, projectId, issueId);
-		insertMessage(userId, threadId, "Reply one " + LITERAL);
-		insertMessage(userId, threadId, "Reply two " + LITERAL);
+		insertThreadComment(userId, threadId, "Reply one " + LITERAL);
+		insertThreadComment(userId, threadId, "Reply two " + LITERAL);
 		projectMessageId = insertMessage(userId, null, "Top-level " + LITERAL);
 	}
 
@@ -96,6 +96,11 @@ class ProjectSearchRepositoryMysqlIntegrationTests {
 	private Long insertMessage(Long userId, Long threadId, String content) {
 		jdbcTemplate.update("insert into messages (project_id, author_user_id, thread_id, content, created_at) values (?, ?, ?, ?, ?)", projectId, userId, threadId, content, SAME_TIMESTAMP);
 		return jdbcTemplate.queryForObject("select id from messages where project_id = ? and content = ?", Long.class, projectId, content);
+	}
+
+	private Long insertThreadComment(Long userId, Long threadId, String content) {
+		jdbcTemplate.update("insert into thread_comments (thread_id, author_user_id, content, created_at, updated_at) values (?, ?, ?, ?, ?)", threadId, userId, content, SAME_TIMESTAMP, SAME_TIMESTAMP);
+		return jdbcTemplate.queryForObject("select id from thread_comments where thread_id = ? and content = ?", Long.class, threadId, content);
 	}
 
 	private static String literalLikePattern(String value) {
