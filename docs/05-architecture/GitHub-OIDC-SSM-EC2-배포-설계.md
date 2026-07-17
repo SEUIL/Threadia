@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-14
-> **최종 수정**: 2026-07-16
-> **버전**: v0.4
+> **최종 수정**: 2026-07-17
+> **버전**: v0.7
 > **상태**: 검토 중
 > **태그**: aws, github-actions, oidc, ssm, s3, ec2, parameter-store
 
@@ -9,7 +9,7 @@
 
 ## 1. 목표 구조
 
-신규 active path는 `main` push 또는 `main` ref의 수동 dispatch에서만 GitHub Actions job이 실행되어 `restricted-nonprod` Environment OIDC subject로 role을 assume하고, versioned private S3 object를 기록한 뒤 고정 SSM Command document를 정확히 한 대의 private EC2에 보낸다. job-level `refs/heads/main` guard가 다른 ref의 수동 dispatch를 차단하고, 고정 concurrency group은 실행 중인 release를 취소하지 않은 채 후속 release를 직렬화한다. EC2는 S3 Gateway Endpoint와 SSM interface endpoint만 사용하며 NAT, public IP, public ingress, SSH, CodeDeploy를 사용하지 않는다.
+신규 active path는 `main` push 또는 `main` ref의 수동 dispatch에서만 GitHub Actions job이 실행되어 `restricted-nonprod` Environment OIDC subject로 role을 assume하고, versioned private S3 object를 기록한 뒤 고정 SSM Command document를 정확히 한 대의 private EC2에 보낸다. job-level `refs/heads/main` guard가 다른 ref의 수동 dispatch를 차단하고, 고정 concurrency group은 실행 중인 release를 취소하지 않은 채 후속 release를 직렬화한다. EC2는 S3 Gateway Endpoint와 SSM interface endpoint를 사용하며 NAT, public IP, public ingress, SSH, CodeDeploy를 사용하지 않는다. 승인된 별도 mail network gate는 dedicated SES SMTP Interface Endpoint의 private DNS와 EC2↔endpoint TCP/587 security group 규칙만 추가하며, SMTP credential이나 `MAIL_*` runtime delivery는 포함하지 않는다.
 
 ```text
 main → restricted-nonprod Environment OIDC → GitHub deploy role
@@ -48,10 +48,11 @@ workflow는 pinned action SHA를 사용하고 setup-java가 제공한 Linux x86_
 
 ## 5. Legacy와 승인 경계
 
-기존 `delivery-foundation*` CodeDeploy source는 기록 보존을 위해 유지하지만 신규 active path에서 사용하지 않는다. Network Change Set은 endpoint route/egress/policy만, SSM delivery Change Set은 deterministic artifact bucket, exact OIDC subject, fixed document와 runtime policy만 검토한다. delivery operator는 Change Set create/describe/delete와 exact CloudFormation role pass만 허용하며 Execute 권한이 없다. 두 승인 window는 분리한다. 이 repository revision은 AWS/GitHub resource, role, parameter, endpoint, stack, DB user를 생성하거나 변경하지 않는다.
+기존 `delivery-foundation*` CodeDeploy source는 기록 보존을 위해 유지하지만 신규 active path에서 사용하지 않는다. Network Change Set은 endpoint route/egress/policy만, SSM delivery Change Set은 deterministic artifact bucket, exact OIDC subject, fixed document와 runtime policy만 검토한다. SES SMTP endpoint를 추가할 때는 UPDATE Change Set에서 pre-existing resource의 Modify/Remove 또는 Replacement `True`/`Conditional`을 hard reject한다. 승인 가능한 action은 `SesSmtpEndpointSecurityGroup`, `SesSmtpEndpointIngress`, `Ec2SmtpToSesEndpoint`, `SesSmtpEndpoint`의 신규 Add뿐이며 그 밖의 action은 실행하지 않는다. delivery operator는 Change Set create/describe/delete와 exact CloudFormation role pass만 허용하며 Execute 권한이 없다. 두 승인 window는 분리한다. 이 repository revision은 AWS/GitHub resource, role, parameter, endpoint, stack, DB user를 생성하거나 변경하지 않는다.
 
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-07-17 | SES SMTP PrivateLink의 private DNS 및 TCP/587 전용 network gate를 승인된 endpoint 집합에 추가했다. UPDATE Change Set에서 pre-existing resource Modify/Remove, Replacement `True`/`Conditional`을 hard reject하고 네 SES logical resource의 신규 Add만 승인하며 SMTP credential과 `MAIL_*` runtime delivery는 후속 gate로 유지했다. |
 | 2026-07-16 | active restricted SSM path의 six-key 제한, bootstrap email 미전달, `platform_admins`가 비어 있는 첫 배포의 No-Go 경계를 명시했다. |

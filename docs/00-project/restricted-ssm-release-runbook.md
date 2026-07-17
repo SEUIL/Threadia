@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-14
-> **최종 수정**: 2026-07-16
-> **버전**: v0.5
+> **최종 수정**: 2026-07-17
+> **버전**: v0.8
 > **상태**: 검토 중
 > **태그**: aws, release, ssm, approval, runbook
 
@@ -11,7 +11,7 @@
 
 다음 순서의 별도 승인 없이는 GitHub workflow 또는 CloudFormation Change Set을 실행하지 않는다.
 
-1. Network Change Set: compute subnet 전용 route table, S3 Gateway Endpoint, approved S3 managed prefix list HTTPS egress와 deterministic artifact `releases/*` GetObject/GetObjectVersion endpoint policy를 검토한다.
+1. Network Change Set: compute subnet 전용 route table, S3 Gateway Endpoint, approved S3 managed prefix list HTTPS egress, deterministic artifact `releases/*` GetObject/GetObjectVersion endpoint policy와 restricted EC2에서 dedicated SES SMTP Interface Endpoint로 향하는 TCP/587 ingress/egress만 검토한다. SES endpoint는 private DNS와 ComputeSubnet만 사용하며 NAT, public egress 또는 SMTP credential/runtime delivery는 이 승인 gate에 포함하지 않는다. apply 전에는 UPDATE Change Set을 검토한다. pre-existing resource에 Modify 또는 Remove가 있거나 Replacement가 `True` 또는 `Conditional`이면 hard reject한다. `SesSmtpEndpointSecurityGroup`, `SesSmtpEndpointIngress`, `Ec2SmtpToSesEndpoint`, `SesSmtpEndpoint`의 신규 Add만 승인하며 그 밖의 action은 실행하지 않는다.
 2. SSM delivery Change Set: `repo:SEUIL/Threadia:environment:restricted-nonprod` exact OIDC subject, deterministic private bucket, exact host role/instance, fixed Command document와 IAM policy를 검토한다. fixed document는 caller parameter 없이 stack Region을 `AWS_REGION`과 `AWS_DEFAULT_REGION`에 고정 주입하며 helper는 이 Region을 검증해 모든 S3/SSM 호출에 명시한다. 이 operator role은 execute하지 않고 Change Set review까지만 수행한다.
 3. Host gate: Java는 archive의 Linux x86_64 runtime으로 제공한다. AMI에는 SSM Agent, AWS CLI, Python 3, tar, curl, systemd, `threadia` user와 root-owned service/helper만 준비한다. `bootstrap-host.sh`를 approved local artifact로 한 번 실행하며 package manager 또는 network access를 사용하지 않는다.
 4. Runtime gate: 현재 restricted SSM delivery path는 여섯 Parameter Store SecureString, `THREADIA_DB_URL`, `THREADIA_DB_USERNAME`, `THREADIA_DB_PASSWORD`, `THREADIA_JWT_SECRET`, `THREADIA_COOKIE_SECURE`, `THREADIA_CORS_ALLOWED_ORIGIN`만 전달한다. master와 분리된 application DB user가 존재하고, parameter creation/rotation owner가 확인됐는지 검토한다.
@@ -32,4 +32,5 @@ CodeDeploy source와 이전 deploy skeleton은 삭제하지 않는다. 이 runbo
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-07-17 | restricted EC2와 SES SMTP PrivateLink 사이의 TCP/587 전용 network gate를 추가했다. UPDATE Change Set에서 pre-existing resource Modify/Remove, Replacement `True`/`Conditional`을 hard reject하고 네 SES logical resource의 신규 Add만 승인하며 SMTP credential 및 runtime delivery는 별도 후속 승인 범위로 분리했다. |
 | 2026-07-16 | 현재 restricted SSM delivery path가 여섯 SecureString만 전달하며 bootstrap email을 주입할 수 없음을 명시했다. `platform_admins`가 비어 있는 첫 배포의 No-Go 경계를 추가했다. |
