@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-07
-> **최종 수정**: 2026-07-16
-> **버전**: v0.6 WBS 4.10.4 범위 정렬
+> **최종 수정**: 2026-07-17
+> **버전**: v0.7 DEFER-05/06 이번 개발 기간 보류 반영
 > **상태**: 검토 중
 > **태그**: decision, sprint-3, baseline, proposal, changelog
 
@@ -101,7 +101,6 @@
 | `ATTACH-01` | Sprint 3 decision-needed | S3 presigned URL, metadata, 권한, 크기, MIME 정책을 결정한다. |
 | `DEFER-01` | Sprint 3 decision-needed | `3.7~3.7.5` planning gate와 Go/No-Go handoff 이후 `4.10`에서 S15 구현/결정 row로 추적한다. |
 | `DEFER-04` | Sprint 3 decision-needed | optimistic locking 우선안과 실시간 공동 편집 후속 가능성을 결정한다. |
-| `DEFER-05`, `DEFER-06` | Sprint 3 decision-needed | DM room + participants 모델과 read receipt 정책을 결정한다. |
 | `PROJECT_NOTIFICATION_SCOPE_DEFERRED` | Sprint 3 decision-needed | API boundary code로 유지한다. 요구사항추적표 primary row로 backfill하지 않는다. |
 | `PROJECT_RESTORE_DEFERRED` | Sprint 3 decision-needed | archive 프로젝트 복원 권한과 UI/API 기준을 결정한다. |
 | `PERMANENT_DELETE_DEFERRED` | Sprint 3 decision-needed | 참조 무결성, audit, 보존 기간, 권한 기준을 결정한다. |
@@ -112,6 +111,7 @@
 |---|---|
 | `DEFER-02` | NoSQL feed store와 검색 엔진은 Sprint 3 기본안에서 제외한다. MySQL 원장과 MySQL 검색 우선을 유지한다. |
 | `DEFER-03` | 칸반 컬럼 커스터마이징은 5컬럼 고정 원칙을 유지하고 Sprint 3 기본 범위에 넣지 않는다. |
+| `DEFER-05`, `DEFER-06` | 다자간 DM과 상대 read receipt는 이번 개발 기간 보류다. 향후 재검토 전 1:1 DM 범위를 유지하고 API, schema, frontend 구현을 추가하지 않는다. |
 | `DM_MESSAGE_CANNOT_CREATE_ISSUE` | DM은 사적 소통으로 유지하고 메시지→이슈 전환 대상에서 제외한다. |
 | `INVITE-01~04` | company invitation 전용 row로 유지한다. project invitation으로 의미를 덮어쓰지 않는다. |
 
@@ -128,7 +128,7 @@ WBS rewrite는 `docs/00-project/sprint-운영/sprint-3-backlog.md`의 4.x parent
 | `4.4` | Sprint / Issue / Kanban 전체 흐름 | `SPRINT-01~02`, `ISSUE-01~04`, `KANBAN-01~02` | API+Frontend | S3-Core-Board |
 | `4.5` | 메시지→이슈와 문서 이벤트 알림 연결 | `LINK-01`, `LINK-03` | Cross-domain | S3-Linking |
 | `4.6` | Documents / Graph / Markdown editor | `DOC-01~04`, `GRAPH-01~02`, `LINK-02` | API+Frontend | S3-Docs |
-| `4.7` | Thread / Chat / DM | `THREAD-01~04`, `CHAT-01~03`, `DEFER-05~06` | API+Frontend+Decision | S3-Communication |
+| `4.7` | Thread / Chat / DM | `THREAD-01~04`, `CHAT-01~03` | API+Frontend | S3-Communication |
 | `4.8` | Notification core | `NOTI-01` | Event integration | S3-Events |
 | `4.9` | Conditional extensions | `FEED-01`, `SEARCH-01`, `DASH-01~04` | Decision+API | S3-Extensions |
 | `4.10` | S15 Platform Admin | `DEFER-01` | Implementation+Decision | S3-Platform |
@@ -142,7 +142,7 @@ Level 3 row는 전체 parent를 기계적으로 쪼개지 않고 실행 순서�
 | Parent | Level 3 row 범위 | 기준 |
 |---|---|---|
 | `4.2` | `4.2.1~4.2.2` | `4.2.1`은 Backend-only로 `PATCH /api/v1/users/me/profile`의 partial nickname/avatarUrl 수정을 지원하고, 기존 `GET /api/v1/auth/me`와 `GET /api/v1/users/me/company-memberships`를 분리된 verified context contract로 유지한다. `4.2.2`는 `4.2.1`에 의존하는 Frontend-only planned row로 mock role 제거, 프로필 UI, S03/S04 API 연동, 브라우저 검증을 다루며 0%로 둔다. |
-| `4.7` | `4.7.1~4.7.4` | thread core, project chat, 1:1 DM, group DM/read receipt decision 분리 |
+| `4.7` | `4.7.1~4.7.4` | thread core, project chat, 1:1 DM. `4.7.4`는 이번 개발 기간 보류 기록이며 완료가 아님 |
 | `4.9` | `4.9.1~4.9.3` | activity feed, search decision, dashboard aggregate 분리 |
 | `4.10` | `4.10.1~4.10.4` | support cases, enforcement, system settings decision, audit/operation logs 및 platform admin lifecycle/grant/revoke 분리 |
 | `4.11` | `4.11.1~4.11.3` | attachment policy, presigned URL 구현, metadata/validation 검증 분리 |

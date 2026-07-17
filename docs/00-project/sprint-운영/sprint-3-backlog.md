@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-07
-> **최종 수정**: 2026-07-16
-> **버전**: v0.7 WBS 4.10.4 lifecycle 범위 정렬
+> **최종 수정**: 2026-07-17
+> **버전**: v0.8 WBS 4.7.4 DEFER-05/06 이번 개발 기간 보류 반영
 > **상태**: 검토 중
 > **태그**: sprint-3, backlog, wbs, platform-admin, extension
 
@@ -25,7 +25,7 @@
 8. 같은 병렬 그룹의 row는 동시에 착수 가능해야 한다. Gate row, backend/API row, frontend row, QA row를 같은 그룹으로 섞지 않는다.
 9. S15는 `3.7~3.7.5` Sprint 2 planning gate와 Go/No-Go handoff를 선행 기준으로 두고, Sprint 3 `4.10`에서 primary 구현/결정 row로 추적한다.
 10. 동시 문서 편집은 optimistic locking을 기본 권장안으로 두되, 후속 변경 가능성을 명시한다.
-11. 고급 DM은 room + participants 구조로 일반화하는 방향을 기본 권장안으로 둔다.
+11. 다자간 DM과 상대 read receipt는 이번 개발 기간에 보류하고, 향후 재검토 전까지 1:1 DM 범위만 유지한다.
 12. 알림 primary WBS 매핑은 `NOTI-01`을 `4.8`에 둔다. `NOTI-02/03`은 현재 계약/reference row로 유지하고, `PROJECT_NOTIFICATION_SCOPE_DEFERRED`는 API boundary code로 관리한다.
 13. 검색과 첨부는 기술 정책 결정 row를 선행한다.
 14. project restore와 issue/document permanent delete는 포함하되, 정책 결정 row를 선행한다.
@@ -43,7 +43,7 @@
 | 4.4 | 2 | Sprint / Issue / Kanban | Sprint 운영과 이슈/칸반 전체 흐름 | 3.3, 3.4, 3.5.1, 4.1 | API+Frontend | Project foundation과 Issue/Kanban candidate 결과 확인 | S3-Core-Board | 계획 | P0 | Sprint 3 후보 |
 | 4.5 | 2 | Message / Link | 메시지→이슈와 문서 이벤트 알림 연결 | 4.4, 4.6, 4.7 | Cross-domain | Issue, Document, Chat 최소 저장 흐름 확인 | S3-Linking | 계획 | P1 | Sprint 3 후보 |
 | 4.6 | 2 | Documents / Graph | 문서·회의록, Markdown editor, 그래프 | 3.3, 4.1 | API+Frontend | Project foundation과 문서/그래프 canonical 반영 기준 확인 | S3-Docs | 계획 | P0 | Sprint 3 후보 |
-| 4.7 | 2 | Thread / Chat / DM | 쓰레드, 프로젝트 채팅, 1:1/group DM | 3.1, 3.3, 4.1 | API+Frontend+Decision | DM room model 결정과 project message 기준 확인 | S3-Communication | 계획 | P0 | Sprint 3 후보 |
+| 4.7 | 2 | Thread / Chat / DM | 쓰레드, 프로젝트 채팅, 1:1 DM | 3.1, 3.3, 4.1 | API+Frontend | project message와 1:1 DM 기준 확인 | S3-Communication | 계획 | P0 | Sprint 3 후보 |
 | 4.8 | 2 | Notification | 알림 core | 4.3, 4.4, 4.6, 4.7 | Event integration | event source와 recipient 정책 확인 | S3-Events | 계획 | P0 | Sprint 3 후보 |
 | 4.9 | 2 | Conditional Extensions | activity feed, search, dashboard | 4.4, 4.6, 4.8 | Decision+API | MySQL 우선 검색 방식과 dashboard/feed source 확인 | S3-Extensions | 계획 | P1 | decision-needed |
 | 4.10 | 2 | S15 Platform Admin | S15 상세 확정과 구현 | 3.7.1~3.7.5, 3.1~3.4, 4.1 | Implementation+Decision | `3.7~3.7.5` planning gate와 Go/No-Go handoff 확인 | S3-Platform | 계획 | P1 | Sprint 3 primary row |
@@ -63,7 +63,7 @@ Level 3 row는 전체 `4.x`를 기계적으로 쪼갠 것이 아니라, 실제 �
 | `4.7` | `4.7.1` | thread core 구현 | Sprint 3 후보 |
 | `4.7` | `4.7.2` | project chat 구현 | Sprint 3 후보 |
 | `4.7` | `4.7.3` | 1:1 DM 구현 | Sprint 3 후보 |
-| `4.7` | `4.7.4` | group DM/read receipt decision | decision-needed |
+| `4.7` | `4.7.4` | group DM/read receipt 이번 개발 기간 보류 기록 | 보류, 향후 재검토 |
 | `4.9` | `4.9.1` | activity feed 최소 구현 | Sprint 3 후보 |
 | `4.9` | `4.9.2` | search 방식 결정 | decision-needed |
 | `4.9` | `4.9.3` | dashboard aggregate 구현 | Sprint 3 후보 |
@@ -93,7 +93,7 @@ Level 3 row는 전체 `4.x`를 기계적으로 쪼갠 것이 아니라, 실제 �
 | 4.4 | `SPRINT-01~02`, `ISSUE-01~04`, `KANBAN-01~02` | sprints, issues, issue status, S05, S06 | Sprint/Issue/Kanban board vertical slice | Owner 1명, 지원 1명 가능 | Sprint, issue CRUD, 5컬럼 상태 변경, 휴지통/복원 확인 | test, curl, 브라우저 확인 |
 | 4.5 | `LINK-01`, `LINK-03` | messages, issues, documents, threads | 메시지→이슈와 문서 이벤트 알림 연결 흐름 | Owner 1명, cross-domain이면 지원 1명 | project message만 이슈 전환 가능하고 문서 이벤트 알림 경계가 확인된다 | test, curl, DB 확인 |
 | 4.6 | `DOC-01~04`, `GRAPH-01~02`, `LINK-02` | documents, document_issue_links, graph, S07, S08 | 문서/회의록과 graph vertical slice | Owner 1명, 지원 1명 가능 | 문서 CRUD, 휴지통/복원, graph node/edge 조회 가능 | test, curl, 브라우저 확인 |
-| 4.7 | `THREAD-01~04`, `CHAT-01~03`, `DEFER-05~06` | threads, messages, DM rooms, S09, S10 | thread/chat/DM communication vertical slice | Owner 1명, DM model 결정 시 지원 1명 | thread, project chat, 1:1/group DM, unread/read 기준 확인 | test, curl, 브라우저 확인 |
+| 4.7 | `THREAD-01~04`, `CHAT-01~03` | threads, messages, DM rooms, S09, S10 | thread/chat/1:1 DM communication vertical slice | Owner 1명 | thread, project chat, 1:1 DM, unread/read 위치 기준 확인. `4.7.4`는 완료가 아닌 이번 개발 기간 보류 기록으로 유지 | test, curl, 브라우저 확인 |
 | 4.8 | `NOTI-01` | notification events, recipients, preferences, S11 | notification 목록/읽음 core | Owner 1명, event source 연계 시 지원 1명 | notification 목록/읽음과 invitation event boundary 확인 | test, curl, 브라우저 확인 |
 | 4.9 | `FEED-01`, `SEARCH-01`, `DASH-01~04` | activity_events, `/search`, `/dashboard` | 조건부 확장 decision과 MySQL 우선 구현 | Owner 1명, 검색 결정 시 지원 공란 | feed/search/dashboard 범위와 검색 방식 결정이 남는다 | decision record, test, curl |
 | 4.10 | `DEFER-01` | S15, platform_admins, support_cases, audit log | S15 planning gate 이후 구현/결정 vertical slice | Owner 1명, 보안/감사 위험으로 지원 1명 가능 | `3.7~3.7.5` Go/No-Go handoff를 확인하고 `users.role` 없이 platform admin 분리와 audit 기준 확인 | 문서 review, test, curl, 보안 review |
