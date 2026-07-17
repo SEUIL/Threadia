@@ -68,12 +68,12 @@ Level 3 row는 전체 `4.x`를 기계적으로 쪼갠 것이 아니라, 실제 �
 | `4.8` | `4.8.2` | Frontend: S11 알림 inbox UI와 WBS 4.8.1 API 연동 | Frontend-only, `4.8.1` 의존, planned only, 0%, Owner 정철진 |
 | `4.9` | `4.9.1` | activity feed 최소 구현 | Sprint 3 후보 |
 | `4.9` | `4.9.2` | search 방식 결정 | conceptual parent, 진행 중 50%. `4.9.2.1` Backend 결정과 `4.9.2.2` Frontend 결정으로 분리 |
-| `4.9` | `4.9.2.1` | Backend: MySQL `LIKE` 검색 방식 결정 | Backend-only, 완료 |
-| `4.9` | `4.9.2.2` | Frontend: 검색 화면 연동 방식 결정 | Frontend-only, 계획, 0%, Owner 정철진 |
+| `4.9.2` | `4.9.2.1` | Backend: MySQL `LIKE` 검색 방식 결정 | Backend-only, 완료 |
+| `4.9.2` | `4.9.2.2` | Frontend: 검색 화면 연동 방식 결정 | Frontend-only, 계획, 0%, Owner 정철진 |
 | `4.9` | `4.9.3` | dashboard aggregate 구현 | Sprint 3 후보 |
 | `4.9` | `4.9.4` | 통합 검색 구현 | conceptual parent, 진행 중 50%. `4.9.4.1` Backend 구현과 `4.9.4.2` Frontend 구현으로 분리 |
-| `4.9` | `4.9.4.1` | Backend: `GET /api/v1/search` 프로젝트 범위 통합 검색 구현 | Backend-only, 완료 |
-| `4.9` | `4.9.4.2` | Frontend: 검색 입력·결과, `GET /api/v1/search` 연동, `nextCursor` pagination, type 기반 이동, loading/empty/error 상태 | Frontend-only, 계획, 0%, Owner 정철진. browser/lint/typecheck/build 검증 계획이며 type filtering과 source별 결과 필드는 현재 Backend API 범위에 없음 |
+| `4.9.4` | `4.9.4.1` | Backend: `GET /api/v1/search` 프로젝트 범위 통합 검색 구현 | Backend-only, 완료 |
+| `4.9.4` | `4.9.4.2` | Frontend: 검색 입력·결과, `GET /api/v1/search` 연동, `nextCursor` pagination, type 기반 이동, loading/empty/error 상태 | Frontend-only, 계획, 0%, Owner 정철진. browser/lint/typecheck/build 검증 계획이며 type filtering과 source별 결과 필드는 현재 Backend API 범위에 없음 |
 | `4.10` | `4.10.1` | support cases 구현 범위 확정/구현 | Sprint 3 후보 |
 | `4.10` | `4.10.2` | user/company enforcement 구현 | 정책 확정, 구현 미착수 |
 | `4.10` | `4.10.3` | system settings 구현 범위 확정 | 정책 결정 확정, 구현 미착수 |
