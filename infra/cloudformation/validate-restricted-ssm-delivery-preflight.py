@@ -139,14 +139,31 @@ assert template.count("HelperMaintenanceCommandDocumentV2:") == 1
 helper_document_v2 = template.split("HelperMaintenanceCommandDocumentV2:", 1)[1].split("HelperMaintenanceCommandDocument:", 1)[0]
 assert "Name: threadia-restricted-ssm-delivery-helper-maintenance-v2" in helper_document_v2
 assert "UpdateMethod: NewVersion" in helper_document_v2
+assert "--version-id '${HelperArtifactVersionId}'" in helper_document_v2
+assert "--key '${HelperArtifactKey}'" in helper_document_v2
+assert helper_document_v2.count("'${HelperArtifactSha256}'") == 3
 helper_document = template.split("HelperMaintenanceCommandDocument:", 1)[1].split("Outputs:", 1)[0]
 assert "parameters:" not in helper_document
 assert "{{ " not in helper_document
 assert "aws:runShellScript" in helper_document
 assert "aws s3api get-object" in helper_document
-assert "--version-id '${HelperArtifactVersionId}'" in helper_document
-assert "--key '${HelperArtifactKey}'" in helper_document
-assert helper_document.count("'${HelperArtifactSha256}'") == 3
+legacy_helper_key = "releases/97d6f8789280336f9cb2f72a786e57b95d915f19/29418381683-1/apply-release"
+legacy_helper_version_id = "jLhUyDqaJxl7LYwMMSIGFmLka4UtqCwe"
+legacy_helper_sha256 = "586e284d82f5a0f9496b8201257efca7e1502344357567b420a21d8a51ac3b68"
+legacy_helper_get_object = (
+    "aws s3api get-object --region '${AWS::Region}' --bucket '${ArtifactBucket}' "
+    f"--key '{legacy_helper_key}' --version-id '{legacy_helper_version_id}' \"$DOWNLOAD\" >/dev/null"
+)
+assert helper_document.count(legacy_helper_get_object) == 1
+assert helper_document.count(f"'{legacy_helper_key}'") == 1
+assert helper_document.count(f"'{legacy_helper_version_id}'") == 1
+assert helper_document.count(f"'{legacy_helper_sha256}'") == 3
+for helper_artifact_substitution in (
+    "${HelperArtifactKey}",
+    "${HelperArtifactVersionId}",
+    "${HelperArtifactSha256}",
+):
+    assert helper_artifact_substitution not in helper_document
 assert "bash -n \"$DOWNLOAD\"" in helper_document
 assert "bash -n \"$STAGED\"" in helper_document
 assert "bash -n \"$TARGET\"" in helper_document
