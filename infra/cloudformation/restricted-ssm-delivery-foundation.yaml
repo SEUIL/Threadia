@@ -111,7 +111,7 @@ Resources:
                 Action: ssm:SendCommand
                 Resource:
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${ReleaseCommandDocument}
-                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${HelperMaintenanceCommandDocumentV2}
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/threadia-restricted-ssm-delivery-helper-maintenance-v2
                   - !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${ExistingEc2InstanceId}
               - Sid: ReadOnlyOwnCommandInvocationStatus
                 Effect: Allow
