@@ -289,7 +289,6 @@ Resources:
   HelperMaintenanceCommandDocument:
     Type: AWS::SSM::Document
     Properties:
-      UpdateMethod: NewVersion
       DocumentType: Command
       DocumentFormat: YAML
       TargetType: /AWS::EC2::Instance
