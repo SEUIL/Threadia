@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-14
 > **최종 수정**: 2026-07-17
-> **버전**: v0.8
+> **버전**: v0.9
 > **상태**: 검토 중
 > **태그**: aws, release, ssm, approval, runbook
 
@@ -18,6 +18,16 @@
    이 경로는 `THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL`을 전달할 수 없다. `platform_admins`가 비어 있는 신규 배포는 matching ACTIVE user용 해당 키를 제공하는 별도 승인된 delivery contract, IAM, helper 변경이 확인되지 않으면 No-Go다. 실제 email은 문서나 log에 남기지 않는다.
 5. GitHub gate: `restricted-nonprod` Environment에 `main`만 custom branch policy로 설정하고 OIDC workflow variables와 workflow revision을 검토한다. release job 자체도 `refs/heads/main`만 허용하며 고정 concurrency group에서 이전 release를 취소하지 않고 직렬 실행한다.
 
+## Managed policy recovery sequence
+
+PR #152처럼 source managed policy가 롤백된 경우에는 old-policy Change Set을 다시 실행하지 않는다. `restricted-network.yaml`은 IAM policy를 소유하지 않으므로, `restricted-network-service-permissions-policy.json`의 source merge를 먼저 반영하고 그 다음에 새 managed-policy version을 발행해 default version으로 전환한다. 이전 default version은 release window 동안 유지해 비교와 rollback을 가능하게 둔다.
+
+1. `restricted-network-service-permissions-policy.json`에 `ec2:DescribeRouteTables`를 포함한 source merge를 먼저 완성한다.
+2. 새 managed-policy version을 생성하고 default로 지정한다. old default version을 덮어쓰지 않는다.
+3. restricted network의 service/operator role이 새 default version을 바라보는지 검증한다.
+4. 그 다음에만 fresh UPDATE Change Set을 다시 만든다. 실패했던 old-policy Change Set은 재시도하지 않는다.
+5. recovery Change Set은 `SesSmtpEndpointSecurityGroup`, `SesSmtpEndpointIngress`, `Ec2SmtpToSesEndpoint`, `SesSmtpEndpoint`의 네 개 Add만 보여야 하며, 그 외 action이 있으면 중단한다.
+
 ## Release와 failure 처리
 
 `main` push 또는 `main` ref에서의 수동 `workflow_dispatch`만 release job을 실행한다. 다른 ref의 수동 dispatch는 job-level guard에서 거부한다. workflow는 고정 concurrency group으로 release를 직렬화하고 실행 중인 release를 취소하지 않으며, bounded job timeout 안에서 immutable bundle을 upload하고 fixed SSM document의 completion을 확인한다. fixed SSM command는 workflow polling보다 짧은 540초로 제한하고 helper는 host-level exclusive lock으로 동시 activation을 거부한다. operator가 shell command, bucket, host, path 또는 Region을 입력해 실행하는 절차는 없다. command가 실패하면 VersionId, release ID, systemd journal, SSM output의 secret 없는 error state를 보존하고 신규 release를 중단한다.
@@ -32,5 +42,6 @@ CodeDeploy source와 이전 deploy skeleton은 삭제하지 않는다. 이 runbo
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-07-17 | restricted network managed-policy source 복구 절차를 추가했다. old-policy Change Set은 재시도하지 않고 source merge → 새 managed-policy version/default 전환 → role 검증 → fresh Change Set 순서로 복구해야 하며, recovery Change Set은 네 SES logical resource Add만 보여야 한다고 명시했다. |
 | 2026-07-17 | restricted EC2와 SES SMTP PrivateLink 사이의 TCP/587 전용 network gate를 추가했다. UPDATE Change Set에서 pre-existing resource Modify/Remove, Replacement `True`/`Conditional`을 hard reject하고 네 SES logical resource의 신규 Add만 승인하며 SMTP credential 및 runtime delivery는 별도 후속 승인 범위로 분리했다. |
 | 2026-07-16 | 현재 restricted SSM delivery path가 여섯 SecureString만 전달하며 bootstrap email을 주입할 수 없음을 명시했다. `platform_admins`가 비어 있는 첫 배포의 No-Go 경계를 추가했다. |

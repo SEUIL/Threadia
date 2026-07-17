@@ -14,6 +14,15 @@ service_policy = json.loads(
 network_service_policy = json.loads(
     (BASE / "restricted-network-service-permissions-policy.json").read_text(encoding="utf-8")
 )
+expected_network_describe_actions = [
+    "ec2:DescribeAvailabilityZones",
+    "ec2:DescribeVpcs",
+    "ec2:DescribeSubnets",
+    "ec2:DescribeRouteTables",
+    "ec2:DescribeSecurityGroups",
+    "ec2:DescribeVpcEndpoints",
+    "ec2:DescribeNetworkInterfaces",
+]
 operator_policy = json.loads(
     (BASE / "restricted-ssm-delivery-foundation-operator-policy.json").read_text(encoding="utf-8")
 )
@@ -49,6 +58,7 @@ assert "S3GatewayEndpointId:" in network
 assert "PolicyDocument:" in network
 assert "AllowOnlyVersionedArtifactRead" in network
 assert "s3:GetObjectVersion" in network and "s3:ListBucket" not in network.split("S3GatewayEndpoint:", 1)[1]
+assert network_service_policy["Statement"][0]["Action"] == expected_network_describe_actions
 ses_smtp_endpoint = network.split("SesSmtpEndpoint:", 1)[1].split("S3GatewayEndpoint:", 1)[0]
 assert "PrivateDnsEnabled: true" in ses_smtp_endpoint
 assert "ServiceName: !Sub com.amazonaws.${AWS::Region}.email-smtp" in ses_smtp_endpoint
