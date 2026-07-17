@@ -101,6 +101,48 @@ with open(sys.argv[2], "w", encoding="utf-8") as target:
         target.write(f'{environment_name}="{value.replace(chr(92), chr(92) * 2).replace(chr(34), chr(92) + chr(34)}"\n')
 PY
 
+mail_parameters_json="$stage/mail-runtime-parameters.json"
+aws ssm get-parameters --region "$AWS_REGION" --with-decryption --names \
+  /threadia/restricted-nonprod/runtime/MAIL_HOST \
+  /threadia/restricted-nonprod/runtime/MAIL_PORT \
+  /threadia/restricted-nonprod/runtime/MAIL_USERNAME \
+  /threadia/restricted-nonprod/runtime/MAIL_PASSWORD \
+  /threadia/restricted-nonprod/runtime/NOTIFICATION_FROM_EMAIL \
+  --output json > "$mail_parameters_json"
+python3 - "$mail_parameters_json" "$new_env" <<'PY'
+import json
+import sys
+
+optional = {
+    "/threadia/restricted-nonprod/runtime/MAIL_HOST": "MAIL_HOST",
+    "/threadia/restricted-nonprod/runtime/MAIL_PORT": "MAIL_PORT",
+    "/threadia/restricted-nonprod/runtime/MAIL_USERNAME": "MAIL_USERNAME",
+    "/threadia/restricted-nonprod/runtime/MAIL_PASSWORD": "MAIL_PASSWORD",
+    "/threadia/restricted-nonprod/runtime/NOTIFICATION_FROM_EMAIL": "NOTIFICATION_FROM_EMAIL",
+}
+with open(sys.argv[1], encoding="utf-8") as source:
+    response = json.load(source)
+values = {item["Name"]: item["Value"] for item in response["Parameters"]}
+returned = set(values) & set(optional)
+invalid = set(response.get("InvalidParameters", [])) & set(optional)
+if not returned and invalid == set(optional):
+    raise SystemExit(0)
+if returned != set(optional) or invalid:
+    affected = sorted(invalid | (set(optional) - returned))
+    raise SystemExit("optional runtime parameter group is incomplete or invalid: " + ", ".join(affected))
+for parameter_name in optional:
+    value = values[parameter_name]
+    if value == "":
+        raise SystemExit("optional runtime parameter is blank: " + parameter_name)
+    if "\n" in value or "\r" in value or "\x00" in value:
+        raise SystemExit("optional runtime parameter contains an unsupported control character: " + parameter_name)
+with open(sys.argv[2], "a", encoding="utf-8") as target:
+    for parameter_name, environment_name in optional.items():
+        value = values[parameter_name]
+        escaped_value = value.replace(chr(92), chr(92) * 2).replace(chr(34), chr(92) + chr(34))
+        target.write(f'{environment_name}="{escaped_value}"\n')
+PY
+
 release_dir="$RELEASE_ROOT/$release_id"
 [[ ! -e "$release_dir" ]] || fail "release ID already exists"
 install -d -o root -g threadia -m 0750 "$RELEASE_ROOT"
