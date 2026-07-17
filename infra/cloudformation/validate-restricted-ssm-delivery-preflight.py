@@ -119,7 +119,8 @@ assert "token.actions.githubusercontent.com:sub: repo:SEUIL/Threadia:environment
 assert "StringLike:" not in template.split("GitHubDeployRole:", 1)[1].split("ExistingEc2DeliveryPolicy:", 1)[0]
 github_role = template.split("GitHubDeployRole:", 1)[1].split("ExistingEc2DeliveryPolicy:", 1)[0]
 assert "${ReleaseCommandDocument}" in github_role
-assert "${HelperMaintenanceCommandDocumentV2}" in github_role
+assert "threadia-restricted-ssm-delivery-helper-maintenance-v2" in github_role
+assert "${HelperMaintenanceCommandDocumentV2}" not in github_role
 assert "${HelperMaintenanceCommandDocument}" not in github_role
 assert "${ExistingEc2InstanceId}" in github_role
 assert "ssm:GetParametersByPath" not in template
