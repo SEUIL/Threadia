@@ -11,6 +11,9 @@ network = (BASE / "restricted-network.yaml").read_text(encoding="utf-8")
 service_policy = json.loads(
     (BASE / "restricted-ssm-delivery-foundation-service-permissions-policy.json").read_text(encoding="utf-8")
 )
+network_service_policy = json.loads(
+    (BASE / "restricted-network-service-permissions-policy.json").read_text(encoding="utf-8")
+)
 operator_policy = json.loads(
     (BASE / "restricted-ssm-delivery-foundation-operator-policy.json").read_text(encoding="utf-8")
 )
@@ -46,6 +49,35 @@ assert "S3GatewayEndpointId:" in network
 assert "PolicyDocument:" in network
 assert "AllowOnlyVersionedArtifactRead" in network
 assert "s3:GetObjectVersion" in network and "s3:ListBucket" not in network.split("S3GatewayEndpoint:", 1)[1]
+ses_smtp_endpoint = network.split("SesSmtpEndpoint:", 1)[1].split("S3GatewayEndpoint:", 1)[0]
+assert "PrivateDnsEnabled: true" in ses_smtp_endpoint
+assert "ServiceName: !Sub com.amazonaws.${AWS::Region}.email-smtp" in ses_smtp_endpoint
+assert "SubnetIds: [!Ref ComputeSubnet]" in ses_smtp_endpoint
+assert "SecurityGroupIds: [!GetAtt SesSmtpEndpointSecurityGroup.GroupId]" in ses_smtp_endpoint
+assert "VpcEndpointType: Interface" in ses_smtp_endpoint
+ses_smtp_endpoint_group = network.split("SesSmtpEndpointSecurityGroup:", 1)[1].split("SesSmtpEndpointIngress:", 1)[0]
+assert "CidrIp: 127.0.0.1/32" in ses_smtp_endpoint_group
+assert "IpProtocol: '-1'" in ses_smtp_endpoint_group
+ses_smtp_ingress = network.split("SesSmtpEndpointIngress:", 1)[1].split("Ec2SmtpToSesEndpoint:", 1)[0]
+assert "GroupId: !GetAtt SesSmtpEndpointSecurityGroup.GroupId" in ses_smtp_ingress
+assert "FromPort: 587" in ses_smtp_ingress and "ToPort: 587" in ses_smtp_ingress
+assert "SourceSecurityGroupId: !GetAtt Ec2SecurityGroup.GroupId" in ses_smtp_ingress
+ses_smtp_egress = network.split("Ec2SmtpToSesEndpoint:", 1)[1].split("Ec2HttpsToS3GatewayEndpoint:", 1)[0]
+assert "GroupId: !GetAtt Ec2SecurityGroup.GroupId" in ses_smtp_egress
+assert "FromPort: 587" in ses_smtp_egress and "ToPort: 587" in ses_smtp_egress
+assert "DestinationSecurityGroupId: !GetAtt SesSmtpEndpointSecurityGroup.GroupId" in ses_smtp_egress
+approved_endpoint_services = next(
+    statement
+    for statement in network_service_policy["Statement"]
+    if statement.get("Sid") == "AllowCreateTaggedApprovedEndpoints"
+)["Condition"]["StringEquals"]["ec2:VpceServiceName"]
+assert approved_endpoint_services == [
+    "com.amazonaws.ap-northeast-2.ssm",
+    "com.amazonaws.ap-northeast-2.ssmmessages",
+    "com.amazonaws.ap-northeast-2.ec2messages",
+    "com.amazonaws.ap-northeast-2.s3",
+    "com.amazonaws.ap-northeast-2.email-smtp",
+]
 expected_artifact_bucket = "threadia-restricted-${AWS::AccountId}-${AWS::Region}-artifacts"
 assert expected_artifact_bucket in network and expected_artifact_bucket in template
 artifact_bucket_statement = next(
