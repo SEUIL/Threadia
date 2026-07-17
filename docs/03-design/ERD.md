@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-15  
-> **최종 수정**: 2026-07-16
-> **버전**: v2.2 WBS 4.10.3 system settings schema 반영
+> **최종 수정**: 2026-07-17
+> **버전**: v2.3 WBS 4.10.3 system settings schema와 DEFER-05/06 이번 개발 기간 보류 반영
 > **상태**: 확정
 > **태그**: erd, db, schema, auth, invitation
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
@@ -64,9 +64,9 @@ Spring Boot JPA Entity는 DB를 자동 생성하거나 수정하는 기준이 �
 | 문서 | `document_issue_links` | 문서와 이슈 양방향 연결 | Sprint 3 후보 |
 | 채팅 | `messages` | 프로젝트 채팅 메시지 | Sprint 3 후보 |
 | 채팅 | `project_chat_member_states` | 프로젝트 채팅 읽음 위치 | Sprint 3 후보 |
-| DM | `direct_message_rooms` | 1:1 DM 방. participants 일반화는 Sprint 3 decision-needed | Sprint 3 후보 |
+| DM | `direct_message_rooms` | 1:1 DM 방. participants 일반화는 이번 개발 기간 보류이며 향후 재검토 | Sprint 3 후보 |
 | DM | `direct_messages` | DM 메시지 | Sprint 3 후보 |
-| DM | `dm_room_user_states` | DM 방별 읽음 위치. 상대 read receipt는 Sprint 3 decision-needed | Sprint 3 후보 |
+| DM | `dm_room_user_states` | DM 방별 읽음 위치. 상대 read receipt는 이번 개발 기간 보류이며 향후 재검토 | Sprint 3 후보 |
 | 쓰레드 | `threads` | Issue/Document/Message 대표 논의 공간 | Sprint 3 후보 |
 | 쓰레드 | `thread_comments` | 쓰레드 댓글/결정 표시 | Sprint 3 후보 |
 | 활동 | `activity_events` | 주요 변경 원장 | Sprint 3 후보 |
@@ -595,7 +595,7 @@ summary table은 원본이 아니라 read model이다. 원본은 `issues`, `docu
 
 - CHECK (`user1_id` < `user2_id`).
 - UNIQUE KEY (`company_id`, `user1_id`, `user2_id`).
-- 같은 회사 구성원 간 1:1 DM만 현재 schema 계약으로 둔다. 다자간 DM, DM room + participants 일반화, 상대 read receipt는 Sprint 3 decision-needed이며 exact schema는 선행 결정 후 반영한다.
+- 같은 회사 구성원 간 1:1 DM만 현재 schema 계약으로 둔다. 다자간 DM, DM room + participants 일반화, 상대 read receipt는 이번 개발 기간 보류다. 영구 제외하지 않으며 향후 재검토 전 schema를 추가하지 않는다.
 
 ### 5.14 direct_messages
 
@@ -739,7 +739,7 @@ DB FK와 CHECK만으로 표현하기 어려운 tenant/project/다형성 정합�
 | S15 후속 범위 | WBS `4.10.1` support case와 WBS `4.10.3` typed system settings schema는 위에서 확정했다. 사용자/회사 enforcement, admin lifecycle, dashboard, notification schema는 후속 결정 전 추가하지 않는다. |
 | Attachment | S3 presigned URL, metadata, 권한, 크기, MIME 정책 결정 전까지 `attachments` table 계약을 추가하지 않는다. |
 | Document versioning | optimistic locking 우선안은 decision-needed다. `documents.version` column 또는 별도 version table 여부는 미정이다. |
-| Advanced DM | 1:1 DM 현재 schema를 유지한다. participants table과 read receipt schema는 decision-needed다. |
+| Advanced DM | 1:1 DM 현재 schema를 유지한다. participants table과 read receipt schema는 이번 개발 기간에 추가하지 않으며 향후 재검토한다. |
 | PROJECT notification scope | GLOBAL preference 계약을 유지한다. PROJECT scope column/FK/index는 `PROJECT_NOTIFICATION_SCOPE_DEFERRED` API boundary이며 요구사항추적표 primary WBS row로 backfill하지 않는다. |
 | Restore / permanent delete | 프로젝트 복원, 이슈/문서 영구 삭제는 권한, 보존 기간, 참조 무결성, audit 정책 확정 전 schema를 추가하지 않는다. |
 
@@ -764,7 +764,7 @@ DB FK와 CHECK만으로 표현하기 어려운 tenant/project/다형성 정합�
 - 범용 attachments 테이블과 S3 presigned URL 상세 정책은 Sprint 3 decision-needed로 확정.
 - S15 WBS `4.10.1`, `4.10.3` 외 enforcement/admin lifecycle/dashboard/notification exact schema는 후속 결정으로 유지.
 - document optimistic locking용 exact schema는 Sprint 3 decision-needed로 확정.
-- DM participants/read receipt schema와 PROJECT notification scope schema는 Sprint 3 decision-needed로 확정.
+- DM participants/read receipt schema는 이번 개발 기간 보류로 두고 향후 재검토한다. PROJECT notification scope schema는 Sprint 3 decision-needed로 유지한다.
 - project restore와 issue/document permanent delete schema 영향은 Sprint 3 decision-needed로 확정.
 - Thread→Issue 추가 연결 방식.
 - 범용 `issue_history` 도입 여부.
