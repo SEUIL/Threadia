@@ -74,6 +74,7 @@ public class IssueService {
 		if (fields.contains("priority")) { if (request.priority()==null) throw new ProjectValidationException("priority는 필수입니다."); issue.setPriority(request.priority()); }
 		if (fields.contains("assigneeUserId")) issue.setAssignee(request.assigneeUserId()==null ? null : activeProjectUser(issue.getProject(),request.assigneeUserId()));
 		if (fields.contains("dueDate")) issue.setDueDate(request.dueDate());
+		if (fields.contains("sprintId")) { if (request.sprintId()!=null) throw new ProjectValidationException("Sprint 할당은 POST /sprints/{id}/issues API를 사용해야 합니다."); issue.setSprint(null); }
 		issue.setUpdatedAt(now()); return new IssueData(IssueResponse.from(issue));
 	}
 	@Transactional

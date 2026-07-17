@@ -246,6 +246,28 @@ class IssueServiceTest {
 		assertThat(data.issue().issueKey()).isEqualTo("THD-8");
 	}
 
+	/**
+	 * reporterUserId는 표시용이 아니라 권한 판정용이다 — trash/restore가 P/C 또는
+	 * 등록자에게 허용되므로, 이게 없으면 클라이언트가 "등록자" 경로를 판정할 수 없다.
+	 */
+	@Test
+	void responseExposesReporterUserIdForOwnerPermissionChecks() {
+		Fixtures fixtures = fixtures();
+		stubAuth(fixtures);
+		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(fixtures.project()));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+		when(issueRepository.findByProjectIdForSequenceUpdate(20L)).thenReturn(List.of());
+		when(issueRepository.save(any())).thenAnswer(invocation -> {
+			Issue issue = invocation.getArgument(0);
+			setId(issue, 100L);
+			return issue;
+		});
+
+		IssueData data = issueService.create("token", 20L, new IssueCreateRequest("새 이슈"));
+
+		assertThat(data.issue().reporterUserId()).isEqualTo(fixtures.user().getId());
+	}
+
 	@Test
 	void createSelectsHighestNumericSuffixAndSkipsMalformedKeys() {
 		Fixtures fixtures = fixtures();
@@ -320,9 +342,56 @@ class IssueServiceTest {
 		when(issueRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(issue));
 		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
 
-		assertThatThrownBy(() -> issueService.update("token", 100L, new IssueUpdateRequest("x".repeat(201), null, null, null, null), Set.of("title")))
+		assertThatThrownBy(() -> issueService.update("token", 100L, new IssueUpdateRequest("x".repeat(201), null, null, null, null, null), Set.of("title")))
 				.isInstanceOf(com.threadia.backend.project.exception.ProjectValidationException.class);
 		assertThat(issue.getTitle()).isEqualTo("첫 이슈");
+	}
+
+	@Test
+	void updateDetachesSprintWhenSprintIdIsExplicitlyNull() {
+		Fixtures fixtures = fixtures();
+		Issue issue = issue(100L, fixtures.project(), fixtures.user(), "THD-1", "첫 이슈", IssueStatus.BACKLOG);
+		Sprint sprint = new Sprint(fixtures.project(), "현재 Sprint", null, null, null, LocalDateTime.now(FIXED_CLOCK));
+		issue.setSprint(sprint);
+		stubAuth(fixtures);
+		when(issueRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(issue));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+
+		issueService.update("token", 100L, new IssueUpdateRequest(null, null, null, null, null, null), Set.of("sprintId"));
+
+		assertThat(issue.getSprint()).isNull();
+	}
+
+	@Test
+	void updateLeavesSprintUnchangedWhenSprintIdIsOmitted() {
+		Fixtures fixtures = fixtures();
+		Issue issue = issue(100L, fixtures.project(), fixtures.user(), "THD-1", "첫 이슈", IssueStatus.BACKLOG);
+		Sprint sprint = new Sprint(fixtures.project(), "현재 Sprint", null, null, null, LocalDateTime.now(FIXED_CLOCK));
+		issue.setSprint(sprint);
+		stubAuth(fixtures);
+		when(issueRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(issue));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+
+		issueService.update("token", 100L, new IssueUpdateRequest("수정 제목", null, null, null, null, null), Set.of("title"));
+
+		assertThat(issue.getSprint()).isSameAs(sprint);
+	}
+
+	@Test
+	void updateRejectsNonNullSprintIdWithoutMutatingSprintRelation() {
+		Fixtures fixtures = fixtures();
+		Issue issue = issue(100L, fixtures.project(), fixtures.user(), "THD-1", "첫 이슈", IssueStatus.BACKLOG);
+		Sprint sprint = new Sprint(fixtures.project(), "현재 Sprint", null, null, null, LocalDateTime.now(FIXED_CLOCK));
+		issue.setSprint(sprint);
+		stubAuth(fixtures);
+		when(issueRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(issue));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+
+		assertThatThrownBy(() -> issueService.update("token", 100L, new IssueUpdateRequest(null, null, null, null, null, 30L), Set.of("sprintId")))
+				.isInstanceOf(ProjectValidationException.class)
+				.hasMessage("Sprint 할당은 POST /sprints/{id}/issues API를 사용해야 합니다.");
+
+		assertThat(issue.getSprint()).isSameAs(sprint);
 	}
 
 	@Test

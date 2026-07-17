@@ -185,6 +185,49 @@ class IssueControllerTest {
 	}
 
 	@Test
+	void updatePassesExplicitNullSprintIdAsPresentField() throws Exception {
+		when(issueService.update(eq("valid-token"), eq(100L), any(), any()))
+				.thenReturn(new IssueData(new IssueResponse(100L, "THD-1", "첫 이슈", "TODO")));
+
+		mockMvc.perform(patch("/api/v1/issues/100")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("{\"sprintId\":null}"))
+				.andExpect(status().isOk());
+
+		org.mockito.ArgumentCaptor<IssueUpdateRequest> requestCaptor = org.mockito.ArgumentCaptor.forClass(IssueUpdateRequest.class);
+		verify(issueService).update(eq("valid-token"), eq(100L), requestCaptor.capture(), org.mockito.ArgumentMatchers.argThat(fields -> fields.equals(java.util.Set.of("sprintId"))));
+		org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().sprintId()).isNull();
+	}
+
+	@Test
+	void updateDoesNotPassOmittedSprintIdAsPresentField() throws Exception {
+		when(issueService.update(eq("valid-token"), eq(100L), any(), any()))
+				.thenReturn(new IssueData(new IssueResponse(100L, "THD-1", "첫 이슈", "TODO")));
+
+		mockMvc.perform(patch("/api/v1/issues/100")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("{\"title\":\"수정 제목\"}"))
+				.andExpect(status().isOk());
+
+		verify(issueService).update(eq("valid-token"), eq(100L), any(), org.mockito.ArgumentMatchers.argThat(fields -> fields.equals(java.util.Set.of("title"))));
+	}
+
+	@Test
+	void updateReturnsValidationErrorForNonNullSprintId() throws Exception {
+		when(issueService.update(eq("valid-token"), eq(100L), any(), any()))
+				.thenThrow(new ProjectValidationException("Sprint 할당은 POST /sprints/{id}/issues API를 사용해야 합니다."));
+
+		mockMvc.perform(patch("/api/v1/issues/100")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("{\"sprintId\":30}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+	}
+
+	@Test
 	void updateReturnsValidationErrorForMalformedField() throws Exception {
 		mockMvc.perform(patch("/api/v1/issues/100")
 					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
@@ -222,7 +265,7 @@ class IssueControllerTest {
 
 	@Test
 	void issueTimestampSerializesWithUtcZSuffix() throws Exception {
-		IssueResponse issue = new IssueResponse(100L, "THD-1", "첫 이슈", "BACKLOG", null, "MEDIUM", null, null, null, "MANUAL", LocalDateTime.of(2026, 7, 14, 1, 2, 3), null);
+		IssueResponse issue = new IssueResponse(100L, "THD-1", "첫 이슈", "BACKLOG", null, "MEDIUM", null, null, null, null, "MANUAL", LocalDateTime.of(2026, 7, 14, 1, 2, 3), null);
 		when(issueService.detail("valid-token", 100L)).thenReturn(new IssueData(issue));
 
 		mockMvc.perform(get("/api/v1/issues/100").header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
