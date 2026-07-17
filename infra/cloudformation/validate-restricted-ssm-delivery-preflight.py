@@ -51,6 +51,18 @@ optional_mail_runtime_parameters = {
     "/threadia/restricted-nonprod/runtime/MAIL_PASSWORD",
     "/threadia/restricted-nonprod/runtime/NOTIFICATION_FROM_EMAIL",
 }
+expected_parameter_keys = {
+    "NetworkStackName",
+    "ExistingEc2InstanceId",
+    "ExistingEc2RoleName",
+    "ArtifactNoncurrentVersionRetentionDays",
+    "HelperArtifactKey",
+    "HelperArtifactVersionId",
+    "HelperArtifactSha256",
+    "HelperArtifactKeyV2",
+    "HelperArtifactVersionIdV2",
+    "HelperArtifactSha256V2",
+}
 
 for source_name, source in (("template", template), ("network", network)):
     for prohibited in ("AWS::CodeDeploy", "AWS-RunShellScript", "NatGateway", "MapPublicIpOnLaunch: true", "0.0.0.0/0"):
@@ -134,14 +146,47 @@ assert f"allowedPattern: '{version_pattern}'" in template
 assert "HelperArtifactKey:" in template
 assert "HelperArtifactVersionId:" in template
 assert "HelperArtifactSha256:" in template
+assert "HelperArtifactKeyV2:" in template
+assert "HelperArtifactVersionIdV2:" in template
+assert "HelperArtifactSha256V2:" in template
+template_parameters = template.split("Parameters:\n", 1)[1].split("\nResources:", 1)[0]
+assert set(re.findall(r"^  ([A-Za-z0-9]+):\n    Type:", template_parameters, re.MULTILINE)) == expected_parameter_keys
+
+
+def parameter_definition(name):
+    return re.search(
+        rf"^  {re.escape(name)}:\n(?P<definition>(?:    .+(?:\n|$))*)",
+        template_parameters,
+        re.MULTILINE,
+    ).group("definition")
+
+
+for legacy_parameter, v2_parameter in (
+    ("HelperArtifactKey", "HelperArtifactKeyV2"),
+    ("HelperArtifactVersionId", "HelperArtifactVersionIdV2"),
+    ("HelperArtifactSha256", "HelperArtifactSha256V2"),
+):
+    legacy_definition = parameter_definition(legacy_parameter)
+    v2_definition = parameter_definition(v2_parameter)
+    assert re.search(r"^    Type: .+$", legacy_definition, re.MULTILINE).group() == re.search(
+        r"^    Type: .+$", v2_definition, re.MULTILINE
+    ).group()
+    assert re.search(r"^    AllowedPattern: .+$", legacy_definition, re.MULTILINE).group() == re.search(
+        r"^    AllowedPattern: .+$", v2_definition, re.MULTILINE
+    ).group()
 assert "HelperMaintenanceCommandDocument:" in template
 assert template.count("HelperMaintenanceCommandDocumentV2:") == 1
 helper_document_v2 = template.split("HelperMaintenanceCommandDocumentV2:", 1)[1].split("HelperMaintenanceCommandDocument:", 1)[0]
 assert "Name: threadia-restricted-ssm-delivery-helper-maintenance-v2" in helper_document_v2
 assert "UpdateMethod: NewVersion" in helper_document_v2
-assert "--version-id '${HelperArtifactVersionId}'" in helper_document_v2
-assert "--key '${HelperArtifactKey}'" in helper_document_v2
-assert helper_document_v2.count("'${HelperArtifactSha256}'") == 3
+assert "--version-id '${HelperArtifactVersionIdV2}'" in helper_document_v2
+assert "--key '${HelperArtifactKeyV2}'" in helper_document_v2
+assert helper_document_v2.count("'${HelperArtifactKeyV2}'") == 1
+assert helper_document_v2.count("'${HelperArtifactVersionIdV2}'") == 1
+assert helper_document_v2.count("'${HelperArtifactSha256V2}'") == 3
+assert "'${HelperArtifactKey}'" not in helper_document_v2
+assert "'${HelperArtifactVersionId}'" not in helper_document_v2
+assert "'${HelperArtifactSha256}'" not in helper_document_v2
 helper_document = template.split("HelperMaintenanceCommandDocument:", 1)[1].split("Outputs:", 1)[0]
 assert "parameters:" not in helper_document
 assert "{{ " not in helper_document
@@ -155,6 +200,9 @@ assert helper_document.count(legacy_helper_get_object) == 1
 assert helper_document.count("'${HelperArtifactKey}'") == 1
 assert helper_document.count("'${HelperArtifactVersionId}'") == 1
 assert helper_document.count("'${HelperArtifactSha256}'") == 3
+assert "'${HelperArtifactKeyV2}'" not in helper_document
+assert "'${HelperArtifactVersionIdV2}'" not in helper_document
+assert "'${HelperArtifactSha256V2}'" not in helper_document
 assert "bash -n \"$DOWNLOAD\"" in helper_document
 assert "bash -n \"$STAGED\"" in helper_document
 assert "bash -n \"$TARGET\"" in helper_document
@@ -254,17 +302,9 @@ assert operator_actions == {
 pass_role = next(statement for statement in operator_policy["Statement"] if statement["Action"] == "iam:PassRole")
 assert pass_role["Resource"] == "arn:aws:iam::<AWS_ACCOUNT_ID>:role/ThreadiaRestrictedSsmDeliveryCloudFormationServiceRole"
 assert pass_role["Condition"] == {"StringEquals": {"iam:PassedToService": "cloudformation.amazonaws.com"}}
-assert isinstance(parameters, list) and len(parameters) == 7
+assert isinstance(parameters, list) and len(parameters) == 10
 assert all(not re.search(r"(?<![0-9])[0-9]{12}(?![0-9])", json.dumps(item)) for item in parameters)
-assert {item["ParameterKey"] for item in parameters} == {
-    "NetworkStackName",
-    "ExistingEc2InstanceId",
-    "ExistingEc2RoleName",
-    "ArtifactNoncurrentVersionRetentionDays",
-    "HelperArtifactKey",
-    "HelperArtifactVersionId",
-    "HelperArtifactSha256",
-}
+assert {item["ParameterKey"] for item in parameters} == expected_parameter_keys
 assert trust_sources["restricted-ssm-delivery-operator-role-trust-policy.json"]["Statement"][0]["Principal"] == {"AWS": "arn:aws:iam::<AWS_ACCOUNT_ID>:user/ThreadiaBootstrapOperator"}
 assert trust_sources["restricted-ssm-delivery-bootstrap-assume-policy.json"]["Statement"][0]["Resource"] == "arn:aws:iam::<AWS_ACCOUNT_ID>:role/ThreadiaRestrictedSsmDeliveryOperatorRole"
 assert trust_sources["restricted-ssm-delivery-service-role-trust-policy.json"]["Statement"][0]["Principal"] == {"Service": "cloudformation.amazonaws.com"}
