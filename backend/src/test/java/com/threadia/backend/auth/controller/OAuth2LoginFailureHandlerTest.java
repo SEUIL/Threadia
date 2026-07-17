@@ -8,6 +8,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2AuthorizationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 
 import ch.qos.logback.classic.Level;
@@ -20,7 +21,25 @@ import com.threadia.backend.config.AuthOAuthProperties;
 class OAuth2LoginFailureHandlerTest {
 
 	@Test
-	void google_인증_실패시_failure_url로_redirect한다() throws Exception {
+	void allowlisted_oauth2authorizationexception_cause는_error_code를_category로_쓴다() {
+		OAuth2AuthenticationException exception = new OAuth2AuthenticationException(
+				new OAuth2Error("invalid_token_response"),
+				new OAuth2AuthorizationException(new OAuth2Error("invalid_grant")));
+
+		assertThat(OAuth2LoginFailureHandler.resolveProviderErrorCategory(exception)).isEqualTo("invalid_grant");
+	}
+
+	@Test
+	void unknown_oauth2authorizationexception_cause는_other_provider_error로_정규화한다() {
+		OAuth2AuthenticationException exception = new OAuth2AuthenticationException(
+				new OAuth2Error("invalid_token_response"),
+				new OAuth2AuthorizationException(new OAuth2Error("vendor_specific_error")));
+
+		assertThat(OAuth2LoginFailureHandler.resolveProviderErrorCategory(exception)).isEqualTo("other_provider_error");
+	}
+
+	@Test
+	void google_인증_실패시_failure_url로_redirect하고_generic_failures는_안전하게_기록한다() throws Exception {
 		OAuth2LoginFailureHandler handler = new OAuth2LoginFailureHandler(
 				new AuthOAuthProperties("http://localhost:3000/hub", "http://localhost:3000/login?oauth=failed"));
 		Logger logger = (Logger) LoggerFactory.getLogger(OAuth2LoginFailureHandler.class);
@@ -43,39 +62,9 @@ class OAuth2LoginFailureHandlerTest {
 		ILoggingEvent event = appender.list.get(0);
 		assertThat(event.getLevel()).isEqualTo(Level.WARN);
 		assertThat(event.getFormattedMessage())
-				.isEqualTo("Google OAuth authentication failed: BadCredentialsException");
+				.isEqualTo("Google OAuth authentication failed: wrapperClass=BadCredentialsException, providerErrorCategory=other_provider_error");
 		assertThat(event.getThrowableProxy()).isNull();
 		assertThat(event.getFormattedMessage())
 				.doesNotContain("oauth code=secret-token", "state=secret-state", "email=user@example.com");
-	}
-
-	@Test
-	void oauth2_authentication_exception이면_error_code만_안전하게_기록한다() throws Exception {
-		OAuth2LoginFailureHandler handler = new OAuth2LoginFailureHandler(
-				new AuthOAuthProperties("http://localhost:3000/hub", "http://localhost:3000/login?oauth=failed"));
-		Logger logger = (Logger) LoggerFactory.getLogger(OAuth2LoginFailureHandler.class);
-		ListAppender<ILoggingEvent> appender = new ListAppender<>();
-		appender.start();
-		logger.addAppender(appender);
-		MockHttpServletResponse response = new MockHttpServletResponse();
-
-		try {
-			handler.onAuthenticationFailure(
-					new MockHttpServletRequest(),
-					response,
-					new OAuth2AuthenticationException(new OAuth2Error("invalid_token_response")));
-		} finally {
-			logger.detachAppender(appender);
-		}
-
-		assertThat(response.getRedirectedUrl()).isEqualTo("http://localhost:3000/login?oauth=failed");
-		assertThat(appender.list).hasSize(1);
-		ILoggingEvent event = appender.list.get(0);
-		assertThat(event.getLevel()).isEqualTo(Level.WARN);
-		assertThat(event.getFormattedMessage())
-				.isEqualTo("Google OAuth authentication failed: OAuth2AuthenticationException invalid_token_response");
-		assertThat(event.getThrowableProxy()).isNull();
-		assertThat(event.getFormattedMessage())
-				.doesNotContain("description", "uri", "state", "client", "email");
 	}
 }
