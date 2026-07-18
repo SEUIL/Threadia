@@ -55,6 +55,8 @@ import com.threadia.backend.supportcase.exception.SupportCaseValidationException
 import com.threadia.backend.platform.settings.SystemSettingConflictException;
 import com.threadia.backend.platform.settings.SystemSettingNotFoundException;
 import com.threadia.backend.platform.settings.SystemSettingValidationException;
+import com.threadia.backend.thread.exception.ThreadNotFoundException;
+import com.threadia.backend.thread.exception.ThreadValidationException;
 
 // 앱 전체 컨트롤러에서 발생한 예외를 공통 에러 응답 형식으로 변환한다.
 // 컨트롤러/서비스 코드는 예외를 던지기만 하면 되고, HTTP status/에러 body 조립은 여기서 한 번에 처리한다.
@@ -110,7 +112,8 @@ public class GlobalExceptionHandler {
 			SupportCaseValidationException.class,
 			DirectMessageValidationException.class,
 			SystemSettingValidationException.class,
-			NotificationValidationException.class})
+			NotificationValidationException.class,
+			ThreadValidationException.class})
 	public ResponseEntity<ErrorResponse> handleProjectValidation(RuntimeException ex) {
 		ErrorBody body = ErrorBody.of("VALIDATION_ERROR", ex.getMessage());
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(body));
@@ -142,6 +145,7 @@ public class GlobalExceptionHandler {
 			DocumentLinkNotFoundException.class,
 			SupportCaseNotFoundException.class,
 			SystemSettingNotFoundException.class,
+			ThreadNotFoundException.class,
 			com.threadia.backend.invitation.exception.CompanyNotFoundException.class})
 	public ResponseEntity<ErrorResponse> handleCompanyNotFound(RuntimeException ex) {
 		ErrorBody body = ErrorBody.of("NOT_FOUND", ex.getMessage());

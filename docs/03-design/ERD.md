@@ -638,7 +638,8 @@ summary table은 원본이 아니라 read model이다. 원본은 `issues`, `docu
 | updated_at | DATETIME | NOT NULL | 수정 시각 |
 
 - UNIQUE KEY (`target_type`, `target_id`).
-- 생성 정책은 get-or-create를 기준으로 하되, 자동 생성 시점은 6일차 이월 검토 사항으로 남긴다.
+- 대표 Thread는 `POST /api/v1/projects/{projectId}/threads`의 명시적 get-or-create만 생성한다. Issue/Document/Message 생성은 자동 생성하지 않는다.
+- `(target_type, target_id)` unique key는 대표 Thread 하나를 DB에서 보장한다. 다형성 target의 존재와 `project_id` 일치는 service에서 검증한다.
 
 ### 5.17 thread_comments
 
@@ -652,8 +653,8 @@ summary table은 원본이 아니라 read model이다. 원본은 `issues`, `docu
 | updated_at | DATETIME | NOT NULL | 수정 시각 |
 
 - INDEX (`thread_id`, `id`).
-- `mentionedUserIds`는 댓글 작성 요청에서 받아 `notification_events` 생성 기준으로 사용한다.
-- 결정 표시 column은 근거 부족으로 TBD로 남긴다.
+- 댓글은 append-only다. 수정/삭제, `mentionedUserIds` 파싱·저장, notification/event 발행은 이 slice 범위 밖이다.
+- `updated_at`은 기존 DDL compatibility를 위해 유지하지만 append-only 생성 시 `created_at`과 동일하다.
 
 ### 5.18 notification_events
 
