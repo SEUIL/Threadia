@@ -24,7 +24,7 @@ public record CompanyResponse(
 				company.getDescription(),
 				company.getIndustryCategory(),
 				company.getLogoUrl(),
-				company.getStatus(),
+			company.getStatus().name(),
 				formatUtc(company.getCreatedAt()),
 				formatUtc(company.getUpdatedAt()));
 	}

@@ -44,10 +44,12 @@ public class UserLookupService {
 		Integer companyAdminCount = jdbcTemplate.queryForObject(
 				"""
 						SELECT COUNT(*)
-						FROM company_members
-						WHERE user_id = ?
-						  AND role = 'COMPANY_ADMIN'
-						  AND status = 'ACTIVE'
+						FROM company_members company_member
+						JOIN companies company ON company.id = company_member.company_id
+						WHERE company_member.user_id = ?
+						  AND company_member.role = 'COMPANY_ADMIN'
+						  AND company_member.status = 'ACTIVE'
+						  AND company.status = 'ACTIVE'
 						""",
 				Integer.class,
 				authUser.userId());

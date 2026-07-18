@@ -100,7 +100,7 @@ class UserCompanyMembershipServiceTest {
 
 	private static Company company(Long id, String name) {
 		LocalDateTime now = LocalDateTime.parse("2026-07-08T00:00:00");
-		Company company = new Company(name, "대표", "workspace", "IT", null, "ACTIVE", user(99L), now, now);
+		Company company = new Company(name, "대표", "workspace", "IT", null, com.threadia.backend.company.domain.CompanyStatus.ACTIVE, user(99L), now, now);
 		setId(company, id);
 		return company;
 	}

@@ -15,6 +15,7 @@ import com.threadia.backend.company.domain.Company;
 import com.threadia.backend.company.domain.CompanyMember;
 import com.threadia.backend.company.domain.CompanyMemberRole;
 import com.threadia.backend.company.domain.CompanyMemberStatus;
+import com.threadia.backend.company.domain.CompanyStatus;
 import com.threadia.backend.company.dto.CompanyCreateData;
 import com.threadia.backend.company.dto.CompanyCreateRequest;
 import com.threadia.backend.company.dto.CompanyData;
@@ -74,7 +75,7 @@ public class CompanyService {
 				request.description(),
 				request.industryCategory(),
 				request.logoUrl(),
-				"ACTIVE",
+				CompanyStatus.ACTIVE,
 				creator,
 				now,
 				now));

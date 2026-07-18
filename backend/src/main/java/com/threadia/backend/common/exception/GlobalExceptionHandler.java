@@ -24,6 +24,7 @@ import com.threadia.backend.common.error.ErrorResponse;
 import com.threadia.backend.company.exception.CompanyMemberConflictException;
 import com.threadia.backend.company.exception.CompanyMemberNotFoundException;
 import com.threadia.backend.company.exception.CompanyNotFoundException;
+import com.threadia.backend.company.exception.CompanyStatusConflictException;
 import com.threadia.backend.company.exception.DepartmentConflictException;
 import com.threadia.backend.company.exception.DepartmentNotFoundException;
 import com.threadia.backend.config.jwt.JwtAuthenticationException;
@@ -41,6 +42,12 @@ import com.threadia.backend.project.exception.ProjectMemberNotFoundException;
 import com.threadia.backend.project.exception.ProjectConflictException;
 import com.threadia.backend.project.exception.ProjectNotFoundException;
 import com.threadia.backend.project.exception.ProjectValidationException;
+import com.threadia.backend.platform.settings.SystemSettingConflictException;
+import com.threadia.backend.platform.settings.SystemSettingNotFoundException;
+import com.threadia.backend.platform.settings.SystemSettingValidationException;
+import com.threadia.backend.supportcase.exception.SupportCaseConflictException;
+import com.threadia.backend.supportcase.exception.SupportCaseNotFoundException;
+import com.threadia.backend.supportcase.exception.SupportCaseValidationException;
 
 // 앱 전체 컨트롤러에서 발생한 예외를 공통 에러 응답 형식으로 변환한다.
 // 컨트롤러/서비스 코드는 예외를 던지기만 하면 되고, HTTP status/에러 body 조립은 여기서 한 번에 처리한다.
@@ -91,8 +98,11 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(body));
 	}
 
-	@ExceptionHandler(ProjectValidationException.class)
-	public ResponseEntity<ErrorResponse> handleProjectValidation(ProjectValidationException ex) {
+	@ExceptionHandler({
+			ProjectValidationException.class,
+			SupportCaseValidationException.class,
+			SystemSettingValidationException.class})
+	public ResponseEntity<ErrorResponse> handleProjectValidation(RuntimeException ex) {
 		ErrorBody body = ErrorBody.of("VALIDATION_ERROR", ex.getMessage());
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(body));
 	}
@@ -113,6 +123,8 @@ public class GlobalExceptionHandler {
 			SprintNotFoundException.class,
 			DocumentNotFoundException.class,
 			DocumentLinkNotFoundException.class,
+			SupportCaseNotFoundException.class,
+			SystemSettingNotFoundException.class,
 			com.threadia.backend.invitation.exception.CompanyNotFoundException.class})
 	public ResponseEntity<ErrorResponse> handleCompanyNotFound(RuntimeException ex) {
 		ErrorBody body = ErrorBody.of("NOT_FOUND", ex.getMessage());
@@ -121,14 +133,22 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler({
 			DepartmentConflictException.class,
+			CompanyStatusConflictException.class,
 			CompanyMemberConflictException.class,
 			ProjectMemberConflictException.class,
 			ProjectConflictException.class,
 			IssueConflictException.class,
 			SprintConflictException.class,
-			DocumentConflictException.class})
+			DocumentConflictException.class,
+			SupportCaseConflictException.class})
 	public ResponseEntity<ErrorResponse> handleCompanyConflict(RuntimeException ex) {
 		ErrorBody body = ErrorBody.of("CONFLICT", ex.getMessage());
+		return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(body));
+	}
+
+	@ExceptionHandler(SystemSettingConflictException.class)
+	public ResponseEntity<ErrorResponse> handleSystemSettingConflict(SystemSettingConflictException ex) {
+		ErrorBody body = ErrorBody.of(ex.getCode(), ex.getMessage());
 		return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(body));
 	}
 

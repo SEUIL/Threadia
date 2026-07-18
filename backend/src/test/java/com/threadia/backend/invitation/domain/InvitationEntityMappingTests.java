@@ -13,6 +13,7 @@ import com.threadia.backend.company.domain.Company;
 import com.threadia.backend.company.domain.CompanyMember;
 import com.threadia.backend.company.domain.CompanyMemberRole;
 import com.threadia.backend.company.domain.CompanyMemberStatus;
+import com.threadia.backend.company.domain.CompanyStatus;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -36,8 +37,9 @@ class InvitationEntityMappingTests {
 	@Test
 	void companiesMapCreatedByUserAndStatusWithoutUserRole() {
 		assertRequiredLazyRelation(Company.class, "createdBy", User.class, "created_by_user_id", "fk_companies_created_by");
-		assertThat(column(Company.class, "status").length()).isEqualTo(50);
-		assertThat(newInstance(Company.class).getStatus()).isEqualTo("ACTIVE");
+		assertStringEnum(Company.class, "status");
+		assertThat(CompanyStatus.values()).containsExactly(CompanyStatus.ACTIVE, CompanyStatus.INACTIVE);
+		assertThat(newInstance(Company.class).getStatus()).isEqualTo(CompanyStatus.ACTIVE);
 	}
 
 	@Test
