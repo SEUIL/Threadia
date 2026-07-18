@@ -60,6 +60,11 @@ interface AuthContextValue {
    * companyMemberships를 다시 조회해 state를 갱신한다. 로그인/refresh 때만
    * 채우던 것과 달리, 세션 중간에 소속이 바뀌는 경우(회사 생성, 초대 수락)
    * 재로그인 없이 반영하기 위해 추가했다(2026-07-18 회사 자율 생성 flow).
+   *
+   * ⚠️ 로그인/세션 복원용 fetchCompanyMemberships()와 달리 실패를 삼키지
+   * 않고 그대로 throw한다(PR #171 리뷰 반영). 회사 생성/초대 수락 직후
+   * 이 호출이 실패하면 호출부는 "성공했지만 소속 반영은 안 된" 상태를
+   * 성공으로 보여주면 안 되고, 실패로 알려야 한다.
    */
   refreshCompanyMemberships: () => Promise<CompanyMembership[]>;
 }
@@ -67,11 +72,16 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 // accessToken이 이미 설정된 뒤에 호출해야 한다(Authorization 헤더 필요).
-// 실패해도 로그인 흐름을 막지 않고 빈 배열로 처리한다.
+async function fetchCompanyMembershipsOrThrow(): Promise<CompanyMembership[]> {
+  const { data } = await companyService.getMyMemberships();
+  return data.data.companyMemberships;
+}
+
+// 로그인/세션 복원 경로 전용 — 실패해도 로그인 흐름을 막지 않고 빈 배열로
+// 처리한다. refreshCompanyMemberships()는 이 wrapper를 쓰지 않는다(아래 참고).
 async function fetchCompanyMemberships(): Promise<CompanyMembership[]> {
   try {
-    const { data } = await companyService.getMyMemberships();
-    return data.data.companyMemberships;
+    return await fetchCompanyMembershipsOrThrow();
   } catch {
     return [];
   }
@@ -131,7 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshCompanyMemberships = useCallback(async () => {
-    const memberships = await fetchCompanyMemberships();
+    const memberships = await fetchCompanyMembershipsOrThrow();
     setCompanyMemberships(memberships);
     return memberships;
   }, []);

@@ -82,9 +82,21 @@ export default function InvitationsPage() {
         // 회사 초대만 소속이 새로 생기므로 세션 companyMemberships를 다시 채운다.
         // 프로젝트 초대 수락자는 이미 그 회사 소속이라 재조회가 필요 없다.
         if (invitation.scopeType === "COMPANY") {
-          await refreshCompanyMemberships();
+          try {
+            await refreshCompanyMemberships();
+            setAcceptNotice(invitationAcceptedMessage(invitation));
+          } catch {
+            // accept 자체는 이미 성공했다(위 setInvitations로 상태 반영됨) — 세션
+            // companyMemberships 재조회만 실패한 것이므로 "수락 실패"로 보이면
+            // 안 된다(PR #171 리뷰 반영). 새로고침을 안내하고 재조회는 다시 로그인
+            // 또는 새로고침 시 자연히 채워진다.
+            setActionError(
+              "초대는 수락됐지만 새 소속 정보를 반영하지 못했습니다. 페이지를 새로고침해주세요."
+            );
+          }
+        } else {
+          setAcceptNotice(invitationAcceptedMessage(invitation));
         }
-        setAcceptNotice(invitationAcceptedMessage(invitation));
       }
     } catch (error) {
       setActionError(
