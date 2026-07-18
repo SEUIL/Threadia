@@ -25,6 +25,11 @@
  * 메시지 목록은 서버가 최신순(createdAt DESC, id DESC) keyset으로 주므로
  * 화면에는 reverse해서 오래된 메시지가 위로 가게 표시한다. "이전 메시지
  * 더 보기"는 nextCursor로 다음 page를 받아 위쪽에 이어 붙인다.
+ *
+ * mark-read 응답의 unreadCount를 채널 헤더 배지로 반영하고(PR #172 리뷰 반영),
+ * "이전 메시지 더 보기" 실패는 초기 로드 실패(pageError)와 별도 상태
+ * (loadMoreError)로 분리해서 보여준다 — 초기 목록은 이미 성공했는데 pagination
+ * 실패를 pageError에 합치면 pageState==="ready" 렌더 분기에서는 안 보인다.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
@@ -51,6 +56,8 @@ export default function ProjectMessagesPage() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [members, setMembers] = useState<ProjectMemberResponse[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -78,10 +85,14 @@ export default function ProjectMessagesPage() {
       setPageState("ready");
 
       // 최신 메시지까지 읽음 처리 — 실패해도 채팅 자체는 계속 보여준다.
+      // 응답의 unreadCount를 채널 헤더 배지에 반영한다(서버 계약으로 검증 가능하게).
       const latest = ordered[ordered.length - 1];
       if (latest) {
         try {
-          await messageService.markRead(params.projectId, { lastReadMessageId: latest.id });
+          const { data } = await messageService.markRead(params.projectId, {
+            lastReadMessageId: latest.id,
+          });
+          setUnreadCount(data.data.unreadCount);
         } catch {
           // unread badge 갱신 실패는 채팅 화면 기능에 영향 없다.
         }
@@ -106,12 +117,13 @@ export default function ProjectMessagesPage() {
   const loadOlder = async () => {
     if (!nextCursor || loadingMore) return;
     setLoadingMore(true);
+    setLoadMoreError(null);
     try {
       const { data } = await messageService.list(params.projectId, { cursor: nextCursor });
       setMessages((prev) => [...[...data.data.messages].reverse(), ...prev]);
       setNextCursor(data.data.nextCursor);
     } catch (error) {
-      setPageError(invitationErrorMessage(error, "이전 메시지를 불러오지 못했습니다."));
+      setLoadMoreError(invitationErrorMessage(error, "이전 메시지를 불러오지 못했습니다."));
     } finally {
       setLoadingMore(false);
     }
@@ -180,6 +192,11 @@ export default function ProjectMessagesPage() {
         <div className="flex h-14 shrink-0 items-center border-b border-border px-5">
           <span className="mr-1.5 text-muted">#</span>
           <h1 className="text-sm font-bold text-foreground">프로젝트 채팅</h1>
+          {unreadCount > 0 && (
+            <span className="ml-2 rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-semibold leading-none text-on-primary">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
         </div>
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4">
@@ -192,6 +209,7 @@ export default function ProjectMessagesPage() {
               >
                 {loadingMore ? "불러오는 중..." : "이전 메시지 더 보기"}
               </button>
+              {loadMoreError && <p className="mt-1 text-xs text-destructive">{loadMoreError}</p>}
             </div>
           )}
           <div className="flex flex-col">
