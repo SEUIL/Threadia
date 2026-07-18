@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-15  
-> **최종 수정**: 2026-07-17
-> **버전**: v2.4 WBS 4.8.1 notification inbox/read-state 경계 반영
+> **최종 수정**: 2026-07-18
+> **버전**: v2.6 WBS 4.10.4 Backend audit read
 > **상태**: 확정
 > **태그**: erd, db, schema, auth, invitation
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
@@ -13,7 +13,7 @@
 
 > **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows다. DB schema는 `docs/03-design/ERD.md`와 `db/schema.sql`을 기준으로 관리하고, Spring Boot/JPA는 schema 생성이 아니라 mapping 검증에 사용한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
-> **Sprint 3 기준선 메모**: 현재 ERD 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, Sprint 3 decision-needed, 유지 보류 항목을 분리한다. S15 WBS `4.10.1`의 platform authorization, support case, reply/note, immutable audit table과 WBS `4.10.3`의 typed system settings catalog는 확정 schema로 반영한다. WBS `4.8.1` notification core는 기존 `notification_events`, `notification_recipients` DDL의 inbox/read-state 경계를 사용하며 schema를 변경하지 않는다. producer matrix, preferences, enforcement, admin lifecycle, dashboard와 나머지 decision-needed 항목은 이번 변경에서 concrete schema를 추가하지 않는다.
+> **Sprint 3 기준선 메모**: 현재 ERD 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, decision-needed, 유지 보류 항목을 분리한다. S15 `4.10.1` support case, `4.10.3` typed system settings와 `4.10.4` Backend lifecycle/audit-read schema를 반영한다. `4.8.1` notification core는 기존 DDL을 사용한다. producer matrix, preferences, enforcement, dashboard, Frontend, retention/cleanup과 나머지 decision-needed 항목은 이 schema 범위 밖이다.
 
 
 ## 0. DB schema 관리 기준
@@ -75,7 +75,7 @@ Spring Boot JPA Entity는 DB를 자동 생성하거나 수정하는 기준이 �
 | 알림 | `notification_preferences` | 개인 알림 설정. NOTI-02/03은 현재 계약/reference이며 PROJECT scope exact schema는 API boundary로 유지 | Sprint 3 후보 |
 | 대시보드 | `project_dashboard_summaries` | 프로젝트 홈 read model. 성능 필요 확인 전 조건부 | Sprint 3 후보 |
 | 플랫폼 인가 | `platform_admin_bootstrap_locks` | 최초 관리자 생성을 직렬화하는 singleton lock row | WBS 4.10.1 foundation |
-| 플랫폼 인가 | `platform_admins` | `users`와 1:1로 분리한 플랫폼 운영 권한 | WBS 4.10.1 foundation |
+| 플랫폼 인가 | `platform_admins` | `users`와 1:1로 분리한 ACTIVE/REVOKED 플랫폼 운영 권한 | WBS 4.10.4 lifecycle |
 | 고객센터 | `support_cases` | 문의/신고와 단방향 처리 상태 | WBS 4.10.1 구현 |
 | 고객센터 | `support_case_public_replies` | 사용자에게 공개되는 관리자 답변 | WBS 4.10.1 구현 |
 | 고객센터 | `support_case_internal_notes` | 플랫폼 관리자 전용 내부 메모 | WBS 4.10.1 구현 |
@@ -260,9 +260,11 @@ canonical schema는 `id = 1` row를 seed한다. 각 application instance는 같�
 | id | BIGINT | PK | 플랫폼 관리자 ID |
 | user_id | BIGINT | UNIQUE, FK → users.id, NOT NULL | 기존 ACTIVE 로그인 사용자 |
 | role | ENUM('PLATFORM_ADMIN','SUPER_ADMIN') | NOT NULL | platform-level role |
-| created_at | DATETIME | NOT NULL | 권한 생성 UTC 시각 |
+| status | ENUM('ACTIVE','REVOKED') | NOT NULL | ACTIVE만 platform authorization에 사용 |
+| created_at, updated_at | DATETIME | NOT NULL | 생성·최종 변경 UTC 시각 |
+| revoked_at, reactivated_at | DATETIME | NULL | soft revoke·재활성화 시각 |
 
-`users.role`, `company_members`, `project_members`는 platform authorization에 사용하지 않는다. table이 비었을 때만 환경변수 email과 일치하는 기존 ACTIVE 사용자를 최초 `SUPER_ADMIN`으로 bootstrap한다.
+`users.role`, `company_members`, `project_members`는 platform authorization에 사용하지 않는다. table이 비었을 때만 환경변수 email과 일치하는 기존 ACTIVE 사용자를 최초 `SUPER_ADMIN`으로 bootstrap한다. lifecycle write는 singleton lock 후 ACTIVE actor authority를 새 query로 재검증하며, 마지막 ACTIVE `SUPER_ADMIN` revoke/demote는 service policy로 금지한다.
 
 #### support_cases
 
@@ -299,7 +301,9 @@ CHECK는 `INQUIRY`의 target 두 field가 모두 NULL이고 `REPORT`의 `target_
 | before_state, after_state | LONGTEXT | before NULL 가능, after NOT NULL | JSON 변경 전후 snapshot |
 | created_at | DATETIME | NOT NULL | UTC 감사 시각 |
 
-audit entity는 update/delete API와 setter를 제공하지 않는다. mutation과 같은 transaction에서 insert하며 audit insert 실패는 mutation rollback 조건이다.
+`idx_aaa_created (created_at, id)`는 platform audit read의 `(created_at DESC, id DESC)` keyset scan을 지원한다. 조회는 ACTIVE platform admin만 허용하며 persisted state를 raw text로 반환하지 않고 object parse 후 action/target allowlist를 재적용한다. malformed/non-object state는 빈 object로 처리한다.
+
+audit entity는 update/delete API와 setter를 제공하지 않는다. mutation과 같은 transaction에서 insert하며 audit insert 실패는 mutation rollback 조건이다. 새 snapshot은 중앙 action/target allowlist를 통과해야 하며 support case의 raw `title`/`body`, system setting의 `value` 전체를 저장하지 않는다.
 
 #### system_settings
 
@@ -314,7 +318,7 @@ audit entity는 update/delete API와 setter를 제공하지 않는다. mutation�
 
 허용 key는 정확히 `SUPPORT_CASE_CATEGORIES`, `REPORT_REASON_CATEGORIES`, `ENFORCEMENT_REASON_PRESETS`, `ENFORCEMENT_DURATION_PRESETS`, `REPLY_TEMPLATES`, `ANNOUNCEMENT_BANNER`, `SUPPORT_CENTER_STATUS`, `RESULT_NOTIFICATION_POLICY` 8개다. 일반 arbitrary key CRUD는 제공하지 않는다. 각 JSON value는 code-owned validator가 object shape와 unknown field를 거부하며, write는 전체 document replacement만 허용한다. clean-rebuild seed는 policy 예시만 사용한 schema version 1의 최소 self-describing JSON으로 생성한다.
 
-`PLATFORM_ADMIN`과 `SUPER_ADMIN`은 catalog를 조회할 수 있고 `SUPER_ADMIN`만 write할 수 있다. write는 positive expected version을 요구하며 stale version과 동일 JSON value no-op을 각각 409로 거부한다. row는 transaction 안에서 pessimistic lock으로 읽고 version을 정확히 한 번 증가시키며, value의 bounded before/after snapshot과 reason을 `admin_action_audits`에 같은 transaction으로 저장한다. audit insert 실패는 setting replacement도 rollback한다.
+`PLATFORM_ADMIN`과 `SUPER_ADMIN`은 catalog를 조회할 수 있고 `SUPER_ADMIN`만 write할 수 있다. write는 positive expected version을 요구하며 stale version과 동일 JSON value no-op을 각각 409로 거부한다. row는 transaction 안에서 pessimistic lock으로 읽고 version을 정확히 한 번 증가시키며, setting key/schema version/persisted version만 `admin_action_audits`에 같은 transaction으로 저장한다. setting value 전체 snapshot은 저장하지 않으며 audit insert 실패는 setting replacement도 rollback한다.
 
 ### 4.6 activity_events
 
@@ -743,7 +747,7 @@ DB FK와 CHECK만으로 표현하기 어려운 tenant/project/다형성 정합�
 
 | 항목 | 현재 경계 |
 |---|---|
-| S15 후속 범위 | WBS `4.10.1` support case와 WBS `4.10.3` typed system settings schema는 위에서 확정했다. 사용자/회사 enforcement, admin lifecycle, dashboard, notification schema는 후속 결정 전 추가하지 않는다. |
+| S15 후속 범위 | WBS `4.10.4` Backend lifecycle/audit-read까지 위 schema에 반영했다. 사용자/회사 enforcement, dashboard, notification 확장, Frontend, retention/cleanup schema는 후속 결정 전 추가하지 않는다. |
 | Attachment | S3 presigned URL, metadata, 권한, 크기, MIME 정책 결정 전까지 `attachments` table 계약을 추가하지 않는다. |
 | Document versioning | optimistic locking 우선안은 decision-needed다. `documents.version` column 또는 별도 version table 여부는 미정이다. |
 | Advanced DM | 1:1 DM 현재 schema를 유지한다. participants table과 read receipt schema는 이번 개발 기간에 추가하지 않으며 향후 재검토한다. |
@@ -769,7 +773,7 @@ DB FK와 CHECK만으로 표현하기 어려운 tenant/project/다형성 정합�
 - `threads` 자동 생성 vs 수동 생성 정책.
 - `activity_events`와 `notification_events`는 분리 운영한다. activity 이벤트가 notification 이벤트를 생성하는 조건은 구현 단계에서 이벤트별로 제한한다.
 - 범용 attachments 테이블과 S3 presigned URL 상세 정책은 Sprint 3 decision-needed로 확정.
-- S15 WBS `4.10.1`, `4.10.3` 외 enforcement/admin lifecycle/dashboard/notification exact schema는 후속 결정으로 유지.
+- S15 WBS `4.10.1`, `4.10.3`, `4.10.4` Backend는 구현 기준으로 유지한다. enforcement, dashboard/notification 확장, Frontend, retention/cleanup exact schema는 후속 결정으로 유지한다.
 - document optimistic locking용 exact schema는 Sprint 3 decision-needed로 확정.
 - DM participants/read receipt schema는 이번 개발 기간 보류로 두고 향후 재검토한다. PROJECT notification scope schema는 Sprint 3 decision-needed로 유지한다.
 - project restore와 issue/document permanent delete schema 영향은 Sprint 3 decision-needed로 확정.
