@@ -29,11 +29,15 @@ function OpenThreadContent() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // targetId=""는 Number("")===0이라 isFinite만으로는 걸러지지 않고,
+      // targetId=-1/1.5도 마찬가지로 통과해버린다(PR #170 리뷰 반영) — 양의
+      // 정수만 유효한 리소스 id로 허용한다.
+      const targetIdNumber = targetId === null ? NaN : Number(targetId);
       const isValidTarget =
         targetType !== null &&
         (VALID_TARGET_TYPES as string[]).includes(targetType) &&
-        targetId !== null &&
-        Number.isFinite(Number(targetId));
+        Number.isInteger(targetIdNumber) &&
+        targetIdNumber > 0;
       if (!isValidTarget) {
         if (!cancelled) setError("잘못된 쓰레드 진입 경로입니다.");
         return;
@@ -42,7 +46,7 @@ function OpenThreadContent() {
       try {
         const { data } = await threadService.create(params.projectId, {
           targetType: targetType as ThreadTargetType,
-          targetId: Number(targetId),
+          targetId: targetIdNumber,
         });
         if (!cancelled) {
           router.replace(`/${params.companyId}/${params.projectId}/threads/${data.data.thread.id}`);

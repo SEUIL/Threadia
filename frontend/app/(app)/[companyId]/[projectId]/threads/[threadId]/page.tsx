@@ -18,10 +18,17 @@
  * 직접 부른다 — 그 PR이 머지되면 document.service.ts의 detail()로 옮긴다.
  * 하나가 실패해도 쓰레드 자체는 보이게 컨텍스트 로드는 별도 상태로 분리했다
  * (board.tsx의 members 분리와 동일 패턴).
+ *
+ * ⚠️ project 경계 검증(PR #170 리뷰 반영): threadId는 어느 프로젝트의 쓰레드인지
+ * URL만으로는 보장되지 않는다 — 사용자가 접근 가능한 다른 프로젝트의 threadId를
+ * 현재 프로젝트 URL 밑에 그대로 넣을 수 있다. 그래서 viewer 역할은 항상
+ * thread.projectId 기준으로 다시 조회하고, URL의 projectId와 다르면 올바른
+ * 프로젝트 경로로 즉시 redirect한다(잘못된 컨텍스트로 topic 수정 버튼이나
+ * 문서/이슈/메시지 링크가 노출되는 걸 막는다).
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import apiClient from "@/lib/axios";
 import { invitationErrorMessage } from "@/lib/invitation";
@@ -51,6 +58,7 @@ function viewerRole(viewer: { companyRole: string | null; projectRole: string | 
 export default function ThreadPage() {
   const params = useParams<{ companyId: string; projectId: string; threadId: string }>();
   const { companyId, projectId, threadId } = params;
+  const router = useRouter();
   const { user } = useAuth();
 
   const [pageState, setPageState] = useState<LoadState>("loading");
@@ -69,57 +77,88 @@ export default function ThreadPage() {
   const [commentBusy, setCommentBusy] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
 
-  const loadTargetContext = useCallback(async (loadedThread: ThreadResponse) => {
-    try {
-      if (loadedThread.targetType === "DOCUMENT") {
-        const { data } = await apiClient.get<ApiResponse<{ document: { title: string } }>>(
-          `/api/v1/documents/${loadedThread.targetId}`
-        );
-        setTargetContext({
-          label: `문서 · ${data.data.document.title}`,
-          href: `/${companyId}/${projectId}/docs/${loadedThread.targetId}`,
-        });
-      } else if (loadedThread.targetType === "ISSUE") {
-        const { data } = await issueService.detail(loadedThread.targetId);
-        setTargetContext({
-          label: `이슈 · ${data.data.issue.issueKey} ${data.data.issue.title}`,
-          href: `/${companyId}/${projectId}/board`,
-        });
-      } else {
-        const { data } = await messageService.detail(loadedThread.targetId);
-        setTargetContext({
-          label: `채팅 메시지 · ${data.data.message.content.slice(0, 40)}`,
-          href: `/${companyId}/${projectId}/messages`,
-        });
+  // targetContext의 링크는 항상 thread의 실제 project(아래 load()에서 검증된
+  // projectId)를 쓴다 — URL의 projectId를 그대로 쓰면 mismatch 상태에서 잘못된
+  // 프로젝트로 링크가 생성될 수 있다.
+  const loadTargetContext = useCallback(
+    async (loadedThread: ThreadResponse, onResult: (context: TargetContext) => void) => {
+      try {
+        if (loadedThread.targetType === "DOCUMENT") {
+          const { data } = await apiClient.get<ApiResponse<{ document: { title: string } }>>(
+            `/api/v1/documents/${loadedThread.targetId}`
+          );
+          onResult({
+            label: `문서 · ${data.data.document.title}`,
+            href: `/${companyId}/${loadedThread.projectId}/docs/${loadedThread.targetId}`,
+          });
+        } else if (loadedThread.targetType === "ISSUE") {
+          const { data } = await issueService.detail(loadedThread.targetId);
+          onResult({
+            label: `이슈 · ${data.data.issue.issueKey} ${data.data.issue.title}`,
+            href: `/${companyId}/${loadedThread.projectId}/board`,
+          });
+        } else {
+          const { data } = await messageService.detail(loadedThread.targetId);
+          onResult({
+            label: `채팅 메시지 · ${data.data.message.content.slice(0, 40)}`,
+            href: `/${companyId}/${loadedThread.projectId}/messages`,
+          });
+        }
+      } catch {
+        onResult(null);
       }
-    } catch {
-      setTargetContext(null);
-    }
-  }, [companyId, projectId]);
+    },
+    [companyId]
+  );
 
-  const load = useCallback(async () => {
-    try {
-      const [projectResponse, threadResponse, commentsResponse] = await Promise.all([
-        projectService.detail(projectId),
-        threadService.detail(threadId),
-        threadService.listComments(threadId),
-      ]);
-      setPageError(null);
-      setRole(viewerRole(projectResponse.data.data.viewer));
-      setThread(threadResponse.data.data.thread);
-      setComments(commentsResponse.data.data.comments);
-      setPageState("ready");
-      await loadTargetContext(threadResponse.data.data.thread);
-    } catch (error) {
-      setPageError(invitationErrorMessage(error, "쓰레드를 불러오지 못했습니다."));
-      setPageState("error");
-    }
-  }, [projectId, threadId, loadTargetContext]);
+  // isStale()은 호출 시점에 이 effect가 이미 취소됐는지(언마운트되거나 threadId
+  // 등 의존값이 바뀌어 새 load()가 시작됐는지) 확인한다. 매 await 뒤에 검사해서
+  // 늦게 도착한 이전 요청의 응답이 최신 상태를 덮어쓰지 않게 한다(PR #170 리뷰 반영).
+  const load = useCallback(
+    async (isStale: () => boolean) => {
+      try {
+        const threadResponse = await threadService.detail(threadId);
+        if (isStale()) return;
+        const loadedThread = threadResponse.data.data.thread;
+
+        // URL의 projectId와 실제 thread.projectId가 다르면 즉시 올바른 경로로
+        // 옮긴다 — 이 mismatch 상태로 권한/링크를 계산하면 다른 프로젝트 컨텍스트가
+        // 노출된다(위 파일 상단 주석 참고).
+        if (String(loadedThread.projectId) !== projectId) {
+          router.replace(`/${companyId}/${loadedThread.projectId}/threads/${threadId}`);
+          return;
+        }
+
+        const [projectResponse, commentsResponse] = await Promise.all([
+          projectService.detail(loadedThread.projectId),
+          threadService.listComments(threadId),
+        ]);
+        if (isStale()) return;
+        setPageError(null);
+        setRole(viewerRole(projectResponse.data.data.viewer));
+        setThread(loadedThread);
+        setComments(commentsResponse.data.data.comments);
+        setPageState("ready");
+        await loadTargetContext(loadedThread, (context) => {
+          if (!isStale()) setTargetContext(context);
+        });
+      } catch (error) {
+        if (isStale()) return;
+        setPageError(invitationErrorMessage(error, "쓰레드를 불러오지 못했습니다."));
+        setPageState("error");
+      }
+    },
+    [companyId, projectId, threadId, router, loadTargetContext]
+  );
 
   useEffect(() => {
+    let stale = false;
     (async () => {
-      await load();
+      await load(() => stale);
     })();
+    return () => {
+      stale = true;
+    };
   }, [load]);
 
   const canEditTopic = useMemo(
