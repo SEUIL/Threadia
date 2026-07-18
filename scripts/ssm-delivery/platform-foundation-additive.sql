@@ -1,6 +1,11 @@
 -- Approved one-time manual MySQL 8 migration for the Platform foundation batch.
 -- Run only through docs/00-project/restricted-ssm-platform-foundation-db-migration-runbook.md.
 -- This script intentionally contains additive DDL only. MySQL DDL implicitly commits.
+-- Bound metadata/row-lock waits to 30 seconds so a drained maintenance window fails
+-- safely instead of leaving an operator blocked indefinitely.
+SET NAMES utf8mb4;
+SET SESSION lock_wait_timeout = 30;
+SET SESSION innodb_lock_wait_timeout = 30;
 
 -- Existing databases can predate company lifecycle status. Leave an existing status
 -- column unchanged; the Runbook requires a compatibility check before execution.
