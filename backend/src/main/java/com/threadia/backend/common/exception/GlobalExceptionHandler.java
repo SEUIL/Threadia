@@ -107,7 +107,6 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(body));
 	}
 
-<<<<<<< HEAD
 	@ExceptionHandler({
 			ProjectValidationException.class,
 			SupportCaseValidationException.class,
