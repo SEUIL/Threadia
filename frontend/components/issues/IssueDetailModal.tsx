@@ -26,6 +26,8 @@
  * 스타일 규칙: style={{}} 금지, @theme 시멘틱 토큰 클래스만 사용.
  */
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -68,6 +70,7 @@ function IssueDetailDialog({
   onClose: () => void;
   onUpdated: (issue: IssueResponse) => void;
 }) {
+  const { companyId, projectId } = useParams<{ companyId: string; projectId: string }>();
   const [error, setError] = useState<string | null>(null);
   const [trashBusy, setTrashBusy] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -301,24 +304,30 @@ function IssueDetailDialog({
           )}
 
           <div className="flex items-center justify-between gap-2 pt-1">
-            {/* 서버 규칙 그대로 P/C 또는 등록자에게만 노출 */}
-            {canTrash ? (
-              <button
-                type="button"
-                onClick={toggleTrash}
-                disabled={trashBusy}
-                className={
-                  "rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-fast disabled:cursor-not-allowed disabled:opacity-50 " +
-                  (trashed
-                    ? "border border-border text-foreground hover:bg-primary-subtle"
-                    : "text-destructive hover:bg-destructive-subtle")
-                }
+            <div className="flex items-center gap-3">
+              {/* 서버 규칙 그대로 P/C 또는 등록자에게만 노출 */}
+              {canTrash && (
+                <button
+                  type="button"
+                  onClick={toggleTrash}
+                  disabled={trashBusy}
+                  className={
+                    "rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-fast disabled:cursor-not-allowed disabled:opacity-50 " +
+                    (trashed
+                      ? "border border-border text-foreground hover:bg-primary-subtle"
+                      : "text-destructive hover:bg-destructive-subtle")
+                  }
+                >
+                  {trashed ? "복원" : "휴지통으로"}
+                </button>
+              )}
+              <Link
+                href={`/${companyId}/${projectId}/threads/open?targetType=ISSUE&targetId=${issue.id}`}
+                className="text-xs font-medium text-primary hover:opacity-70"
               >
-                {trashed ? "복원" : "휴지통으로"}
-              </button>
-            ) : (
-              <span />
-            )}
+                쓰레드 열기 →
+              </Link>
+            </div>
 
             <div className="flex gap-2">
               <button
