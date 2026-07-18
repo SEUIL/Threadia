@@ -74,6 +74,7 @@ aws ssm get-parameters --region "$AWS_REGION" --with-decryption --names \
   /threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET \
   /threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE \
   /threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN \
+  /threadia/restricted-nonprod/runtime/THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL \
   --output json > "$parameters_json"
 python3 - "$parameters_json" "$new_env" <<'PY'
 import json
@@ -86,6 +87,7 @@ required = {
     "/threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET": "THREADIA_JWT_SECRET",
     "/threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE": "THREADIA_COOKIE_SECURE",
     "/threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN": "THREADIA_CORS_ALLOWED_ORIGIN",
+    "/threadia/restricted-nonprod/runtime/THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL": "THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL",
 }
 with open(sys.argv[1], encoding="utf-8") as source:
     response = json.load(source)

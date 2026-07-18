@@ -43,6 +43,7 @@ required_runtime_parameters = {
     "/threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET",
     "/threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE",
     "/threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN",
+    "/threadia/restricted-nonprod/runtime/THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL",
 }
 optional_mail_runtime_parameters = {
     "/threadia/restricted-nonprod/runtime/MAIL_HOST",
