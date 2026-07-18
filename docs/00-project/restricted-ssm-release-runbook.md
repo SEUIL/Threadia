@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-07-14  
 > **최종 수정**: 2026-07-18
-> **버전**: v0.8
+> **버전**: v0.9
 > **상태**: 검토 중  
 > **태그**: aws, release, ssm, approval, runbook
 
@@ -14,7 +14,7 @@
 1. Network Change Set: compute subnet 전용 route table, S3 Gateway Endpoint, approved S3 managed prefix list HTTPS egress와 deterministic artifact `releases/*` GetObject/GetObjectVersion endpoint policy를 검토한다.
 2. SSM delivery Change Set: `repo:SEUIL/Threadia:environment:restricted-nonprod` exact OIDC subject, deterministic private bucket, exact host role/instance, fixed Command document와 IAM policy를 검토한다. fixed document는 caller parameter 없이 stack Region을 `AWS_REGION`과 `AWS_DEFAULT_REGION`에 고정 주입하며 helper는 이 Region을 검증해 모든 S3/SSM 호출에 명시한다. 이 operator role은 execute하지 않고 Change Set review까지만 수행한다.
 3. Host gate: Java는 archive의 Linux x86_64 runtime으로 제공한다. AMI에는 SSM Agent, AWS CLI, Python 3, tar, curl, `flock`, systemd, `threadia` user와 root-owned service/helper만 준비한다. `bootstrap-host.sh`를 approved local artifact로 한 번 실행하며 package manager 또는 network access를 사용하지 않는다. helper maintenance는 `apply-release`만 갱신한다. service unit revision이 `Environment=MANAGEMENT_HEALTH_MAIL_ENABLED=false`를 포함하는지 확인하고, 누락 시 아래 service-unit maintenance channel의 별도 Change Set 승인으로만 remediation한다.
-4. Runtime gate: restricted SSM delivery path는 일곱 필수 Parameter Store SecureString, `THREADIA_DB_URL`, `THREADIA_DB_USERNAME`, `THREADIA_DB_PASSWORD`, `THREADIA_JWT_SECRET`, `THREADIA_COOKIE_SECURE`, `THREADIA_CORS_ALLOWED_ORIGIN`, `THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL`을 전달한다. bootstrap email은 valid ACTIVE user를 가리켜야 하며 값 자체를 log 또는 evidence에 기록하지 않는다. optional MAIL group은 `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `NOTIFICATION_FROM_EMAIL` 다섯 SecureString 전체만 허용한다. 다섯 값이 모두 absent이면 기존 required-key release와 동일하게 MAIL env를 생략하고, 다섯 값이 모두 non-empty이고 control character가 없을 때만 함께 materialize한다. blank·partial·missing·invalid 조합은 activation 전에 parameter name만 표시하고 실패하며 AWS CLI read error는 absent가 아니라 release failure다. master와 분리된 application DB user가 존재하고, parameter creation/rotation owner가 확인됐는지 검토한다.
+4. Runtime gate: restricted SSM delivery path는 일곱 필수 Parameter Store SecureString, `THREADIA_DB_URL`, `THREADIA_DB_USERNAME`, `THREADIA_DB_PASSWORD`, `THREADIA_JWT_SECRET`, `THREADIA_COOKIE_SECURE`, `THREADIA_CORS_ALLOWED_ORIGIN`, `THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL`을 전달한다. helper는 runtime.env 또는 active symlink를 교체하기 전에 bootstrap email을 trim + lowercase하고 service와 같은 `^[^\s@]+@[^\s@]+\.[^\s@]+$` shape를 강제한다. blank·malformed 값은 actual value를 출력하지 않고 activation 전에 실패한다. bootstrap email은 valid ACTIVE user를 가리켜야 하며 값 자체를 log 또는 evidence에 기록하지 않는다. optional MAIL group은 `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `NOTIFICATION_FROM_EMAIL` 다섯 SecureString 전체만 허용한다. 다섯 값이 모두 absent이면 기존 required-key release와 동일하게 MAIL env를 생략하고, 다섯 값이 모두 non-empty이고 control character가 없을 때만 함께 materialize한다. blank·partial·missing·invalid 조합은 activation 전에 parameter name만 표시하고 실패하며 AWS CLI read error는 absent가 아니라 release failure다. master와 분리된 application DB user가 존재하고, parameter creation/rotation owner가 확인됐는지 검토한다.
    MAIL group을 제공하거나 SMTP 발송을 운영하기 전에는 SES Production access와 SES SMTP PrivateLink가 모두 승인·적용됐는지 확인한다. identity/DKIM 검증만으로는 충분하지 않으며, pending network PrivateLink 변경은 이 release change와 분리한다.
 5. GitHub gate: `restricted-nonprod` Environment에 `main`만 custom branch policy로 설정하고 OIDC workflow variables와 workflow revision을 검토한다. release job 자체도 `refs/heads/main`만 허용하며 고정 concurrency group에서 이전 release를 취소하지 않고 직렬 실행한다.
 6. Helper maintenance gate: helper artifact workflow가 `apply-release` 한 파일을 `releases/<commit>/<run>-<attempt>/apply-release`에 upload한 뒤 기록한 key, S3 VersionId, SHA-256, commit, run evidence를 승인한다. artifact publish는 host를 mutate하지 않아 별도 concurrency group을 사용한다. 같은 triple을 Change Set의 helper parameter 세 개에 pin하고, Change Set에서 parameterless maintenance document와 exact host만 변경되는지 검토한다.
@@ -30,7 +30,7 @@ Helper maintenance는 Change Set으로 이미 pin된 key, VersionId, SHA-256만 
 
 ## One-time persistent DB exception
 
-GitHub workflow, `apply-release`, helper maintenance, CloudFormation, 그리고 일반 release 절차는 DB migration을 자동 실행하지 않으며 이 금지는 유지한다. 확인된 Platform foundation schema drift에 한해 별도 승인된 DB operator가 [`restricted-ssm-platform-foundation-db-migration-runbook.md`](./restricted-ssm-platform-foundation-db-migration-runbook.md)의 one-time additive SQL을 실행할 수 있다. repository/PR 검토와 live DB backup·SQL execution·same-SHA release retry는 각각 별도 gate이며, 이 runbook의 approval이 서로를 대체하지 않는다. persistent SSM host에서 `db/schema.sql`을 실행하는 것은 금지한다.
+GitHub workflow, `apply-release`, helper maintenance, CloudFormation, 그리고 일반 release 절차는 DB migration을 자동 실행하지 않으며 이 금지는 유지한다. 확인된 Platform foundation schema drift에 한해 별도 승인된 DB operator가 [`restricted-ssm-platform-foundation-db-migration-runbook.md`](./restricted-ssm-platform-foundation-db-migration-runbook.md)의 one-time additive SQL을 실행할 수 있다. repository/PR 검토와 live DB backup·SQL execution·same-SHA release retry는 각각 별도 gate이며, 이 runbook의 approval이 서로를 대체하지 않는다. persistent SSM host에서 `db/schema.sql`을 실행하는 것은 금지한다. migration/release failure 뒤 runtime rollback은 DB authorization을 되돌리지 않는다. application stop과 write freeze는 유지하고, schema postflight 후 exactly one intended ACTIVE `SUPER_ADMIN` 및 다른 platform admin row의 explicit approved evidence를 reconciliation한 뒤에만 retry할 수 있다.
 
 Service-unit maintenance는 helper maintenance와 별도 channel이며 `threadia-backend.service`만 다룬다. Change Set으로 pin된 service-unit key, VersionId, SHA-256을 parameterless document가 exact host에서 내려받아 digest, mail-health sentinel, `systemd-analyze verify`를 확인한다. document는 shared nonblocking host lock을 잡고 current unit을 unique backup으로 copy한 뒤 staged root:root `0644` file을 atomic install한다. daemon reload와 restart 후 최대 120초 동안 active 상태와 local `/actuator/health`를 확인한다. ERR, INT, TERM, EXIT 또는 readiness 실패는 backup unit을 atomic restore하고 daemon reload/restart 및 rollback health까지 확인한다. 성공 후에만 staged/download/backup을 정리한다. 이 source revision은 배포된 상태를 주장하지 않으며 live Change Set 승인과 invoke는 별도 절차다.
 
@@ -42,5 +42,6 @@ CodeDeploy source와 이전 deploy skeleton은 삭제하지 않는다. 이 runbo
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-07-18 | restricted helper의 bootstrap email pre-activation validation과 rollback 이후 DB authorization reconciliation gate를 추가했다. |
 | 2026-07-18 | workflow/helper 자동 migration 금지를 유지하면서, 별도 승인된 one-time persistent DB operator migration과 bootstrap email runtime gate를 명시했다. |
 | 2026-07-17 | optional all-or-none MAIL five-key runtime contract와 blank·partial group pre-activation failure, SES Production access·PrivateLink gate를 추가했다. |
