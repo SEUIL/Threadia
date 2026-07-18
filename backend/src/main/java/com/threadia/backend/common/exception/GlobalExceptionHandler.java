@@ -55,6 +55,9 @@ import com.threadia.backend.supportcase.exception.SupportCaseValidationException
 import com.threadia.backend.platform.settings.SystemSettingConflictException;
 import com.threadia.backend.platform.settings.SystemSettingNotFoundException;
 import com.threadia.backend.platform.settings.SystemSettingValidationException;
+import com.threadia.backend.platform.lifecycle.PlatformAdminConflictException;
+import com.threadia.backend.platform.lifecycle.PlatformAdminNotFoundException;
+import com.threadia.backend.platform.audit.AuditValidationException;
 import com.threadia.backend.thread.exception.ThreadNotFoundException;
 import com.threadia.backend.thread.exception.ThreadValidationException;
 
@@ -124,6 +127,11 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(ErrorBody.of("VALIDATION_ERROR", ex.getMessage())));
 	}
 
+	@ExceptionHandler(AuditValidationException.class)
+	public ResponseEntity<ErrorResponse> handleAuditValidation(AuditValidationException ex) {
+		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(ErrorBody.of("VALIDATION_ERROR", ex.getMessage())));
+	}
+
 	@ExceptionHandler(UserNotFoundException.class)
 	public ResponseEntity<ErrorResponse> handleUserNotFound(UserNotFoundException ex) {
 		ErrorBody body = ErrorBody.of("NOT_FOUND", ex.getMessage());
@@ -175,6 +183,16 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(SystemSettingConflictException.class)
 	public ResponseEntity<ErrorResponse> handleSystemSettingConflict(SystemSettingConflictException ex) {
 		return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(ErrorBody.of(ex.getCode(), ex.getMessage())));
+	}
+
+	@ExceptionHandler(PlatformAdminConflictException.class)
+	public ResponseEntity<ErrorResponse> handlePlatformAdminConflict(PlatformAdminConflictException ex) {
+		return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(ErrorBody.of(ex.getCode(), ex.getMessage())));
+	}
+
+	@ExceptionHandler(PlatformAdminNotFoundException.class)
+	public ResponseEntity<ErrorResponse> handlePlatformAdminNotFound(PlatformAdminNotFoundException ex) {
+		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of(ErrorBody.of("NOT_FOUND", ex.getMessage())));
 	}
 
 	@ExceptionHandler(InvitationNotFoundException.class)
