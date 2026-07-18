@@ -7,13 +7,14 @@ export const messageService = {
   list: (projectId: string | number, params?: { cursor?: string; limit?: number }) =>
     apiClient.get<ApiResponse<MessagesData>>(`/api/v1/projects/${projectId}/messages`, { params }),
 
-  /** threadId는 항상 null로 보낸다 — Thread 연동은 별도 WBS(4.7.1.2). */
+  /** threadId는 항상 null로 보낸다 — Thread 연동은 별도 WBS(4.7.1.2, PR #170에서 머지됨). */
   create: (projectId: string | number, body: { content: string }) =>
     apiClient.post<ApiResponse<MessageData>>(`/api/v1/projects/${projectId}/messages`, {
       ...body,
       threadId: null,
     }),
 
+  /** Thread 컨텍스트 배너(threads/[threadId]/page.tsx)와 S09 공용 단건 조회. */
   detail: (messageId: string | number) =>
     apiClient.get<ApiResponse<MessageData>>(`/api/v1/messages/${messageId}`),
 

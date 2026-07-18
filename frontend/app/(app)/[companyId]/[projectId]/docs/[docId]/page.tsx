@@ -7,29 +7,42 @@
  * 제목/유형/Markdown 본문 편집, 저장, 미리보기, 관련 이슈 연결(양방향),
  * 문서 쓰레드 열기(S10), 휴지통 처리를 구현한다.
  *
+ * WBS 4.6.2 — 4.6.1 Backend(PR #101)의 실 API로 연동했다.
+ *   - 이슈 연결은 issueKey 자유 입력이 아니라 프로젝트 이슈 목록에서 골라
+ *     document-issue-links API가 요구하는 숫자 issueId로 생성한다.
+ *   - 연결 해제(DELETE /document-issue-links/{linkId})는 linkId가 필요해서
+ *     프로젝트 전체 링크 목록(GET .../document-issue-links)에서 documentId
+ *     기준으로 issueId → linkId 매핑을 만들어 둔다.
+ *   - PATCH는 partial update가 아니라 title/type/content 전체를 다시 보낸다
+ *     (API-명세서 §13.6, optimistic locking은 Sprint 3 decision-needed).
+ *
  * 설계 메모 반영:
- *   - 문서 단독 논의 UI는 두지 않는다 — 논의는 "쓰레드 열기"로 S10을 연다.
+ *   - 문서 단독 논의 UI는 두지 않는다 — 논의는 "쓰레드 열기"로 S10을 연다
+ *     (Thread frontend는 4.7.1.2로 별도 관리 중이라 기존 mock 경로를 유지한다).
  *   - `docId === "new"`면 신규 작성 모드(S07의 "+ 새 문서" 진입점)로 처리한다.
  *
- * ⚠️ MOCK: 문서 API(`GET/PATCH /documents/{documentId}`,
- * `POST /projects/{projectId}/documents`, document-issue-links,
- * `POST /projects/{projectId}/threads`)가 아직 없어서 로컬 state로 흉내낸다.
- * Markdown 렌더링도 별도 라이브러리(react-markdown 등) 추가 없이 헤더(#)·
+ * Markdown 렌더링은 별도 라이브러리(react-markdown 등) 추가 없이 헤더(#)·
  * 굵게(**)·목록(-)만 처리하는 최소 파서로 미리보기를 보여준다 — 실제 저장되는
  * 값은 원본 텍스트 그대로라 라이브러리 도입 시 그대로 호환된다.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { invitationErrorMessage } from "@/lib/invitation";
+import { documentService } from "@/services/document.service";
+import { issueService } from "@/services/issue.service";
+import { projectService } from "@/services/project.service";
+import type { DocumentType } from "@/types/document.types";
+import type { IssueResponse } from "@/types/issue.types";
 
-type DocType = "DOC" | "MEETING_NOTE";
+type Role = "A" | "P" | "C";
+type LoadState = "loading" | "ready" | "error";
 
-const MOCK_DOC = {
-  title: "회사/프로젝트 API 설계",
-  type: "DOC" as DocType,
-  content: "# API 설계 메모\n\n- 회사 생성은 **COMPANY_ADMIN**만 가능\n- 프로젝트는 회사 소속으로 생성\n\n## 남은 작업\n- 부서 API 확정",
-  linkedIssueKeys: ["THR-101", "THR-102"],
-};
+function viewerRole(viewer: { companyRole: string | null; projectRole: string | null }): Role {
+  if (viewer.companyRole === "COMPANY_ADMIN") return "C";
+  return viewer.projectRole === "PROJECT_ADMIN" ? "P" : "A";
+}
 
 // 아주 단순한 마크다운 → JSX 변환. #/##/**/- 만 처리한다(라이브러리 미도입).
 function renderMarkdownPreview(text: string) {
@@ -59,7 +72,12 @@ function renderMarkdownPreview(text: string) {
     if (line.startsWith("- ")) {
       return (
         <li key={i} className="ml-4 list-disc text-sm text-foreground">
-          {bolded.length > 1 ? line.slice(2).split(/(\*\*[^*]+\*\*)/g).map((p, j) => (p.startsWith("**") ? <strong key={j}>{p.slice(2, -2)}</strong> : p)) : line.slice(2)}
+          {bolded.length > 1
+            ? line
+                .slice(2)
+                .split(/(\*\*[^*]+\*\*)/g)
+                .map((p, j) => (p.startsWith("**") ? <strong key={j}>{p.slice(2, -2)}</strong> : p))
+            : line.slice(2)}
         </li>
       );
     }
@@ -77,45 +95,190 @@ export default function DocEditorPage() {
   const router = useRouter();
   const { companyId, projectId, docId } = params;
   const isNew = docId === "new";
+  const { user } = useAuth();
 
-  const [title, setTitle] = useState(isNew ? "" : MOCK_DOC.title);
-  const [type, setType] = useState<DocType>(isNew ? "DOC" : MOCK_DOC.type);
-  const [content, setContent] = useState(isNew ? "" : MOCK_DOC.content);
-  const [linkedIssues, setLinkedIssues] = useState<string[]>(isNew ? [] : MOCK_DOC.linkedIssueKeys);
-  const [newIssueKey, setNewIssueKey] = useState("");
+  const [pageState, setPageState] = useState<LoadState>(isNew ? "ready" : "loading");
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [role, setRole] = useState<Role | null>(null);
+  const [authorUserId, setAuthorUserId] = useState<number | null>(null);
+
+  const [title, setTitle] = useState("");
+  const [type, setType] = useState<DocType>("DOC");
+  const [content, setContent] = useState("");
+  const [linkedIssues, setLinkedIssues] = useState<IssueResponse[]>([]);
+  const [linkIdByIssueId, setLinkIdByIssueId] = useState<Record<number, number>>({});
+  const [projectIssues, setProjectIssues] = useState<IssueResponse[]>([]);
+  const [pickedIssueId, setPickedIssueId] = useState("");
+
   const [showPreview, setShowPreview] = useState(false);
   const [trashed, setTrashed] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [linkBusy, setLinkBusy] = useState(false);
+
+  type DocType = DocumentType;
+
+  const load = useCallback(async () => {
+    try {
+      if (isNew) {
+        const projectResponse = await projectService.detail(projectId);
+        setRole(viewerRole(projectResponse.data.data.viewer));
+        const issuesResponse = await issueService.list(projectId);
+        setProjectIssues(issuesResponse.data.data.issues);
+        setPageState("ready");
+        return;
+      }
+
+      const [projectResponse, docResponse, issuesOfDocResponse, linksResponse, projectIssuesResponse] =
+        await Promise.all([
+          projectService.detail(projectId),
+          documentService.detail(docId),
+          documentService.issuesOfDocument(docId),
+          documentService.listLinks(projectId),
+          issueService.list(projectId),
+        ]);
+
+      setPageError(null);
+      setRole(viewerRole(projectResponse.data.data.viewer));
+      const doc = docResponse.data.data.document;
+      setTitle(doc.title);
+      setType(doc.type);
+      setContent(doc.content);
+      setAuthorUserId(doc.authorUserId);
+      setTrashed(doc.trashedAt !== null);
+      setLinkedIssues(issuesOfDocResponse.data.data.issues);
+      const map: Record<number, number> = {};
+      for (const link of linksResponse.data.data.links) {
+        if (link.documentId === doc.id) map[link.issueId] = link.id;
+      }
+      setLinkIdByIssueId(map);
+      setProjectIssues(projectIssuesResponse.data.data.issues);
+      setPageState("ready");
+    } catch (error) {
+      setPageError(invitationErrorMessage(error, "문서를 불러오지 못했습니다."));
+      setPageState("error");
+    }
+  }, [docId, isNew, projectId]);
+
+  useEffect(() => {
+    (async () => {
+      await load();
+    })();
+  }, [load]);
 
   const preview = useMemo(() => renderMarkdownPreview(content), [content]);
 
-  const save = () => {
-    // TODO: isNew면 POST /api/v1/projects/{projectId}/documents,
-    // 아니면 PATCH /api/v1/documents/{documentId} (DOCUMENT_UPDATED 알림 후보 생성)
-    setSavedAt(new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }));
-    if (isNew) {
-      // 실제로는 생성된 documentId로 이동해야 하지만 mock이라 목록으로 돌아간다.
-      router.push(`/${companyId}/${projectId}/docs`);
+  const canTrash = role === "P" || role === "C" || authorUserId === user?.id;
+
+  const unlinkedProjectIssues = useMemo(
+    () => projectIssues.filter((issue) => !linkedIssues.some((linked) => linked.id === issue.id)),
+    [projectIssues, linkedIssues]
+  );
+
+  const save = async () => {
+    if (saving || !title.trim() || !content.trim()) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      if (isNew) {
+        const { data } = await documentService.create(projectId, {
+          title: title.trim(),
+          type,
+          content,
+        });
+        router.push(`/${companyId}/${projectId}/docs/${data.data.document.id}`);
+        return;
+      }
+      const { data } = await documentService.update(docId, { title: title.trim(), type, content });
+      setTitle(data.data.document.title);
+      setType(data.data.document.type);
+      setContent(data.data.document.content);
+      setSavedAt(new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }));
+    } catch (error) {
+      setSaveError(invitationErrorMessage(error, "문서를 저장하지 못했습니다."));
+    } finally {
+      setSaving(false);
     }
   };
 
-  const linkIssue = () => {
-    const key = newIssueKey.trim().toUpperCase();
-    if (!key || linkedIssues.includes(key)) return;
-    // TODO: POST /api/v1/projects/{projectId}/document-issue-links
-    setLinkedIssues((prev) => [...prev, key]);
-    setNewIssueKey("");
+  const linkIssue = async () => {
+    const issueId = Number(pickedIssueId);
+    if (!issueId || linkBusy) return;
+    setLinkError(null);
+    setLinkBusy(true);
+    try {
+      await documentService.createLink(projectId, { documentId: Number(docId), issueId });
+      const issue = projectIssues.find((item) => item.id === issueId);
+      if (issue) setLinkedIssues((prev) => [...prev, issue]);
+      const linksResponse = await documentService.listLinks(projectId);
+      const map: Record<number, number> = {};
+      for (const link of linksResponse.data.data.links) {
+        if (link.documentId === Number(docId)) map[link.issueId] = link.id;
+      }
+      setLinkIdByIssueId(map);
+      setPickedIssueId("");
+    } catch (error) {
+      setLinkError(invitationErrorMessage(error, "이슈 연결에 실패했습니다."));
+    } finally {
+      setLinkBusy(false);
+    }
   };
 
-  const unlinkIssue = (key: string) => {
-    // TODO: DELETE /api/v1/document-issue-links/{linkId}
-    setLinkedIssues((prev) => prev.filter((k) => k !== key));
+  const unlinkIssue = async (issueId: number) => {
+    const linkId = linkIdByIssueId[issueId];
+    if (!linkId || linkBusy) return;
+    setLinkError(null);
+    setLinkBusy(true);
+    try {
+      await documentService.deleteLink(linkId);
+      setLinkedIssues((prev) => prev.filter((issue) => issue.id !== issueId));
+      setLinkIdByIssueId((prev) => {
+        const next = { ...prev };
+        delete next[issueId];
+        return next;
+      });
+    } catch (error) {
+      setLinkError(invitationErrorMessage(error, "이슈 연결 해제에 실패했습니다."));
+    } finally {
+      setLinkBusy(false);
+    }
   };
 
-  const trashDoc = () => {
-    // TODO: POST /api/v1/documents/{documentId}/trash
-    setTrashed(true);
+  const trashDoc = async () => {
+    if (saving) return;
+    setSaveError(null);
+    setSaving(true);
+    try {
+      await documentService.trash(docId);
+      setTrashed(true);
+    } catch (error) {
+      setSaveError(invitationErrorMessage(error, "문서를 휴지통으로 이동하지 못했습니다."));
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (pageState === "loading") {
+    return <div className="mx-auto max-w-3xl px-6 py-10 text-sm text-muted">문서를 불러오는 중...</div>;
+  }
+
+  if (pageState === "error") {
+    return (
+      <div className="mx-auto max-w-3xl px-6 py-10">
+        <Link
+          href={`/${companyId}/${projectId}/docs`}
+          className="text-sm text-muted transition-colors duration-fast hover:text-primary"
+        >
+          ← 문서 목록
+        </Link>
+        <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive-subtle px-4 py-6 text-center text-sm text-destructive">
+          {pageError}
+        </div>
+      </div>
+    );
+  }
 
   if (trashed) {
     return (
@@ -134,27 +297,34 @@ export default function DocEditorPage() {
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
       <div className="flex items-center justify-between">
-        <Link href={`/${companyId}/${projectId}/docs`} className="text-sm text-muted transition-colors duration-fast hover:text-primary">
+        <Link
+          href={`/${companyId}/${projectId}/docs`}
+          className="text-sm text-muted transition-colors duration-fast hover:text-primary"
+        >
           ← 문서 목록
         </Link>
         <div className="flex items-center gap-2">
           {savedAt && <span className="text-xs text-muted">{savedAt} 저장됨</span>}
-          {!isNew && (
+          {!isNew && canTrash && (
             <button
-              onClick={trashDoc}
-              className="rounded-md px-3 py-1.5 text-xs font-medium text-destructive hover:opacity-70"
+              onClick={() => void trashDoc()}
+              disabled={saving}
+              className="rounded-md px-3 py-1.5 text-xs font-medium text-destructive hover:opacity-70 disabled:opacity-50"
             >
               휴지통으로
             </button>
           )}
           <button
-            onClick={save}
-            className="rounded-md btn-gradient px-4 py-1.5 text-sm font-semibold text-primary-foreground"
+            onClick={() => void save()}
+            disabled={saving || !title.trim() || !content.trim()}
+            className="rounded-md btn-gradient px-4 py-1.5 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isNew ? "생성" : "저장"}
+            {saving ? "저장 중..." : isNew ? "생성" : "저장"}
           </button>
         </div>
       </div>
+
+      {saveError && <p className="mt-2 text-sm text-destructive">{saveError}</p>}
 
       <div className="mt-4 flex items-center gap-2">
         <input
@@ -212,52 +382,66 @@ export default function DocEditorPage() {
         />
       )}
 
-      {/* 관련 이슈 연결 */}
-      <section className="mt-6 rounded-xl border border-border bg-surface p-5">
-        <h2 className="text-sm font-semibold text-foreground">관련 이슈</h2>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {linkedIssues.map((key) => (
-            <span
-              key={key}
-              className="flex items-center gap-1.5 rounded-full bg-accent-subtle px-3 py-1 text-xs font-medium text-accent"
+      {/* 관련 이슈 연결 — 신규 문서는 저장 후에만 연결 가능 */}
+      {!isNew && (
+        <section className="mt-6 rounded-xl border border-border bg-surface p-5">
+          <h2 className="text-sm font-semibold text-foreground">관련 이슈</h2>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {linkedIssues.map((issue) => (
+              <span
+                key={issue.id}
+                className="flex items-center gap-1.5 rounded-full bg-accent-subtle px-3 py-1 text-xs font-medium text-accent"
+              >
+                {issue.issueKey}
+                <button
+                  onClick={() => void unlinkIssue(issue.id)}
+                  disabled={linkBusy}
+                  aria-label={`${issue.issueKey} 연결 해제`}
+                  className="hover:opacity-60 disabled:opacity-40"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            {linkedIssues.length === 0 && <span className="text-xs text-muted">연결된 이슈가 없습니다.</span>}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <select
+              aria-label="연결할 이슈"
+              value={pickedIssueId}
+              onChange={(e) => setPickedIssueId(e.target.value)}
+              className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none"
             >
-              {key}
-              <button onClick={() => unlinkIssue(key)} aria-label={`${key} 연결 해제`} className="hover:opacity-60">
-                ×
-              </button>
-            </span>
-          ))}
-          {linkedIssues.length === 0 && <span className="text-xs text-muted">연결된 이슈가 없습니다.</span>}
-        </div>
-        <div className="mt-3 flex gap-2">
-          <input
-            aria-label="연결할 이슈 키"
-            value={newIssueKey}
-            onChange={(e) => setNewIssueKey(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && linkIssue()}
-            placeholder="이슈 키 (예: THR-103)"
-            className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-placeholder focus:border-ring focus:outline-none"
-          />
-          <button
-            onClick={linkIssue}
-            className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-primary-subtle"
-          >
-            연결
-          </button>
-        </div>
-      </section>
+              <option value="">이슈 선택</option>
+              {unlinkedProjectIssues.map((issue) => (
+                <option key={issue.id} value={issue.id}>
+                  {issue.issueKey} · {issue.title}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => void linkIssue()}
+              disabled={!pickedIssueId || linkBusy}
+              className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-primary-subtle disabled:opacity-50"
+            >
+              연결
+            </button>
+          </div>
+          {linkError && <p className="mt-2 text-xs text-destructive">{linkError}</p>}
+        </section>
+      )}
 
       {/* 하단 액션: 쓰레드 / 그래프 뷰 */}
       {!isNew && (
         <div className="mt-4 flex gap-4 text-sm">
           <Link
-            href={`/${companyId}/${projectId}/threads/doc-${docId}`}
+            href={`/${companyId}/${projectId}/threads/open?targetType=DOCUMENT&targetId=${docId}`}
             className="font-medium text-primary hover:opacity-70"
           >
             쓰레드 열기 →
           </Link>
           <Link
-            href={`/${companyId}/${projectId}/docs`}
+            href={`/${companyId}/${projectId}/graph`}
             className="font-medium text-primary hover:opacity-70"
           >
             그래프 뷰에서 보기 →
