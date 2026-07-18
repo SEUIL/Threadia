@@ -15,22 +15,23 @@
  *   - "알림 설정"(전체/이벤트별 on/off) — backend에 notification-preferences
  *     컨트롤러 자체가 없다(NOTI-02/03, WBS 4.8.1 범위 밖). 이전 mock의 설정
  *     섹션은 껐다.
- *   - ISSUE 대상 알림의 클릭 이동 — `IssueResponse`에 projectId가 없어
- *     이동할 프로젝트를 알 수 없다(별도 보고 필요, backend gap).
  *
  * "알림 항목 클릭 이동"은 대상 타입마다 다르게 처리한다. 알림 응답의 target은
  * {type, id}만 주고 companyId/projectId를 안 준다(NotificationEvent 엔티티에는
  * 있는데 DTO에 안 실려 있다). 이 페이지는 company-scoped라 companyId는 route
  * param으로 알 수 있고, DIRECT_MESSAGE_ROOM/PROJECT는 target.id만으로 경로를
- * 만들 수 있다. DOCUMENT/THREAD/MESSAGE/SPRINT는 클릭 시 해당 리소스를 한 번
- * 더 조회해 projectId를 얻는다(document/thread service가 아직 dev에 없어
- * apiClient로 직접 부른다).
+ * 만들 수 있다. DOCUMENT/THREAD/MESSAGE/SPRINT/ISSUE는 클릭 시 해당 리소스를
+ * 한 번 더 조회해 projectId를 얻는다(document/thread service가 아직 dev에
+ * 없어 apiClient로 직접 부른다). ISSUE는 이슈 #176/PR #177로 `IssueResponse`에
+ * `projectId`가 추가되면서 이제 가능해졌다 — 처음 이 PR을 낼 때는 그 필드가
+ * 없어서 이동 불가였다.
  */
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import apiClient from "@/lib/axios";
 import { invitationErrorMessage } from "@/lib/invitation";
+import { issueService } from "@/services/issue.service";
 import { notificationService } from "@/services/notification.service";
 import { sprintService } from "@/services/sprint.service";
 import type { ApiResponse } from "@/types/auth.types";
@@ -167,9 +168,11 @@ export default function NotificationsPage() {
         );
         return `/${companyId}/${data.data.message.projectId}/messages`;
       }
-      case "ISSUE":
-        // IssueResponse에 projectId가 없어 이동 경로를 만들 수 없다(backend gap).
-        return null;
+      case "ISSUE": {
+        // 이슈 #176/PR #177로 IssueResponse에 projectId가 추가되면서 가능해졌다.
+        const { data } = await issueService.detail(target.id);
+        return `/${companyId}/${data.data.issue.projectId}/board`;
+      }
       default:
         return null;
     }
