@@ -96,8 +96,8 @@ public class ProjectService {
 	public ProjectCreateData create(String accessToken, Long companyId, ProjectCreateRequest request) {
 		AuthContext authContext = authContextService.fromAccessToken(accessToken);
 		User creator = authContextService.requireActiveUser(authContext);
-		Company company = company(companyId);
-		companyMembershipService.requireCompanyAdmin(companyId, authContext);
+		Company company = companyForUpdate(companyId);
+		companyMembershipService.requireCompanyAdminForUpdate(companyId, authContext);
 		validateCreateRequest(request);
 		String projectKey = request.projectKey().trim();
 		if (projectRepository.existsByCompany_IdAndProjectKey(companyId, projectKey)) {
@@ -240,6 +240,11 @@ public class ProjectService {
 
 	private Company company(Long companyId) {
 		return companyRepository.findById(companyId)
+				.orElseThrow(() -> new CompanyNotFoundException(companyId));
+	}
+
+	private Company companyForUpdate(Long companyId) {
+		return companyRepository.findByIdForUpdate(companyId)
 				.orElseThrow(() -> new CompanyNotFoundException(companyId));
 	}
 
