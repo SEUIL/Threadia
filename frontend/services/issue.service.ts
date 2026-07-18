@@ -38,4 +38,7 @@ export const issueService = {
 
   restore: (issueId: string | number) =>
     apiClient.post<ApiResponse<IssueData>>(`/api/v1/issues/${issueId}/restore`),
+
+  detail: (issueId: string | number) =>
+    apiClient.get<ApiResponse<IssueData>>(`/api/v1/issues/${issueId}`),
 };

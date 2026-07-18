@@ -435,7 +435,7 @@ export default function DocEditorPage() {
       {!isNew && (
         <div className="mt-4 flex gap-4 text-sm">
           <Link
-            href={`/${companyId}/${projectId}/threads/doc-${docId}`}
+            href={`/${companyId}/${projectId}/threads/open?targetType=DOCUMENT&targetId=${docId}`}
             className="font-medium text-primary hover:opacity-70"
           >
             쓰레드 열기 →
