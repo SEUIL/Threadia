@@ -126,12 +126,15 @@ test("수락 후 안내가 scope에 따라 다르다", async ({ page }) => {
   await expect(page.getByText("재로그인")).toHaveCount(0);
 });
 
-test("회사 초대 수락에는 재로그인 안내가 남아 있다", async ({ page }) => {
+test("회사 초대 수락은 재로그인 없이 소속 반영 안내를 보여준다", async ({ page }) => {
+  // PR #171: refreshCompanyMemberships()로 세션이 즉시 갱신되므로 더 이상
+  // 재로그인 안내를 기대하면 안 된다(구버전 기대값 갱신).
   await mockApi(page, [companyInvitation]);
   await page.goto("/invitations");
 
   await openEnvelope(page, /Threadia 초대 봉투 열기/);
   await page.getByRole("button", { name: "수락" }).click();
 
-  await expect(page.getByText(/소속이 반영됐습니다.*재로그인/)).toBeVisible();
+  await expect(page.getByText("Threadia 소속이 반영됐습니다.")).toBeVisible();
+  await expect(page.getByText("재로그인")).toHaveCount(0);
 });

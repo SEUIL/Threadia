@@ -59,6 +59,7 @@ export function CreateCompanyForm() {
 
   const onSubmit = async (values: CompanyFormValues) => {
     setError(null);
+    let companyId: number;
     try {
       const { data } = await companyService.create({
         name: values.name,
@@ -67,11 +68,22 @@ export function CreateCompanyForm() {
         description: values.description === "" ? null : values.description,
         logoUrl: null,
       });
-      await refreshCompanyMemberships();
-      router.push(`/${data.data.company.id}/projects`);
+      companyId = data.data.company.id;
     } catch (err) {
       setError(invitationErrorMessage(err, "회사 생성에 실패했습니다."));
+      return;
     }
+
+    try {
+      await refreshCompanyMemberships();
+    } catch {
+      // 생성 API 자체는 이미 성공했다 — 세션 companyMemberships 재조회만 실패한
+      // 것이므로 "생성 실패"로 보이면 안 된다(PR #171 리뷰 반영, invitations
+      // page의 동일 패턴 참고).
+      setError("회사는 생성됐지만 소속 반영에 실패했습니다. 새로고침 후 다시 확인해주세요.");
+      return;
+    }
+    router.push(`/${companyId}/projects`);
   };
 
   return (
