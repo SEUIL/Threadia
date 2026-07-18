@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-07
-> **최종 수정**: 2026-07-17
-> **버전**: v0.12 SEARCH-01 Level 4 Backend/Frontend 계층 정정
+> **최종 수정**: 2026-07-18
+> **버전**: v0.14 WBS 4.10.5 Frontend 의존 계획
 > **상태**: 검토 중
 > **태그**: sprint-3, backlog, wbs, platform-admin, extension
 
@@ -77,7 +77,8 @@ Level 3 row는 전체 `4.x`를 기계적으로 쪼갠 것이 아니라, 실제 �
 | `4.10` | `4.10.1` | support cases 구현 범위 확정/구현 | Sprint 3 후보 |
 | `4.10` | `4.10.2` | user/company enforcement 구현 | 정책 확정, 구현 미착수 |
 | `4.10` | `4.10.3` | system settings 구현 범위 확정 | 정책 결정 확정, 구현 미착수 |
-| `4.10` | `4.10.4` | audit/operation logs 및 platform admin lifecycle/grant/revoke 구현 | 정책 확정, 구현 미착수 |
+| `4.10` | `4.10.4` | Backend: audit read와 platform admin lifecycle/grant/revoke 구현 | Backend 완료. S15 Frontend, enforcement, retention/cleanup, migration은 후속 범위 |
+| `4.10` | `4.10.5` | Frontend: platform actor, admin lifecycle, audit-read API 연동 | Frontend-only, 계획, 0%. `4.10.1`, `4.10.3`, `4.10.4` 의존. platform actor 표시, admin lifecycle API 소비, audit-read 결과/cursor 상태 연동을 완료 기준으로 둔다. |
 | `4.11` | `4.11.1` | attachment policy/contract 결정 | decision-needed |
 | `4.11` | `4.11.2` | presigned upload/download 구현 | Sprint 3 후보 |
 | `4.11` | `4.11.3` | metadata/validation 검증 | Sprint 3 후보 |

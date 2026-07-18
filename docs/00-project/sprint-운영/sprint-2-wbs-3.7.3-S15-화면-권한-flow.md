@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-13
-> **최종 수정**: 2026-07-16
-> **버전**: v0.2
+> **최종 수정**: 2026-07-18
+> **버전**: v0.3 WBS 4.10.4 Backend 완료 주석
 > **상태**: 검토 중
 > **태그**: sprint-2, wbs, platform-admin, screen, authorization
 
@@ -11,7 +11,7 @@
 
 이 문서는 S15 플랫폼 관리자 화면의 namespace, actor 경계, action flow를 초안으로 정리한다. 화면 layout, route, API 연동, 실제 접근 제어 구현을 확정하거나 수행하지 않는다.
 
-S15는 기존 S03부터 S14까지의 회사와 프로젝트 workspace 흐름에 속하지 않는 platform-level console이다. `4.10.3` policy baseline은 확정됐지만 `4.10.2~4.10.4`의 화면, API, schema, 실제 접근 제어 구현은 미착수다.
+S15는 기존 S03부터 S14까지의 회사와 프로젝트 workspace 흐름에 속하지 않는 platform-level console이다. 이 문서는 historical 화면/권한 flow 초안이다. 현재 `4.10.4` Backend lifecycle/audit-read와 server-side platform authorization은 구현됐으며, `4.10.2` enforcement, S15 Frontend와 화면 상세는 후속 범위다.
 
 ## 2. namespace와 actor 경계
 

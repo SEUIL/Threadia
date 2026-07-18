@@ -265,11 +265,12 @@ class IssueControllerTest {
 
 	@Test
 	void issueTimestampSerializesWithUtcZSuffix() throws Exception {
-		IssueResponse issue = new IssueResponse(100L, "THD-1", "첫 이슈", "BACKLOG", null, "MEDIUM", null, null, null, null, "MANUAL", LocalDateTime.of(2026, 7, 14, 1, 2, 3), null);
+		IssueResponse issue = new IssueResponse(100L, 20L, "THD-1", "첫 이슈", "BACKLOG", null, "MEDIUM", null, null, null, null, "MANUAL", LocalDateTime.of(2026, 7, 14, 1, 2, 3), null);
 		when(issueService.detail("valid-token", 100L)).thenReturn(new IssueData(issue));
 
 		mockMvc.perform(get("/api/v1/issues/100").header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
 				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.issue.projectId").value(20))
 				.andExpect(jsonPath("$.data.issue.trashedAt").value("2026-07-14T01:02:03Z"));
 	}
 

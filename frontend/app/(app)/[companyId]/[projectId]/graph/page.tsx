@@ -1,48 +1,55 @@
 "use client";
 
 /*
- * 프로젝트 그래프 — 문서·이슈·채팅 통합 그래프 뷰
+ * 프로젝트 그래프 — 문서·이슈 연결 그래프 뷰 (S07 그래프 뷰)
  *
  * 원래 docs/page.tsx(S07) 안의 "그래프 뷰" 탭이었다. 프로젝트에 들어왔을 때
  * 가장 먼저 보이는 화면(프로젝트 탭의 첫 번째, 프로젝트 카드의 기본 진입점)
  * 으로 승격해서 화면 전체를 채우는 메인 화면으로 다시 잡았다.
  *
- * 배경: docs/08-members/member-정철진/기술-연구/레이아웃-구조-실험-레일-그래프-조합.md
- * (design-sample 프로토타입의 레일+그래프 조합을 실제 frontend에 적용한 작업의
- * 연장선 — RailShell 전면 교체와 함께 진행).
- *
- * 목업 데이터/타입/배치 로직은 문서 목록 화면(../docs/page.tsx)과 공유한다
- * (./mockGraphData.ts). 두 화면은 각자 별도 useState로 mock을 들고 있어서
- * (예: docs 목록에서 문서를 휴지통으로 보내도 이 화면엔 반영 안 됨) 실 API
- * 연동 전까지는 서로 동기화되지 않는다 — 기존 docs/messages 관계와 동일한
- * 제약이다.
+ * WBS 4.6.2 — 4.6.1 Backend(PR #101)의 `GET /projects/{projectId}/documents/graph`
+ * 로 연동했다. 응답은 DOCUMENT/ISSUE node와 documentId→issueId edge만 주므로
+ * (API-명세서 §13.6) 채팅 노드 통합(이전 mock에 있던 "chat" kind)은 제외했다
+ * — 메시지→이슈 연결(LINK-03, WBS 4.5)이 구현되면 별도로 다시 반영한다.
  */
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { invitationErrorMessage } from "@/lib/invitation";
+import { documentService } from "@/services/document.service";
 import {
   ALL_KINDS,
   CARD_ANCHOR_Y,
   CARD_WIDTH,
   GRAPH_CANVAS_HEIGHT,
   GRAPH_CANVAS_WIDTH,
-  ISSUE_PREVIEW,
   KIND_CHIP_CLASS,
   KIND_LABEL,
   KIND_RING_CLASS,
-  MOCK_CHATS,
-  MOCK_DOCS,
-  TYPE_LABEL,
   layoutColumn,
   type GraphNode,
   type NodeKind,
-} from "./mockGraphData";
+} from "./graphLayout";
+
+type LoadState = "loading" | "ready" | "error";
+
+const STATUS_LABEL: Record<string, string> = {
+  BACKLOG: "백로그",
+  TODO: "할일",
+  IN_PROGRESS: "진행중",
+  IN_REVIEW: "검토중",
+  DONE: "완료",
+};
 
 export default function ProjectGraphPage() {
   const params = useParams<{ companyId: string; projectId: string }>();
   const { companyId, projectId } = params;
 
-  const activeDocs = MOCK_DOCS.filter((d) => !d.trashedAt);
+  const [pageState, setPageState] = useState<LoadState>("loading");
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [allNodes, setAllNodes] = useState<GraphNode[]>([]);
+  const [allEdges, setAllEdges] = useState<{ from: string; to: string }[]>([]);
+
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [activeKinds, setActiveKinds] = useState<NodeKind[]>(ALL_KINDS);
   const [query, setQuery] = useState("");
@@ -67,6 +74,55 @@ export default function ProjectGraphPage() {
     origY: number;
     moved: boolean;
   } | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const { data } = await documentService.graph(projectId);
+      setPageError(null);
+
+      const docNodesRaw = data.data.nodes.filter((n) => n.type === "DOCUMENT");
+      const issueNodesRaw = data.data.nodes.filter((n) => n.type === "ISSUE");
+      const docPositions = layoutColumn("doc", docNodesRaw.length);
+      const issuePositions = layoutColumn("issue", issueNodesRaw.length);
+
+      const docNodes: GraphNode[] = docNodesRaw.map((n, i) => ({
+        id: `doc:${n.id}`,
+        kind: "doc",
+        label: n.title,
+        issueKey: null,
+        status: null,
+        refId: n.id,
+        ...docPositions[i],
+      }));
+      const issueNodes: GraphNode[] = issueNodesRaw.map((n, i) => ({
+        id: `issue:${n.id}`,
+        kind: "issue",
+        label: n.issueKey ?? n.title,
+        issueKey: n.issueKey,
+        status: n.status,
+        refId: n.id,
+        ...issuePositions[i],
+      }));
+
+      const edgeList = data.data.edges.map((e) => ({
+        from: `doc:${e.sourceDocumentId}`,
+        to: `issue:${e.targetIssueId}`,
+      }));
+
+      setAllNodes([...docNodes, ...issueNodes]);
+      setAllEdges(edgeList);
+      setPageState("ready");
+    } catch (error) {
+      setPageError(invitationErrorMessage(error, "그래프 데이터를 불러오지 못했습니다."));
+      setPageState("error");
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    (async () => {
+      await load();
+    })();
+  }, [load]);
 
   const onCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target !== canvasSurfaceRef.current) return; // 노드 카드 위에서는 pan 시작 안 함
@@ -125,46 +181,6 @@ export default function ProjectGraphPage() {
     setScale(nextScale);
   };
 
-  // 노드 배치: 문서/이슈/채팅 각각 layoutColumn()으로 자동 배치.
-  const { nodes: allNodes, edges: allEdges } = useMemo(() => {
-    const issueKeys = Array.from(
-      new Set([
-        ...activeDocs.flatMap((d) => d.linkedIssueKeys),
-        ...MOCK_CHATS.map((c) => c.relatedIssueKey),
-      ])
-    );
-    const docPositions = layoutColumn("doc", activeDocs.length);
-    const issuePositions = layoutColumn("issue", issueKeys.length);
-    const chatPositions = layoutColumn("chat", MOCK_CHATS.length);
-
-    const docNodes: GraphNode[] = activeDocs.map((d, i) => ({
-      id: `doc:${d.id}`,
-      kind: "doc",
-      label: d.title,
-      ...docPositions[i],
-    }));
-    const issueNodes: GraphNode[] = issueKeys.map((key, i) => ({
-      id: `issue:${key}`,
-      kind: "issue",
-      label: key,
-      ...issuePositions[i],
-    }));
-    const chatNodes: GraphNode[] = MOCK_CHATS.map((c, i) => ({
-      id: `chat:${c.id}`,
-      kind: "chat",
-      label: c.authorName,
-      ...chatPositions[i],
-    }));
-    const edgeList = [
-      ...activeDocs.flatMap((d) =>
-        d.linkedIssueKeys.map((key) => ({ from: `doc:${d.id}`, to: `issue:${key}` }))
-      ),
-      ...MOCK_CHATS.map((c) => ({ from: `chat:${c.id}`, to: `issue:${c.relatedIssueKey}` })),
-    ];
-    return { nodes: [...docNodes, ...issueNodes, ...chatNodes], edges: edgeList };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // 타입 필터 + 제목/이름 검색(AND 조건) — 캔버스 크기(viewBox)는 전체 노드
   // 기준으로 고정해 필터를 켜고 끌 때 화면이 튀지 않게 한다.
   const { nodes, edges } = useMemo(() => {
@@ -193,13 +209,27 @@ export default function ProjectGraphPage() {
     setScale(1);
   };
 
+  if (pageState === "loading") {
+    return <div className="px-6 py-8 text-sm text-muted">그래프를 불러오는 중...</div>;
+  }
+
+  if (pageState === "error") {
+    return (
+      <div className="px-6 py-8">
+        <div className="rounded-lg border border-destructive/30 bg-destructive-subtle px-4 py-6 text-center text-sm text-destructive">
+          {pageError}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col px-6 py-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">그래프</h1>
           <p className="mt-1 text-sm text-muted">
-            프로젝트 {projectId} · 문서·이슈·채팅이 어떻게 연결돼 있는지 한눈에 봅니다.
+            프로젝트 {projectId} · 문서와 이슈가 어떻게 연결돼 있는지 한눈에 봅니다.
           </p>
         </div>
       </div>
@@ -224,7 +254,7 @@ export default function ProjectGraphPage() {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="제목/이름으로 검색"
+          placeholder="제목/이슈 키로 검색"
           className="ml-auto w-56 rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-foreground placeholder-placeholder outline-none focus:border-ring"
         />
         <button
@@ -325,74 +355,40 @@ export default function ProjectGraphPage() {
           </div>
         </div>
 
-        {/* 우측 서랍 패널 — 화면 이동 없이 미리보기 (문서/이슈/채팅 3분기) */}
+        {/* 우측 서랍 패널 — 화면 이동 없이 미리보기 (문서/이슈 2분기) */}
         <div className="w-64 shrink-0 overflow-y-auto rounded-xl border border-border bg-surface p-4">
           {selectedNode && !nodes.some((n) => n.id === selectedNode.id) ? (
             <p className="text-xs text-muted">선택한 노드가 현재 필터 조건에서 숨겨졌습니다.</p>
           ) : selectedNode ? (
             selectedNode.kind === "doc" ? (
-              (() => {
-                const doc = activeDocs.find((d) => `doc:${d.id}` === selectedNode.id);
-                if (!doc) return null;
-                return (
-                  <div>
-                    <span className="rounded-full bg-primary-subtle px-2 py-0.5 text-[10px] font-medium text-primary">
-                      {TYPE_LABEL[doc.type]}
-                    </span>
-                    <p className="mt-2 text-sm font-semibold text-foreground">{doc.title}</p>
-                    <p className="mt-1 text-xs text-muted">{doc.authorName} · {doc.updatedAt}</p>
-                    <p className="mt-2 text-xs text-muted">연결 이슈: {doc.linkedIssueKeys.join(", ") || "없음"}</p>
-                    <Link
-                      href={`/${companyId}/${projectId}/docs/${doc.id}`}
-                      className="mt-3 inline-block text-xs font-medium text-primary hover:opacity-70"
-                    >
-                      문서 열기 →
-                    </Link>
-                  </div>
-                );
-              })()
-            ) : selectedNode.kind === "issue" ? (
-              (() => {
-                const key = selectedNode.label;
-                const preview = ISSUE_PREVIEW[key];
-                return (
-                  <div>
-                    <span className="rounded-full bg-accent-subtle px-2 py-0.5 text-[10px] font-medium text-accent">
-                      이슈
-                    </span>
-                    <p className="mt-2 font-mono text-xs text-muted">{key}</p>
-                    <p className="text-sm font-semibold text-foreground">{preview?.title ?? "-"}</p>
-                    <p className="mt-1 text-xs text-muted">상태: {preview?.status ?? "-"}</p>
-                    <Link
-                      href={`/${companyId}/${projectId}/board`}
-                      className="mt-3 inline-block text-xs font-medium text-primary hover:opacity-70"
-                    >
-                      보드에서 보기 →
-                    </Link>
-                  </div>
-                );
-              })()
+              <div>
+                <span className="rounded-full bg-primary-subtle px-2 py-0.5 text-[10px] font-medium text-primary">
+                  문서
+                </span>
+                <p className="mt-2 text-sm font-semibold text-foreground">{selectedNode.label}</p>
+                <Link
+                  href={`/${companyId}/${projectId}/docs/${selectedNode.refId}`}
+                  className="mt-3 inline-block text-xs font-medium text-primary hover:opacity-70"
+                >
+                  문서 열기 →
+                </Link>
+              </div>
             ) : (
-              (() => {
-                const chat = MOCK_CHATS.find((c) => `chat:${c.id}` === selectedNode.id);
-                if (!chat) return null;
-                return (
-                  <div>
-                    <span className="rounded-full bg-aurora-3/20 px-2 py-0.5 text-[10px] font-medium text-foreground">
-                      채팅
-                    </span>
-                    <p className="mt-2 text-sm font-semibold text-foreground">{chat.authorName}</p>
-                    <p className="mt-1 text-xs text-muted">{chat.text}</p>
-                    <p className="mt-2 text-xs text-muted">관련 이슈: {chat.relatedIssueKey}</p>
-                    <Link
-                      href={`/${companyId}/${projectId}/messages`}
-                      className="mt-3 inline-block text-xs font-medium text-primary hover:opacity-70"
-                    >
-                      채팅에서 보기 →
-                    </Link>
-                  </div>
-                );
-              })()
+              <div>
+                <span className="rounded-full bg-accent-subtle px-2 py-0.5 text-[10px] font-medium text-accent">
+                  이슈
+                </span>
+                <p className="mt-2 font-mono text-xs text-muted">{selectedNode.issueKey}</p>
+                <p className="mt-1 text-xs text-muted">
+                  상태: {(selectedNode.status && STATUS_LABEL[selectedNode.status]) ?? "-"}
+                </p>
+                <Link
+                  href={`/${companyId}/${projectId}/board`}
+                  className="mt-3 inline-block text-xs font-medium text-primary hover:opacity-70"
+                >
+                  보드에서 보기 →
+                </Link>
+              </div>
             )
           ) : (
             <p className="text-xs text-muted">노드를 클릭하면 미리보기가 여기 표시됩니다.</p>

@@ -74,7 +74,7 @@ class SystemSettingsPersistenceIntegrationTest {
 	}
 
 	@Test
-	void commitsSettingAndAuditWithPersistedVersionEvidenceAndRedaction() throws Exception {
+	void commitsSettingAndAuditWithPersistedVersionEvidenceWithoutSettingValueSnapshot() throws Exception {
 		SystemSettingResponse response = service.replace("token", SystemSettingKey.SUPPORT_CENTER_STATUS,
 				new ReplaceSystemSettingRequest(json("{\"status\":\"DELAYED\",\"message\":\"after private message\"}"), setting.getVersion(), "운영 상태 변경"));
 
@@ -86,8 +86,8 @@ class SystemSettingsPersistenceIntegrationTest {
 			assertThat(audit.getAction()).isEqualTo(AdminAction.SYSTEM_SETTING_REPLACED);
 			assertThat(audit.getTargetType()).isEqualTo(AuditTargetType.SYSTEM_SETTING);
 			assertThat(audit.getTargetId()).isEqualTo(setting.getId());
-			assertThat(audit.getBeforeState()).doesNotContain("before private message").contains("[REDACTED]");
-			assertThat(audit.getAfterState()).doesNotContain("after private message").contains("[REDACTED]");
+			assertThat(audit.getBeforeState()).doesNotContain("before private message", "[REDACTED]", "\"value\"");
+			assertThat(audit.getAfterState()).doesNotContain("after private message", "[REDACTED]", "\"value\"");
 			assertThat(snapshot(audit.getBeforeState()).path("version").asLong()).isEqualTo(1L);
 			assertThat(snapshot(audit.getAfterState()).path("version").asLong()).isEqualTo(2L);
 			assertThat(snapshot(audit.getAfterState()).path("settingKey").asText()).isEqualTo("SUPPORT_CENTER_STATUS");

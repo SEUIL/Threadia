@@ -35,13 +35,15 @@ class DirectMessageRepositoryQueryTests {
 	@Test
 	void unreadQueriesAreScopedPerUserAndUseCreatedAtThenIdOrdering() {
 		assertThat(query(DirectMessageRepository.class, "countUnreadByRoomIdAndUserId", Long.class, Long.class))
-				.contains("state.user.id = :userId", "message.sender.id <> :userId",
-						"message.createdAt > state.lastReadDirectMessage.createdAt",
-						"message.createdAt = state.lastReadDirectMessage.createdAt and message.id > state.lastReadDirectMessage.id");
+				.contains("state.user.id = :userId", "left join state.lastReadDirectMessage lastRead", "message.sender.id <> :userId",
+						"lastRead is null", "message.createdAt > lastRead.createdAt",
+						"message.createdAt = lastRead.createdAt and message.id > lastRead.id")
+				.doesNotContain("state.lastReadDirectMessage.createdAt", "state.lastReadDirectMessage.id");
 		assertThat(query(DirectMessageRepository.class, "countUnreadByUserId", Long.class))
-				.contains("message.room.user1.id = :userId or message.room.user2.id = :userId", "message.sender.id <> :userId",
-						"message.createdAt > state.lastReadDirectMessage.createdAt",
-						"message.createdAt = state.lastReadDirectMessage.createdAt and message.id > state.lastReadDirectMessage.id");
+				.contains("message.room.user1.id = :userId or message.room.user2.id = :userId", "left join state.lastReadDirectMessage lastRead", "message.sender.id <> :userId",
+						"lastRead is null", "message.createdAt > lastRead.createdAt",
+						"message.createdAt = lastRead.createdAt and message.id > lastRead.id")
+				.doesNotContain("state.lastReadDirectMessage.createdAt", "state.lastReadDirectMessage.id");
 	}
 
 	@Test
