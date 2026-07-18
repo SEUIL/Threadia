@@ -5,6 +5,10 @@ on:
     paths:
       - "backend/**"
       - "db/**"
+      - "scripts/ssm-delivery/**"
+      - "infra/cloudformation/**"
+      - "docs/00-project/restricted-ssm-*.md"
+      - "docs/05-architecture/GitHub-OIDC-SSM-EC2-배포-설계.md"
       - "compose.mysql.yml"
       - ".github/workflows/backend-ci.yml"
   push:
@@ -14,6 +18,10 @@ on:
     paths:
       - "backend/**"
       - "db/**"
+      - "scripts/ssm-delivery/**"
+      - "infra/cloudformation/**"
+      - "docs/00-project/restricted-ssm-*.md"
+      - "docs/05-architecture/GitHub-OIDC-SSM-EC2-배포-설계.md"
       - "compose.mysql.yml"
       - ".github/workflows/backend-ci.yml"
 
@@ -76,6 +84,11 @@ jobs:
               status = VALUES(status),
               updated_at = VALUES(updated_at);
           SQL
+
+      - name: Validate restricted SSM delivery source
+        run: |
+          bash -n ../scripts/ssm-delivery/apply-release
+          python3 ../infra/cloudformation/validate-restricted-ssm-delivery-preflight.py
 
       - name: Run backend tests
         run: ./gradlew test
