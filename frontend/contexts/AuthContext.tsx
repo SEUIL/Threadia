@@ -56,6 +56,12 @@ interface AuthContextValue {
    * 세션이나 회사 소속과 무관하다.
    */
   applyUser: (user: UserSummary) => void;
+  /*
+   * companyMemberships를 다시 조회해 state를 갱신한다. 로그인/refresh 때만
+   * 채우던 것과 달리, 세션 중간에 소속이 바뀌는 경우(회사 생성, 초대 수락)
+   * 재로그인 없이 반영하기 위해 추가했다(2026-07-18 회사 자율 생성 flow).
+   */
+  refreshCompanyMemberships: () => Promise<CompanyMembership[]>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -124,6 +130,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(next);
   }, []);
 
+  const refreshCompanyMemberships = useCallback(async () => {
+    const memberships = await fetchCompanyMemberships();
+    setCompanyMemberships(memberships);
+    return memberships;
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await authService.logout();
@@ -136,7 +148,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, companyMemberships, status, login, logout, applyUser }}>
+    <AuthContext.Provider
+      value={{ user, companyMemberships, status, login, logout, applyUser, refreshCompanyMemberships }}
+    >
       {children}
     </AuthContext.Provider>
   );
