@@ -3,7 +3,7 @@ name: threadia-ecr-nonprod
 services:
   mysql:
     image: mysql:8.4
-    restart: "no"
+    restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${THREADIA_DB_NAME:?THREADIA_DB_NAME is required}
       MYSQL_USER: ${THREADIA_DB_USERNAME:?THREADIA_DB_USERNAME is required}
@@ -12,7 +12,7 @@ services:
     volumes:
       - ./db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$${MYSQL_USER} -p$${MYSQL_PASSWORD}"]
+      test: ["CMD-SHELL", "mysql -h localhost -u\"$${MYSQL_USER}\" -p\"$${MYSQL_PASSWORD}\" -Nse 'SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = \"users\" LIMIT 1' \"$${MYSQL_DATABASE}\" | grep -Fx 1"]
       interval: 5s
       timeout: 3s
       retries: 20
