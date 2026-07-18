@@ -11,6 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.threadia.backend.notification.domain.NotificationType;
 import com.threadia.backend.platform.bootstrap.PlatformAdminBootstrap;
@@ -18,6 +19,7 @@ import com.threadia.backend.projectchat.ProjectChatMysqlSchemaInitializer;
 
 @SpringBootTest
 @ContextConfiguration(initializers = ProjectChatMysqlSchemaInitializer.class)
+@Transactional
 @EnabledIfEnvironmentVariable(named = "THREADIA_DB_PASSWORD", matches = ".+")
 @EnabledIfEnvironmentVariable(named = "THREADIA_DB_SCHEMA_VALIDATION", matches = "true")
 class NotificationRecipientRepositoryQueryTests {
