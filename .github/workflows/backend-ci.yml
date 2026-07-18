@@ -31,6 +31,7 @@ jobs:
       THREADIA_DB_URL: jdbc:mysql://localhost:3306/threadia_test
       THREADIA_DB_USERNAME: threadia_test
       THREADIA_DB_PASSWORD: threadia_test_password
+      THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL: ci-platform-admin@threadia.invalid
       THREADIA_JWT_SECRET: public-ci-test-jwt-secret-not-for-production-please-replace
       THREADIA_COOKIE_SECURE: "false"
       THREADIA_CORS_ALLOWED_ORIGIN: http://localhost:3000
@@ -63,7 +64,18 @@ jobs:
           cache: gradle
 
       - name: Initialize MySQL schema
-        run: MYSQL_PWD="$THREADIA_DB_PASSWORD" mysql --host=127.0.0.1 --port=3306 --user="$THREADIA_DB_USERNAME" threadia_test < ../db/schema.sql
+        run: |
+          MYSQL_PWD="$THREADIA_DB_PASSWORD" mysql --host=127.0.0.1 --port=3306 --user="$THREADIA_DB_USERNAME" threadia_test < ../db/schema.sql
+          MYSQL_PWD="$THREADIA_DB_PASSWORD" mysql --host=127.0.0.1 --port=3306 --user="$THREADIA_DB_USERNAME" threadia_test <<SQL
+          INSERT INTO users (email, password_hash, nickname, avatar_url, status, created_at, updated_at)
+          VALUES ('${THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL}', NULL, 'ci-bootstrap-admin', NULL, 'ACTIVE', UTC_TIMESTAMP(), UTC_TIMESTAMP())
+          ON DUPLICATE KEY UPDATE
+              password_hash = VALUES(password_hash),
+              nickname = VALUES(nickname),
+              avatar_url = VALUES(avatar_url),
+              status = VALUES(status),
+              updated_at = VALUES(updated_at);
+          SQL
 
       - name: Run backend tests
         run: ./gradlew test
