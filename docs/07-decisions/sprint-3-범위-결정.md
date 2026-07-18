@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-07
-> **최종 수정**: 2026-07-17
-> **버전**: v0.6 DEFER-05/06 이번 개발 기간 보류 반영
+> **최종 수정**: 2026-07-18
+> **버전**: v0.7 WBS 4.10.4 Backend 완료 기준
 > **상태**: 검토 중
 > **태그**: decision, sprint-3, scope, backlog, platform-admin
 
@@ -21,7 +21,7 @@
 | Sprint 1.5 | Company invitation 진행/계획 기준 |
 | Sprint 2 | Company/RBAC/Project foundation 계획, Issue/Kanban은 capacity candidate |
 | Backlog 4.x | Gate 3 완료 기준 Sprint 3 `4.1~4.14` parent 구조와 선택적 `4.x.y` Level 3 실행 row 반영 완료 |
-| S15 | `3.7~3.7.5` Sprint 2 planning gate와 Go/No-Go handoff 기준 존재. `4.10.3` 정책 결정은 확정됐고, `4.10.2` enforcement, `4.10.3` system settings, `4.10.4` audit/operation logs 및 platform admin lifecycle/grant/revoke 구현은 별도 미착수 작업이다. |
+| S15 | `3.7~3.7.5` planning gate와 Go/No-Go handoff는 역사적 선행 기준이다. `4.10.4` Backend lifecycle/audit-read는 구현됐고, enforcement, S15 Frontend, retention/cleanup과 나머지 운영 확장은 후속 범위다. |
 
 ## 3. Sprint 3 범위 모델
 
@@ -43,7 +43,7 @@ Sprint 3는 기존 `WBS 4.x Backlog Development`를 실행 가능한 Sprint 3 �
 | 항목 | 결정 |
 |---|---|
 | 기간, capacity, Owner, Reviewer | Sprint 3 초안에서는 공란으로 둔다. |
-| S15 상세 확정 | `4.10.3` 정책 결정은 확정했다. `4.10.2` enforcement, `4.10.3` system settings, `4.10.4` audit/operation logs 및 platform admin lifecycle/grant/revoke 구현은 별도 작업으로 추적한다. |
+| S15 상세 확정 | `4.10.4` Backend lifecycle/audit-read는 구현됐다. `4.10.2` enforcement, S15 Frontend, retention/cleanup, migration과 나머지 운영 확장은 별도 후속 작업으로 추적한다. |
 | 동시 문서 편집 | Sprint 3 기본안은 version/revision 기반 optimistic locking이다. CRDT 또는 실시간 공동 편집은 후속 변경 가능성을 남긴다. |
 | 고급 DM 모델 | 이번 개발 기간에는 1:1 전용 모델을 유지한다. 다자간 DM과 상대 read receipt는 향후 재검토 항목이며 room + participants 일반화와 구현은 추가하지 않는다. |
 | 알림 scope | `GLOBAL` preference 계약을 유지한다. `PROJECT` scope는 `PROJECT_NOTIFICATION_SCOPE_DEFERRED` API boundary이며 요구사항추적표 primary row로 backfill하지 않는다. |

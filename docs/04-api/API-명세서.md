@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-07-17
-> **버전**: v3.5 SEARCH-01 Level 4 Backend/Frontend 계층 정정
+> **최종 수정**: 2026-07-18
+> **버전**: v3.8 WBS 4.10.4 Backend 완료 기준
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -13,7 +13,7 @@
 
 > **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows이며, DB는 ERD 기반 `db/schema.sql`과 문서 변경이력으로 관리한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
-> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, Sprint 3 decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15 WBS `4.10.1` support case, WBS `4.10.3` typed system settings, WBS `4.8.1` notification inbox/read-state, WBS `4.9.4.1` 프로젝트 범위 Search Backend 계약을 확정한다. `4.9.4`는 진행 중 50% parent이며 `4.9.4.2` Frontend 구현은 계획/0% 상태다. notification producer matrix, preferences, push/WebSocket, Frontend와 enforcement, admin lifecycle, dashboard는 후속 범위다. attachment, document optimistic locking, advanced DM, PROJECT notification preference scope, project restore, permanent delete는 선행 결정 전 full endpoint contract나 request/response body를 만들지 않는다.
+> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15 `4.10.1` support case, `4.10.3` typed system settings, `4.10.4` Backend lifecycle/audit-read, `4.8.1` notification inbox/read-state, `4.9.4.1` Search Backend 계약을 확정한다. `4.9.4.2` Frontend는 계획/0% 상태다. notification producer matrix, preferences, push/WebSocket, S15 Frontend, enforcement, dashboard, retention/cleanup은 후속 범위다.
 
 
 ## 1. 공통 규칙
@@ -674,15 +674,43 @@ JSON value의 top-level/object field는 key별 code-owned validator가 검증한
 }
 ```
 
-성공하면 `data`에 갱신된 setting을 반환한다. setting row를 transaction 내 pessimistic lock으로 읽어 stale `expectedVersion`은 `409 SYSTEM_SETTING_VERSION_CONFLICT`, 동일 JSON value는 `409 SYSTEM_SETTING_NO_CHANGE`으로 구분한다. 성공 replacement만 version을 정확히 한 번 증가시키며, setting key, schema version, replacement 전/후 persisted version과 value를 immutable `admin_action_audits`에 같은 transaction으로 기록한다. `REPLY_TEMPLATES`의 template `body`, `ANNOUNCEMENT_BANNER`와 `SUPPORT_CENTER_STATUS`의 non-null `message`는 audit value에서 항상 `[REDACTED]`로 치환한다. audit write 실패 시 replacement는 rollback한다. notification dispatch, enforcement execution, OAuth/runtime/feature-flag setting은 이 API 범위에 포함하지 않는다.
+성공하면 `data`에 갱신된 setting을 반환한다. setting row를 transaction 내 pessimistic lock으로 읽어 stale `expectedVersion`은 `409 SYSTEM_SETTING_VERSION_CONFLICT`, 동일 JSON value는 `409 SYSTEM_SETTING_NO_CHANGE`으로 구분한다. 성공 replacement만 version을 정확히 한 번 증가시키며, immutable `admin_action_audits`에는 setting key, schema version, replacement 전/후 persisted version만 같은 transaction으로 기록한다. setting value 전체는 audit snapshot에 저장하지 않는다. audit write 실패 시 replacement는 rollback한다. notification dispatch, enforcement execution, OAuth/runtime/feature-flag setting은 이 API 범위에 포함하지 않는다.
 
 ---
+
+## 10-C. WBS 4.10.4 Platform Admin Lifecycle
+
+| Method | Endpoint | 권한 | 설명 |
+|---|---|---|---|
+| GET | `/api/v1/platform/actor` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | 현재 platform actor identity 조회 |
+| GET | `/api/v1/platform/admins` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | 활성·revoke 이력을 포함한 관리자 목록 |
+| POST | `/api/v1/platform/admins` | `SUPER_ADMIN` | ACTIVE 사용자에게 platform role 부여 |
+| POST | `/api/v1/platform/admins/{platformAdminId}/revoke` | `SUPER_ADMIN` | 관리자 권한 soft revoke |
+| POST | `/api/v1/platform/admins/{platformAdminId}/reactivate` | `SUPER_ADMIN` | revoke 이력 재활성화 |
+| PATCH | `/api/v1/platform/admins/{platformAdminId}/role` | `SUPER_ADMIN` | ACTIVE 관리자 role 변경 |
+| GET | `/api/v1/platform/audits` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | redacted platform audit keyset 조회 |
+
+- lifecycle write는 singleton lock row를 먼저 `PESSIMISTIC_WRITE`로 획득한 뒤 token actor와 ACTIVE `platform_admins` row를 새 DB query로 재인가한다. 캐시된 authority로 write하지 않는다.
+- revoke는 `status=REVOKED`, `revokedAt`을 기록하며 revoked row는 모든 platform API authority에서 제외된다. reactivate는 ACTIVE 사용자만 가능하며 `reactivatedAt`을 기록한다.
+- 마지막 ACTIVE `SUPER_ADMIN`은 revoke하거나 `PLATFORM_ADMIN`으로 demote할 수 없다. 모든 lifecycle mutation은 3~500자 reason과 같은 transaction의 immutable audit를 요구한다.
+- audit write와 read-side response는 action/target allowlist를 중앙에서 적용한다. support case snapshot에는 raw `title`/`body`를, system setting snapshot에는 `value` 전체를 저장하지 않는다.
+- lifecycle conflict는 `LAST_ACTIVE_SUPER_ADMIN`, `DUPLICATE_PLATFORM_ADMIN_HISTORY`, `PLATFORM_ADMIN_ALREADY_ACTIVE`, `PLATFORM_ADMIN_REVOKED`, `PLATFORM_ADMIN_ROLE_NO_CHANGE`의 명시적 `409` error code를 사용한다.
+
+### 10-C.1 Audit read
+
+`GET /api/v1/platform/audits`는 ACTIVE `PLATFORM_ADMIN` 또는 `SUPER_ADMIN`만 호출할 수 있으며 company/project membership을 authorization 근거로 사용하지 않는다. query filter는 선택적 `actorUserId`, `action`, `targetType`, `targetId`, `supportCaseId`, `createdFrom`, `createdTo`, `cursor`, `size`다. ID는 양수여야 하고 `targetId`에는 `targetType`이 필요하다. 시간은 UTC ISO-8601이고 범위는 `[createdFrom, createdTo)`이며 from은 to보다 늦을 수 없다. 기본 size는 20, 최대는 100이다.
+
+정렬은 `(createdAt DESC, id DESC)`의 keyset이며 cursor는 HMAC-SHA256 opaque 값으로 requester user ID와 정규화된 모든 filter 및 마지막 key를 묶는다. cursor 변조, 다른 사용자 또는 filter 재사용은 `400 VALIDATION_ERROR`다. payload에는 audit snapshot, reason, email/name 등 PII를 넣지 않는다.
+
+응답 `data`는 `audits`, `nextCursor`, `hasNext`, `size`를 포함한다. 각 audit은 `id`, `supportCaseId`, `actorUserId`, `actorPlatformAdminId`, `authoritySource`, `authorityRole`, `action`, `targetType`, `targetId`, `reason`, `beforeState`, `afterState`, `createdAt`만 반환한다. persisted state는 object JSON만 parse한 뒤 중앙 sanitizer를 다시 적용하고 scalar allowlist만 반환한다. null은 null, malformed/non-object state는 `{}`이며 raw snapshot text, email, name은 반환하지 않는다.
+
+audit record의 3년 보존 정책은 유지한다. cleanup/purge/archive job, legacy data sanitation/migration은 이 API 범위가 아니다.
 
 ## 11. MVP 보류/Stub 목록
 
 | 구분 | API/기능 | 처리 | 이유 |
 |---|---|---|---|
-| 후속 범위 | S15 platform enforcement/lifecycle | WBS `4.10.1`, `4.10.3` 외 full endpoint 미정 | 사용자/회사 enforcement, grant/revoke, dashboard, notification, Frontend는 이번 slice에서 제외 |
+| 후속 범위 | S15 Backend 이후 범위 | `4.10.4` Backend lifecycle/audit-read 구현 완료 | 사용자/회사 enforcement, dashboard/notification 확장, S15 Frontend, retention/cleanup은 이번 slice에서 제외 |
 | 이번 개발 기간 보류 | 다자간 DM 방 | full endpoint 미정 | 향후 재검토 전 endpoint, request/response contract, schema, frontend 구현을 추가하지 않음 |
 | 보류 | DM 메시지 삭제 | 미제공 | 전송/조회/unread 중심 |
 | 이번 개발 기간 보류 | DM 상대 read receipt | full endpoint 미정 | 향후 재검토 전 endpoint, request/response contract, schema, frontend 구현을 추가하지 않음 |
@@ -709,7 +737,7 @@ JSON value의 top-level/object field는 key별 code-owned validator가 검증한
 - 메시지 목록 실시간 업데이트 방식.
 - DM 방 unread count 처리 방식.
 - `activity_events`와 `notification_events`는 분리 운영한다. activity 이벤트가 notification 이벤트를 생성하는 조건은 구현 단계에서 이벤트별로 제한한다.
-- S15 WBS `4.10.1`, `4.10.3` 외 enforcement/admin lifecycle/dashboard/notification, attachment, document optimistic locking, advanced DM, PROJECT notification scope, project restore, permanent delete의 full API 계약.
+- S15 `4.10.1`, `4.10.3`, `4.10.4` Backend는 구현 완료 기준이다. enforcement, dashboard/notification 확장, S15 Frontend, retention/cleanup과 attachment, document optimistic locking, advanced DM, PROJECT notification scope, project restore, permanent delete의 full API 계약은 후속 범위다.
 
 ---
 
