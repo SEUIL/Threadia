@@ -571,6 +571,24 @@ class ProjectInvitationServiceTest {
 	}
 
 	@Test
+	void acceptAndDeclineRejectInactiveCompanyBeforeInvitationStateMutation() {
+		User invitee = user(2L);
+		User inviter = user(1L);
+		Project project = project(inviter);
+		project.getCompany().setStatus(com.threadia.backend.company.domain.CompanyStatus.INACTIVE);
+		Invitation invitation = projectInvitation(100L, project, inviter, invitee);
+		invitation.setExpiresAt(now().minusSeconds(1));
+		stubRequester(invitee);
+		when(invitationRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(invitation));
+
+		assertThatThrownBy(() -> service.accept("token", 100L)).isInstanceOf(ForbiddenException.class);
+		assertThat(invitation.getStatus()).isEqualTo(InvitationStatus.PENDING);
+		assertThatThrownBy(() -> service.decline("token", 100L)).isInstanceOf(ForbiddenException.class);
+		assertThat(invitation.getStatus()).isEqualTo(InvitationStatus.PENDING);
+		verify(projectRepository, never()).findByIdForUpdate(any());
+	}
+
+	@Test
 	void acceptRejectsInviteeWhoIsNoLongerAnActiveCompanyMember() {
 		User invitee = user(2L);
 		User inviter = user(1L);
@@ -630,7 +648,7 @@ class ProjectInvitationServiceTest {
 	}
 
 	private static Project project(User creator) {
-		Company company = new Company("Threadia", "대표", null, "IT", null, "ACTIVE", creator, now(), now());
+		Company company = new Company("Threadia", "대표", null, "IT", null, com.threadia.backend.company.domain.CompanyStatus.ACTIVE, creator, now(), now());
 		setId(company, 1L);
 		Project project = new Project(company, "Project", "PROJECT", null, ProjectStatus.PLANNING, null, null, creator, null, null, null, now(), now());
 		setId(project, 10L);
