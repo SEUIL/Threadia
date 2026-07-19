@@ -11,6 +11,18 @@ network = (BASE / "restricted-network.yaml").read_text(encoding="utf-8")
 service_policy = json.loads(
     (BASE / "restricted-ssm-delivery-foundation-service-permissions-policy.json").read_text(encoding="utf-8")
 )
+network_service_policy = json.loads(
+    (BASE / "restricted-network-service-permissions-policy.json").read_text(encoding="utf-8")
+)
+expected_network_describe_actions = [
+    "ec2:DescribeAvailabilityZones",
+    "ec2:DescribeVpcs",
+    "ec2:DescribeSubnets",
+    "ec2:DescribeRouteTables",
+    "ec2:DescribeSecurityGroups",
+    "ec2:DescribeVpcEndpoints",
+    "ec2:DescribeNetworkInterfaces",
+]
 operator_policy = json.loads(
     (BASE / "restricted-ssm-delivery-foundation-operator-policy.json").read_text(encoding="utf-8")
 )
@@ -56,6 +68,14 @@ optional_mail_runtime_parameters = {
     "/threadia/restricted-nonprod/runtime/MAIL_PASSWORD",
     "/threadia/restricted-nonprod/runtime/NOTIFICATION_FROM_EMAIL",
 }
+def optional_mail_group_action(returned: set[str], invalid: set[str]) -> str:
+    if not returned and invalid == optional_mail_runtime_parameters:
+        return "omit"
+    if returned == optional_mail_runtime_parameters and not invalid:
+        return "materialize"
+    return "reject"
+
+
 expected_parameter_keys = {
     "NetworkStackName",
     "ExistingEc2InstanceId",
@@ -82,6 +102,36 @@ assert "S3GatewayEndpointId:" in network
 assert "PolicyDocument:" in network
 assert "AllowOnlyVersionedArtifactRead" in network
 assert "s3:GetObjectVersion" in network and "s3:ListBucket" not in network.split("S3GatewayEndpoint:", 1)[1]
+assert network_service_policy["Statement"][0]["Action"] == expected_network_describe_actions
+ses_smtp_endpoint = network.split("SesSmtpEndpoint:", 1)[1].split("S3GatewayEndpoint:", 1)[0]
+assert "PrivateDnsEnabled: true" in ses_smtp_endpoint
+assert "ServiceName: !Sub com.amazonaws.${AWS::Region}.email-smtp" in ses_smtp_endpoint
+assert "SubnetIds: [!Ref ComputeSubnet]" in ses_smtp_endpoint
+assert "SecurityGroupIds: [!GetAtt SesSmtpEndpointSecurityGroup.GroupId]" in ses_smtp_endpoint
+assert "VpcEndpointType: Interface" in ses_smtp_endpoint
+ses_smtp_endpoint_group = network.split("SesSmtpEndpointSecurityGroup:", 1)[1].split("SesSmtpEndpointIngress:", 1)[0]
+assert "CidrIp: 127.0.0.1/32" in ses_smtp_endpoint_group
+assert "IpProtocol: '-1'" in ses_smtp_endpoint_group
+ses_smtp_ingress = network.split("SesSmtpEndpointIngress:", 1)[1].split("Ec2SmtpToSesEndpoint:", 1)[0]
+assert "GroupId: !GetAtt SesSmtpEndpointSecurityGroup.GroupId" in ses_smtp_ingress
+assert "FromPort: 587" in ses_smtp_ingress and "ToPort: 587" in ses_smtp_ingress
+assert "SourceSecurityGroupId: !GetAtt Ec2SecurityGroup.GroupId" in ses_smtp_ingress
+ses_smtp_egress = network.split("Ec2SmtpToSesEndpoint:", 1)[1].split("Ec2HttpsToS3GatewayEndpoint:", 1)[0]
+assert "GroupId: !GetAtt Ec2SecurityGroup.GroupId" in ses_smtp_egress
+assert "FromPort: 587" in ses_smtp_egress and "ToPort: 587" in ses_smtp_egress
+assert "DestinationSecurityGroupId: !GetAtt SesSmtpEndpointSecurityGroup.GroupId" in ses_smtp_egress
+approved_endpoint_services = next(
+    statement
+    for statement in network_service_policy["Statement"]
+    if statement.get("Sid") == "AllowCreateTaggedApprovedEndpoints"
+)["Condition"]["StringEquals"]["ec2:VpceServiceName"]
+assert approved_endpoint_services == [
+    "com.amazonaws.ap-northeast-2.ssm",
+    "com.amazonaws.ap-northeast-2.ssmmessages",
+    "com.amazonaws.ap-northeast-2.ec2messages",
+    "com.amazonaws.ap-northeast-2.s3",
+    "com.amazonaws.ap-northeast-2.email-smtp",
+]
 expected_artifact_bucket = "threadia-restricted-${AWS::AccountId}-${AWS::Region}-artifacts"
 assert expected_artifact_bucket in network and expected_artifact_bucket in template
 artifact_bucket_statement = next(
@@ -387,7 +437,26 @@ assert '[[ "$AWS_REGION" =~ ^[a-z]{2}(-[a-z0-9]+)+-[0-9]+$ ]] || fail "invalid A
 assert 'aws s3api get-object --region "$AWS_REGION"' in release_helper
 assert 'aws ssm get-parameters --region "$AWS_REGION"' in release_helper
 assert release_helper.count('aws ssm get-parameters --region "$AWS_REGION" --with-decryption --names') == 2
+assert "ssm:GetParametersByPath" not in release_helper
 assert all(parameter in release_helper for parameter in required_runtime_parameters | optional_mail_runtime_parameters)
+required_parameter_fetch = release_helper.split('parameters_json="$stage/runtime-parameters.json"', 1)[1].split("python3 -", 1)[0]
+mail_parameter_fetch = release_helper.split('mail_parameters_json="$stage/mail-runtime-parameters.json"', 1)[1].split("python3 -", 1)[0]
+assert all(parameter in required_parameter_fetch for parameter in required_runtime_parameters)
+assert not any(parameter in required_parameter_fetch for parameter in optional_mail_runtime_parameters)
+assert all(parameter in mail_parameter_fetch for parameter in optional_mail_runtime_parameters)
+assert not any(parameter in mail_parameter_fetch for parameter in required_runtime_parameters)
+assert optional_mail_group_action(set(), optional_mail_runtime_parameters) == "omit"
+assert optional_mail_group_action(optional_mail_runtime_parameters, set()) == "materialize"
+assert optional_mail_group_action({next(iter(optional_mail_runtime_parameters))}, set()) == "reject"
+assert optional_mail_group_action(set(), {next(iter(optional_mail_runtime_parameters))}) == "reject"
+assert 'if not returned and invalid == set(optional):' in release_helper
+assert 'if returned != set(optional) or invalid:' in release_helper
+assert 'affected = sorted(invalid | (set(optional) - returned))' in release_helper
+assert 'with open(sys.argv[2], "a", encoding="utf-8") as target:' in release_helper
+assert 'raise SystemExit("optional runtime parameter group is incomplete or invalid: " + ", ".join(affected))' in release_helper
+assert 'if value == "":' in release_helper
+assert 'raise SystemExit("optional runtime parameter is blank: " + parameter_name)' in release_helper
+assert 'escaped_value = value.replace(chr(92), chr(92) * 2).replace(chr(34), chr(92) + chr(34))' in release_helper
 assert 'import re' in release_helper
 assert 'bootstrap_email = values[bootstrap_parameter].strip().lower()' in release_helper
 assert 're.fullmatch(r"[^\\s@]+@[^\\s@]+\\.[^\\s@]+", bootstrap_email)' in release_helper

@@ -1,15 +1,15 @@
-> **작성자**: Threadia 팀  
-> **작성일**: 2026-07-14  
-> **최종 수정**: 2026-07-15
-> **버전**: v0.6
-> **상태**: 검토 중  
+> **작성자**: Threadia 팀
+> **작성일**: 2026-07-14
+> **최종 수정**: 2026-07-18
+> **버전**: v0.8
+> **상태**: 검토 중
 > **태그**: aws, github-actions, oidc, ssm, s3, ec2, parameter-store
 
 # GitHub OIDC, SSM Command, EC2 배포 설계
 
 ## 1. 목표 구조
 
-신규 active path는 `main` push 또는 `main` ref의 수동 dispatch에서만 GitHub Actions job이 실행되어 `restricted-nonprod` Environment OIDC subject로 role을 assume하고, versioned private S3 object를 기록한 뒤 고정 SSM Command document를 정확히 한 대의 private EC2에 보낸다. job-level `refs/heads/main` guard가 다른 ref의 수동 dispatch를 차단하고, 고정 concurrency group은 실행 중인 release를 취소하지 않은 채 후속 release를 직렬화한다. EC2는 S3 Gateway Endpoint와 SSM interface endpoint만 사용하며 NAT, public IP, public ingress, SSH, CodeDeploy를 사용하지 않는다.
+신규 active path는 `main` push 또는 `main` ref의 수동 dispatch에서만 GitHub Actions job이 실행되어 `restricted-nonprod` Environment OIDC subject로 role을 assume하고, versioned private S3 object를 기록한 뒤 고정 SSM Command document를 정확히 한 대의 private EC2에 보낸다. job-level `refs/heads/main` guard가 다른 ref의 수동 dispatch를 차단하고, 고정 concurrency group은 실행 중인 release를 취소하지 않은 채 후속 release를 직렬화한다. EC2는 S3 Gateway Endpoint와 SSM interface endpoint를 사용하며 NAT, public IP, public ingress, SSH, CodeDeploy를 사용하지 않는다. 승인된 별도 mail network gate는 dedicated SES SMTP Interface Endpoint의 private DNS와 EC2↔endpoint TCP/587 security group 규칙만 추가하며, SMTP credential이나 `MAIL_*` runtime delivery는 포함하지 않는다.
 
 ```text
 main → restricted-nonprod Environment OIDC → GitHub deploy role
@@ -39,12 +39,15 @@ platform owner는 아래 exact Parameter Store `SecureString`을 release 전에 
 - `/threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET`
 - `/threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE`
 - `/threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN`
+- `/threadia/restricted-nonprod/runtime/THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL`
 
 EC2 instance role은 위 ARN의 `ssm:GetParameter(s)`만 받을 수 있으며 `GetParametersByPath`, Secrets Manager, RDS master credential read를 받지 않는다. DB 연결에는 RDS master와 분리된 최소 권한 application DB user가 사전에 존재해야 한다. DB migration은 이 release path에 포함하지 않는다.
 
+helper는 일곱 required key를 exact-name으로 읽고 bootstrap email을 trim + lowercase한 뒤 service와 같은 email shape로 검증한다. 값은 log나 evidence에 남기지 않으며 valid ACTIVE user와 일치해야 한다. 반면 dev의 platform audit read startup에 필요한 `THREADIA_AUDIT_CURSOR_HMAC_SECRET`은 이 delivery contract에 아직 포함되지 않는다. 해당 key의 exact Parameter Store ARN, IAM, helper validation이 별도 승인되기 전에는 audit read를 포함한 dev backend release를 No-Go로 처리한다.
+
 ## 4. Host release 계약
 
-workflow는 pinned action SHA를 사용하고 setup-java가 제공한 Linux x86_64 runtime을 executable bit 보존 방식으로 release archive에 포함한다. AMI에 Java를 설치하지 않는다. host는 SSM Agent, AWS CLI, Python 3, tar, curl, systemd, `threadia` user, `/usr/local/lib/threadia-release/apply-release`, `threadia-backend.service`만 사전에 갖춰야 한다. `bootstrap-host.sh`는 이 reviewed local artifact만 root-owned path에 설치하며 package manager 또는 network access를 사용하지 않는다. helper는 bundled runtime이 Linux x86_64 host에서 실행되는지, immutable archive와 JAR checksum이 맞는지 확인하고 새 release directory를 만든 뒤 runtime env와 active symlink를 atomic하게 교체한다. systemd는 activated release의 absolute runtime path만 실행하고 restricted runtime에서만 mail health를 `MANAGEMENT_HEALTH_MAIL_ENABLED=false`로 비활성화한다. global backend application properties는 변경하지 않는다. restart 후 helper는 최대 120초 동안 service active 상태와 local `/actuator/health`를 polling한다. service가 inactive가 되거나 readiness timeout이 발생하면 직전 runtime env와 active symlink를 함께 복구하고 이전 service를 restart하며, 이전 상태가 없으면 새 env와 symlink를 삭제하고 service를 중지한다.
+workflow는 pinned action SHA를 사용하고 setup-java가 제공한 Linux x86_64 runtime을 executable bit 보존 방식으로 release archive에 포함한다. AMI에 Java를 설치하지 않는다. host는 SSM Agent, AWS CLI, Python 3, tar, curl, `flock`, systemd, `threadia` user, `/usr/local/lib/threadia-release/apply-release`, `threadia-backend.service`만 사전에 갖춰야 한다. `bootstrap-host.sh`는 이 reviewed local artifact만 root-owned path에 설치하며 package manager 또는 network access를 사용하지 않는다. helper는 bundled runtime이 Linux x86_64 host에서 실행되는지, immutable archive와 JAR checksum이 맞는지 확인하고 새 release directory를 만든 뒤 runtime env와 active symlink를 atomic하게 교체한다. systemd는 activated release의 absolute runtime path만 실행하고 restricted runtime에서만 mail health를 `MANAGEMENT_HEALTH_MAIL_ENABLED=false`로 비활성화한다. global backend application properties는 변경하지 않는다. restart 후 helper는 최대 120초 동안 service active 상태와 local `/actuator/health`를 polling한다. service가 inactive가 되거나 readiness timeout이 발생하면 직전 runtime env와 active symlink를 함께 복구하고 이전 service를 restart하며, 이전 상태가 없으면 새 env와 symlink를 삭제하고 service를 중지한다.
 
 Helper maintenance는 `apply-release`만 갱신한다. service unit remediation은 helper channel을 확장하지 않고, approved service-unit maintenance channel에서만 수행한다. 두 channel은 같은 host lock과 GitHub host-change concurrency group을 공유한다.
 
@@ -52,4 +55,12 @@ Helper maintenance는 `apply-release`만 갱신한다. service unit remediation�
 
 ## 5. Legacy와 승인 경계
 
-기존 `delivery-foundation*` CodeDeploy source는 기록 보존을 위해 유지하지만 신규 active path에서 사용하지 않는다. Network Change Set은 endpoint route/egress/policy만, SSM delivery Change Set은 deterministic artifact bucket, exact OIDC subject, fixed document와 runtime policy만 검토한다. delivery operator는 Change Set create/describe/delete와 exact CloudFormation role pass만 허용하며 Execute 권한이 없다. 두 승인 window는 분리한다. 이 repository revision은 service-unit channel을 정의할 뿐 AWS/GitHub resource, role, parameter, endpoint, stack, DB user를 생성하거나 변경하지 않는다.
+기존 `delivery-foundation*` CodeDeploy source는 기록 보존을 위해 유지하지만 신규 active path에서 사용하지 않는다. Network Change Set은 endpoint route/egress/policy만, SSM delivery Change Set은 deterministic artifact bucket, exact OIDC subject, fixed document와 runtime policy만 검토한다. SES SMTP endpoint를 추가할 때는 UPDATE Change Set에서 pre-existing resource의 Modify/Remove 또는 Replacement `True`/`Conditional`을 hard reject한다. 승인 가능한 action은 `SesSmtpEndpointSecurityGroup`, `SesSmtpEndpointIngress`, `Ec2SmtpToSesEndpoint`, `SesSmtpEndpoint`의 신규 Add뿐이며 그 밖의 action은 실행하지 않는다. delivery operator는 Change Set create/describe/delete와 exact CloudFormation role pass만 허용하며 Execute 권한이 없다. 두 승인 window는 분리한다. 이 repository revision은 helper/service-unit maintenance channel을 정의할 뿐 AWS/GitHub resource, role, parameter, endpoint, stack, DB user를 생성하거나 변경하지 않는다.
+
+## 변경 이력
+
+| 날짜 | 내용 |
+|---|---|
+| 2026-07-18 | bootstrap email required key와 helper/service-unit maintenance channel을 추가하고, 미전달 audit cursor secret의 release No-Go 경계를 명시했다. |
+| 2026-07-17 | SES SMTP PrivateLink의 private DNS 및 TCP/587 전용 network gate를 승인된 endpoint 집합에 추가했다. UPDATE Change Set에서 pre-existing resource Modify/Remove, Replacement `True`/`Conditional`을 hard reject하고 네 SES logical resource의 신규 Add만 승인하며 SMTP credential과 `MAIL_*` runtime delivery는 후속 gate로 유지했다. |
+| 2026-07-16 | active restricted SSM path의 six-key 제한, bootstrap email 미전달, `platform_admins`가 비어 있는 첫 배포의 No-Go 경계를 명시했다. |

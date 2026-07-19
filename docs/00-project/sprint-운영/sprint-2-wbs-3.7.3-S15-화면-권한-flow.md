@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-13
-> **최종 수정**: 2026-07-13
-> **버전**: v0.1
+> **최종 수정**: 2026-07-18
+> **버전**: v0.3 WBS 4.10.4 Backend 완료 주석
 > **상태**: 검토 중
 > **태그**: sprint-2, wbs, platform-admin, screen, authorization
 
@@ -11,7 +11,7 @@
 
 이 문서는 S15 플랫폼 관리자 화면의 namespace, actor 경계, action flow를 초안으로 정리한다. 화면 layout, route, API 연동, 실제 접근 제어 구현을 확정하거나 수행하지 않는다.
 
-S15는 기존 S03부터 S14까지의 회사와 프로젝트 workspace 흐름에 속하지 않는 platform-level console이다. 화면 상세와 API 매핑은 `4.10`의 선행 결정이 닫힌 뒤 canonical 문서에서 확정한다.
+S15는 기존 S03부터 S14까지의 회사와 프로젝트 workspace 흐름에 속하지 않는 platform-level console이다. 이 문서는 historical 화면/권한 flow 초안이다. 현재 `4.10.4` Backend lifecycle/audit-read와 server-side platform authorization은 구현됐으며, `4.10.2` enforcement, S15 Frontend와 화면 상세는 후속 범위다.
 
 ## 2. namespace와 actor 경계
 
@@ -34,7 +34,7 @@ S15 플랫폼 관리자 console
 ├── 사용자 enforcement
 ├── 회사 enforcement
 ├── 시스템 설정
-└── 운영 audit log
+└── audit/operation logs 및 platform admin lifecycle/grant/revoke
 ```
 
 운영 현황 요약 대시보드는 신규 문의, 처리 중 신고, 정지 사용자, 비활성 회사, 최근 관리자 조치를 표시하는 후보 영역이다. 집계 기준, 데이터 source, refresh 방식은 정해지지 않았으므로 구현 항목으로 확정하지 않는다.
@@ -49,10 +49,10 @@ S15 플랫폼 관리자 console
 | 운영 audit log 조회 | 가능 | 가능 | 불가 |
 | 시스템 설정 조회 | 가능 | 가능 | 불가 |
 | 시스템 설정 변경 | 불가 | 가능 | 불가 |
-| platform admin grant/revoke | 불가 | 가능 | 불가 |
+| platform admin grant/revoke | 불가 | 가능, reason과 immutable audit 필수 | 불가 |
 | 공지 또는 점검 배너 발행 | 불가 | 가능 | 불가 |
 
-설정 변경, grant/revoke, 공지 또는 점검 배너는 권한 방향만 확인된 decision-needed 항목이다. 상세 화면, 승인 절차, 구현 API는 이 문서에서 확정하지 않는다.
+settings catalog와 `SUPER_ADMIN` 전용 grant/revoke 정책은 확정됐다. 상세 화면, 승인 workflow, 구현 API와 schema는 미착수다.
 
 ## 5. 상태 전이와 감사 규칙
 
@@ -60,11 +60,12 @@ S15 플랫폼 관리자 console
 |---|---|---|
 | support case | 접수된 case를 `OPEN`에서 처리 중, 해결, 반려, 종료 상태로 전이한다. | 전이마다 처리 주체와 reason을 남기며, 답변 또는 처리 메모가 필요한지 상태별로 후속 결정한다. |
 | 사용자 | 정책 위반 확인 후 `SUSPENDED` 상태로 전이하고, 필요 시 해제한다. | hard delete를 사용하지 않는다. reason과 immutable audit를 남긴다. |
-| 회사 | 정책 위반 또는 요청 확인 후 비활성 상태로 전이하고, 필요 시 해제한다. | hard delete를 사용하지 않는다. 차단 범위와 해제 조건은 후속 결정한다. |
-| 시스템 설정 | `SUPER_ADMIN`이 변경 요청을 검토하고 변경한다. | 변경 전후 값과 reason을 immutable audit에 남긴다. |
-| platform admin 권한 | `SUPER_ADMIN`이 grant 또는 revoke를 수행한다. | 대상, 행위자, reason, 시각을 immutable audit에 남긴다. |
+| 회사 | 정책 위반 또는 요청 확인 후 `INACTIVE`로 전이하고, 필요 시 해제한다. | 모든 회사 및 하위 프로젝트 read/mutation을 차단하고 사용자 회사 선택기에서 숨긴다. platform admin 운영 접근은 유지한다. 해제 절차와 구현은 미착수다. |
+| 시스템 설정 | `SUPER_ADMIN`이 문의/신고 카테고리, 제재 사유·기간 preset, 답변 템플릿, 공지/점검 배너, 고객센터 운영 상태, 처리 결과 알림 on/off를 관리한다. | key별 code-owned schema/validator, JSON value, versioning typed catalog를 사용하고 변경 전후 값과 reason을 immutable audit에 남긴다. key, API, schema 구현은 미착수다. |
+| 운영 audit | 플랫폼 관리자 조치를 조회한다. | 3년 보존하며 password, token, secret, message/case body 원문은 payload에서 제외하거나 마스킹한다. platform admin 조회는 keyset pagination이며 구현은 미착수다. |
+| platform admin 권한 | `SUPER_ADMIN`이 grant 또는 revoke를 수행한다. | 대상, 행위자, reason, 시각을 immutable audit에 남기며 마지막 활성 `SUPER_ADMIN`의 revoke/demote는 금지한다. lifecycle 구현은 미착수다. |
 
-모든 상태 전이는 UI의 버튼 노출만으로 인가되지 않는다. platform actor 판정과 server-side 정책 검증이 필요하다는 원칙만 이 초안에서 확인한다.
+모든 상태 전이는 UI의 버튼 노출만으로 인가되지 않는다. platform actor 판정과 server-side 정책 검증이 필요하며 실제 접근 제어 구현은 미착수다.
 
 ## 6. UI flow 초안
 
@@ -72,8 +73,8 @@ S15 플랫폼 관리자 console
 2. 별도 platform actor 판정이 실패하면 platform console과 action을 허용하지 않는다.
 3. 허용된 actor는 대시보드 또는 support case 목록으로 진입한다.
 4. case 처리, 사용자 정지, 회사 비활성화, 설정 변경, 권한 변경의 변경 action은 reason 입력을 요구한다.
-5. 변경 action이 승인되면 상태 전이와 immutable audit 기록을 함께 남긴다.
-6. 처리 결과 notification은 수신자와 정책이 확정되기 전까지 flow에 포함하지 않는다.
+5. 구현 시 변경 action은 상태 전이와 immutable audit 기록을 함께 남긴다.
+6. 처리 결과 notification on/off는 settings catalog에 포함한다. 수신자, 채널, 발송 UI는 후속 알림 설계 전까지 flow에 포함하지 않는다.
 
 이 flow는 구현 시나리오가 아니라 후속 설계에 전달할 화면 및 권한 경계다.
 
@@ -81,7 +82,7 @@ S15 플랫폼 관리자 console
 
 - 실제 dashboard 집계, 상세 UI, 플랫폼 route, 메뉴 노출 위치는 결정 전이다.
 - 기존 S03, S13, S14의 A/P/C membership flow를 platform authorization에 재사용하지 않는다.
-- 시스템 설정의 DB, 인프라, OAuth provider, 전역 feature flag 변경은 범위 밖이다.
+- 시스템 설정의 DB/인프라 runtime 설정, OAuth provider on/off, 전역 feature flag, 가입 또는 domain 제한은 범위 밖이다.
 - notification의 발송 UI와 채널은 후속 알림 결정 전까지 deferred다.
 
 ## 8. 기준 문서

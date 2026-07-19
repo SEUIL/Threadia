@@ -111,7 +111,7 @@ class InvitationActionServiceTest {
 	private static Invitation invitation(Long id, InvitationScopeType scopeType) {
 		LocalDateTime now = LocalDateTime.of(2026, 7, 7, 10, 15, 30);
 		User user = user(1L);
-		Company company = new Company("Threadia", "대표", null, "IT", null, "ACTIVE", user, now, now);
+		Company company = new Company("Threadia", "대표", null, "IT", null, com.threadia.backend.company.domain.CompanyStatus.ACTIVE, user, now, now);
 		setId(company, 1L);
 		Invitation invitation = new Invitation(company, scopeType == InvitationScopeType.PROJECT ? 10L : null, user, user, scopeType, "MEMBER", InvitationStatus.PENDING, now.plusDays(7), now, now);
 		setId(invitation, id);

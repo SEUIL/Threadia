@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-15  
-> **최종 수정**: 2026-07-08
-> **버전**: v1.3 Sprint 3 기준선 반영 + company member scoped PATCH 동기화 + current-user membership context
+> **최종 수정**: 2026-07-17
+> **버전**: v1.7 SEARCH-01 Level 4 Backend/Frontend 계층 정정
 > **상태**: 확정
 > **태그**: requirements, traceability, api, erd
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
@@ -74,8 +74,9 @@
 | 문서/회의록 | DOC-01~04 | Sprint 3 후보 | SC-P-01, SC-A-01, SC-LINK-01 | 문서 목록/생성/상세/수정/휴지통/복원 | `documents` | `.md` 저장 기준, 영구 삭제 decision-needed |
 | 문서-이슈 연결/그래프 | LINK-02, GRAPH-01, GRAPH-02 | Sprint 3 후보 | SC-P-01, SC-A-01, SC-LINK-01 | 문서-이슈 연결 생성/해제/조회, 그래프 조회 | `document_issue_links`, `documents`, `issues` | S07/S08 그래프 뷰에 edge 반영 |
 | 프로젝트 채팅 | CHAT-01, CHAT-03, LINK-01 | Sprint 3 후보 | SC-A-01, SC-LINK-01 | 프로젝트 메시지 목록/작성/상세/읽음/unread/from-message | `messages`, `project_chat_member_states`, `issues` | 프로젝트 메시지만 이슈 전환 가능 |
-| 1:1 DM | CHAT-02, CHAT-03 | Sprint 3 후보 | SC-A-01 | DM 방 목록/생성, DM 메시지 조회/전송/읽음/unread | `direct_message_rooms`, `direct_messages`, `dm_room_user_states` | 다자간 DM, 상대 read receipt는 decision-needed |
-| 쓰레드 | THREAD-01~04 | Sprint 3 후보 | SC-C-02, SC-P-01, SC-A-01, SC-LINK-01 | 대상별 쓰레드 조회/생성, 상세, topic 수정, 댓글 작성 | `threads`, `thread_comments`, `notification_events` | 대상 1개당 대표 쓰레드 1개 |
+| 1:1 DM | CHAT-02, CHAT-03 | Sprint 3 후보 | SC-A-01 | DM 방 목록/생성, DM 메시지 조회/전송/읽음/unread | `direct_message_rooms`, `direct_messages`, `dm_room_user_states` | 다자간 DM과 상대 read receipt는 이번 개발 기간 보류다. 향후 재검토 전 API, schema, frontend 구현은 추가하지 않는다. |
+| 쓰레드 | THREAD-01~03 | WBS 4.7.1.1 Backend 구현 | SC-C-02, SC-P-01, SC-A-01, SC-LINK-01 | 명시적 대상별 get-or-create/조회, 상세, author/P/C topic 수정, append-only 댓글 작성 | `threads`, `thread_comments` | 대상 1개당 대표 쓰레드 1개, 자동 생성·project-wide list 제외 |
+| 쓰레드 멘션 알림 | THREAD-04 | 범위 밖 | SC-C-02, SC-P-01, SC-A-01, SC-LINK-01 | 미제공 | `notification_events` 미사용 | 멘션 파싱·저장·event emission 미구현 |
 | 알림 | NOTI-01 | Sprint 3 후보, primary WBS `4.8` | 전체 시나리오 | 알림 목록/unread/read/read-all | `notification_events`, `notification_recipients` | NOTI-02/03은 현재 계약/reference row로 유지하고 PROJECT scope preference는 API boundary code로 관리 |
 
 ---
@@ -85,7 +86,7 @@
 | 기능 | 기능 ID | 연결 시나리오 | API | ERD/기술 원장 | Sprint 3 처리 | 보류/제외 경계 |
 |---|---|---|---|---|---|---|
 | 프로젝트 활동 피드 | FEED-01 | 조건부 확장 흐름 | `GET /api/v1/projects/{projectId}/activity-events` | `activity_events`, STOMP push, Redis cache | Sprint 3 후보 | NoSQL feed store 제외 |
-| 통합 검색 | SEARCH-01 | 조건부 확장 흐름 | `GET /api/v1/search` | MySQL `LIKE` 또는 FULLTEXT | Sprint 3 decision-needed | Typesense/Meilisearch는 보류 |
+| 통합 검색 | SEARCH-01 | 조건부 확장 흐름 | `GET /api/v1/search` | MySQL `LIKE` | `4.9.2`와 `4.9.4` 진행 중 50% parent, `4.9.2.1` 결정 완료, `4.9.4.1` Backend 구현 완료, `4.9.2.2`/`4.9.4.2` Frontend 계획 0% | FULLTEXT, 외부 검색 엔진, Redis, schema, type filter, source별 결과 필드, Frontend와 고급 검색은 보류 |
 | 프로젝트 홈/대시보드 | DASH-01~04 | 조건부 확장 흐름 | `GET /api/v1/projects/{projectId}/dashboard` | MySQL aggregate, `project_dashboard_summaries`, Redis cache | Sprint 3 후보 | 별도 OLAP/검색 엔진 제외 |
 | 파일/이미지 첨부 | ATTACH-01 | MVP 이후/보류 흐름 | `/api/v1/attachments` 미제공 | attachments 테이블/S3 presigned URL 정책 | Sprint 3 decision-needed | 회사 로고와 프로필 URL은 별도 처리 |
 
@@ -100,8 +101,8 @@
 | Redis 원본 저장 | 없음 | 제외 | 필수 시나리오 없음 | ERD 미포함, cache/push 보조만 허용 |
 | 칸반 컬럼 커스터마이징 | DEFER-03 | Sprint 2 | 필수 시나리오 없음 | 5컬럼 enum만 API/ERD 반영 |
 | 동시 문서 편집 | DEFER-04 | Sprint 3 decision-needed, primary WBS `4.12` | 필수 시나리오 없음 | optimistic locking 우선안 결정 전 문서 수정 API 기준 유지. `DOC-02` primary WBS는 `4.6` |
-| 다자간 DM | DEFER-05 | Sprint 3 decision-needed | 필수 시나리오 없음 | DM room + participants 모델 결정 필요 |
-| DM 상대 read receipt | DEFER-06 | Sprint 3 decision-needed | 필수 시나리오 없음 | read receipt 정책 결정 필요 |
+| 다자간 DM | DEFER-05 | 이번 개발 기간 보류, 향후 재검토 | 필수 시나리오 없음 | 1:1 DM 범위를 유지하며 API, schema, frontend 구현을 추가하지 않음 |
+| DM 상대 read receipt | DEFER-06 | 이번 개발 기간 보류, 향후 재검토 | 필수 시나리오 없음 | 1:1 DM unread/read 위치 범위를 유지하며 API, schema, frontend 구현을 추가하지 않음 |
 | DM 메시지→이슈 전환 | `DM_MESSAGE_CANNOT_CREATE_ISSUE` | 미제공 | 필수 시나리오에서 제외 조건 명시 | 프로젝트 메시지 from-message만 제공 |
 | 이슈/문서 영구 삭제 | `PERMANENT_DELETE_DEFERRED` | Sprint 3 decision-needed | 필수 시나리오 없음 | 참조 무결성, audit, 보존 기간, 권한 기준 결정 필요 |
 | 프로젝트 복원 | `PROJECT_RESTORE_DEFERRED` | Sprint 3 decision-needed | 필수 시나리오 없음 | archive 프로젝트 복원 권한과 UI/API 기준 결정 필요 |
@@ -121,11 +122,12 @@
 | 권한은 `users.role`이 아니라 회사/프로젝트 소속 테이블에서 판정한다. S03 frontend/RBAC context는 `/users/me/company-memberships`의 ACTIVE 회사 membership 목록을 사용하고 `/auth/me` minimal Auth context는 확장하지 않는다. | 기능 분해표 v3.1, API 명세서 v2.3, ERD v2.0, 화면정의서_v3 | 일치 |
 | 프로젝트 삭제는 물리 삭제가 아니라 `ARCHIVED` 상태로 처리한다. | API 명세서 v2.0, ERD v2.0, 화면정의서_v3 | 일치 |
 | 이슈/문서는 영구 삭제 없이 휴지통/복원까지만 제공한다. | API 명세서 v2.0, 화면정의서_v3, 보류 기능 최종표 v1.0 | 일치 |
-| DM은 1:1 core를 Sprint 3 후보로 두고 다자간 DM과 상대 read receipt는 Sprint 3 decision-needed로 둔다. | 사용자 시나리오 v3.1, API 명세서 v2.0, ERD v2.0 | 일치 |
+| DM은 1:1 core를 Sprint 3 후보로 둔다. 다자간 DM과 상대 read receipt는 이번 개발 기간 보류이며, 향후 재검토 전 API, schema, frontend 구현을 추가하지 않는다. | 사용자 시나리오 v3.1, API 명세서 v2.0, ERD v2.0 | 일치 |
 | 활동 피드와 알림은 역할을 분리한다. `activity_events`는 활동 원장, `notification_events`는 알림 사건 원본이다. 필요 시 activity 이벤트에서 notification 이벤트를 생성하는 연계만 허용한다. | ERD v2.0, 보류 기능 최종표 v1.0 | 일치 |
 | 서버 생성 시각과 만료 시각은 UTC 기준으로 생성, 저장, 비교하고 API 응답은 ISO-8601 UTC `Z` 형식으로 반환한다. | API 명세서 v2.3, ERD v2.0 | 일치 |
 | 로그인 이메일은 모든 진입점에서 `trim + lowercase` 정규화 값을 저장, 조회, 비교한다. | API 명세서 v2.3, ERD v2.0 | 일치 |
 | Redis는 원본 저장소가 아니라 cache/push 보조 계층이다. | ERD v2.0, 보류 기능 최종표 v1.0, 조건부 확장 계획서 | 일치 |
+| Thread는 명시적 get-or-create만 생성하며 `(target_type, target_id)` unique key로 대표 Thread 하나를 보장한다. | API 명세서 v2.10, ERD v2.2 | 일치 |
 
 ---
 
@@ -135,7 +137,7 @@
 - [x] 모든 주요 사용자 시나리오가 API 명세서의 endpoint 또는 명시적 비API 정책과 연결된다.
 - [x] API에서 생성·수정·조회하는 주요 데이터가 ERD 테이블과 연결된다.
 - [x] `소셜 로그인`, `비밀번호 찾기/재설정`, `프로필 사진`은 Sprint 1/MVP 범위로 추적된다.
-- [x] `FEED/DASH`는 Sprint 3 후보, `SEARCH/ATTACH`는 Sprint 3 decision-needed로 추적된다.
+- [x] `FEED/DASH`는 Sprint 3 후보, `SEARCH-01`은 `4.9.2`와 `4.9.4` 진행 중 50% parent 아래 `4.9.2.1` 결정 및 `4.9.4.1` Backend 구현 완료, `4.9.2.2`/`4.9.4.2` Frontend 계획 0%로, `ATTACH`는 Sprint 3 decision-needed로 추적된다.
 - [x] 보류 기능은 필수 시나리오에서 제거되거나 제한 조건으로 명시된다.
 - [x] Redis, STOMP push, summary table은 원본 데이터가 아닌 조건부 확장 계층으로 추적된다.
 - [x] `activity_events`와 `notification_events` 운영상 분리 기준을 확정했다. 두 저장소는 통합하지 않고 필요 시 activity 이벤트에서 notification 이벤트를 생성하는 연계만 허용한다.

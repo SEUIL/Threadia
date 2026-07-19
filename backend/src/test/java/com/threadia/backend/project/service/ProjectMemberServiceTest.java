@@ -35,6 +35,7 @@ import com.threadia.backend.project.domain.ProjectMemberRole;
 import com.threadia.backend.project.domain.ProjectMemberStatus;
 import com.threadia.backend.project.domain.ProjectStatus;
 import com.threadia.backend.project.dto.ProjectMemberData;
+import com.threadia.backend.project.dto.ProjectMemberLockPreview;
 import com.threadia.backend.project.dto.ProjectMemberRemoveData;
 import com.threadia.backend.project.dto.ProjectMemberUpdateRequest;
 import com.threadia.backend.project.dto.ProjectMembersData;
@@ -151,11 +152,17 @@ class ProjectMemberServiceTest {
 		ProjectMember target = projectMember(201L, project, targetUser, ProjectMemberRole.MEMBER, ProjectMemberStatus.ACTIVE);
 		when(authContextService.fromAccessToken("project-admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(projectAdmin);
-		when(projectMemberRepository.findByIdForUpdate(201L)).thenReturn(Optional.of(target));
+		when(projectMemberRepository.findLockPreviewById(201L)).thenReturn(Optional.of(projectMemberLockPreview(target)));
+		when(projectMemberRepository.findTargetAndActiveProjectAdminsByProjectIdForUpdate(
+				20L,
+				201L,
+				ProjectMemberRole.PROJECT_ADMIN,
+				ProjectMemberStatus.ACTIVE))
+				.thenReturn(List.of(requester, target));
 		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(project));
 		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false);
 		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L)).thenReturn(Optional.of(requester));
-		when(companyMembershipService.isActiveMember(10L, 2L)).thenReturn(true);
+		when(companyMembershipService.isActiveMemberForUpdate(10L, 2L)).thenReturn(true);
 
 		ProjectMemberData data = projectMemberService.update(
 				"project-admin-token",
@@ -178,10 +185,16 @@ class ProjectMemberServiceTest {
 		ProjectMember target = projectMember(201L, project, user(2L, "member@example.com"), ProjectMemberRole.MEMBER, ProjectMemberStatus.ACTIVE);
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(companyAdmin);
-		when(projectMemberRepository.findByIdForUpdate(201L)).thenReturn(Optional.of(target));
+		when(projectMemberRepository.findLockPreviewById(201L)).thenReturn(Optional.of(projectMemberLockPreview(target)));
+		when(projectMemberRepository.findTargetAndActiveProjectAdminsByProjectIdForUpdate(
+				20L,
+				201L,
+				ProjectMemberRole.PROJECT_ADMIN,
+				ProjectMemberStatus.ACTIVE))
+				.thenReturn(List.of(target));
 		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(project));
 		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
-		when(companyMembershipService.isActiveMember(10L, 2L)).thenReturn(true);
+		when(companyMembershipService.isActiveMemberForUpdate(10L, 2L)).thenReturn(true);
 
 		projectMemberService.update(
 				"admin-token",
@@ -201,10 +214,16 @@ class ProjectMemberServiceTest {
 		ProjectMember target = projectMember(201L, project, targetUser, ProjectMemberRole.MEMBER, ProjectMemberStatus.REMOVED);
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(companyAdmin);
-		when(projectMemberRepository.findByIdForUpdate(201L)).thenReturn(Optional.of(target));
+		when(projectMemberRepository.findLockPreviewById(201L)).thenReturn(Optional.of(projectMemberLockPreview(target)));
+		when(projectMemberRepository.findTargetAndActiveProjectAdminsByProjectIdForUpdate(
+				20L,
+				201L,
+				ProjectMemberRole.PROJECT_ADMIN,
+				ProjectMemberStatus.ACTIVE))
+				.thenReturn(List.of(target));
 		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(project));
 		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
-		when(companyMembershipService.isActiveMember(10L, 2L)).thenReturn(false);
+		when(companyMembershipService.isActiveMemberForUpdate(10L, 2L)).thenReturn(false);
 
 		assertThatThrownBy(() -> projectMemberService.update(
 				"admin-token",
@@ -225,10 +244,16 @@ class ProjectMemberServiceTest {
 		ProjectMember target = projectMember(201L, project, targetUser, ProjectMemberRole.MEMBER, ProjectMemberStatus.ACTIVE);
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(companyAdmin);
-		when(projectMemberRepository.findByIdForUpdate(201L)).thenReturn(Optional.of(target));
+		when(projectMemberRepository.findLockPreviewById(201L)).thenReturn(Optional.of(projectMemberLockPreview(target)));
+		when(projectMemberRepository.findTargetAndActiveProjectAdminsByProjectIdForUpdate(
+				20L,
+				201L,
+				ProjectMemberRole.PROJECT_ADMIN,
+				ProjectMemberStatus.ACTIVE))
+				.thenReturn(List.of(target));
 		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(project));
 		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
-		when(companyMembershipService.isActiveMember(10L, 2L)).thenReturn(false);
+		when(companyMembershipService.isActiveMemberForUpdate(10L, 2L)).thenReturn(false);
 
 		assertThatThrownBy(() -> projectMemberService.update(
 				"admin-token",
@@ -245,7 +270,7 @@ class ProjectMemberServiceTest {
 		User admin = user(1L, "admin@example.com");
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
-		when(projectMemberRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
+		when(projectMemberRepository.findLockPreviewById(999L)).thenReturn(Optional.empty());
 
 		assertThatThrownBy(() -> projectMemberService.update(
 				"admin-token",
@@ -263,14 +288,16 @@ class ProjectMemberServiceTest {
 		ProjectMember target = projectMember(201L, project, admin, ProjectMemberRole.PROJECT_ADMIN, ProjectMemberStatus.ACTIVE);
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
-		when(projectMemberRepository.findByIdForUpdate(201L)).thenReturn(Optional.of(target));
-		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(project));
-		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
-		when(projectMemberRepository.countByProject_IdAndRoleAndStatus(
+		when(projectMemberRepository.findLockPreviewById(201L)).thenReturn(Optional.of(projectMemberLockPreview(target)));
+		when(companyMembershipService.isActiveMemberForUpdate(10L, 1L)).thenReturn(true);
+		when(projectMemberRepository.findTargetAndActiveProjectAdminsByProjectIdForUpdate(
 				20L,
+				201L,
 				ProjectMemberRole.PROJECT_ADMIN,
 				ProjectMemberStatus.ACTIVE))
-				.thenReturn(1L);
+				.thenReturn(List.of(target));
+		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(project));
+		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
 
 		assertThatThrownBy(() -> projectMemberService.update(
 				"admin-token",
@@ -288,16 +315,18 @@ class ProjectMemberServiceTest {
 		Company company = company(10L, admin);
 		Project project = project(20L, company, admin);
 		ProjectMember target = projectMember(201L, project, admin, ProjectMemberRole.PROJECT_ADMIN, ProjectMemberStatus.ACTIVE);
+		ProjectMember otherAdmin = projectMember(202L, project, user(2L, "other@example.com"), ProjectMemberRole.PROJECT_ADMIN, ProjectMemberStatus.ACTIVE);
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
-		when(projectMemberRepository.findByIdForUpdate(201L)).thenReturn(Optional.of(target));
-		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(project));
-		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
-		when(projectMemberRepository.countByProject_IdAndRoleAndStatus(
+		when(projectMemberRepository.findLockPreviewById(201L)).thenReturn(Optional.of(projectMemberLockPreview(target)));
+		when(projectMemberRepository.findTargetAndActiveProjectAdminsByProjectIdForUpdate(
 				20L,
+				201L,
 				ProjectMemberRole.PROJECT_ADMIN,
 				ProjectMemberStatus.ACTIVE))
-				.thenReturn(2L);
+				.thenReturn(List.of(target, otherAdmin));
+		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(project));
+		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
 
 		ProjectMemberData data = projectMemberService.update(
 				"admin-token",
@@ -318,7 +347,13 @@ class ProjectMemberServiceTest {
 		ProjectMember target = projectMember(201L, project, user(2L, "member@example.com"), ProjectMemberRole.MEMBER, ProjectMemberStatus.ACTIVE);
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
-		when(projectMemberRepository.findByIdForUpdate(201L)).thenReturn(Optional.of(target));
+		when(projectMemberRepository.findLockPreviewById(201L)).thenReturn(Optional.of(projectMemberLockPreview(target)));
+		when(projectMemberRepository.findTargetAndActiveProjectAdminsByProjectIdForUpdate(
+				20L,
+				201L,
+				ProjectMemberRole.PROJECT_ADMIN,
+				ProjectMemberStatus.ACTIVE))
+				.thenReturn(List.of(target));
 		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(project));
 		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
 
@@ -338,14 +373,15 @@ class ProjectMemberServiceTest {
 		ProjectMember target = projectMember(201L, project, admin, ProjectMemberRole.PROJECT_ADMIN, ProjectMemberStatus.ACTIVE);
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
-		when(projectMemberRepository.findByIdForUpdate(201L)).thenReturn(Optional.of(target));
-		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(project));
-		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
-		when(projectMemberRepository.countByProject_IdAndRoleAndStatus(
+		when(projectMemberRepository.findLockPreviewById(201L)).thenReturn(Optional.of(projectMemberLockPreview(target)));
+		when(projectMemberRepository.findTargetAndActiveProjectAdminsByProjectIdForUpdate(
 				20L,
+				201L,
 				ProjectMemberRole.PROJECT_ADMIN,
 				ProjectMemberStatus.ACTIVE))
-				.thenReturn(1L);
+				.thenReturn(List.of(target));
+		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(project));
+		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
 
 		assertThatThrownBy(() -> projectMemberService.remove("admin-token", 201L))
 				.isInstanceOf(ProjectMemberConflictException.class);
@@ -365,7 +401,7 @@ class ProjectMemberServiceTest {
 
 	private static Company company(Long id, User createdBy) {
 		LocalDateTime now = LocalDateTime.now(FIXED_CLOCK);
-		Company company = new Company("Threadia Inc.", "Admin", "workspace", "IT", null, "ACTIVE", createdBy, now, now);
+		Company company = new Company("Threadia Inc.", "Admin", "workspace", "IT", null, com.threadia.backend.company.domain.CompanyStatus.ACTIVE, createdBy, now, now);
 		setId(company, id);
 		return company;
 	}
@@ -400,6 +436,13 @@ class ProjectMemberServiceTest {
 		ProjectMember projectMember = new ProjectMember(project, user, role, status, now, now, now);
 		setId(projectMember, id);
 		return projectMember;
+	}
+
+	private static ProjectMemberLockPreview projectMemberLockPreview(ProjectMember projectMember) {
+		return new ProjectMemberLockPreview(
+				projectMember.getProject().getId(),
+				projectMember.getProject().getCompany().getId(),
+				projectMember.getUser().getId());
 	}
 
 	private static void setId(Object entity, Long id) {

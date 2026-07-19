@@ -9,5 +9,6 @@ public record IssueUpdateRequest(
 		String description,
 		IssuePriority priority,
 		Long assigneeUserId,
-		LocalDate dueDate) {
+		LocalDate dueDate,
+		Long sprintId) {
 }

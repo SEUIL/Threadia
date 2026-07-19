@@ -12,6 +12,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.threadia.backend.auth.domain.User;
 import com.threadia.backend.auth.domain.UserStatus;
@@ -26,12 +27,16 @@ import com.threadia.backend.invitation.domain.Invitation;
 import com.threadia.backend.invitation.domain.InvitationScopeType;
 import com.threadia.backend.invitation.domain.InvitationStatus;
 import com.threadia.backend.invitation.repository.InvitationRepository;
+import com.threadia.backend.platform.bootstrap.PlatformAdminBootstrap;
 
 @SpringBootTest
 @Transactional
 @EnabledIfEnvironmentVariable(named = "THREADIA_DB_PASSWORD", matches = ".+")
 @EnabledIfEnvironmentVariable(named = "THREADIA_DB_SCHEMA_VALIDATION", matches = "true")
 class InvitationSeedValidationTests {
+
+	@MockitoBean
+	private PlatformAdminBootstrap platformAdminBootstrap;
 
 	@Autowired
 	private UserRepository userRepository;
@@ -65,14 +70,11 @@ class InvitationSeedValidationTests {
 				UserStatus.ACTIVE,
 				now,
 				now));
-		Company company = companyRepository.save(new Company(
-				"Threadia Seed " + suffix,
+		Company company = companyRepository.save(new Company("Threadia Seed " + suffix,
 				"여도현",
 				"Sprint 1.5 invitation seed verification",
 				"IT",
-				null,
-				"ACTIVE",
-				admin,
+				null, com.threadia.backend.company.domain.CompanyStatus.ACTIVE, admin,
 				now,
 				now));
 		CompanyMember adminMembership = companyMemberRepository.save(new CompanyMember(

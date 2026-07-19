@@ -36,9 +36,10 @@ jobs:
       run:
         working-directory: backend
     env:
-      THREADIA_DB_URL: jdbc:mysql://localhost:3306/threadia_test
-      THREADIA_DB_USERNAME: threadia_test
-      THREADIA_DB_PASSWORD: threadia_test_password
+      THREADIA_DB_URL: jdbc:mysql://127.0.0.1:3306/threadia_ci
+      THREADIA_DB_USERNAME: threadia_ci
+      THREADIA_DB_PASSWORD: threadia_ci_password
+      THREADIA_DB_SCHEMA_VALIDATION: "true"
       THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL: ci-platform-admin@threadia.invalid
       THREADIA_JWT_SECRET: public-ci-test-jwt-secret-not-for-production-please-replace
       THREADIA_COOKIE_SECURE: "false"
@@ -48,12 +49,12 @@ jobs:
       mysql:
         image: mysql:8.4
         env:
-          MYSQL_DATABASE: threadia_test
-          MYSQL_USER: threadia_test
-          MYSQL_PASSWORD: threadia_test_password
-          MYSQL_ROOT_PASSWORD: threadia_test_root_password
+          MYSQL_DATABASE: threadia_ci
+          MYSQL_USER: threadia_ci
+          MYSQL_PASSWORD: threadia_ci_password
+          MYSQL_ROOT_PASSWORD: threadia_ci_root_password
         options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -uthreadia_test -pthreadia_test_password"
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uthreadia_ci -pthreadia_ci_password"
           --health-interval=5s
           --health-timeout=3s
           --health-retries=20
@@ -73,8 +74,8 @@ jobs:
 
       - name: Initialize MySQL schema
         run: |
-          MYSQL_PWD="$THREADIA_DB_PASSWORD" mysql --host=127.0.0.1 --port=3306 --user="$THREADIA_DB_USERNAME" threadia_test < ../db/schema.sql
-          MYSQL_PWD="$THREADIA_DB_PASSWORD" mysql --host=127.0.0.1 --port=3306 --user="$THREADIA_DB_USERNAME" threadia_test <<SQL
+          MYSQL_PWD="$THREADIA_DB_PASSWORD" mysql --host=127.0.0.1 --port=3306 --user="$THREADIA_DB_USERNAME" threadia_ci < ../db/schema.sql
+          MYSQL_PWD="$THREADIA_DB_PASSWORD" mysql --host=127.0.0.1 --port=3306 --user="$THREADIA_DB_USERNAME" threadia_ci <<SQL
           INSERT INTO users (email, password_hash, nickname, avatar_url, status, created_at, updated_at)
           VALUES ('${THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL}', NULL, 'ci-bootstrap-admin', NULL, 'ACTIVE', UTC_TIMESTAMP(), UTC_TIMESTAMP())
           ON DUPLICATE KEY UPDATE

@@ -93,6 +93,41 @@ class AdminActionAuditServiceTest {
 		assertThat(audit.getTargetId()).isEqualTo(7L);
 	}
 
+	@Test
+	void excludesRawSupportCaseTitleAndBodyFromPersistedSnapshots() {
+		User actor = user(1L, "admin@example.com");
+		PlatformAdmin admin = new PlatformAdmin(actor, PlatformAdminRole.SUPER_ADMIN, LocalDateTime.now(FIXED_CLOCK));
+		setId(admin, 2L);
+		when(auditRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+		AdminActionAuditService service = new AdminActionAuditService(auditRepository, new ObjectMapper(), FIXED_CLOCK);
+
+		service.recordUserMutation(null, actor, AdminAction.SUPPORT_CASE_CREATED, AuditTargetType.SUPPORT_CASE, 7L,
+				"문의 접수", null, Map.of("id", 7L, "title", "raw title", "body", "raw body", "createdAt", "2026-07-15T06:00"));
+
+		ArgumentCaptor<AdminActionAudit> captor = ArgumentCaptor.forClass(AdminActionAudit.class);
+		verify(auditRepository).save(captor.capture());
+		assertThat(captor.getValue().getAfterState()).doesNotContain("raw title", "raw body", "title", "body");
+	}
+
+	@Test
+	void excludesEntireSystemSettingValueFromPersistedSnapshots() {
+		User actor = user(1L, "admin@example.com");
+		PlatformAdmin admin = new PlatformAdmin(actor, PlatformAdminRole.SUPER_ADMIN, LocalDateTime.now(FIXED_CLOCK));
+		setId(admin, 2L);
+		when(auditRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+		AdminActionAuditService service = new AdminActionAuditService(auditRepository, new ObjectMapper(), FIXED_CLOCK);
+
+		service.recordPlatformMutation(null, actor, admin, AdminAction.SYSTEM_SETTING_REPLACED, AuditTargetType.SYSTEM_SETTING, 3L,
+				"설정 변경", null, Map.of("settingKey", "SUPPORT_CENTER_STATUS", "valueSchemaVersion", 1, "version", 2,
+						"value", Map.of("message", "raw setting value")));
+
+		ArgumentCaptor<AdminActionAudit> captor = ArgumentCaptor.forClass(AdminActionAudit.class);
+		verify(auditRepository).save(captor.capture());
+		assertThat(captor.getValue().getAfterState())
+				.contains("SUPPORT_CENTER_STATUS", "valueSchemaVersion", "version")
+				.doesNotContain("raw setting value", "\"value\"");
+	}
+
 	private static User user(Long id, String email) {
 		LocalDateTime now = LocalDateTime.now(FIXED_CLOCK);
 		User user = new User(email, "hashed", "user", null, UserStatus.ACTIVE, now, now);

@@ -1,8 +1,8 @@
-> **작성자**: Threadia 팀  
-> **작성일**: 2026-07-13  
-> **최종 수정**: 2026-07-13  
-> **버전**: v1.0  
-> **상태**: 검토 중  
+> **작성자**: Threadia 팀
+> **작성일**: 2026-07-13
+> **최종 수정**: 2026-07-16
+> **버전**: v1.1
+> **상태**: 검토 중
 > **태그**: pre-deploy, release, readiness, rollback, approval
 
 # Pre-deploy Release Checklist
@@ -43,7 +43,7 @@ Release owner와 최종 승인자는 분리한다. 승인자가 없거나 승인
 |---|---|---|---|---|
 | R-01 | Release identity | 선택 ref가 기록된 immutable commit 또는 tag와 일치하고, CI evidence도 같은 ref를 가리킨다 | ref, artifact, evidence의 대상이 다르거나 확인할 수 없다 | Release owner |
 | R-02 | 변경 범위와 QA | 변경 영향 영역의 정상 및 주요 실패 흐름이 확인되고, 미확인 항목의 영향과 후속 조치가 기록된다 | 중대 회귀, 미확인 핵심 흐름, owner 없는 미해결 항목이 있다 | QA owner, 영역 owner |
-| R-03 | 환경 계약과 설정 | 승인된 환경 계약, 환경 변수 inventory, CORS, cookie, OAuth redirect 등 배포 영향 설정의 이름과 적용 책임이 정합하다. 값은 기록하지 않는다 | secret, 실제 host, domain, credential, 또는 설정값의 불일치를 발견했다 | Environment owner |
+| R-03 | 환경 계약과 설정 | 승인된 환경 계약, 환경 변수 inventory, CORS, cookie, OAuth redirect 등 배포 영향 설정의 이름과 적용 책임이 정합하다. `platform_admins`가 비어 있는 첫 배포는 이미 `platform_admins`가 채워져 있거나, matching ACTIVE user용 `THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL`을 제공하는 승인된 runtime 전달 방식이 확인돼야 한다. 값은 기록하지 않는다 | secret, 실제 host, domain, credential, 또는 설정값의 불일치를 발견했다. `platform_admins`가 비어 있고 승인된 runtime 전달 방식이 bootstrap email을 제공하지 못하면 첫 bootstrap은 No-Go다 | Environment owner |
 | R-04 | Migration 호환성 | schema, application mapping, 기존 데이터와의 호환성, 복구 가능성을 검토하고 영향이 기록된다 | 호환성 검토가 없거나 기존 데이터 손상 가능성을 해소하지 못했다 | DB owner |
 | R-05 | 비가역 migration 승인 | 데이터 삭제, 형식 축소, 되돌릴 수 없는 변환처럼 비가역 migration이 있으면 영향 범위, backup 또는 복구 계획, 실행 창을 별도로 승인받는다 | 비가역 migration의 별도 승인이 없거나 복구 계획이 없다 | DB owner, 최종 승인자 |
 | R-06 | Rollback 준비 | rollback 책임자, 중단 기준, 이전 안정 ref, 데이터 복구 판단 기준이 기록되어 있다 | rollback 판단자 또는 이전 안정 기준이 없다 | Release owner, 운영 owner |
@@ -115,3 +115,9 @@ release 기록에는 아래의 결과만 남긴다. secret, token, password, pri
 | [Sprint 2 CI/Deploy 준비계획](/00-project/sprint-운영/sprint-2-CI-Deploy-준비계획) | CI-only 범위와 승인 필요 follow-up |
 | [AWS 배포 아키텍처 v1](/05-architecture/AWS-배포-아키텍처-v1) | 배포 proposal과 환경 영향 항목 |
 | [DB schema 관리 정책](/07-decisions/DB-schema-관리-정책) | schema 기준과 migration 재검토 조건 |
+
+## 9. 변경 이력
+
+| 날짜 | 내용 |
+|---|---|
+| 2026-07-16 | R-03에 platform admin 첫 bootstrap의 사전 존재 조건 또는 승인된 bootstrap email runtime 전달 조건을 추가하고, 둘 다 충족하지 않으면 No-Go로 판정하도록 명시했다. |

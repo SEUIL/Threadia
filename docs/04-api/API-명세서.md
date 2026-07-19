@@ -1,9 +1,9 @@
-# Threadia API 명세서 v2.7
+# Threadia API 명세서 v3.0
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-07-15
-> **버전**: v2.8 WBS 4.6.1 Documents/Graph Backend 계약 반영
+> **최종 수정**: 2026-07-19
+> **버전**: v3.9 회사 멤버 제거 API 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -13,7 +13,7 @@
 
 > **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows이며, DB는 ERD 기반 `db/schema.sql`과 문서 변경이력으로 관리한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
-> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, Sprint 3 decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15는 `3.7~3.7.5` planning gate 이후 `4.10`에서 추적한다. attachment, document optimistic locking, advanced DM, PROJECT notification scope, project restore, permanent delete는 선행 결정 전 full endpoint contract나 request/response body를 만들지 않는다.
+> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15 `4.10.1` support case, `4.10.3` typed system settings, `4.10.4` Backend lifecycle/audit-read, `4.8.1` notification inbox/read-state, `4.9.4.1` Search Backend 계약을 확정한다. `4.9.4.2` Frontend는 계획/0% 상태다. notification producer matrix, preferences, push/WebSocket, S15 Frontend, enforcement, dashboard, retention/cleanup은 후속 범위다.
 
 
 ## 1. 공통 규칙
@@ -80,6 +80,9 @@ pagination이 필요한 목록 응답은 `page`를 포함한다. endpoint별 응
 | 409 | INVITATION_CANCELED | 초대가 취소됨 |
 | 409 | INVITATION_INVALID_STATUS | 처리할 수 없는 초대 상태 |
 | 409 | DOCUMENT_VERSION_CONFLICT | 문서 수정 optimistic locking 충돌. Sprint 3 decision-needed boundary code |
+| 409 | THREAD_DEFERRED | WBS 4.7.1 Thread 구현 전 메시지 `threadId`를 지정함 |
+| 409 | SYSTEM_SETTING_VERSION_CONFLICT | `expectedVersion`이 현재 setting version과 다름 |
+| 409 | SYSTEM_SETTING_NO_CHANGE | replacement JSON이 현재 value와 동일함 |
 
 ### 사용자 요약 DTO
 
@@ -110,6 +113,11 @@ notificationScopeType: GLOBAL
 invitationStatus:      PENDING | ACCEPTED | DECLINED | CANCELED | EXPIRED
 invitationScopeType:   COMPANY | PROJECT
 invitationRoleByScope: COMPANY -> COMPANY_ADMIN | MEMBER, PROJECT -> PROJECT_ADMIN | MEMBER
+platformAdminRole:      PLATFORM_ADMIN | SUPER_ADMIN
+supportCaseType:        INQUIRY | REPORT
+supportCaseStatus:      OPEN | IN_PROGRESS | RESOLVED | REJECTED | CLOSED
+supportCaseTargetType:  USER | COMPANY | PROJECT | CONTENT
+systemSettingKey:       SUPPORT_CASE_CATEGORIES | REPORT_REASON_CATEGORIES | ENFORCEMENT_REASON_PRESETS | ENFORCEMENT_DURATION_PRESETS | REPLY_TEMPLATES | ANNOUNCEMENT_BANNER | SUPPORT_CENTER_STATUS | RESULT_NOTIFICATION_POLICY
 ```
 
 Phase A Sprint 1 구현 provider는 Google OAuth로 한정한다. API와 ERD의 KAKAO, NAVER enum은 후속 확장 reference로만 유지한다.
@@ -241,7 +249,8 @@ POST /api/v1/auth/refresh
 | DELETE | `/api/v1/departments/{departmentId}` | C | 부서 삭제, 멤버 부서 NULL 처리 |
 | GET | `/api/v1/companies/{companyId}/company-members` | C | 구성원 목록 조회 |
 | POST | `/api/v1/companies/{companyId}/invitations` | C | Sprint 1.5 회사 초대 생성. 수락 전 membership 미생성 |
-| PATCH | `/api/v1/companies/{companyId}/company-members/{companyMemberId}` | C | 역할/부서/상태 변경 |
+| PATCH | `/api/v1/companies/{companyId}/company-members/{companyMemberId}` | C | 역할/부서/상태 변경. `status: "LEFT"`로의 전환은 거절하고 DELETE 사용을 강제 |
+| DELETE | `/api/v1/companies/{companyId}/company-members/{companyMemberId}` | C | 구성원 제거(soft — `status = LEFT`, `departmentId = null`). 해당 회사 내 active project membership도 함께 `REMOVED` 처리 |
 
 Sprint 1.5부터 구성원 추가는 등록 사용자 exact email lookup 후 `invitations`를 생성한다. 가입되지 않은 이메일 대상 invitation, 외부 email 발송, token link 초대는 Sprint 1.5 범위가 아니며 user-facing membership create API로 즉시 소속을 만들지 않는다.
 
@@ -262,6 +271,7 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 | PATCH | `/api/v1/projects/{projectId}` | P/C | 프로젝트 정보 수정 |
 | POST | `/api/v1/projects/{projectId}/archive` | P/C | 프로젝트 아카이빙 |
 | GET | `/api/v1/projects/{projectId}/project-members` | A/P/C | 프로젝트 멤버 목록 |
+| GET | `/api/v1/projects/{projectId}/invitable-members?email={email}` | P/C | Issue #108 프로젝트 invitation 후보 exact email 조회. 같은 회사 ACTIVE 구성원 중 초대 가능한 사용자 1명만 최소 응답으로 반환하고, 후보가 아니면 전부 404 |
 | POST | `/api/v1/projects/{projectId}/invitations` | P/C | WBS 4.3.1 프로젝트 invitation 생성. 대상은 같은 회사 ACTIVE 구성원으로 제한하고 수락 전 membership 미생성 |
 | GET | `/api/v1/projects/{projectId}/invitations` | P/C | WBS 4.3.1 프로젝트 invitation 목록 조회 |
 | PATCH | `/api/v1/project-members/{projectMemberId}` | P/C | 프로젝트 멤버 역할/상태 변경 |
@@ -285,6 +295,7 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 | Method | Endpoint | 권한 | 설명 |
 |---|---|---|---|
 | GET | `/api/v1/users/lookup?email={email}` | C | 등록 사용자 exact email lookup. Sprint 1.5 company invitation 대상 확인용. 입력 email은 `trim + lowercase` 정규화 후 조회 |
+| GET | `/api/v1/projects/{projectId}/invitable-members?email={email}` | P/C | Issue #108 PROJECT invitation 후보 exact email lookup. 입력 email 정규화, 프로젝트 권한 및 생성 가능 조건 검증 후 최소 사용자 응답 반환. 조회 범위는 같은 회사 ACTIVE 구성원으로 한정하며 그 밖은 404 |
 | POST | `/api/v1/companies/{companyId}/invitations` | C | 회사 invitation 생성 |
 | GET | `/api/v1/companies/{companyId}/invitations` | C | 회사 invitation 목록 조회 |
 | POST | `/api/v1/projects/{projectId}/invitations` | P/C | WBS 4.3.1 프로젝트 invitation 생성 |
@@ -303,6 +314,10 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 - WBS 4.3.1 PROJECT invitation은 대상자가 존재해야 하며, 존재하지만 `ACTIVE` user가 아니거나 해당 프로젝트 회사의 `ACTIVE` company member가 아니면 `409 TARGET_NOT_ACTIVE_COMPANY_MEMBER`를 반환한다. 대상 user가 아예 없으면 `404 NOT_FOUND`를 반환한다. 생성자는 자기 자신을 초대할 수 없으며 `409 INVITATION_SELF_NOT_ALLOWED`를 반환한다.
 - WBS 4.3.1 PROJECT invitation은 이미 ACTIVE 프로젝트 멤버인 대상자에게 생성하거나 수락할 수 없으며 `409 ALREADY_PROJECT_MEMBER`를 반환한다.
 - `(project, invitee, PROJECT, PENDING)` 중복 key는 하나의 대기 초대만 허용한다. 만료되지 않은 중복 생성은 `409 INVITATION_ALREADY_PENDING`을 반환하고, 만료된 대기 초대는 lazy expiration 후 새 초대를 생성할 수 있다.
+- Issue #108 project-scoped 후보 조회는 부분 일치, 목록, pagination을 제공하지 않고 정규화된 email exact match만 허용한다. 서버는 email 조회 전에 요청자의 ACTIVE 상태와 해당 프로젝트 P/C 권한을 확인해 비권한자의 사용자 directory 열람을 막는다. C는 해당 프로젝트 회사의 ACTIVE `COMPANY_ADMIN`, P는 정확히 해당 프로젝트의 ACTIVE `PROJECT_ADMIN`이어야 한다.
+- 후보 조회는 PROJECT invitation 생성과 같은 eligibility를 적용하되, **회사 경계 밖 정보를 노출하지 않도록 응답을 통일한다.** 대상은 ACTIVE user이면서 해당 프로젝트 회사의 ACTIVE company member여야 하며, 이 조건을 만족하지 않으면(미가입, 비ACTIVE, 다른 회사) 구분 없이 `404 NOT_FOUND`다. 갈라서 응답하면 P가 임의의 email로 서비스 가입 여부를 판별할 수 있다(user enumeration). 반면 자기 자신, ACTIVE 프로젝트 멤버, 만료되지 않은 PROJECT `PENDING` invitation 대상은 이미 같은 회사 안에서 확인 가능한 정보라 기존 `409` conflict code를 그대로 쓴다. 만료된 `PENDING` invitation은 조회 중 lazy expiration한 뒤 후보를 반환하며, 실제 생성 시 `POST /projects/{projectId}/invitations`가 eligibility를 다시 검증한다.
+- 후보 조회는 아무것도 쓰지 않으므로 프로젝트 행에 비관적 락을 걸지 않는다(readOnly). eligibility의 최종 판정은 생성 endpoint가 담당한다.
+- 기존 `GET /api/v1/users/lookup`의 C-only global lookup과 회사 구성원 목록 계약은 변경하지 않는다. project-scoped 후보 조회 성공 응답은 기존 4필드 `UserResponse`만 제공한다.
 - 회사 invitation role은 `COMPANY_ADMIN` 또는 `MEMBER`만 허용한다. WBS 4.3.1 PROJECT invitation role은 `PROJECT_ADMIN` 또는 `MEMBER`만 허용한다.
 - PROJECT invitation 수락 시 기존 프로젝트 membership이 없으면 새 row를 생성하고 `membershipCreated=true`를 반환한다. 기존 row가 `REMOVED`이면 그 row의 ID와 생성 시각을 보존한 채 초대 role과 `ACTIVE` 상태로 재활성화하며 `membershipCreated=false`를 반환한다.
 - 공통 accept/decline/cancel endpoint는 request body의 scope 파라미터를 받지 않는다. access token과 `ACTIVE` 사용자 인증을 invitation ID 조회와 저장된 `scopeType` dispatch보다 먼저 검증하므로, 미인증 호출자는 invitation 존재 여부를 추론할 수 없다. invitation에 저장된 `scopeType`으로 COMPANY 또는 PROJECT 처리를 dispatch한다. PROJECT cancel은 같은 회사의 ACTIVE `COMPANY_ADMIN` 또는 ACTIVE `PROJECT_ADMIN`이 수행할 수 있다. `INVITE-01~04` company invitation 의미는 유지한다.
@@ -323,7 +338,7 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 | GET | `/api/v1/projects/{projectId}/issues` | A/P/C | `status`, `sprintId`, `assigneeId`, `unassignedOnly`, `includeTrashed` filter를 지원하는 이슈 목록. pagination 없음 |
 | POST | `/api/v1/projects/{projectId}/issues` | A/P/C | 이슈 생성. A는 title/description만, P/C는 priority/assignee/dueDate/sprint 지정 가능 |
 | GET | `/api/v1/issues/{issueId}` | A/P/C | 이슈 상세 조회 |
-| PATCH | `/api/v1/issues/{issueId}` | A/P/C | PATCH omitted=유지, 명시 null은 description/assignee/dueDate만 clear |
+| PATCH | `/api/v1/issues/{issueId}` | A/P/C | PATCH omitted=유지, 명시 null은 description/assignee/dueDate/sprintId만 clear. `sprintId`는 해제 전용으로 null만 허용하고 non-null은 400 |
 | PATCH | `/api/v1/issues/{issueId}/status` | A 제한/P/C | A는 DONE 외 상태, P/C는 DONE 재오픈을 포함한 모든 상태 변경 |
 | POST | `/api/v1/issues/{issueId}/trash` | P/C 또는 등록자 | 이슈 휴지통 이동 |
 | POST | `/api/v1/issues/{issueId}/restore` | P/C 또는 등록자 | 이슈 복원 |
@@ -342,7 +357,7 @@ Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local
 
 이슈 상태 변경은 같은 상태에 대해 200 no-op이며 history를 남기지 않는다. trashed 이슈의 상태/내용 변경은 `409 CONFLICT`다. trash/restore는 등록자 또는 P/C가 실행하며 idempotent 200이고 trash reason은 받지 않는다. `includeTrashed=true`은 active와 trashed를 함께 반환한다. 이슈의 `projectId`, `issueKey`, reporter, source 필드는 immutable이고 source는 `MANUAL`만 생성한다. 담당자와 Sprint는 같은 프로젝트의 ACTIVE project member 및 non-COMPLETED Sprint로 검증한다. COMPANY_ADMIN은 관리 action은 가능하지만 ACTIVE project member가 아니면 담당자가 될 수 없다.
 
-Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PLANNED다. P/C만 생성·수정·시작·완료·일괄 배정할 수 있고 수정은 PLANNED에만 허용한다. 프로젝트별 ACTIVE Sprint는 하나이며 서버 UTC로 `startedAt`/`completedAt`을 기록한다. `GET /api/v1/sprints/{sprintId}`는 Sprint metadata만 반환하며 배정 이슈를 포함하지 않는다. 배정 이슈는 `GET /api/v1/projects/{projectId}/issues?sprintId={sprintId}`로 별도 조회한다. `unassignedOnly=true`는 Sprint가 없는 이슈만 반환하며 `sprintId`와 함께 전달하면 `400 VALIDATION_ERROR`다. 배정은 같은 프로젝트의 non-trashed issue만 대상으로 하고 status를 바꾸지 않는다. 완료 시 DONE을 제외한 모든 배정 issue는 원자적으로 `BACKLOG`로 이동하고 Sprint를 clear한다. notification/event 발행은 하지 않는다.
+Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PLANNED다. P/C만 생성·수정·시작·완료·일괄 배정할 수 있고 수정은 PLANNED에만 허용한다. 프로젝트별 ACTIVE Sprint는 하나이며 서버 UTC로 `startedAt`/`completedAt`을 기록한다. `GET /api/v1/sprints/{sprintId}`는 Sprint metadata만 반환하며 배정 이슈를 포함하지 않는다. 배정 이슈는 `GET /api/v1/projects/{projectId}/issues?sprintId={sprintId}`로 별도 조회한다. `unassignedOnly=true`는 Sprint가 없는 이슈만 반환하며 `sprintId`와 함께 전달하면 `400 VALIDATION_ERROR`다. 배정은 같은 프로젝트의 non-trashed issue만 대상으로 하고 status를 바꾸지 않는다. 배정 해제는 `PATCH /api/v1/issues/{issueId}`에 `sprintId: null`을 보내며(Issue #113), 그 endpoint는 해제만 허용하고 non-null `sprintId`는 `400`으로 거절해 배정 경로를 위 POST 하나로 유지한다. 완료 시 DONE을 제외한 모든 배정 issue는 원자적으로 `BACKLOG`로 이동하고 Sprint를 clear한다. notification/event 발행은 하지 않는다.
 
 문서 정책: 문서 `type`은 `DOC` 또는 `MEETING_NOTE`이고, `title`은 trim 후 최대 200자이며 `content`는 Markdown 원문이다. 목록은 `type`, `q`, `includeTrashed`(기본 `false`)를 지원하며 기존 표시 순서(id 오름차순)를 유지한다. 문서 조회/생성은 A/P/C, 수정·trash·restore는 작성자 또는 P/C가 수행한다. trash/restore는 idempotent다. 문서와 이슈가 모두 요청 `projectId`에 속해야 link를 만들 수 있고, 중복 link 또는 어느 한 endpoint가 trashed이면 `409 CONFLICT`다. trashed endpoint의 기존 link는 project link list, 기본 graph, reverse read에서 숨긴다.
 
@@ -365,7 +380,7 @@ Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PL
 | POST | `/api/v1/projects/{projectId}/threads` | A/P/C | 쓰레드 생성/get-or-create |
 | GET | `/api/v1/threads/{threadId}` | A/P/C | 쓰레드 상세 |
 | PATCH | `/api/v1/threads/{threadId}` | 작성자/P/C | 쓰레드 topic 수정 |
-| POST | `/api/v1/threads/{threadId}/comments` | A/P/C | 댓글 작성, 멘션 알림 생성 |
+| POST | `/api/v1/threads/{threadId}/comments` | A/P/C | append-only 댓글 작성. 멘션 알림은 범위 밖 |
 | GET | `/api/v1/projects/{projectId}/messages` | A/P/C | 프로젝트 메시지 목록 |
 | POST | `/api/v1/projects/{projectId}/messages` | A/P/C | 프로젝트 메시지 작성 |
 | GET | `/api/v1/messages/{messageId}` | A/P/C | 메시지 상세 |
@@ -378,7 +393,17 @@ Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PL
 | POST | `/api/v1/direct-messages/rooms/{roomId}/mark-read` | 참여자 | DM 읽음 위치 갱신 |
 | GET | `/api/v1/direct-messages/unread-count` | A/P/C | 전체 DM unread count |
 
-1:1 DM core는 Sprint 3 후보다. 다자간 DM, DM room + participants 일반화, DM 상대 read receipt, DM 메시지 삭제, DM 메시지 이슈 전환은 선행 결정 전 full endpoint contract를 만들지 않는다.
+### 8.1 WBS 4.7.3.1 1:1 DM REST 정책
+
+- 이 구현은 1:1 room만 지원한다. room은 `(companyId, min(userId), max(userId))`로 정규화하고 unique constraint로 하나만 유지한다. self-DM은 `400 VALIDATION_ERROR`다.
+- room 목록과 생성은 path `companyId`의 현재 사용자와 상대 사용자가 모두 ACTIVE company member일 때만 허용한다. 존재하지 않거나 inactive인 상대 사용자는 `400 VALIDATION_ERROR`다.
+- room의 메시지 목록, 전송, mark-read는 현재 ACTIVE 사용자가 room 참여자이며 room 회사의 ACTIVE member일 때만 허용한다. 비참여자, 다른 회사 membership, 존재하지 않는 room은 모두 `404 NOT_FOUND`로 처리해 room 존재 여부를 노출하지 않는다.
+- `POST /companies/{companyId}/direct-messages/rooms`는 신규 room이면 `201`, 기존 normalized pair room이면 `200`을 반환한다. unique-key race는 insert 후 pair 재조회로 처리한다.
+- 메시지 content는 trim 후 1~10,000자다. 메시지 목록은 생성 시각과 ID 오름차순으로 반환한다.
+- mark-read body는 `lastReadDirectMessageId`만 받는다. client `readAt`은 허용하지 않으며 server UTC로만 저장한다. 포인터는 같은 room 메시지여야 하고 뒤로 이동하지 않는다.
+- unread는 현재 사용자가 보낸 메시지를 제외하고 개인별 `dm_room_user_states.last_read_direct_message_id`로 계산한다. 상대방 read receipt는 제공하지 않는다.
+
+1:1 DM core는 WBS 4.7.3.1 Backend 구현 범위다. 다자간 DM, DM room + participants 일반화, DM 상대 read receipt는 이번 개발 기간 보류다. 영구 제외하지 않으며 향후 재검토 전 endpoint, request/response contract, schema, frontend 구현을 추가하지 않는다. DM 메시지 삭제와 DM 메시지 이슈 전환도 full endpoint contract를 만들지 않는다.
 
 ---
 
@@ -396,17 +421,33 @@ Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PL
 | GET | `/api/v1/notification-preferences` | A/P/C | 알림 설정 조회 |
 | PUT | `/api/v1/notification-preferences` | A/P/C | 전체/이벤트별 on/off 설정 |
 
-알림 목록, 읽음 처리, unread count는 Sprint 3 후보이며 primary WBS는 `NOTI-01`=`4.8`이다. `GLOBAL` scope preference는 현재 계약으로 유지한다. `PROJECT` scope preference는 Sprint 3 decision-needed API boundary이며 실제 지원 기준 확정 전에는 `PROJECT_NOTIFICATION_SCOPE_DEFERRED`로 처리한다. `NOTI-02/03`은 현재 계약/reference row로 유지하고 요구사항추적표 primary WBS backfill 대상에서 제외한다.
+알림 목록, 읽음 처리, unread count의 Backend 구현 row는 `4.8.1`, 후속 S11 Frontend 연동 row는 `4.8.2`다. 요구사항 추적의 primary WBS는 child가 아니라 `NOTI-01`=`4.8`을 유지한다. `GLOBAL` scope preference는 reference 계약으로만 유지한다. `PROJECT` scope preference는 Sprint 3 decision-needed API boundary이며 실제 지원 기준 확정 전에는 `PROJECT_NOTIFICATION_SCOPE_DEFERRED`로 처리한다. `NOTI-02/03`은 현재 계약/reference row로 유지하고 요구사항추적표 primary WBS backfill 대상에서 제외한다.
 
 `notificationRecipientId`는 `notification_recipients.id`를 의미한다. API는 로그인 사용자 소유의 수신 알림만 읽음 처리한다.
 
-알림 원본 저장소는 MySQL의 `notification_events`, `notification_recipients`, `notification_preferences`를 사용한다. Redis는 unread count와 실시간 push 보조 cache가 필요해진 뒤 조건부 확장으로 검토한다. NoSQL 알림/활동 저장소는 Sprint 1에서 제공하지 않는다.
+WBS `4.8.1`은 MySQL의 기존 `notification_events`, `notification_recipients`만 JPA mapping하여 inbox/read-state core를 제공한다. `notification_preferences` API와 producer wiring/event-recipient matrix는 이번 slice에 포함하지 않는다. Redis, push/WebSocket, NoSQL 알림 저장소도 제공하지 않는다.
 
-### 9.1 Notifications Error Cases
+### 9.1 WBS 4.8.1 Notification Core 정책
+
+- 알림 `type` catalog는 `ISSUE_ASSIGNED`, `ISSUE_STATUS_CHANGED`, `THREAD_COMMENTED`, `MENTIONED`, `DOCUMENT_UPDATED`, `DOCUMENT_LINKED_TO_ISSUE`, `SPRINT_STARTED`, `SPRINT_ENDED`, `PROJECT_MESSAGE`, `DIRECT_MESSAGE`, `MEMBER_ADDED`, `ROLE_CHANGED`로 고정한다.
+- target type catalog는 `ISSUE`, `DOCUMENT`, `MESSAGE`, `THREAD`, `DIRECT_MESSAGE_ROOM`, `PROJECT`, `SPRINT`로 고정한다.
+- `GET /notifications` query는 선택적 `companyId`, `projectId`, `type`, `unreadOnly`, `cursor`, `size`를 받는다. `unreadOnly` 기본값은 `false`, `size` 기본값은 20이며 허용 범위는 1~100이다.
+- 목록은 `notification_recipients.created_at DESC, notification_recipients.id DESC` keyset 순서다. cursor는 opaque URL-safe HMAC 서명값이며 사용자 ID, 정규화된 `companyId`/`projectId`/`type`/`unreadOnly`, 마지막 `(createdAt,id)`를 결합한다. 변조되거나 다른 사용자·filter에서 재사용한 cursor는 `400 VALIDATION_ERROR`다.
+- 모든 목록, unread count, read-all query/update는 `recipient_user_id = current active user`를 강제한다. filter 없는 본인 inbox 조회는 허용한다.
+- `companyId` filter는 해당 회사 ACTIVE membership이 필요하다. `projectId` filter는 프로젝트 회사의 ACTIVE `COMPANY_ADMIN` 또는 ACTIVE company member이면서 ACTIVE project member여야 한다. 두 filter를 함께 보내면 프로젝트의 회사와 일치해야 하며 불일치는 `400 VALIDATION_ERROR`다.
+- `GET /notifications/unread-count`는 선택적 `companyId`, `projectId`, `type`을 목록과 같은 scope 규칙으로 적용하고 `read_at IS NULL`인 본인 row만 계산한다.
+- 개별 read는 `notification_recipients.id`를 잠근 뒤 본인 소유인지 검사한다. 없는 ID는 404, 다른 사용자 소유 ID는 403이다. 최초 호출에만 server UTC `read_at`을 기록하고 반복 호출은 기존 `readAt`을 보존하는 idempotent 동작이다.
+- read-all body의 `companyId`, `projectId`, `type`은 모두 선택적이며 빈 object는 본인의 모든 unread 알림을 대상으로 한다. scope와 type 검증 후 `read_at IS NULL`인 matching row만 한 번에 갱신하고 실제 변경 row 수를 `updatedCount`로 반환한다.
+- 이번 Backend slice는 기존 알림 row를 조회·읽음 처리하는 consumer boundary다. 알림 producer, event publisher, event/recipient matrix, preferences, Push/WebSocket/Redis와 Frontend 구현 완료를 의미하지 않는다.
+
+### 9.2 Notifications Error Cases
 
 | API | 상황 | HTTP | `error.code` | message 예시 |
 |---|---|---:|---|---|
 | `GET /notifications` | `type` enum 값 오류 | 400 | `VALIDATION_ERROR` | 알림 조회 조건이 올바르지 않습니다. |
+| `GET /notifications` | `size`가 1~100 범위를 벗어남 | 400 | `VALIDATION_ERROR` | 알림 목록 size는 1 이상 100 이하여야 합니다. |
+| `GET /notifications` | cursor 변조 또는 사용자/filter 재사용 | 400 | `VALIDATION_ERROR` | 알림 목록 cursor가 올바르지 않습니다. |
+| `GET /notifications` | `companyId`와 `projectId`의 회사 불일치 | 400 | `VALIDATION_ERROR` | companyId와 projectId의 회사 범위가 일치하지 않습니다. |
 | `GET /notifications` | 접근 권한 없는 `companyId` 또는 `projectId` 지정 | 403 | `FORBIDDEN` | 해당 범위의 알림을 조회할 수 없습니다. |
 | `GET /notifications/unread-count` | 접근 권한 없는 `companyId` 또는 `projectId` 지정 | 403 | `FORBIDDEN` | 해당 범위의 알림 수를 조회할 수 없습니다. |
 | `POST /notifications/{notificationRecipientId}/read` | `notificationRecipientId`가 존재하지 않음 | 404 | `NOT_FOUND` | 알림을 찾을 수 없습니다. |
@@ -426,7 +467,7 @@ Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PL
 | Method | Endpoint | 권한 | 설명 | 상태 |
 |---|---|---|---|---|
 | GET | `/api/v1/projects/{projectId}/activity-events` | A/P/C | 프로젝트 활동 피드 조회 | Sprint 3 후보 |
-| GET | `/api/v1/search` | A/P/C | 프로젝트 내부 통합 검색 | Sprint 3 decision-needed |
+| GET | `/api/v1/search` | A/P/C | 프로젝트 내부 통합 검색 | WBS `4.9.4.1` Backend 구현 완료 |
 | GET | `/api/v1/projects/{projectId}/dashboard` | A/P/C | 프로젝트 홈/대시보드 summary | Sprint 3 후보 |
 
 ### 10.1 활동 피드
@@ -436,11 +477,72 @@ Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PL
 - push 메시지는 새 이벤트 신호만 보내고, 클라이언트는 REST API로 feed를 재조회한다.
 - Redis cache key 예시: `activity:project:{projectId}:latest`.
 
-### 10.2 통합 검색
+### 10.2 WBS 4.9.4.1 통합 검색 Backend 정책
 
-- 1차 검색 대상: Issue, Document, Thread, Project Message.
-- MySQL `LIKE` 또는 FULLTEXT를 우선 사용한다.
-- MySQL `LIKE` 또는 FULLTEXT 우선 여부는 Sprint 3 decision-needed다. Typesense/Meilisearch는 기본 계약에 넣지 않는다.
+`GET /api/v1/search`는 인증된 ACTIVE 사용자가 권한 있는 하나의 프로젝트 안에서 통합 검색을 수행하는 Backend 계약이다. 검색 방식은 WBS `4.9.2.1` 완료 결정에 따라 MySQL `LIKE`를 사용한다. `4.9.2`와 `4.9.4`는 진행 중 50% parent이며, `4.9.2.2`와 `4.9.4.2` Frontend row는 계획/0% 상태다.
+
+#### Request
+
+```http
+GET /api/v1/search?projectId=20&q=로그인&size=20
+```
+
+| Parameter | 필수 | 규칙 |
+|---|---|---|
+| `projectId` | 필수 | 검색 범위가 되는 프로젝트 ID다. |
+| `q` | 필수 | 앞뒤 공백을 제거한 nonblank 문자열이며 최대 100자다. |
+| `cursor` | 선택 | 서버가 발급한 opaque signed cursor다. |
+| `size` | 선택 | 양수만 허용한다. 기본값은 20이고 50을 초과하면 50으로 cap한다. |
+
+#### 검색 대상과 가시성
+
+- source type은 `ISSUE`, `DOCUMENT`, `THREAD`, `PROJECT_MESSAGE` 네 가지다.
+- Issue는 `issueKey`, `title`, `description`을 검색하며 trashed Issue는 제외한다.
+- Document는 `title`, `content`를 검색하며 trashed Document는 제외한다.
+- Thread는 `topic`과 replies를 검색한다.
+- Project Message는 top-level 메시지만 검색한다. Thread reply, DM 메시지, 다른 프로젝트 메시지는 검색 대상이 아니다.
+- 모든 source는 기존 ACTIVE company membership과 ACTIVE project membership, 또는 기존 company/project admin authorization을 먼저 적용한다. 권한 없는 프로젝트와 항목은 결과에 노출하지 않는다.
+
+#### Query, 정렬, cursor
+
+- query는 parameterized literal `LIKE`로 처리한다. `%`, `_`, `\\`는 literal로 검색되도록 escape하고 SQL 문자열을 조합하지 않는다.
+- 결과는 `(sortAt DESC, type ASC, id DESC)`로 정렬한다. `sortAt`은 source의 검색 정렬 시각이며, 같은 값에서도 중복이나 누락 없이 순서를 결정한다.
+- cursor는 사용자 ID, `projectId`, trim된 `q`, 마지막 `(sortAt, type, id)`와 sort definition에 결합한 signed 값이다. 변조하거나 다른 사용자, 프로젝트, query에서 재사용하면 `400 VALIDATION_ERROR`다.
+
+#### Response
+
+성공 응답은 `ApiResponse<SearchData>`이며 `data.results`와 `data.nextCursor`를 사용한다. 모든 result는 `id`, `type`, `title`, `snippet`, `sortAt`만 포함한다. source별 원본 field나 `projectId`는 반환하지 않는다. 다음 page가 없으면 `data.nextCursor`는 `null`이다.
+
+```json
+{
+  "data": {
+    "results": [
+      {
+        "id": 101,
+        "type": "ISSUE",
+        "title": "로그인 오류",
+        "snippet": "로그인 화면에서 오류가 발생한다.",
+        "sortAt": "2026-07-17T03:00:00Z"
+      }
+    ],
+    "nextCursor": "next_cursor"
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+#### Error cases
+
+| 상황 | HTTP | `error.code` |
+|---|---:|---|
+| `projectId` 또는 `q` 누락, blank `q`, 100자 초과 query, 양수가 아닌 `size` | 400 | `VALIDATION_ERROR` |
+| 변조된 cursor 또는 다른 사용자/project/query에 재사용한 cursor | 400 | `VALIDATION_ERROR` |
+| 인증되지 않았거나 ACTIVE 사용자가 아님 | 401 | `UNAUTHORIZED` |
+| 기존 authorization 정책상 프로젝트 검색 권한이 없음 | 403 | `FORBIDDEN` |
+
+#### 비범위
+
+MySQL FULLTEXT, 외부 검색 엔진, Redis, DB schema/index 변경, Frontend, 한국어 형태소 분석, 초성·오타·동의어·fuzzy·autocomplete 검색은 이 Backend slice에 포함하지 않는다.
 
 ### 10.3 프로젝트 대시보드
 
@@ -450,14 +552,169 @@ Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PL
 
 ---
 
+## 10-A. WBS 4.10.1 Support Case Backend
+
+플랫폼 처리 API는 `/api/v1/platform` namespace를 사용한다. 모든 endpoint는 JWT Bearer token이 필요하다. platform action 인가는 `platform_admins`에서만 판정하며 회사 또는 프로젝트 membership role은 사용하지 않는다.
+
+| Method | Endpoint | 권한 | 설명 |
+|---|---|---|---|
+| POST | `/api/v1/support-cases` | 인증 ACTIVE 사용자 | 문의/신고 생성 |
+| GET | `/api/v1/support-cases` | 인증 ACTIVE 사용자 | 본인 case 목록 |
+| GET | `/api/v1/support-cases/{supportCaseId}` | reporter 본인 | 본인 case 상세와 public reply |
+| GET | `/api/v1/platform/support-cases` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | 전체 case 목록 |
+| GET | `/api/v1/platform/support-cases/{supportCaseId}` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | case 상세와 public reply |
+| POST | `/api/v1/platform/support-cases/{supportCaseId}/public-replies` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | 사용자-facing 답변 생성 |
+| GET | `/api/v1/platform/support-cases/{supportCaseId}/internal-notes` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | 내부 메모 조회 |
+| POST | `/api/v1/platform/support-cases/{supportCaseId}/internal-notes` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | 내부 메모 생성 |
+| PATCH | `/api/v1/platform/support-cases/{supportCaseId}/status` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | 상태 전이 |
+
+### 10-A.1 생성과 mutation request
+
+```json
+{
+  "type": "REPORT",
+  "title": "신고 제목",
+  "body": "신고 내용",
+  "targetType": "CONTENT",
+  "targetId": "0b7fd3f9-c84f-4f15-b020-a942a9463c55",
+  "reason": "초기 신고 접수"
+}
+```
+
+- `INQUIRY`는 `targetType`, `targetId`를 사용하지 않는다.
+- `REPORT`는 `targetType`이 필수이고 `targetId`는 nullable UUID다. target domain FK와 존재 검증은 WBS `4.10.1`에서 수행하지 않는다.
+- 생성, public reply, internal note, 상태 변경 request는 mutation body와 별개인 `reason`을 필수로 받는다. reason은 trim 후 3~500자다.
+- public reply와 internal note 생성 body는 `{ "body": "...", "reason": "..." }`, 상태 변경 body는 `{ "status": "IN_PROGRESS", "reason": "..." }`다.
+
+### 10-A.2 조회 응답과 가시성
+
+case object는 `id`, `reporterUserId`, `type`, `status`, `targetType`, `targetId`, `title`, `body`, `createdAt`, `updatedAt`을 반환한다. 상세 응답은 아래 shape를 사용한다.
+
+```json
+{
+  "data": {
+    "supportCase": {
+      "id": 10,
+      "reporterUserId": 1,
+      "type": "INQUIRY",
+      "status": "OPEN",
+      "targetType": null,
+      "targetId": null,
+      "title": "계정 문의",
+      "body": "문의 내용",
+      "createdAt": "2026-07-15T03:00:00Z",
+      "updatedAt": "2026-07-15T03:00:00Z"
+    },
+    "publicReplies": []
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+일반 사용자 목록·상세 query와 DTO는 internal note를 포함하지 않는다. internal note는 platform 전용 endpoint의 `data.internalNotes`에서만 반환한다. 다른 사용자의 case detail은 ownership을 노출하지 않도록 `404 NOT_FOUND`로 처리한다.
+
+### 10-A.3 상태와 audit
+
+허용 전이는 `OPEN→IN_PROGRESS/REJECTED/CLOSED`, `IN_PROGRESS→RESOLVED/REJECTED/CLOSED`, `RESOLVED→CLOSED`, `REJECTED→CLOSED`다. `CLOSED`는 terminal이며 같은 상태 전이와 reopen은 `409 CONFLICT`다.
+
+각 mutation은 actor, authority source/role, action, target, reason, before/after state, UTC timestamp, `supportCaseId`를 immutable audit에 같은 transaction으로 저장한다. audit 저장 실패 시 mutation을 rollback한다. 처리 결과 notification은 생성하지 않는다.
+
+---
+
+## 10-B. WBS 4.10.3 System Settings Backend
+
+system settings는 `/api/v1/platform/system-settings` namespace를 사용한다. 모든 endpoint는 JWT Bearer token과 `platform_admins` 기반 authority를 요구하며 company/project membership은 권한 근거가 아니다.
+
+| Method | Endpoint | 권한 | 설명 |
+|---|---|---|---|
+| GET | `/api/v1/platform/system-settings` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | 전체 8개 code-owned catalog value 조회 |
+| GET | `/api/v1/platform/system-settings/{key}` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | 한 code-owned catalog value 조회 |
+| PUT | `/api/v1/platform/system-settings/{key}` | `SUPER_ADMIN` | 한 key의 JSON value를 whole-document replacement |
+
+### 10-B.1 Catalog 및 default
+
+허용 path key는 `SUPPORT_CASE_CATEGORIES`, `REPORT_REASON_CATEGORIES`, `ENFORCEMENT_REASON_PRESETS`, `ENFORCEMENT_DURATION_PRESETS`, `REPLY_TEMPLATES`, `ANNOUNCEMENT_BANNER`, `SUPPORT_CENTER_STATUS`, `RESULT_NOTIFICATION_POLICY`로 정확히 8개다. unknown key는 `400 VALIDATION_ERROR`이며 arbitrary key 생성·삭제·부분 수정 API는 제공하지 않는다.
+
+clean-rebuild seed는 schema version `1`이고 policy examples만 이용한다. support category는 `ACCOUNT`, `COMPANY`, `PROJECT`, `BUG`, `OTHER`, report reason은 `SPAM`, `IMPERSONATION`, `MALICIOUS_CONTENT`, `PERMISSION_ABUSE`, enforcement duration은 1일·7일·30일·무기한(null)이며, banner는 disabled, support center는 `OPEN`, result notification 두 항목은 enabled다.
+
+JSON value의 top-level/object field는 key별 code-owned validator가 검증한다. categories/reasons는 `{ "categories"|"presets": [{ "code", "label" }] }`, duration은 `{ "presets": [{ "code", "durationDays" }] }`, template는 `{ "templates": [{ "code", "title", "body" }] }`, banner는 `{ "enabled", "message" }`, support center는 `{ "status", "message" }`, notification policy는 `{ "notifyOnPublicReply", "notifyOnCaseStatusChange" }` shape다. unknown JSON field, 타입 오류, blank required string, non-positive duration은 `400 VALIDATION_ERROR`다.
+
+### 10-B.2 Response와 replacement
+
+`GET /api/v1/platform/system-settings` response는 `data.settings` 배열을, `GET /api/v1/platform/system-settings/{key}` response는 같은 object를 `data`로 반환한다. `valueSchemaVersion`은 현재 1이며 `version`은 write의 optimistic concurrency 값이다. 존재하지 않는 유효 key는 `404 NOT_FOUND`다.
+
+```json
+{
+  "data": {
+    "settings": [
+      {
+        "id": 1,
+        "key": "SUPPORT_CENTER_STATUS",
+        "value": { "status": "OPEN", "message": "문의 접수가 가능합니다." },
+        "valueSchemaVersion": 1,
+        "version": 1,
+        "createdAt": "2026-07-16T00:00:00Z",
+        "updatedAt": "2026-07-16T00:00:00Z"
+      }
+    ]
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+`PUT /api/v1/platform/system-settings/SUPPORT_CENTER_STATUS` request는 value 전체, positive `expectedVersion`, trim 후 3~500자인 `reason`을 모두 요구한다.
+
+```json
+{
+  "value": {
+    "status": "DELAYED",
+    "message": "문의 답변이 지연되고 있습니다."
+  },
+  "expectedVersion": 1,
+  "reason": "운영 인력 부재에 따른 응답 지연 안내"
+}
+```
+
+성공하면 `data`에 갱신된 setting을 반환한다. setting row를 transaction 내 pessimistic lock으로 읽어 stale `expectedVersion`은 `409 SYSTEM_SETTING_VERSION_CONFLICT`, 동일 JSON value는 `409 SYSTEM_SETTING_NO_CHANGE`으로 구분한다. 성공 replacement만 version을 정확히 한 번 증가시키며, immutable `admin_action_audits`에는 setting key, schema version, replacement 전/후 persisted version만 같은 transaction으로 기록한다. setting value 전체는 audit snapshot에 저장하지 않는다. audit write 실패 시 replacement는 rollback한다. notification dispatch, enforcement execution, OAuth/runtime/feature-flag setting은 이 API 범위에 포함하지 않는다.
+
+---
+
+## 10-C. WBS 4.10.4 Platform Admin Lifecycle
+
+| Method | Endpoint | 권한 | 설명 |
+|---|---|---|---|
+| GET | `/api/v1/platform/actor` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | 현재 platform actor identity 조회 |
+| GET | `/api/v1/platform/admins` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | 활성·revoke 이력을 포함한 관리자 목록 |
+| POST | `/api/v1/platform/admins` | `SUPER_ADMIN` | ACTIVE 사용자에게 platform role 부여 |
+| POST | `/api/v1/platform/admins/{platformAdminId}/revoke` | `SUPER_ADMIN` | 관리자 권한 soft revoke |
+| POST | `/api/v1/platform/admins/{platformAdminId}/reactivate` | `SUPER_ADMIN` | revoke 이력 재활성화 |
+| PATCH | `/api/v1/platform/admins/{platformAdminId}/role` | `SUPER_ADMIN` | ACTIVE 관리자 role 변경 |
+| GET | `/api/v1/platform/audits` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | redacted platform audit keyset 조회 |
+
+- lifecycle write는 singleton lock row를 먼저 `PESSIMISTIC_WRITE`로 획득한 뒤 token actor와 ACTIVE `platform_admins` row를 새 DB query로 재인가한다. 캐시된 authority로 write하지 않는다.
+- revoke는 `status=REVOKED`, `revokedAt`을 기록하며 revoked row는 모든 platform API authority에서 제외된다. reactivate는 ACTIVE 사용자만 가능하며 `reactivatedAt`을 기록한다.
+- 마지막 ACTIVE `SUPER_ADMIN`은 revoke하거나 `PLATFORM_ADMIN`으로 demote할 수 없다. 모든 lifecycle mutation은 3~500자 reason과 같은 transaction의 immutable audit를 요구한다.
+- audit write와 read-side response는 action/target allowlist를 중앙에서 적용한다. support case snapshot에는 raw `title`/`body`를, system setting snapshot에는 `value` 전체를 저장하지 않는다.
+- lifecycle conflict는 `LAST_ACTIVE_SUPER_ADMIN`, `DUPLICATE_PLATFORM_ADMIN_HISTORY`, `PLATFORM_ADMIN_ALREADY_ACTIVE`, `PLATFORM_ADMIN_REVOKED`, `PLATFORM_ADMIN_ROLE_NO_CHANGE`의 명시적 `409` error code를 사용한다.
+
+### 10-C.1 Audit read
+
+`GET /api/v1/platform/audits`는 ACTIVE `PLATFORM_ADMIN` 또는 `SUPER_ADMIN`만 호출할 수 있으며 company/project membership을 authorization 근거로 사용하지 않는다. query filter는 선택적 `actorUserId`, `action`, `targetType`, `targetId`, `supportCaseId`, `createdFrom`, `createdTo`, `cursor`, `size`다. ID는 양수여야 하고 `targetId`에는 `targetType`이 필요하다. 시간은 UTC ISO-8601이고 범위는 `[createdFrom, createdTo)`이며 from은 to보다 늦을 수 없다. 기본 size는 20, 최대는 100이다.
+
+정렬은 `(createdAt DESC, id DESC)`의 keyset이며 cursor는 HMAC-SHA256 opaque 값으로 requester user ID와 정규화된 모든 filter 및 마지막 key를 묶는다. cursor 변조, 다른 사용자 또는 filter 재사용은 `400 VALIDATION_ERROR`다. payload에는 audit snapshot, reason, email/name 등 PII를 넣지 않는다.
+
+응답 `data`는 `audits`, `nextCursor`, `hasNext`, `size`를 포함한다. 각 audit은 `id`, `supportCaseId`, `actorUserId`, `actorPlatformAdminId`, `authoritySource`, `authorityRole`, `action`, `targetType`, `targetId`, `reason`, `beforeState`, `afterState`, `createdAt`만 반환한다. persisted state는 object JSON만 parse한 뒤 중앙 sanitizer를 다시 적용하고 scalar allowlist만 반환한다. null은 null, malformed/non-object state는 `{}`이며 raw snapshot text, email, name은 반환하지 않는다.
+
+audit record의 3년 보존 정책은 유지한다. cleanup/purge/archive job, legacy data sanitation/migration은 이 API 범위가 아니다.
+
 ## 11. MVP 보류/Stub 목록
 
 | 구분 | API/기능 | 처리 | 이유 |
 |---|---|---|---|
-| Sprint 3 decision-needed | S15 플랫폼 관리자 | full endpoint 미정 | `3.7~3.7.5` planning gate와 Go/No-Go handoff 이후 `4.10`에서 상세 기능 ID, ERD/API/화면 영향도 확인 필요 |
-| Sprint 3 decision-needed | 다자간 DM 방 | full endpoint 미정 | DM room + participants 모델 결정 필요 |
+| 후속 범위 | S15 Backend 이후 범위 | `4.10.4` Backend lifecycle/audit-read 구현 완료 | 사용자/회사 enforcement, dashboard/notification 확장, S15 Frontend, retention/cleanup은 이번 slice에서 제외 |
+| 이번 개발 기간 보류 | 다자간 DM 방 | full endpoint 미정 | 향후 재검토 전 endpoint, request/response contract, schema, frontend 구현을 추가하지 않음 |
 | 보류 | DM 메시지 삭제 | 미제공 | 전송/조회/unread 중심 |
-| Sprint 3 decision-needed | DM 상대 read receipt | full endpoint 미정 | read receipt 정책 결정 필요 |
+| 이번 개발 기간 보류 | DM 상대 read receipt | full endpoint 미정 | 향후 재검토 전 endpoint, request/response contract, schema, frontend 구현을 추가하지 않음 |
 | 보류 | DM 메시지→이슈 전환 | `DM_MESSAGE_CANNOT_CREATE_ISSUE` | DM은 사적 소통 |
 | 보류 | Thread→DM 공유 | `THREAD_DM_SHARE_DEFERRED` | 정책 미정 |
 | 보류 | Thread→Issue 추가 연결 | `THREAD_ISSUE_LINK_DEFERRED` | 데이터 모델 미정 |
@@ -481,7 +738,7 @@ Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PL
 - 메시지 목록 실시간 업데이트 방식.
 - DM 방 unread count 처리 방식.
 - `activity_events`와 `notification_events`는 분리 운영한다. activity 이벤트가 notification 이벤트를 생성하는 조건은 구현 단계에서 이벤트별로 제한한다.
-- S15(`3.7~3.7.5` planning gate 이후 `4.10`), attachment, document optimistic locking, advanced DM, PROJECT notification scope, project restore, permanent delete의 full API 계약.
+- S15 `4.10.1`, `4.10.3`, `4.10.4` Backend는 구현 완료 기준이다. enforcement, dashboard/notification 확장, S15 Frontend, retention/cleanup과 attachment, document optimistic locking, advanced DM, PROJECT notification scope, project restore, permanent delete의 full API 계약은 후속 범위다.
 
 ---
 
@@ -812,6 +1069,29 @@ Request Body:
 }
 ```
 
+`status: "LEFT"`는 이 endpoint로 전환할 수 없다 — `409 CONFLICT`를 반환하고 DELETE endpoint 사용을 요구한다.
+
+#### DELETE `/api/v1/companies/{companyId}/company-members/{companyMemberId}`
+
+Response 200:
+
+```json
+{
+  "data": {
+    "removed": true,
+    "removedProjectMemberCount": 2
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+- 요청자는 대상 회사의 ACTIVE `COMPANY_ADMIN`이어야 한다.
+- 대상 company member는 `status = LEFT`, `departmentId = null`로 전환된다(soft remove, hard delete 아님).
+- 같은 트랜잭션에서 대상 사용자의 해당 회사 내 ACTIVE project membership을 모두 `REMOVED`로 전환한다.
+- 자기 자신 제거, 이미 `LEFT`인 멤버 재제거, 마지막 ACTIVE `COMPANY_ADMIN` 제거는 각각 `409 CONFLICT`를 반환한다.
+- 대상이 어느 프로젝트의 마지막 ACTIVE `PROJECT_ADMIN`이면 해당 프로젝트를 이유로 `409 CONFLICT`를 반환하고 아무것도 변경하지 않는다.
+- 회사 멤버 제거와 project member 변경/생성/초대 수락 경로의 lock 순서는 company → company member → project member(오름차순) → project(오름차순)로 고정해 교착을 막는다.
+
 ### 13.5 Project / Sprint / Project Member
 
 #### POST `/api/v1/companies/{companyId}/projects`
@@ -1042,6 +1322,7 @@ Response 201:
       "companyId": 10,
       "companyName": "Threadia",
       "projectId": null,
+      "projectName": null,
       "inviterUserId": 1,
       "inviterNickname": "초대자1",
       "inviteeUserId": 2,
@@ -1070,6 +1351,7 @@ Response 200:
         "companyId": 10,
         "companyName": "Threadia",
         "projectId": null,
+        "projectName": null,
         "inviterUserId": 1,
         "inviterNickname": "초대자1",
         "inviteeUserId": 2,
@@ -1084,6 +1366,33 @@ Response 200:
   "meta": { "requestId": "req_..." }
 }
 ```
+
+#### GET `/api/v1/projects/{projectId}/invitable-members?email=member@threadia.com`
+
+> **Issue #108 구현 계약**: 해당 프로젝트 회사의 ACTIVE C 또는 정확히 해당 프로젝트의 ACTIVE P만 호출할 수 있다. 권한을 먼저 검증한 뒤 `trim + lowercase` 정규화 email로 exact match하며, 목록 또는 부분 검색은 제공하지 않는다.
+>
+> 조회 범위는 **해당 프로젝트 회사의 ACTIVE company member로 한정**한다. 회사 경계 밖 email은 가입 여부와 무관하게 동일하게 `404`이며, 전역 email 조회는 계속 C 전용(`GET /api/v1/users/lookup`)이다. 아무것도 쓰지 않는 조회이므로 프로젝트 행을 잠그지 않는다.
+
+Response 200:
+
+```json
+{
+  "data": {
+    "user": {
+      "id": 2,
+      "email": "member@threadia.com",
+      "nickname": "팀원",
+      "avatarUrl": null
+    }
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+- **초대 후보가 아니면 전부 `404 NOT_FOUND`로 통일한다.** 미가입 email, ACTIVE가 아닌 user, 다른 회사 소속 user를 호출자가 구분할 수 없어야 한다 — 갈라서 응답하면 P가 임의의 email로 서비스 가입 여부를 알아낼 수 있다(user enumeration). 이 endpoint의 권한은 프로젝트 범위이므로 회사 경계 밖은 존재 여부조차 노출하지 않는다.
+- self, ACTIVE 프로젝트 멤버, live pending PROJECT invitation은 각각 `409 INVITATION_SELF_NOT_ALLOWED`, `409 ALREADY_PROJECT_MEMBER`, `409 INVITATION_ALREADY_PENDING`을 반환한다. 이들은 모두 이미 같은 회사 안에서 확인되는 정보라 노출 문제가 없다.
+- 생성 endpoint(`POST /projects/{projectId}/invitations`)는 `inviteeUserId`를 받으므로 `409 TARGET_NOT_ACTIVE_COMPANY_MEMBER`를 그대로 유지한다.
+- 만료된 pending invitation은 lazy expiration 후 후보 조회를 허용한다. 후보 조회와 invitation 생성 사이에 상태가 바뀔 수 있으므로 생성 endpoint가 모든 eligibility를 다시 검증한다.
 
 #### POST `/api/v1/projects/{projectId}/invitations`
 
@@ -1109,6 +1418,7 @@ Response 201:
       "companyId": 10,
       "companyName": "Threadia",
       "projectId": 20,
+      "projectName": "Threadia 웹",
       "inviterUserId": 1,
       "inviterNickname": "초대자1",
       "inviteeUserId": 2,
@@ -1139,6 +1449,7 @@ Response 200:
         "companyId": 10,
         "companyName": "Threadia",
         "projectId": 20,
+        "projectName": "Threadia 웹",
         "inviterUserId": 1,
         "inviterNickname": "초대자1",
         "inviteeUserId": 2,
@@ -1170,6 +1481,7 @@ Response 200:
         "companyId": 10,
         "companyName": "Threadia",
         "projectId": null,
+        "projectName": null,
         "inviterUserId": 1,
         "inviterNickname": "초대자1",
         "inviteeUserId": 2,
@@ -1185,6 +1497,7 @@ Response 200:
         "companyId": 10,
         "companyName": "Threadia",
         "projectId": 20,
+        "projectName": "Threadia 웹",
         "inviterUserId": 1,
         "inviterNickname": "초대자1",
         "inviteeUserId": 2,
@@ -1200,7 +1513,9 @@ Response 200:
 }
 ```
 
-`companyName`, `inviterUserId`, `inviterNickname`, `inviteeEmail`, `inviteeNickname`은 초대 화면 표시용 필드다. Action 처리와 권한 검증에는 `id`, `scopeType`, `companyId`, `projectId`, `inviteeUserId`를 사용한다.
+`companyName`, `projectName`, `inviterUserId`, `inviterNickname`, `inviteeEmail`, `inviteeNickname`은 초대 화면 표시용 필드다. Action 처리와 권한 검증에는 `id`, `scopeType`, `companyId`, `projectId`, `inviteeUserId`를 사용한다.
+
+`projectName`은 PROJECT scope에서만 채우고 COMPANY scope는 `null`이다. 초대 대상자는 아직 프로젝트 member가 아니라 `GET /api/v1/projects/{projectId}`가 `403`이므로, 이 필드가 없으면 수신 화면이 어느 프로젝트 초대인지 표시할 수 없다.
 
 #### POST `/api/v1/invitations/{invitationId}/accept`
 
@@ -1249,7 +1564,9 @@ Response 200:
 
 #### GET `/api/v1/projects/{projectId}/issues`
 
-목록의 각 이슈 객체는 full Issue contract를 따른다. `id`, `issueKey`, `title`, `status`, `description`, `priority`, `assigneeUserId`, `sprintId`, `dueDate`, `sourceType`, `trashedAt`, `restoredAt`을 반환하며 시간 필드는 UTC `Z` 형식이다.
+목록의 각 이슈 객체는 full Issue contract를 따른다. `id`, `issueKey`, `title`, `status`, `description`, `priority`, `assigneeUserId`, `reporterUserId`, `sprintId`, `dueDate`, `sourceType`, `trashedAt`, `restoredAt`을 반환하며 시간 필드는 UTC `Z` 형식이다.
+
+`reporterUserId`는 표시용이 아니라 **권한 판정용**이다 — trash/restore가 P/C 또는 등록자에게 허용되므로, 클라이언트가 이 값과 현재 사용자를 비교해야 "내가 등록한 이슈" 경로를 판정할 수 있다.
 
 - `unassignedOnly=true`는 `sprintId`가 없는 이슈만 조회한다.
 - `unassignedOnly=true`와 `sprintId`를 함께 전달하면 `400 VALIDATION_ERROR`다.
@@ -1268,6 +1585,7 @@ Response 200:
         "description": "로그인 API 구현과 테스트를 진행한다.",
         "priority": "HIGH",
         "assigneeUserId": 2,
+        "reporterUserId": 1,
         "sprintId": 300,
         "dueDate": "2026-06-22",
         "sourceType": "MANUAL",
@@ -1310,6 +1628,7 @@ Response 201:
       "description": "로그인 API 구현과 테스트를 진행한다.",
       "priority": "HIGH",
       "assigneeUserId": 2,
+      "reporterUserId": 1,
       "sprintId": 300,
       "dueDate": "2026-06-22",
       "sourceType": "MANUAL",
@@ -1323,7 +1642,7 @@ Response 201:
 
 #### PATCH `/api/v1/issues/{issueId}`
 
-변경할 필드만 전달한다. omitted 필드는 유지하고 명시 `null`은 `description`, `assigneeUserId`, `dueDate`만 clear한다.
+변경할 필드만 전달한다. omitted 필드는 유지하고 명시 `null`은 `description`, `assigneeUserId`, `dueDate`, `sprintId`만 clear한다.
 
 Request Body:
 
@@ -1335,6 +1654,14 @@ Request Body:
   "assigneeUserId": 3,
   "dueDate": "2026-06-22"
 }
+```
+
+**`sprintId`는 해제 전용이다.** 명시 `null`이면 이슈를 Sprint에서 떼어 백로그로 되돌리고, non-null 값을 담으면 `400 VALIDATION_ERROR`다. 배정은 `POST /api/v1/sprints/{sprintId}/issues` 하나로만 한다 — 배정 경로를 둘로 나누지 않기 위한 계약이다. `sprintId`도 관리 전용 필드라 A가 담아 보내면 `403`이다(A는 `title`/`description`만 수정할 수 있다).
+
+Request Body (Sprint 해제):
+
+```json
+{ "sprintId": null }
 ```
 
 #### PATCH `/api/v1/issues/{issueId}/status`
@@ -1360,6 +1687,7 @@ Response 200:
       "description": "로그인 API 구현과 테스트를 진행한다.",
       "priority": "HIGH",
       "assigneeUserId": 2,
+      "reporterUserId": 1,
       "sprintId": 300,
       "dueDate": "2026-06-22",
       "sourceType": "MANUAL",
@@ -1390,6 +1718,7 @@ Response 200:
       "description": "로그인 API 구현과 테스트를 진행한다.",
       "priority": "HIGH",
       "assigneeUserId": 2,
+      "reporterUserId": 1,
       "sprintId": 300,
       "dueDate": "2026-06-22",
       "sourceType": "MANUAL",
@@ -1568,6 +1897,18 @@ Request Body:
 }
 ```
 
+대상별 대표 Thread를 명시적으로 get-or-create한다. 처음 생성하면 `201`, 기존 대표 Thread를 반환하면 `200`이다. Issue/Document/Message의 생성은 Thread를 자동 생성하지 않는다.
+
+Response `data.thread`은 `id`, `projectId`, `targetType`, `targetId`, `topic`, `createdByUserId`, `createdAt`, `updatedAt`을 반환한다.
+
+#### GET `/api/v1/projects/{projectId}/threads?targetType={ISSUE|DOCUMENT|MESSAGE}&targetId={targetId}`
+
+`targetType`과 `targetId`는 모두 필수다. 요청 프로젝트·대상과 일치하는 대표 Thread 하나를 `data.thread`로 반환한다. project-wide Thread 목록과 pagination은 제공하지 않는다. Thread가 아직 없으면 `404 NOT_FOUND`다.
+
+#### GET `/api/v1/threads/{threadId}`
+
+접근 가능한 Thread 상세를 `data.thread`로 반환한다.
+
 #### PATCH `/api/v1/threads/{threadId}`
 
 Request Body:
@@ -1576,16 +1917,23 @@ Request Body:
 { "topic": "로그인 API 검증 논의" }
 ```
 
+`topic`은 `null` 또는 trim 후 1~200자다. `null`은 topic을 제거한다. Thread 생성자 또는 P/C만 수정할 수 있다.
+
+#### GET `/api/v1/threads/{threadId}/comments`
+
+생성 순서(`id ASC`)의 append-only 댓글을 `data.comments`로 반환한다.
+
 #### POST `/api/v1/threads/{threadId}/comments`
 
 Request Body:
 
 ```json
 {
-  "content": "@김민정 실패 케이스도 같이 확인해주세요.",
-  "mentionedUserIds": [2]
+  "content": "실패 케이스도 같이 확인해주세요."
 }
 ```
+
+Response 201의 `data.comment`은 `id`, `threadId`, `authorUserId`, `content`, `createdAt`을 반환한다.
 
 #### POST `/api/v1/projects/{projectId}/messages`
 
@@ -1598,15 +1946,61 @@ Request Body:
 }
 ```
 
+Response 201:
+
+```json
+{
+  "data": {
+    "message": {
+      "id": 7000,
+      "projectId": 20,
+      "authorUserId": 1,
+      "content": "로그인 API 응답 형식 확인했습니다.",
+      "threadId": null,
+      "createdAt": "2026-07-15T10:00:00Z"
+    }
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+#### GET `/api/v1/projects/{projectId}/messages`
+
+Query parameters: `cursor`(선택, 서버가 서명한 opaque cursor), `limit`(선택, 기본 50, 1~100).
+
+Response 200:
+
+```json
+{
+  "data": {
+    "messages": [
+      {
+        "id": 7002,
+        "projectId": 20,
+        "authorUserId": 2,
+        "content": "검증 결과를 공유합니다.",
+        "threadId": null,
+        "createdAt": "2026-07-15T10:02:00Z"
+      }
+    ],
+    "nextCursor": "<server-signed-opaque-cursor>"
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+마지막 page의 `nextCursor`는 `null`이다. cursor의 payload 또는 signature가 손상됐거나 현재 path project와 다르면 `400 VALIDATION_ERROR`다.
+
+#### GET `/api/v1/messages/{messageId}`
+
+Response 200은 `POST /projects/{projectId}/messages`의 `data.message`와 같은 6개 필드를 반환한다. 경로 message가 없으면 `404 NOT_FOUND`, 해당 project 접근 권한이 없으면 `403 FORBIDDEN`이다.
+
 #### POST `/api/v1/projects/{projectId}/messages/mark-read`
 
 Request Body:
 
 ```json
-{
-  "lastReadMessageId": 7000,
-  "readAt": "2026-06-16T10:00:00Z"
-}
+{ "lastReadMessageId": 7000 }
 ```
 
 Response 200:
@@ -1621,6 +2015,44 @@ Response 200:
   "meta": { "requestId": "req_..." }
 }
 ```
+
+`lastReadMessageId`가 path project에 속하지 않으면 `403 FORBIDDEN`이다. `lastReadAt`은 request field가 아니며 서버 UTC 시각만 저장한다.
+
+#### GET `/api/v1/projects/{projectId}/messages/unread-count`
+
+Response 200:
+
+```json
+{
+  "data": {
+    "projectId": 20,
+    "unreadCount": 3
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+#### WBS 4.7.2.1 Project Chat Backend 정책
+
+- `GET /api/v1/projects/{projectId}/messages`는 최신순 `(createdAt DESC, id DESC)` keyset pagination을 사용한다. `cursor`는 HMAC signature가 붙은 응답의 opaque `nextCursor`만 사용할 수 있고, 다른 project의 cursor, 손상된 payload/signature는 `400 VALIDATION_ERROR`다. 기본 `limit`은 50, 허용 범위는 1~100이며 응답은 `data.messages`, `data.nextCursor`를 제공한다.
+- `POST /api/v1/projects/{projectId}/messages`는 1~10,000자 범위의 비어 있지 않은 `content`만 작성한다. 메시지는 immutable이며 edit/delete endpoint를 제공하지 않는다. `threadId`는 WBS 4.7.1 완료 전 반드시 `null`이고, non-null 요청은 `409 THREAD_DEFERRED`다.
+- `POST /api/v1/projects/{projectId}/messages/mark-read`는 path project의 메시지만 pointer로 허용한다. 서버 UTC 시각으로 읽음 시각을 기록하며 client `readAt`은 받지 않는다. 동일 사용자의 `(projectId, userId)` 상태는 upsert되고, pointer는 `(createdAt, id)` 순서에서 뒤로 이동하지 않는다.
+- `GET /api/v1/projects/{projectId}/messages/unread-count`와 mark-read 응답의 unread count는 저장하지 않고 계산한다. 본인이 작성한 메시지는 제외하며, 현재 pointer 이후 메시지만 센다.
+- 모든 endpoint는 ACTIVE 회사 `COMPANY_ADMIN`이면 해당 회사의 모든 project에 접근할 수 있고, 그 외 사용자는 ACTIVE project membership이 필요하다. 서버 생성 시각과 응답 시간은 UTC ISO-8601 `Z` 형식이다.
+- list의 잘못된 `limit`, 10,000자를 초과하거나 blank인 `content`, missing `lastReadMessageId`, malformed/tampered cursor는 `400 VALIDATION_ERROR`다. 없는 message는 `404 NOT_FOUND`, 접근 불가 project/message는 `403 FORBIDDEN`, non-null `threadId`는 `409 THREAD_DEFERRED`다.
+
+#### WBS 4.7.1.1 Thread Core Backend 정책
+
+- Thread 생성은 `POST /api/v1/projects/{projectId}/threads`만 수행한다. Issue, Document, Message 생성 및 조회는 Thread를 자동 생성하지 않는다.
+- 대상은 `ISSUE`, `DOCUMENT`, `MESSAGE`만 허용하고, 존재하며 path project에 속해야 한다. `(targetType, targetId)` DB unique key와 `INSERT IGNORE` 후 재조회로 경합 시에도 대표 Thread 하나만 반환한다.
+- `GET /api/v1/projects/{projectId}/threads`는 필수 target query의 대표 Thread 조회 전용이다. project-wide list/pagination은 범위 밖이다.
+- 모든 Thread read/create/comment endpoint는 ACTIVE 회사 `COMPANY_ADMIN` 또는 ACTIVE project member만 수행한다. topic 변경은 Thread 생성자 또는 P/C만 수행한다.
+- 댓글은 1~10,000자 `content`를 trim해 생성 순서로 append-only 저장한다. 댓글 수정/삭제, 멘션 파싱·저장·notification/event 발행은 제공하지 않는다.
+- topic은 생성 시 선택이고, 수정 요청의 `null`은 제거를 의미한다. non-null topic은 trim 후 1~200자여야 한다. 모든 서버 시간 및 응답 시간은 UTC ISO-8601 `Z` 형식이다.
+
+#### GET `/api/v1/companies/{companyId}/direct-messages/rooms`
+
+현재 사용자가 참여한 해당 회사의 1:1 room만 반환한다. 각 room은 상대 사용자와 현재 사용자 기준 unread count를 포함한다.
 
 #### POST `/api/v1/companies/{companyId}/direct-messages/rooms`
 
@@ -1652,6 +2084,10 @@ Response 201 / 200:
 }
 ```
 
+#### GET `/api/v1/direct-messages/rooms/{roomId}/messages`
+
+참여자만 생성 시각/ID 오름차순 메시지 목록을 조회할 수 있다.
+
 #### POST `/api/v1/direct-messages/rooms/{roomId}/messages`
 
 Request Body:
@@ -1666,8 +2102,7 @@ Request Body:
 
 ```json
 {
-  "lastReadDirectMessageId": 9100,
-  "readAt": "2026-06-16T10:00:00Z"
+  "lastReadDirectMessageId": 9100
 }
 ```
 
@@ -1678,7 +2113,8 @@ Response 200:
   "data": {
     "roomId": 9000,
     "lastReadDirectMessageId": 9100,
-    "unreadCount": 0
+    "unreadCount": 0,
+    "readAt": "2026-06-16T10:00:00Z"
   },
   "meta": { "requestId": "req_..." }
 }
@@ -1693,6 +2129,8 @@ Query Params 예시:
 ```text
 companyId=10&projectId=20&type=MENTIONED&unreadOnly=true&cursor=next_cursor&size=20
 ```
+
+`companyId`, `projectId`, `type`, `unreadOnly`, `cursor`, `size`는 모두 선택적이다. `unreadOnly=false`, `size=20`이 기본값이다. `cursor`는 client가 해석하거나 조립하지 않는 opaque 값이며 같은 사용자와 같은 정규화 filter에서만 사용할 수 있다.
 
 Response 200:
 
@@ -1719,6 +2157,8 @@ Response 200:
 ```
 
 #### GET `/api/v1/notifications/unread-count`
+
+선택적 query `companyId`, `projectId`, `type`을 지원하며 목록과 같은 scope/type 검증을 적용한다.
 
 Response 200:
 
@@ -1756,6 +2196,8 @@ Request Body:
   "projectId": 20
 }
 ```
+
+세 필드는 모두 선택적이다. `{}`는 현재 ACTIVE 사용자의 모든 unread 알림을 읽음 처리한다. 이미 읽은 row의 `readAt`은 변경하지 않는다.
 
 Response 200:
 

@@ -53,6 +53,15 @@ public class CompanyMembershipService {
 		return isActiveMember(companyId, authContext.userId());
 	}
 
+	public boolean isActiveMemberForUpdate(Long companyId, Long userId) {
+		if (!isCompanyActive(companyId)) {
+			return false;
+		}
+		return companyMemberRepository.findByCompany_IdAndUser_IdForUpdate(companyId, userId)
+				.filter(companyMember -> companyMember.getStatus() == CompanyMemberStatus.ACTIVE)
+				.isPresent();
+	}
+
 	public boolean hasRole(Long companyId, Long userId, CompanyMemberRole role, CompanyMemberStatus status) {
 		if (!isCompanyActive(companyId)) {
 			return false;
@@ -80,6 +89,19 @@ public class CompanyMembershipService {
 
 	public void requireCompanyAdmin(Long companyId, AuthContext authContext) {
 		if (!hasActiveRole(companyId, authContext, CompanyMemberRole.COMPANY_ADMIN)) {
+			throw new ForbiddenException("회사 관리자 권한이 필요합니다.");
+		}
+	}
+
+	public void requireCompanyAdminForUpdate(Long companyId, AuthContext authContext) {
+		if (!isCompanyActive(companyId)) {
+			throw new ForbiddenException("회사 관리자 권한이 필요합니다.");
+		}
+		boolean companyAdmin = companyMemberRepository.findByCompany_IdAndUser_IdForUpdate(companyId, authContext.userId())
+				.filter(companyMember -> companyMember.getRole() == CompanyMemberRole.COMPANY_ADMIN)
+				.filter(companyMember -> companyMember.getStatus() == CompanyMemberStatus.ACTIVE)
+				.isPresent();
+		if (!companyAdmin) {
 			throw new ForbiddenException("회사 관리자 권한이 필요합니다.");
 		}
 	}

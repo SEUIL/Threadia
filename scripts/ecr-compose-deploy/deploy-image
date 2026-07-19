@@ -7,6 +7,7 @@ readonly RUNTIME_ENV=/etc/threadia-compose/runtime.env
 readonly STATE_ROOT=/var/lib/threadia-compose
 readonly CURRENT_DIGEST_FILE="$STATE_ROOT/current-image"
 readonly DEPLOY_LOCK_FILE=/run/lock/threadia-compose-deploy.lock
+readonly LEGACY_RELEASE_LOCK_FILE=/run/lock/threadia-release.lock
 readonly HEALTH_TIMEOUT_SECONDS=180
 readonly HEALTH_INTERVAL_SECONDS=3
 
@@ -106,7 +107,7 @@ rollback() {
 candidate_image="$1"
 validate_image_ref "$candidate_image" || fail "image must be a full ECR repository@sha256:<64-hex> reference"
 
-for command in aws curl docker flock install mktemp mv chmod rm stat uname; do
+for command in aws curl docker flock grep install mktemp mv chmod rm ss stat uname; do
   command -v "$command" >/dev/null 2>&1 || fail "missing host prerequisite: $command"
 done
 
@@ -120,6 +121,8 @@ require_root_owned_non_writable "$RUNTIME_ENV"
 
 install -d -o root -g root -m 0755 /run/lock
 install -d -o root -g root -m 0700 "$STATE_ROOT"
+exec 8>"$LEGACY_RELEASE_LOCK_FILE"
+flock -n 8 || fail "a legacy JAR release is already active"
 exec 9>"$DEPLOY_LOCK_FILE"
 flock -n 9 || fail "another compose deployment is already active"
 
@@ -133,6 +136,8 @@ if [[ "$running_services" == "app" ]]; then
   [[ "$running_image" == "$current_image" ]] || fail "Compose app image does not match current-image state; reconcile manually"
 elif [[ -n "$running_services" ]]; then
   fail "unexpected running Compose service state; reconcile manually"
+elif ss -ltnH 'sport = :8080' | grep --quiet .; then
+  fail "127.0.0.1:8080 is already occupied; stop the legacy JAR service manually before activating Compose"
 fi
 
 repository="${candidate_image%@sha256:*}"

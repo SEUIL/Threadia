@@ -17,6 +17,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
+import com.threadia.backend.platform.bootstrap.PlatformAdminBootstrap;
 
 @SpringBootTest(properties = "spring.jpa.hibernate.ddl-auto=none")
 @EnabledIfEnvironmentVariable(named = "THREADIA_DB_PASSWORD", matches = ".+")
@@ -44,6 +47,21 @@ class MysqlSchemaValidationTests {
 			"documents",
 			"document_issue_links"
 	);
+	private static final List<String> DIRECT_MESSAGE_TABLES = List.of("direct_message_rooms", "direct_messages", "dm_room_user_states");
+	private static final List<String> PROJECT_CHAT_TABLES = List.of("messages", "project_chat_member_states");
+	private static final List<String> NOTIFICATION_TABLES = List.of("notification_events", "notification_recipients");
+	private static final List<String> PLATFORM_SUPPORT_TABLES = List.of(
+			"platform_admin_bootstrap_locks",
+			"platform_admins",
+			"support_cases",
+			"support_case_public_replies",
+			"support_case_internal_notes",
+			"admin_action_audits"
+	);
+	private static final List<String> SYSTEM_SETTINGS_TABLES = List.of("system_settings");
+
+	@MockitoBean
+	private PlatformAdminBootstrap platformAdminBootstrap;
 
 	@Autowired
 	private DataSource dataSource;
@@ -128,6 +146,7 @@ class MysqlSchemaValidationTests {
 		applySchemaSql();
 
 		assertRequiredColumn("projects", "company_id", "bigint");
+		assertEnumColumn("companies", "status", "ACTIVE", "ACTIVE", "INACTIVE");
 		assertRequiredColumn("projects", "name", "varchar");
 		assertRequiredColumn("projects", "project_key", "varchar");
 		assertEnumColumn("projects", "status", "PLANNING", "PLANNING", "ACTIVE", "PAUSED", "COMPLETED", "ARCHIVED");
@@ -260,6 +279,231 @@ class MysqlSchemaValidationTests {
 		assertForeignKey("document_issue_links", "fk_dil_document", "document_id", "documents", "id");
 		assertForeignKey("document_issue_links", "fk_dil_issue", "issue_id", "issues", "id");
 		assertForeignKey("document_issue_links", "fk_dil_created_by", "created_by_user_id", "users", "id");
+	}
+
+	@Test
+	void appliesSchemaSqlAndCreatesDirectMessageTablesAndConstraints() {
+		applySchemaSql();
+		Set<String> existingTables = jdbcTemplate.queryForList("""
+				SELECT table_name FROM information_schema.tables
+				WHERE table_schema = DATABASE()
+				  AND table_name IN ('direct_message_rooms', 'direct_messages', 'dm_room_user_states')
+				""", String.class).stream().collect(Collectors.toSet());
+		assertThat(existingTables).containsExactlyInAnyOrderElementsOf(DIRECT_MESSAGE_TABLES);
+		assertIndex("direct_message_rooms", "uq_dmr_company_users", "company_id", "user1_id", "user2_id");
+		assertUniqueConstraint("direct_message_rooms", "uq_dmr_company_users");
+		assertForeignKey("direct_message_rooms", "fk_dmr_company", "company_id", "companies", "id");
+		assertForeignKey("direct_message_rooms", "fk_dmr_user1", "user1_id", "users", "id");
+		assertForeignKey("direct_message_rooms", "fk_dmr_user2", "user2_id", "users", "id");
+		assertCheckConstraint("chk_dmr_user_order");
+		assertIndex("direct_messages", "idx_dm_room_created", "room_id", "created_at", "id");
+		assertForeignKey("direct_messages", "fk_dm_room", "room_id", "direct_message_rooms", "id");
+		assertForeignKey("direct_messages", "fk_dm_sender", "sender_user_id", "users", "id");
+		assertIndex("dm_room_user_states", "PRIMARY", "room_id", "user_id");
+		assertForeignKey("dm_room_user_states", "fk_dmrus_room", "room_id", "direct_message_rooms", "id");
+		assertForeignKey("dm_room_user_states", "fk_dmrus_last_read", "last_read_direct_message_id", "direct_messages", "id");
+	}
+
+	@Test
+	void appliesSchemaSqlAndCreatesProjectChatTablesAndReferenceConstraints() {
+		applySchemaSql();
+		Set<String> existingTables = jdbcTemplate.queryForList("""
+				SELECT table_name FROM information_schema.tables
+				WHERE table_schema = DATABASE() AND table_name IN ('messages', 'project_chat_member_states')
+				""", String.class).stream().collect(Collectors.toSet());
+		assertThat(existingTables).containsExactlyInAnyOrderElementsOf(PROJECT_CHAT_TABLES);
+
+		assertRequiredColumn("messages", "project_id", "bigint");
+		assertRequiredColumn("messages", "author_user_id", "bigint");
+		assertNullableColumn("messages", "thread_id", "bigint");
+		assertRequiredColumn("messages", "content", "text");
+		assertRequiredColumn("messages", "created_at", "datetime");
+		assertIndex("messages", "idx_messages_project_created", "project_id", "created_at", "id");
+		assertForeignKey("messages", "fk_messages_project", "project_id", "projects", "id");
+		assertForeignKey("messages", "fk_messages_author", "author_user_id", "users", "id");
+		assertForeignKey("messages", "fk_messages_thread", "thread_id", "threads", "id");
+
+		assertRequiredColumn("project_chat_member_states", "project_id", "bigint");
+		assertRequiredColumn("project_chat_member_states", "user_id", "bigint");
+		assertNullableColumn("project_chat_member_states", "last_read_message_id", "bigint");
+		assertNullableColumn("project_chat_member_states", "last_read_at", "datetime");
+		assertRequiredColumn("project_chat_member_states", "updated_at", "datetime");
+		assertIndex("project_chat_member_states", "PRIMARY", "project_id", "user_id");
+		assertIndex("project_chat_member_states", "idx_pcms_user", "user_id");
+		assertIndex("project_chat_member_states", "idx_pcms_last_read", "last_read_message_id");
+		assertForeignKey("project_chat_member_states", "fk_pcms_project", "project_id", "projects", "id");
+		assertForeignKey("project_chat_member_states", "fk_pcms_user", "user_id", "users", "id");
+		assertForeignKey("project_chat_member_states", "fk_pcms_last_read", "last_read_message_id", "messages", "id");
+	}
+
+	@Test
+	void appliesSchemaSqlAndCreatesNotificationInboxTablesAndReferenceConstraints() {
+		applySchemaSql();
+		Set<String> existingTables = jdbcTemplate.queryForList("""
+				SELECT table_name FROM information_schema.tables
+				WHERE table_schema = DATABASE()
+				  AND table_name IN ('notification_events', 'notification_recipients')
+				""", String.class).stream().collect(Collectors.toSet());
+		assertThat(existingTables).containsExactlyInAnyOrderElementsOf(NOTIFICATION_TABLES);
+
+		assertNullableColumn("notification_events", "activity_event_id", "bigint");
+		assertNullableColumn("notification_events", "company_id", "bigint");
+		assertNullableColumn("notification_events", "project_id", "bigint");
+		assertNullableColumn("notification_events", "actor_user_id", "bigint");
+		assertRequiredColumn("notification_events", "type", "varchar");
+		assertRequiredColumn("notification_events", "target_type", "varchar");
+		assertRequiredColumn("notification_events", "target_id", "bigint");
+		assertRequiredColumn("notification_events", "title", "varchar");
+		assertNullableColumn("notification_events", "body", "text");
+		assertNullableColumn("notification_events", "metadata_json", "json");
+		assertRequiredColumn("notification_events", "created_at", "datetime");
+		assertIndex("notification_events", "idx_ne_company_project_type", "company_id", "project_id", "type");
+		assertForeignKey("notification_events", "fk_ne_activity", "activity_event_id", "activity_events", "id");
+		assertForeignKey("notification_events", "fk_ne_company", "company_id", "companies", "id");
+		assertForeignKey("notification_events", "fk_ne_project", "project_id", "projects", "id");
+		assertForeignKey("notification_events", "fk_ne_actor", "actor_user_id", "users", "id");
+
+		assertRequiredColumn("notification_recipients", "notification_event_id", "bigint");
+		assertRequiredColumn("notification_recipients", "recipient_user_id", "bigint");
+		assertNullableColumn("notification_recipients", "read_at", "datetime");
+		assertRequiredColumn("notification_recipients", "created_at", "datetime");
+		assertIndex("notification_recipients", "uq_nr_event_recipient", "notification_event_id", "recipient_user_id");
+		assertIndex("notification_recipients", "idx_nr_recipient_read_created", "recipient_user_id", "read_at", "created_at", "id");
+		assertUniqueConstraint("notification_recipients", "uq_nr_event_recipient");
+		assertForeignKey("notification_recipients", "fk_nr_event", "notification_event_id", "notification_events", "id");
+		assertForeignKey("notification_recipients", "fk_nr_recipient", "recipient_user_id", "users", "id");
+	}
+
+	@Test
+	void appliesSchemaSqlAndCreatesPlatformSupportTables() {
+		applySchemaSql();
+
+		Set<String> existingTables = jdbcTemplate.queryForList("""
+				SELECT table_name
+				FROM information_schema.tables
+				WHERE table_schema = DATABASE()
+				  AND table_name IN (
+				    'platform_admin_bootstrap_locks',
+				    'platform_admins',
+				    'support_cases',
+				    'support_case_public_replies',
+				    'support_case_internal_notes',
+				    'admin_action_audits'
+				  )
+				""", String.class)
+				.stream()
+				.collect(Collectors.toSet());
+
+		assertThat(existingTables).containsExactlyInAnyOrderElementsOf(PLATFORM_SUPPORT_TABLES);
+	}
+
+	@Test
+	void appliesSchemaSqlAndCreatesPlatformSupportConstraints() {
+		applySchemaSql();
+
+		assertRequiredColumn("platform_admin_bootstrap_locks", "id", "int");
+		assertCheckConstraint("chk_platform_admin_bootstrap_lock_singleton");
+		assertThat(jdbcTemplate.queryForObject(
+				"SELECT COUNT(*) FROM platform_admin_bootstrap_locks WHERE id = 1",
+				Integer.class))
+				.isEqualTo(1);
+
+		assertRequiredColumn("platform_admins", "user_id", "bigint");
+		assertEnumColumn("platform_admins", "role", null, "PLATFORM_ADMIN", "SUPER_ADMIN");
+		assertEnumColumn("platform_admins", "status", "ACTIVE", "ACTIVE", "REVOKED");
+		assertNullableColumn("platform_admins", "revoked_at", "datetime");
+		assertNullableColumn("platform_admins", "reactivated_at", "datetime");
+		assertRequiredColumn("platform_admins", "updated_at", "datetime");
+		assertUniqueConstraint("platform_admins", "uq_platform_admins_user");
+		assertIndex("platform_admins", "idx_platform_admins_status_role", "status", "role");
+		assertCheckConstraint("chk_platform_admins_revocation");
+		assertForeignKey("platform_admins", "fk_platform_admins_user", "user_id", "users", "id");
+
+		assertRequiredColumn("support_cases", "reporter_user_id", "bigint");
+		assertEnumColumn("support_cases", "case_type", null, "INQUIRY", "REPORT");
+		assertEnumColumn(
+				"support_cases",
+				"status",
+				"OPEN",
+				"OPEN",
+				"IN_PROGRESS",
+				"RESOLVED",
+				"REJECTED",
+				"CLOSED");
+		assertNullableEnumColumn("support_cases", "target_type", "USER", "COMPANY", "PROJECT", "CONTENT");
+		assertNullableColumn("support_cases", "target_id", "char");
+		assertForeignKey("support_cases", "fk_support_cases_reporter", "reporter_user_id", "users", "id");
+		assertCheckConstraint("chk_support_cases_target");
+
+		assertForeignKey(
+				"support_case_public_replies",
+				"fk_scpr_case",
+				"support_case_id",
+				"support_cases",
+				"id");
+		assertForeignKey(
+				"support_case_public_replies",
+				"fk_scpr_author",
+				"author_platform_admin_id",
+				"platform_admins",
+				"id");
+		assertForeignKey(
+				"support_case_internal_notes",
+				"fk_scin_case",
+				"support_case_id",
+				"support_cases",
+				"id");
+		assertForeignKey(
+				"support_case_internal_notes",
+				"fk_scin_author",
+				"author_platform_admin_id",
+				"platform_admins",
+				"id");
+
+		assertEnumColumn("admin_action_audits", "authority_source", null, "USER", "PLATFORM_ADMIN");
+		assertNullableEnumColumn("admin_action_audits", "authority_role", "PLATFORM_ADMIN", "SUPER_ADMIN");
+		assertRequiredColumn("admin_action_audits", "reason", "varchar");
+		assertNullableColumn("admin_action_audits", "before_state", "longtext");
+		assertNullableColumn("admin_action_audits", "support_case_id", "bigint");
+		assertRequiredColumn("admin_action_audits", "after_state", "longtext");
+		assertIndex("admin_action_audits", "idx_aaa_created", "created_at", "id");
+		assertForeignKey("admin_action_audits", "fk_aaa_case", "support_case_id", "support_cases", "id");
+		assertForeignKey("admin_action_audits", "fk_aaa_actor", "actor_user_id", "users", "id");
+		assertForeignKey(
+				"admin_action_audits",
+				"fk_aaa_platform_admin",
+				"actor_platform_admin_id",
+				"platform_admins",
+				"id");
+		assertCheckConstraint("chk_aaa_authority");
+	}
+
+	@Test
+	void appliesSchemaSqlAndCreatesSystemSettingsCatalogAndAuditEnums() {
+		applySchemaSql();
+
+		Set<String> existingTables = jdbcTemplate.queryForList("""
+				SELECT table_name FROM information_schema.tables
+				WHERE table_schema = DATABASE() AND table_name = 'system_settings'
+				""", String.class).stream().collect(Collectors.toSet());
+		assertThat(existingTables).containsExactlyInAnyOrderElementsOf(SYSTEM_SETTINGS_TABLES);
+		assertRequiredColumn("system_settings", "setting_key", "varchar");
+		assertRequiredColumn("system_settings", "value_json", "json");
+		assertRequiredColumn("system_settings", "value_schema_version", "int");
+		assertRequiredColumn("system_settings", "version", "bigint");
+		assertRequiredColumn("system_settings", "created_at", "datetime");
+		assertRequiredColumn("system_settings", "updated_at", "datetime");
+		assertIndex("system_settings", "uq_system_settings_key", "setting_key");
+		assertUniqueConstraint("system_settings", "uq_system_settings_key");
+		assertCheckConstraint("chk_system_settings_schema_version");
+		assertCheckConstraint("chk_system_settings_version");
+		assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM system_settings", Integer.class)).isEqualTo(8);
+		assertThat(jdbcTemplate.queryForList("SELECT setting_key FROM system_settings", String.class))
+				.containsExactlyInAnyOrder(
+						"SUPPORT_CASE_CATEGORIES", "REPORT_REASON_CATEGORIES", "ENFORCEMENT_REASON_PRESETS", "ENFORCEMENT_DURATION_PRESETS",
+						"REPLY_TEMPLATES", "ANNOUNCEMENT_BANNER", "SUPPORT_CENTER_STATUS", "RESULT_NOTIFICATION_POLICY");
+		assertEnumColumn("admin_action_audits", "action", null, "SYSTEM_SETTING_REPLACED", "PLATFORM_ADMIN_GRANTED", "PLATFORM_ADMIN_REVOKED", "PLATFORM_ADMIN_REACTIVATED", "PLATFORM_ADMIN_ROLE_CHANGED");
+		assertEnumColumn("admin_action_audits", "target_type", null, "SYSTEM_SETTING", "PLATFORM_ADMIN");
 	}
 
 	private void applySchemaSql() {

@@ -7,12 +7,15 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   check-certificate-expiry:
     name: Check api.threadia.click certificate expiry
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
 
     steps:
       - name: Fail when the certificate expires within 30 days
@@ -20,8 +23,49 @@ jobs:
         run: |
           set -euo pipefail
           host="api.threadia.click"
+          repo="$GITHUB_REPOSITORY"
+          label="certificate-expiry"
+          issue_title="TLS certificate for ${host} expires within 30 days"
           check_seconds="$((30 * 24 * 60 * 60))"
+          detected_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           certificate="$(openssl s_client -connect "${host}:443" -servername "$host" </dev/null 2>/dev/null | openssl x509)"
+          not_after="$(printf '%s\n' "$certificate" | openssl x509 -noout -enddate | cut -d= -f2-)"
 
-          printf '%s\n' "$certificate" | openssl x509 -noout -enddate
-          printf '%s\n' "$certificate" | openssl x509 -checkend "$check_seconds" -noout
+          printf 'Certificate expiry for %s: %s\n' "$host" "$not_after"
+
+          if printf '%s\n' "$certificate" | openssl x509 -checkend "$check_seconds" -noout; then
+            exit 0
+          fi
+
+          if gh label view "$label" --repo "$repo" >/dev/null 2>&1; then
+            gh label edit "$label" --repo "$repo" --color D93F0B --description "TLS certificate expiry alert" >/dev/null
+          else
+            gh label create "$label" --repo "$repo" --color D93F0B --description "TLS certificate expiry alert" >/dev/null
+          fi
+
+          issue_body="$(
+            printf '%s\n' \
+              "The TLS certificate for \\`${host}\\` expires on **${not_after}** and is within 30 days of expiry." \
+              "" \
+              "- Host: \\`${host}\\`" \
+              "- Repository: \\`${repo}\\`" \
+              "- Threshold: 30 days" \
+              "- Detected at: \\`${detected_at}\\`" \
+              "- Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+              "" \
+              "Please renew or replace the certificate, then rerun this workflow to confirm the expiry window is clear."
+          )"
+
+          existing_issue_number="$(
+            HOST="$host" ISSUE_TITLE="$issue_title" gh issue list --repo "$repo" --state open --label "$label" --limit 100 --json number,title,body |
+              python3 -c 'import json, os, sys; data = json.load(sys.stdin); host = os.environ["HOST"]; issue_title = os.environ["ISSUE_TITLE"]; print(next((str(issue["number"]) for issue in data if issue.get("title", "") == issue_title or host in issue.get("title", "") or host in (issue.get("body", "") or "")), ""))'
+          )"
+
+          if [[ -n "$existing_issue_number" ]]; then
+            printf 'Matching open issue already exists: #%s\n' "$existing_issue_number"
+            exit 1
+          fi
+
+          gh issue create --repo "$repo" --title "$issue_title" --body "$issue_body" --label "$label" >/dev/null
+          printf 'Created GitHub issue for %s expiry breach.\n' "$host"
+          exit 1

@@ -3,6 +3,7 @@ package com.threadia.backend.issue.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -35,6 +36,7 @@ import com.threadia.backend.common.exception.AuthenticationFailedException;
 import com.threadia.backend.common.exception.ForbiddenException;
 import com.threadia.backend.company.domain.Company;
 import com.threadia.backend.company.domain.CompanyMemberRole;
+import com.threadia.backend.company.domain.CompanyStatus;
 import com.threadia.backend.company.service.CompanyMembershipService;
 import com.threadia.backend.issue.domain.Issue;
 import com.threadia.backend.issue.domain.IssuePriority;
@@ -162,6 +164,22 @@ class IssueServiceTest {
 	}
 
 	@Test
+	void listRejectsInactiveCompanyBeforeIssueLookup() {
+		Fixtures fixtures = fixtures(CompanyStatus.INACTIVE);
+		stubAuth(fixtures);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(fixtures.project()));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false);
+		doThrow(new ForbiddenException("회사 접근 권한이 없습니다.")).when(companyMembershipService).requireActiveMember(10L, fixtures.authContext());
+
+		assertThatThrownBy(() -> issueService.list("token", 20L))
+				.isInstanceOf(ForbiddenException.class)
+				.hasMessage("회사 접근 권한이 없습니다.");
+
+		verify(companyMembershipService).requireActiveMember(10L, fixtures.authContext());
+		verifyNoInteractions(issueRepository);
+	}
+
+	@Test
 	void listUsesUnassignedOnlyRepositoryFilter() {
 		Fixtures fixtures = fixtures();
 		stubAuth(fixtures);
@@ -226,6 +244,29 @@ class IssueServiceTest {
 		assertThat(historyCaptor.getValue().getToStatus()).isEqualTo(IssueStatus.BACKLOG);
 		assertThat(historyCaptor.getValue().getChangedBy()).isSameAs(fixtures.user());
 		assertThat(data.issue().issueKey()).isEqualTo("THD-8");
+	}
+
+	/**
+	 * reporterUserId는 표시용이 아니라 권한 판정용이다 — trash/restore가 P/C 또는
+	 * 등록자에게 허용되므로, 이게 없으면 클라이언트가 "등록자" 경로를 판정할 수 없다.
+	 */
+	@Test
+	void responseExposesReporterUserIdForOwnerPermissionChecks() {
+		Fixtures fixtures = fixtures();
+		stubAuth(fixtures);
+		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(fixtures.project()));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+		when(issueRepository.findByProjectIdForSequenceUpdate(20L)).thenReturn(List.of());
+		when(issueRepository.save(any())).thenAnswer(invocation -> {
+			Issue issue = invocation.getArgument(0);
+			setId(issue, 100L);
+			return issue;
+		});
+
+		IssueData data = issueService.create("token", 20L, new IssueCreateRequest("새 이슈"));
+
+		assertThat(data.issue().projectId()).isEqualTo(fixtures.project().getId());
+		assertThat(data.issue().reporterUserId()).isEqualTo(fixtures.user().getId());
 	}
 
 	@Test
@@ -302,9 +343,56 @@ class IssueServiceTest {
 		when(issueRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(issue));
 		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
 
-		assertThatThrownBy(() -> issueService.update("token", 100L, new IssueUpdateRequest("x".repeat(201), null, null, null, null), Set.of("title")))
+		assertThatThrownBy(() -> issueService.update("token", 100L, new IssueUpdateRequest("x".repeat(201), null, null, null, null, null), Set.of("title")))
 				.isInstanceOf(com.threadia.backend.project.exception.ProjectValidationException.class);
 		assertThat(issue.getTitle()).isEqualTo("첫 이슈");
+	}
+
+	@Test
+	void updateDetachesSprintWhenSprintIdIsExplicitlyNull() {
+		Fixtures fixtures = fixtures();
+		Issue issue = issue(100L, fixtures.project(), fixtures.user(), "THD-1", "첫 이슈", IssueStatus.BACKLOG);
+		Sprint sprint = new Sprint(fixtures.project(), "현재 Sprint", null, null, null, LocalDateTime.now(FIXED_CLOCK));
+		issue.setSprint(sprint);
+		stubAuth(fixtures);
+		when(issueRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(issue));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+
+		issueService.update("token", 100L, new IssueUpdateRequest(null, null, null, null, null, null), Set.of("sprintId"));
+
+		assertThat(issue.getSprint()).isNull();
+	}
+
+	@Test
+	void updateLeavesSprintUnchangedWhenSprintIdIsOmitted() {
+		Fixtures fixtures = fixtures();
+		Issue issue = issue(100L, fixtures.project(), fixtures.user(), "THD-1", "첫 이슈", IssueStatus.BACKLOG);
+		Sprint sprint = new Sprint(fixtures.project(), "현재 Sprint", null, null, null, LocalDateTime.now(FIXED_CLOCK));
+		issue.setSprint(sprint);
+		stubAuth(fixtures);
+		when(issueRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(issue));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+
+		issueService.update("token", 100L, new IssueUpdateRequest("수정 제목", null, null, null, null, null), Set.of("title"));
+
+		assertThat(issue.getSprint()).isSameAs(sprint);
+	}
+
+	@Test
+	void updateRejectsNonNullSprintIdWithoutMutatingSprintRelation() {
+		Fixtures fixtures = fixtures();
+		Issue issue = issue(100L, fixtures.project(), fixtures.user(), "THD-1", "첫 이슈", IssueStatus.BACKLOG);
+		Sprint sprint = new Sprint(fixtures.project(), "현재 Sprint", null, null, null, LocalDateTime.now(FIXED_CLOCK));
+		issue.setSprint(sprint);
+		stubAuth(fixtures);
+		when(issueRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(issue));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+
+		assertThatThrownBy(() -> issueService.update("token", 100L, new IssueUpdateRequest(null, null, null, null, null, 30L), Set.of("sprintId")))
+				.isInstanceOf(ProjectValidationException.class)
+				.hasMessage("Sprint 할당은 POST /sprints/{id}/issues API를 사용해야 합니다.");
+
+		assertThat(issue.getSprint()).isSameAs(sprint);
 	}
 
 	@Test
@@ -433,10 +521,14 @@ class IssueServiceTest {
 	}
 
 	private static Fixtures fixtures() {
+		return fixtures(CompanyStatus.ACTIVE);
+	}
+
+	private static Fixtures fixtures(CompanyStatus companyStatus) {
 		LocalDateTime now = LocalDateTime.now(FIXED_CLOCK);
 		User user = new User("member@example.com", "hashed", "member", null, UserStatus.ACTIVE, now, now);
 		setId(user, 1L);
-		Company company = new Company("Threadia", "Member", "workspace", "IT", null, "ACTIVE", user, now, now);
+		Company company = new Company("Threadia", "Member", "workspace", "IT", null, companyStatus, user, now, now);
 		setId(company, 10L);
 		Project project = new Project(
 				company,

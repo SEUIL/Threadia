@@ -66,7 +66,7 @@ class DocumentServiceTest {
 	@BeforeEach void setUp() {
 		service = new DocumentService(auth, memberships, projects, projectMembers, documents, issues, links, Clock.fixed(Instant.parse("2026-07-15T00:00:00Z"), ZoneOffset.UTC));
 		LocalDateTime now = LocalDateTime.parse("2026-07-14T00:00:00"); user = new User("user@threadia.com", "hash", "사용자", null, UserStatus.ACTIVE, now, now); id(user, 1L);
-		Company company = new Company("Threadia", "대표", null, null, null, "ACTIVE", user, now, now); id(company, 10L);
+		Company company = new Company("Threadia", "대표", null, null, null, com.threadia.backend.company.domain.CompanyStatus.ACTIVE, user, now, now); id(company, 10L);
 		project = new Project(company, "프로젝트", "THD", null, ProjectStatus.ACTIVE, null, null, user, null, null, null, now, now); id(project, 20L);
 		document = new Document(project, user, "문서", DocumentType.DOC, "# 내용", now); id(document, 30L); context = new AuthContext(1L, "user@threadia.com");
 		when(auth.fromAccessToken("token")).thenReturn(context); when(auth.requireActiveUser(context)).thenReturn(user);

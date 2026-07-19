@@ -172,10 +172,10 @@ public class ProjectInvitationService {
 		LocalDateTime now = now();
 		expirePendingIfNeeded(invitation, now);
 		assertPending(invitation);
+		assertActiveCompanyMemberForUpdate(invitation.getCompany(), requester.getId());
 		Optional<ProjectMember> existingMember = projectMemberRepository.findByProject_IdAndUser_IdForUpdate(
 				invitation.getProjectId(), requester.getId());
 		Project project = projectForUpdate(invitation.getProjectId());
-		assertActiveCompanyMember(project, requester.getId());
 		if (existingMember.filter(member -> member.getStatus() == ProjectMemberStatus.ACTIVE).isPresent()) {
 			throw InvitationConflictException.alreadyProjectMember();
 		}
@@ -309,6 +309,19 @@ public class ProjectInvitationService {
 		requireActiveCompany(project.getCompany());
 		if (!companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(
 				project.getCompany().getId(), userId, CompanyMemberStatus.ACTIVE)) {
+			throw InvitationConflictException.targetUserNotActiveCompanyMember();
+		}
+	}
+
+	private void assertActiveCompanyMemberForUpdate(Project project, Long userId) {
+		assertActiveCompanyMemberForUpdate(project.getCompany(), userId);
+	}
+
+	private void assertActiveCompanyMemberForUpdate(com.threadia.backend.company.domain.Company company, Long userId) {
+		requireActiveCompany(company);
+		if (companyMemberRepository.findByCompany_IdAndUser_IdForUpdate(company.getId(), userId)
+				.filter(companyMember -> companyMember.getStatus() == CompanyMemberStatus.ACTIVE)
+				.isEmpty()) {
 			throw InvitationConflictException.targetUserNotActiveCompanyMember();
 		}
 	}

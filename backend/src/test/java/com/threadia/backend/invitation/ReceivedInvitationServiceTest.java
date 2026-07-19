@@ -105,7 +105,7 @@ class ReceivedInvitationServiceTest {
 	}
 
 	private static Project project(Long id, String name) {
-		Company company = new Company("Threadia", "대표", null, "IT", null, "ACTIVE", null, now(), now());
+		Company company = new Company("Threadia", "대표", null, "IT", null, com.threadia.backend.company.domain.CompanyStatus.ACTIVE, null, now(), now());
 		setId(company, 1L);
 		Project project = new Project(
 				company, name, "THR", null, ProjectStatus.ACTIVE, null, null, null, null, null, null, now(), now());
@@ -120,7 +120,7 @@ class ReceivedInvitationServiceTest {
 	}
 
 	private static Invitation invitation(Long id, User invitee, InvitationScopeType scopeType) {
-		Company company = new Company("Threadia", "대표", null, "IT", null, "ACTIVE", invitee, now(), now());
+		Company company = new Company("Threadia", "대표", null, "IT", null, com.threadia.backend.company.domain.CompanyStatus.ACTIVE, invitee, now(), now());
 		setId(company, 1L);
 		Invitation invitation = new Invitation(company, scopeType == InvitationScopeType.PROJECT ? 10L : null, invitee, invitee, scopeType, "MEMBER", InvitationStatus.PENDING, now().plusDays(7), now(), now());
 		setId(invitation, id);
