@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-16
-> **최종 수정**: 2026-07-16
-> **버전**: v1.2
+> **최종 수정**: 2026-07-18
+> **버전**: v1.3
 > **상태**: 검토 중
 > **태그**: aws, ecr, docker-compose, ssm, oidc, deployment
 
@@ -42,7 +42,7 @@ host에는 검토된 repository revision에서 아래 두 파일을 root-owned �
 | `compose.production.yml` | `/opt/threadia-compose/compose.production.yml` | root 소유, 읽기 전용 |
 | `scripts/ecr-compose-deploy/deploy-image` | `/usr/local/lib/threadia-compose/deploy-image` | root 소유, 실행 가능 |
 
-runtime 설정은 `/etc/threadia-compose/runtime.env`에만 둔다. 이 파일은 root 소유 `0600`이어야 하며 repository, Docker image, GitHub Actions, SSM parameter와 command output에 넣지 않는다. Compose file과 host script도 root:root 소유이고 group/other write가 없어야 한다. 필수 key는 `THREADIA_DB_URL`, `THREADIA_DB_USERNAME`, `THREADIA_DB_PASSWORD`, `THREADIA_JWT_SECRET`, `THREADIA_COOKIE_SECURE`, `THREADIA_CORS_ALLOWED_ORIGIN`이다. OAuth와 mail key는 해당 기능을 운영할 때만 추가하며, 없으면 container environment에 주입되지 않는다. `MANAGEMENT_HEALTH_MAIL_ENABLED=false`는 Compose가 고정 주입하여 deployment health가 mail 설정에 의존하지 않게 한다.
+runtime 설정은 `/etc/threadia-compose/runtime.env`에만 둔다. 이 파일은 root 소유 `0600`이어야 하며 repository, Docker image, GitHub Actions, SSM parameter와 command output에 넣지 않는다. Compose file과 host script도 root:root 소유이고 group/other write가 없어야 한다. 필수 key는 `THREADIA_DB_URL`, `THREADIA_DB_USERNAME`, `THREADIA_DB_PASSWORD`, `THREADIA_JWT_SECRET`, `THREADIA_COOKIE_SECURE`, `THREADIA_CORS_ALLOWED_ORIGIN`이다. `THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL`은 ECR Compose path에서 생략 가능하다. blank runner input은 no-op이며 direct bootstrap service validation을 우회하지 않는다. OAuth와 mail key는 해당 기능을 운영할 때만 추가하며, 없으면 container environment에 주입되지 않는다. `MANAGEMENT_HEALTH_MAIL_ENABLED=false`는 Compose가 고정 주입하여 deployment health가 mail 설정에 의존하지 않게 한다.
 
 EC2 instance role은 해당 ECR repository의 pull에 필요한 최소 권한만 갖는다. host script는 instance role로 ECR login token을 얻고 temporary Docker config를 종료 시 삭제하며 long-lived credential을 저장하지 않는다. 현재 production Compose host는 `x86_64`를 요구하며 workflow도 image를 `linux/amd64`로 build한다.
 

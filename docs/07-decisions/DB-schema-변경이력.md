@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-27
-> **최종 수정**: 2026-07-02
-> **버전**: v1.2
+> **최종 수정**: 2026-07-18
+> **버전**: v1.3
 > **상태**: 확정
 > **태그**: decision, db, schema, changelog
 
@@ -33,6 +33,16 @@ DB schema가 바뀌면 아래 항목을 기록한다.
 ---
 
 ## 3. 변경 이력
+
+### 2026-07-18 Persistent SSM Platform foundation additive exception
+
+| 항목 | 내용 |
+|---|---|
+| 변경 대상 | `scripts/ssm-delivery/platform-foundation-additive.sql`, `companies.status`, Platform foundation 7개 table, bootstrap lock, 8개 system setting seed |
+| 변경 내용 | persistent SSM host의 확인된 schema drift 보정을 위해 MySQL 8 additive/idempotent operator artifact를 추가했다. existing `companies.status`는 변경하지 않고, missing table/seed만 추가한다. |
+| 변경 이유 | restricted SSM release의 Hibernate schema validation이 `admin_action_audits` 누락으로 실패했으며, persistent DB에는 destructive Fresh DB initializer를 사용할 수 없기 때문이다. |
+| 영향 범위 | 별도 승인된 DB operator의 one-time 실행에만 적용된다. SSM workflow/helper/CloudFormation은 DB migration을 자동 실행하지 않으며, `db/schema.sql`은 ECR Compose Fresh DB path에만 유지한다. |
+| 관련 문서 | `scripts/ssm-delivery/platform-foundation-additive.sql`, `docs/00-project/restricted-ssm-platform-foundation-db-migration-runbook.md`, `docs/00-project/restricted-ssm-release-runbook.md`, `docs/07-decisions/DB-schema-관리-정책.md` |
 
 ### 2026-07-02 ERD/schema drift 보정
 

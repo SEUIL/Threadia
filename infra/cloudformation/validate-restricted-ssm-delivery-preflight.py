@@ -31,9 +31,13 @@ workflow = (BASE.parent.parent / ".github/workflows/restricted-ssm-release.yml")
 helper_artifact_workflow = (BASE.parent.parent / ".github/workflows/restricted-ssm-helper-artifact.yml").read_text(encoding="utf-8")
 helper_maintenance_workflow = (BASE.parent.parent / ".github/workflows/restricted-ssm-helper-maintenance.yml").read_text(encoding="utf-8")
 release_helper = (BASE.parent.parent / "scripts/ssm-delivery/apply-release").read_text(encoding="utf-8")
+bootstrap_runner = (BASE.parent.parent / "backend/src/main/java/com/threadia/backend/platform/bootstrap/PlatformAdminBootstrap.java").read_text(encoding="utf-8")
+bootstrap_service = (BASE.parent.parent / "backend/src/main/java/com/threadia/backend/platform/bootstrap/PlatformAdminBootstrapService.java").read_text(encoding="utf-8")
 service_unit = (BASE.parent.parent / "scripts/ssm-delivery/threadia-backend.service").read_text(encoding="utf-8")
 bootstrap = (BASE.parent.parent / "scripts/ssm-delivery/bootstrap-host.sh").read_text(encoding="utf-8")
 runbook = (BASE.parent.parent / "docs/00-project/restricted-ssm-release-runbook.md").read_text(encoding="utf-8")
+platform_migration_runbook = (BASE.parent.parent / "docs/00-project/restricted-ssm-platform-foundation-db-migration-runbook.md").read_text(encoding="utf-8")
+platform_migration_sql = (BASE.parent.parent / "scripts/ssm-delivery/platform-foundation-additive.sql").read_text(encoding="utf-8")
 architecture = (BASE.parent.parent / "docs/05-architecture/GitHub-OIDC-SSM-EC2-배포-설계.md").read_text(encoding="utf-8")
 version_pattern = "^[A-Za-z0-9._+=/-]{1,1000}[A-Za-z0-9._+=/-]{0,24}$"
 required_runtime_parameters = {
@@ -43,6 +47,7 @@ required_runtime_parameters = {
     "/threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET",
     "/threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE",
     "/threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN",
+    "/threadia/restricted-nonprod/runtime/THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL",
 }
 optional_mail_runtime_parameters = {
     "/threadia/restricted-nonprod/runtime/MAIL_HOST",
@@ -383,6 +388,18 @@ assert 'aws s3api get-object --region "$AWS_REGION"' in release_helper
 assert 'aws ssm get-parameters --region "$AWS_REGION"' in release_helper
 assert release_helper.count('aws ssm get-parameters --region "$AWS_REGION" --with-decryption --names') == 2
 assert all(parameter in release_helper for parameter in required_runtime_parameters | optional_mail_runtime_parameters)
+assert 'import re' in release_helper
+assert 'bootstrap_email = values[bootstrap_parameter].strip().lower()' in release_helper
+assert 're.fullmatch(r"[^\\s@]+@[^\\s@]+\\.[^\\s@]+", bootstrap_email)' in release_helper
+assert 'raise SystemExit("platform admin bootstrap email is blank or malformed")' in release_helper
+assert release_helper.index('bootstrap_email = values[bootstrap_parameter].strip().lower()') < release_helper.index('with open(sys.argv[2], "w", encoding="utf-8") as target:')
+assert 'value = bootstrap_email if parameter_name == bootstrap_parameter else values[parameter_name]' in release_helper
+assert 'String normalizedEmail = EmailNormalizer.normalize(bootstrapEmail);' in bootstrap_runner
+assert 'if (normalizedEmail != null && !normalizedEmail.isBlank()) {' in bootstrap_runner
+assert 'bootstrapService.bootstrap(bootstrapEmail);' in bootstrap_runner
+assert 'Pattern.compile("^[^\\\\s@]+@[^\\\\s@]+\\\\.[^\\\\s@]+$")' in bootstrap_service
+assert 'String normalizedEmail = EmailNormalizer.normalize(bootstrapEmail);' in bootstrap_service
+assert 'normalizedEmail == null || !EMAIL_PATTERN.matcher(normalizedEmail).matches()' in bootstrap_service
 assert 'if not returned and invalid == set(optional):' in release_helper
 assert 'if returned != set(optional) or invalid:' in release_helper
 assert 'raise SystemExit("optional runtime parameter is blank: " + parameter_name)' in release_helper
@@ -406,6 +423,13 @@ assert "Environment=MANAGEMENT_HEALTH_MAIL_ENABLED=false" in runbook
 assert "Service-unit maintenance는 helper maintenance와 별도 channel" in runbook
 assert "Helper maintenance는 `apply-release`만 갱신한다." in architecture
 assert "Service-unit maintenance는 release helper maintenance와 분리된 manual-only channel" in architecture
+assert "SET NAMES utf8mb4;" in platform_migration_sql
+assert "SET SESSION lock_wait_timeout = 30;" in platform_migration_sql
+assert "SET SESSION innodb_lock_wait_timeout = 30;" in platform_migration_sql
+assert "unknown Java enum key and is a strict NO-GO" in platform_migration_runbook
+assert "Korean label literal과 JSON 구조를 직접 비교해 mojibake를 검출" in platform_migration_runbook
+assert "Authorization reconciliation (strict pre-release gate)" in platform_migration_runbook
+assert "global `SUPER_ADMIN`은 exactly one row" in platform_migration_runbook
 assert (BASE.parent.parent / "scripts/ssm-delivery/apply-release").stat().st_mode & 0o111
 assert (BASE.parent.parent / "scripts/ssm-delivery/bootstrap-host.sh").stat().st_mode & 0o111
 assert not (BASE.parent.parent / "scripts/ssm-delivery/threadia-backend.service").stat().st_mode & 0o111
