@@ -1,6 +1,7 @@
 package com.threadia.backend.company.controller;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.threadia.backend.common.response.ApiResponse;
 import com.threadia.backend.company.domain.CompanyMemberStatus;
 import com.threadia.backend.company.dto.CompanyMemberData;
+import com.threadia.backend.company.dto.CompanyMemberRemoveData;
 import com.threadia.backend.company.dto.CompanyMemberUpdateRequest;
 import com.threadia.backend.company.dto.CompanyMembersData;
 import com.threadia.backend.company.service.CompanyMemberService;
@@ -59,6 +61,19 @@ public class CompanyMemberController {
 				companyId,
 				companyMemberId,
 				request);
+		return ResponseEntity.ok(ApiResponse.of(data));
+	}
+
+
+	@DeleteMapping("/companies/{companyId}/company-members/{companyMemberId}")
+	public ResponseEntity<ApiResponse<CompanyMemberRemoveData>> remove(
+			@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+			@PathVariable Long companyId,
+			@PathVariable Long companyMemberId) {
+		CompanyMemberRemoveData data = companyMemberService.remove(
+				extractAccessToken(authorizationHeader),
+				companyId,
+				companyMemberId);
 		return ResponseEntity.ok(ApiResponse.of(data));
 	}
 

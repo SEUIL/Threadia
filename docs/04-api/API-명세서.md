@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-07-18
-> **버전**: v3.8 WBS 4.10.4 Backend 완료 기준
+> **최종 수정**: 2026-07-19
+> **버전**: v3.9 회사 멤버 제거 API 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -249,7 +249,8 @@ POST /api/v1/auth/refresh
 | DELETE | `/api/v1/departments/{departmentId}` | C | 부서 삭제, 멤버 부서 NULL 처리 |
 | GET | `/api/v1/companies/{companyId}/company-members` | C | 구성원 목록 조회 |
 | POST | `/api/v1/companies/{companyId}/invitations` | C | Sprint 1.5 회사 초대 생성. 수락 전 membership 미생성 |
-| PATCH | `/api/v1/companies/{companyId}/company-members/{companyMemberId}` | C | 역할/부서/상태 변경 |
+| PATCH | `/api/v1/companies/{companyId}/company-members/{companyMemberId}` | C | 역할/부서/상태 변경. `status: "LEFT"`로의 전환은 거절하고 DELETE 사용을 강제 |
+| DELETE | `/api/v1/companies/{companyId}/company-members/{companyMemberId}` | C | 구성원 제거(soft — `status = LEFT`, `departmentId = null`). 해당 회사 내 active project membership도 함께 `REMOVED` 처리 |
 
 Sprint 1.5부터 구성원 추가는 등록 사용자 exact email lookup 후 `invitations`를 생성한다. 가입되지 않은 이메일 대상 invitation, 외부 email 발송, token link 초대는 Sprint 1.5 범위가 아니며 user-facing membership create API로 즉시 소속을 만들지 않는다.
 
@@ -1067,6 +1068,29 @@ Request Body:
   "status": "ACTIVE"
 }
 ```
+
+`status: "LEFT"`는 이 endpoint로 전환할 수 없다 — `409 CONFLICT`를 반환하고 DELETE endpoint 사용을 요구한다.
+
+#### DELETE `/api/v1/companies/{companyId}/company-members/{companyMemberId}`
+
+Response 200:
+
+```json
+{
+  "data": {
+    "removed": true,
+    "removedProjectMemberCount": 2
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+- 요청자는 대상 회사의 ACTIVE `COMPANY_ADMIN`이어야 한다.
+- 대상 company member는 `status = LEFT`, `departmentId = null`로 전환된다(soft remove, hard delete 아님).
+- 같은 트랜잭션에서 대상 사용자의 해당 회사 내 ACTIVE project membership을 모두 `REMOVED`로 전환한다.
+- 자기 자신 제거, 이미 `LEFT`인 멤버 재제거, 마지막 ACTIVE `COMPANY_ADMIN` 제거는 각각 `409 CONFLICT`를 반환한다.
+- 대상이 어느 프로젝트의 마지막 ACTIVE `PROJECT_ADMIN`이면 해당 프로젝트를 이유로 `409 CONFLICT`를 반환하고 아무것도 변경하지 않는다.
+- 회사 멤버 제거와 project member 변경/생성/초대 수락 경로의 lock 순서는 company → company member → project member(오름차순) → project(오름차순)로 고정해 교착을 막는다.
 
 ### 13.5 Project / Sprint / Project Member
 

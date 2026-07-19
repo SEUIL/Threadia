@@ -1,5 +1,6 @@
 package com.threadia.backend.project.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,6 +39,15 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
 	List<Project> findActiveMemberProjectsByCompanyIdAndUserIdOrderByIdAsc(
 			@Param("companyId") Long companyId,
 			@Param("userId") Long userId);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+			select project
+			from Project project
+			where project.id in :projectIds
+			order by project.id asc
+			""")
+	List<Project> findAllByIdInForUpdateOrderByIdAsc(@Param("projectIds") Collection<Long> projectIds);
 
 	boolean existsByCompany_IdAndProjectKey(Long companyId, String projectKey);
 }
