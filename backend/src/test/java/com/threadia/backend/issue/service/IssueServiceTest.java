@@ -29,6 +29,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.threadia.backend.auth.domain.User;
+import com.threadia.backend.activity.service.ActivityEventService;
 import com.threadia.backend.auth.domain.UserStatus;
 import com.threadia.backend.common.auth.AuthContext;
 import com.threadia.backend.common.auth.AuthContextService;
@@ -82,6 +83,8 @@ class IssueServiceTest {
 	private IssueStatusHistoryRepository historyRepository;
 	@Mock
 	private SprintRepository sprintRepository;
+	@Mock
+	private ActivityEventService activityEvents;
 
 	private IssueService issueService;
 
@@ -96,6 +99,7 @@ class IssueServiceTest {
 				historyRepository,
 				null,
 				sprintRepository,
+				activityEvents,
 				FIXED_CLOCK);
 	}
 
@@ -244,6 +248,7 @@ class IssueServiceTest {
 		assertThat(historyCaptor.getValue().getToStatus()).isEqualTo(IssueStatus.BACKLOG);
 		assertThat(historyCaptor.getValue().getChangedBy()).isSameAs(fixtures.user());
 		assertThat(data.issue().issueKey()).isEqualTo("THD-8");
+		verify(activityEvents).recordIssueCreated(issueCaptor.getValue(), fixtures.user());
 	}
 
 	/**
@@ -503,6 +508,26 @@ class IssueServiceTest {
 		assertThat(data.issue().status()).isEqualTo("TODO");
 		assertThat(issue.getUpdatedAt()).isEqualTo(originalUpdatedAt);
 		verify(historyRepository, never()).save(any());
+		verify(activityEvents, never()).recordIssueStatusChanged(any(), any(), any(), any());
+	}
+
+	@Test
+	void successfulMutationsEmitExactlyOneActivityEventAndTrashRestoreNoOpsEmitNone() {
+		Fixtures fixtures = fixtures();
+		Issue issue = issue(100L, fixtures.project(), fixtures.user(), "THD-1", "첫 이슈", IssueStatus.BACKLOG);
+		stubAuth(fixtures);
+		when(issueRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(issue));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+
+		issueService.updateStatus("token", 100L, new IssueStatusUpdateRequest(IssueStatus.TODO));
+		issueService.trash("token", 100L);
+		issueService.trash("token", 100L);
+		issueService.restore("token", 100L);
+		issueService.restore("token", 100L);
+
+		verify(activityEvents).recordIssueStatusChanged(issue, fixtures.user(), IssueStatus.BACKLOG, IssueStatus.TODO);
+		verify(activityEvents).recordIssueTrashed(issue, fixtures.user());
+		verify(activityEvents).recordIssueRestored(issue, fixtures.user());
 	}
 
 	@Test

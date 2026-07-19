@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.threadia.backend.auth.domain.User;
+import com.threadia.backend.activity.service.ActivityEventService;
 import com.threadia.backend.auth.repository.UserRepository;
 import com.threadia.backend.common.auth.*;
 import com.threadia.backend.common.exception.*;
@@ -27,16 +28,23 @@ public class IssueService {
 	private final AuthContextService auth; private final CompanyMembershipService companyMembership;
 	private final ProjectRepository projects; private final ProjectMemberRepository members; private final IssueRepository issues;
 	private final IssueStatusHistoryRepository history; private final UserRepository users; private final SprintRepository sprints; private final Clock clock;
+	private final ActivityEventService activityEvents;
 
-	@Autowired
 	public IssueService(AuthContextService auth, CompanyMembershipService companyMembership, ProjectRepository projects, ProjectMemberRepository members, IssueRepository issues, IssueStatusHistoryRepository history, UserRepository users, SprintRepository sprints) {
-		this(auth, companyMembership, projects, members, issues, history, users, sprints, Clock.systemUTC());
+		this(auth, companyMembership, projects, members, issues, history, users, sprints, null, Clock.systemUTC());
+	}
+	@Autowired
+	public IssueService(AuthContextService auth, CompanyMembershipService companyMembership, ProjectRepository projects, ProjectMemberRepository members, IssueRepository issues, IssueStatusHistoryRepository history, UserRepository users, SprintRepository sprints, ActivityEventService activityEvents) {
+		this(auth, companyMembership, projects, members, issues, history, users, sprints, activityEvents, Clock.systemUTC());
 	}
 	IssueService(AuthContextService auth, CompanyMembershipService companyMembership, ProjectRepository projects, ProjectMemberRepository members, IssueRepository issues, IssueStatusHistoryRepository history, Clock clock) {
-		this(auth, companyMembership, projects, members, issues, history, null, null, clock);
+		this(auth, companyMembership, projects, members, issues, history, null, null, null, clock);
 	}
 	IssueService(AuthContextService auth, CompanyMembershipService companyMembership, ProjectRepository projects, ProjectMemberRepository members, IssueRepository issues, IssueStatusHistoryRepository history, UserRepository users, SprintRepository sprints, Clock clock) {
-		this.auth=auth; this.companyMembership=companyMembership; this.projects=projects; this.members=members; this.issues=issues; this.history=history; this.users=users; this.sprints=sprints; this.clock=clock;
+		this(auth, companyMembership, projects, members, issues, history, users, sprints, null, clock);
+	}
+	IssueService(AuthContextService auth, CompanyMembershipService companyMembership, ProjectRepository projects, ProjectMemberRepository members, IssueRepository issues, IssueStatusHistoryRepository history, UserRepository users, SprintRepository sprints, ActivityEventService activityEvents, Clock clock) {
+		this.auth=auth; this.companyMembership=companyMembership; this.projects=projects; this.members=members; this.issues=issues; this.history=history; this.users=users; this.sprints=sprints; this.activityEvents=activityEvents; this.clock=clock;
 	}
 
 	@Transactional(readOnly=true)
@@ -63,7 +71,7 @@ public class IssueService {
 		Issue issue=new Issue(project,project.getProjectKey()+"-"+sequence,actor,request.title().trim(),IssueStatus.BACKLOG,now,now);
 		issue.setDescription(request.description());
 		if (canManage(role)) { applyCreateManagementExtras(issue, project, request, sprint); }
-		issues.save(issue); history.save(new IssueStatusHistory(issue,actor,null,IssueStatus.BACKLOG,now)); return new IssueData(IssueResponse.from(issue));
+		issues.save(issue); history.save(new IssueStatusHistory(issue,actor,null,IssueStatus.BACKLOG,now)); recordCreated(issue, actor); return new IssueData(IssueResponse.from(issue));
 	}
 	@Transactional
 	public IssueData update(String token, Long issueId, IssueUpdateRequest request, Set<String> fields) {
@@ -82,11 +90,15 @@ public class IssueService {
 		AuthContext context=auth.fromAccessToken(token); User actor=auth.requireActiveUser(context); Issue issue=issueForUpdate(issueId); ProjectMemberRole role=requireAccess(issue.getProject(),context); rejectTrashed(issue);
 		if (!canManage(role) && request.status()==IssueStatus.DONE) throw new ForbiddenException("일반 프로젝트 멤버는 이슈를 DONE 상태로 변경할 수 없습니다.");
 		if (issue.getStatus()==request.status()) return new IssueData(IssueResponse.from(issue));
-		IssueStatus before=issue.getStatus(); LocalDateTime now=now(); issue.setStatus(request.status()); issue.setUpdatedAt(now); history.save(new IssueStatusHistory(issue,actor,before,request.status(),now)); return new IssueData(IssueResponse.from(issue));
+		IssueStatus before=issue.getStatus(); LocalDateTime now=now(); issue.setStatus(request.status()); issue.setUpdatedAt(now); history.save(new IssueStatusHistory(issue,actor,before,request.status(),now)); recordStatusChanged(issue, actor, before, request.status()); return new IssueData(IssueResponse.from(issue));
 	}
 	@Transactional public IssueData trash(String token, Long issueId) { return trashOrRestore(token,issueId,true); }
 	@Transactional public IssueData restore(String token, Long issueId) { return trashOrRestore(token,issueId,false); }
-	private IssueData trashOrRestore(String token, Long issueId, boolean trash) { AuthContext context=auth.fromAccessToken(token); User actor=auth.requireActiveUser(context); Issue issue=issueForUpdate(issueId); ProjectMemberRole role=requireAccess(issue.getProject(),context); if(!canManage(role)&&!issue.getReporter().getId().equals(actor.getId())) throw new ForbiddenException("이슈 등록자 또는 관리자만 처리할 수 있습니다."); if(trash&&issue.getTrashedAt()==null) issue.trash(actor,now()); if(!trash&&issue.getTrashedAt()!=null) issue.restore(now()); return new IssueData(IssueResponse.from(issue)); }
+	private IssueData trashOrRestore(String token, Long issueId, boolean trash) { AuthContext context=auth.fromAccessToken(token); User actor=auth.requireActiveUser(context); Issue issue=issueForUpdate(issueId); ProjectMemberRole role=requireAccess(issue.getProject(),context); if(!canManage(role)&&!issue.getReporter().getId().equals(actor.getId())) throw new ForbiddenException("이슈 등록자 또는 관리자만 처리할 수 있습니다."); if(trash&&issue.getTrashedAt()==null) { issue.trash(actor,now()); recordTrashed(issue, actor); } if(!trash&&issue.getTrashedAt()!=null) { issue.restore(now()); recordRestored(issue, actor); } return new IssueData(IssueResponse.from(issue)); }
+	private void recordCreated(Issue issue, User actor) { if (activityEvents != null) activityEvents.recordIssueCreated(issue, actor); }
+	private void recordStatusChanged(Issue issue, User actor, IssueStatus fromStatus, IssueStatus toStatus) { if (activityEvents != null) activityEvents.recordIssueStatusChanged(issue, actor, fromStatus, toStatus); }
+	private void recordTrashed(Issue issue, User actor) { if (activityEvents != null) activityEvents.recordIssueTrashed(issue, actor); }
+	private void recordRestored(Issue issue, User actor) { if (activityEvents != null) activityEvents.recordIssueRestored(issue, actor); }
 	private void applyCreateManagementExtras(Issue issue, Project project, IssueCreateRequest request, Sprint sprint) { if(request.priority()!=null) issue.setPriority(request.priority()); if(request.assigneeUserId()!=null) issue.setAssignee(activeProjectUser(project,request.assigneeUserId())); if(request.dueDate()!=null) issue.setDueDate(request.dueDate()); if(sprint!=null) issue.setSprint(sprint); }
 	private boolean hasManagerOnlyFields(IssueCreateRequest request) { return request.priority()!=null || request.assigneeUserId()!=null || request.dueDate()!=null || request.sprintId()!=null; }
 	private Sprint activeSprintForUpdate(Project project, Long sprintId) { if(sprints==null) throw new IllegalStateException("Sprint repository is unavailable"); Sprint sprint=sprints.findByIdForUpdate(sprintId).orElseThrow(() -> new ProjectValidationException("Sprint를 찾을 수 없습니다.")); if(!sprint.getProject().getId().equals(project.getId())||sprint.getStatus()==SprintStatus.COMPLETED) throw new ProjectValidationException("같은 프로젝트의 완료되지 않은 Sprint만 지정할 수 있습니다."); return sprint; }
