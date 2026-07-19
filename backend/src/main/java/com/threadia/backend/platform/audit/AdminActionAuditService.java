@@ -22,16 +22,26 @@ public class AdminActionAuditService {
 	private final AdminActionAuditRepository auditRepository;
 	private final ObjectMapper objectMapper;
 	private final Clock clock;
+	private final AuditSnapshotSanitizer snapshotSanitizer;
 
 	@Autowired
 	public AdminActionAuditService(AdminActionAuditRepository auditRepository, ObjectMapper objectMapper) {
-		this(auditRepository, objectMapper, Clock.systemUTC());
+		this(auditRepository, objectMapper, Clock.systemUTC(), new AuditSnapshotSanitizer());
 	}
 
 	AdminActionAuditService(AdminActionAuditRepository auditRepository, ObjectMapper objectMapper, Clock clock) {
+		this(auditRepository, objectMapper, clock, new AuditSnapshotSanitizer());
+	}
+
+	AdminActionAuditService(
+			AdminActionAuditRepository auditRepository,
+			ObjectMapper objectMapper,
+			Clock clock,
+			AuditSnapshotSanitizer snapshotSanitizer) {
 		this.auditRepository = auditRepository;
 		this.objectMapper = objectMapper;
 		this.clock = clock;
+		this.snapshotSanitizer = snapshotSanitizer;
 	}
 
 	@Transactional(propagation = Propagation.MANDATORY)
@@ -69,12 +79,28 @@ public class AdminActionAuditService {
 			String reason,
 			Map<String, Object> beforeState,
 			Map<String, Object> afterState) {
+		recordPlatformMutation(
+				supportCase, actor, platformAdmin, platformAdmin.getRole(), action, targetType, targetId, reason, beforeState, afterState);
+	}
+
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void recordPlatformMutation(
+			SupportCase supportCase,
+			User actor,
+			PlatformAdmin platformAdmin,
+			PlatformAdminRole authorityRole,
+			AdminAction action,
+			AuditTargetType targetType,
+			Long targetId,
+			String reason,
+			Map<String, Object> beforeState,
+			Map<String, Object> afterState) {
 		record(
 				supportCase,
 				actor,
 				platformAdmin,
 				AuditAuthoritySource.PLATFORM_ADMIN,
-				platformAdmin.getRole(),
+				authorityRole,
 				action,
 				targetType,
 				targetId,
@@ -105,8 +131,8 @@ public class AdminActionAuditService {
 				targetType,
 				targetId,
 				reason,
-				serialize(beforeState),
-				serialize(afterState),
+				serialize(snapshotSanitizer.sanitize(action, targetType, beforeState)),
+				serialize(snapshotSanitizer.sanitize(action, targetType, afterState)),
 				LocalDateTime.now(clock)));
 	}
 
