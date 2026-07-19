@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-18
-> **최종 수정**: 2026-07-18
-> **버전**: v1.1
+> **최종 수정**: 2026-07-19
+> **버전**: v1.3
 > **상태**: 검토 중
 > **태그**: ssm, database, mysql, platform, runbook
 
@@ -32,12 +32,12 @@ repository PR 승인이나 merge는 live DB backup, SQL 실행, release retry의
 2. DB operator는 backup 완료 시각과 restore identifier를 기록하고, restore 절차와 접근 권한을 확인한다. backup 또는 restore identifier를 만들거나 실행하는 행위는 이 repository 절차의 범위 밖이다.
 3. 대상 DB가 MySQL 8인지 확인한다. `SELECT VERSION();` 결과가 MySQL 8 계열이 아니면 중단한다.
 4. `DATABASE()`가 승인된 persistent application DB를 가리키는지 확인한다. DB URL, host, credential, identifier 또는 결과 값은 repository/PR evidence에 기록하지 않는다.
-5. base table `companies`, `users`가 존재하고, SQL이 참조하는 base column과 type이 current canonical schema의 `companies.logo_url`, `users.id`와 정확히 호환되는지 `information_schema`로 확인한다. `companies.status`가 이미 있으면 `ENUM('ACTIVE','INACTIVE') NOT NULL DEFAULT 'ACTIVE'`와 호환되는지 확인한다. 하나라도 불일치하면 NO-GO다.
+5. base table `companies`, `users`가 존재하고, SQL이 참조하는 base column과 type이 current canonical schema의 `companies.logo_url`, `users.id`와 정확히 호환되는지 `information_schema`로 확인한다. `companies.status`가 이미 있으면 `VARCHAR(50) NOT NULL DEFAULT 'ACTIVE'`와 호환되는지 확인한다. 하나라도 불일치하면 NO-GO다.
 6. 다음 Platform object가 이미 존재하면 `SHOW CREATE TABLE`과 `information_schema`로 column, type, nullable/default, PK, unique/index, foreign key, check constraint, charset/collation을 artifact와 정확히 비교한다: `platform_admin_bootstrap_locks`, `platform_admins`, `system_settings`, `support_cases`, `support_case_public_replies`, `support_case_internal_notes`, `admin_action_audits`. 비교 불일치 또는 비교 불가 결과는 `CREATE TABLE IF NOT EXISTS`에 맡기지 않고 strict NO-GO로 처리한다.
 7. 기존 `system_settings` seed key가 있으면 JSON 값과 schema/version이 승인된 artifact와 호환되는지 확인한다. 기존 singleton lock row가 있으면 `id = 1`만 존재하는지 확인한다. 불일치는 NO-GO다.
 8. DB write freeze를 선언하고 application write traffic, batch, admin 작업을 중지했음을 확인한다. active transaction과 metadata lock waiter/holder가 모두 drain된 것을 확인하기 전에는 DDL을 시작하지 않는다. MySQL DDL은 implicit commit이므로 transaction rollback을 복구 수단으로 가정하지 않는다.
 9. SQL client session의 `character_set_client`, `character_set_connection`, `character_set_results`가 모두 `utf8mb4`인지 확인한다. approved artifact가 설정하는 `SET NAMES utf8mb4`, `SET SESSION lock_wait_timeout = 30`, `SET SESSION innodb_lock_wait_timeout = 30`을 실행 직전에 같은 session에서 확인한다. 다른 charset, 30초가 아닌 wait limit, 또는 확인 불가 상태는 NO-GO다.
-10. approved runtime Parameter Store contract에 `THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL`이 포함되고, trim + lowercase 후 `^[^\s@]+@[^\s@]+\.[^\s@]+$`를 만족하는 valid ACTIVE user를 가리키는 값이 별도 secret-safe channel로 준비됐음을 확인한다. 값 자체를 출력·문서화·검증 로그에 기록하지 않는다.
+10. Phase 1 release에서는 `THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL`이 Parameter Store response에서 정확히 absent이고 staged runtime env에도 materialize되지 않으며 `platform_admins` row count가 zero임을 secret-safe channel로 확인한다. 이 조건이 충족되지 않으면 Phase 1 application start를 하지 않는다. Phase 2 bootstrap을 별도 승인할 때만 valid ACTIVE user를 가리키는 nonblank email을 준비하며, 값 자체는 출력·문서화·검증 로그에 기록하지 않는다.
 
 ### 3.1 Preflight read-only query templates
 
@@ -80,7 +80,7 @@ WHERE t.TABLE_SCHEMA = DATABASE()
   AND (c.COLUMN_NAME IS NULL OR c.COLUMN_NAME IN ('id', 'logo_url', 'status'))
 ORDER BY t.TABLE_NAME, c.ORDINAL_POSITION;
 
--- companies.status must be absent or exactly the approved artifact definition.
+-- companies.status must be absent or exactly VARCHAR(50) NOT NULL DEFAULT 'ACTIVE'.
 SELECT
     COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA,
     CHARACTER_SET_NAME, COLLATION_NAME
@@ -264,12 +264,13 @@ ORDER BY tc.CONSTRAINT_NAME;
 
 write freeze를 해제하거나 application을 재시작하기 전에 다음을 확인한다.
 
-1. `companies.status`의 type, default, nullability가 artifact와 일치한다.
+1. `companies.status`의 type, default, nullability가 `VARCHAR(50) NOT NULL DEFAULT 'ACTIVE'` artifact 계약과 일치한다.
 2. 일곱 Platform table이 존재한다: `platform_admin_bootstrap_locks`, `platform_admins`, `system_settings`, `support_cases`, `support_case_public_replies`, `support_case_internal_notes`, `admin_action_audits`.
 3. 각 table의 column, PK, unique key, secondary index, foreign key, check constraint, engine, charset/collation이 artifact와 일치한다.
 4. singleton lock은 `id = 1` exactly one row이며, 추가 lock row가 없다.
 5. eight system setting key가 각각 exactly one row로 존재하고 unknown key는 zero row여야 한다: `SUPPORT_CASE_CATEGORIES`, `REPORT_REASON_CATEGORIES`, `ENFORCEMENT_REASON_PRESETS`, `ENFORCEMENT_DURATION_PRESETS`, `REPLY_TEMPLATES`, `ANNOUNCEMENT_BANNER`, `SUPPORT_CENTER_STATUS`, `RESULT_NOTIFICATION_POLICY`. 각 value JSON과 version fields는 artifact와 exact semantic compatibility를 만족해야 한다. Korean label literal과 JSON 구조를 직접 비교해 mojibake를 검출하며, 단순 key count/version 비교만으로 통과시키지 않는다.
 6. pre-existing Platform object가 없었던 경우에도 postflight에서 모든 constraint/index 이름과 참조 대상이 확인돼야 한다. 결과가 하나라도 불일치하면 write freeze를 유지하고 release를 진행하지 않는다.
+7. Phase 1에서는 `THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL`이 response와 staged runtime env에서 정확히 absent이고, `platform_admins` row count가 zero여야 한다. 하나라도 실패하면 application start와 write freeze 해제를 하지 않는다.
 
 ### 5.1 Postflight read-only query templates
 
@@ -287,7 +288,7 @@ WHERE TABLE_SCHEMA = DATABASE()
   )
 ORDER BY TABLE_NAME;
 
--- companies.status must now exactly be ENUM('ACTIVE','INACTIVE') NOT NULL DEFAULT 'ACTIVE'.
+-- companies.status must now exactly be VARCHAR(50) NOT NULL DEFAULT 'ACTIVE'.
 SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA,
        CHARACTER_SET_NAME, COLLATION_NAME
 FROM information_schema.COLUMNS
@@ -355,28 +356,34 @@ SELECT COUNT(*) AS total_rows,
        COALESCE(SUM(id = 1), 0) AS singleton_rows,
        COALESCE(SUM(id <> 1), 0) AS non_singleton_rows
 FROM platform_admin_bootstrap_locks;
+
+-- Phase 1 must leave bootstrap authorization empty. A nonzero result is a NO-GO.
+SELECT COUNT(*) AS platform_admin_count
+FROM platform_admins;
 ```
 
 Run the seven literal `SHOW CREATE TABLE` statements and the six structured `<platform_table>` templates in section 3.1 again after execution. This postflight repetition verifies columns, indexes, PK/unique constraints, FKs, CHECK constraints, engine, charset, and collation rather than relying only on table existence.
 
 ## 6. release rerun gate와 중단 조건
 
-schema postflight와 bootstrap email runtime contract가 모두 통과한 뒤에만, migration 뒤 동일한 source SHA를 사용한 release retry를 한 번 실행할 수 있다. GitHub는 retry마다 새 run/attempt와 새 release identity를 만들므로, 이 retry는 prior artifact의 byte-identical reuse가 아니다. 허용 기준은 source SHA가 같고 source/helper/Parameter Store/IAM/CloudFormation contract 변경이 없다는 점이며, 새 run/attempt/release identity 자체는 same-source retry를 무효화하지 않는다. source 또는 contract 변경이 있으면 별도 review·approval·release 절차가 필요하다.
+schema postflight와 Phase 1 no-bootstrap runtime contract가 모두 통과한 뒤에만, migration 뒤 동일한 source SHA를 사용한 release retry를 한 번 실행할 수 있다. GitHub는 retry마다 새 run/attempt와 새 release identity를 만들므로, 이 retry는 prior artifact의 byte-identical reuse가 아니다. 허용 기준은 source SHA가 같고 source/helper/Parameter Store/IAM/CloudFormation contract 변경이 없다는 점이며, 새 run/attempt/release identity 자체는 same-source retry를 무효화하지 않는다. source 또는 contract 변경이 있으면 별도 review·approval·release 절차가 필요하다.
 
-### 6.1 Authorization reconciliation (strict pre-release gate)
+### 6.1 Phase 2 Authorization reconciliation (strict pre-release gate)
 
-application은 중지 상태와 write freeze를 유지한다. runtime rollback은 DB authorization을 되돌리지 않으므로 rollback 성공을 authorization 복구로 해석하지 않는다. schema postflight 완료 후, release retry 전에 DB operator는 secret 없는 approved evidence로 다음을 모두 확인한다.
+이 절은 Phase 2 bootstrap을 별도 승인한 경우에만 적용한다. application은 중지 상태와 write freeze를 유지한다. runtime rollback은 DB authorization을 되돌리지 않으므로 rollback 성공을 authorization 복구로 해석하지 않는다. Phase 2 bootstrap과 schema postflight 완료 후, DB operator는 secret 없는 approved evidence로 다음을 모두 확인한다.
 
 1. `platform_admins`의 global `SUPER_ADMIN`은 exactly one row다.
 2. 그 row는 승인된 intended user와 mapping되고 해당 user의 status는 `ACTIVE`다.
 3. 다른 모든 `platform_admins` row는 각각 명시적인 approved evidence가 있다. evidence가 없거나 user/status/role mapping이 불명확하면 NO-GO다.
-4. 위 reconciliation과 schema postflight가 완료되기 전에는 retry, application start, write freeze 해제를 하지 않는다.
+4. 위 reconciliation과 schema postflight가 완료되기 전에는 Phase 2 application start와 write freeze 해제를 하지 않는다.
 
-다음 조건에서는 release rerun을 중단한다: SQL execution error 또는 incomplete postflight, bootstrap email key 누락/invalid, platform admin bootstrap이 ACTIVE user를 찾지 못함, release rollback 재발, schema validation error, 또는 evidence에 backup/restore identifier·checksum·preflight/postflight 결과가 누락됨. 원인 분석과 별도 승인 전에는 추가 retry를 하지 않는다.
+다음 조건에서는 release rerun을 중단한다: SQL execution error 또는 incomplete postflight, Phase 2 bootstrap email key 누락/invalid, platform admin bootstrap이 ACTIVE user를 찾지 못함, release rollback 재발, schema validation error, 또는 evidence에 backup/restore identifier·checksum·preflight/postflight 결과가 누락됨. 원인 분석과 별도 승인 전에는 추가 retry를 하지 않는다.
 
 ## 7. 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-07-19 | Phase 1은 bootstrap parameter absent와 empty `platform_admins`만 요구하고, exactly-one `SUPER_ADMIN` reconciliation은 Phase 2 bootstrap 후 gate로 분리했다. |
+| 2026-07-19 | preserved VARCHAR `companies.status`, `platform_admins` lifecycle metadata, audit enum/index를 포함한 additive artifact 계약과 Phase 1 no-bootstrap pre/postflight gate를 정렬했다. |
 | 2026-07-18 | session UTF-8·30초 lock wait·transaction/metadata lock drain, unknown setting key NO-GO, JSON mojibake postflight, authorization reconciliation gate를 추가했다. |
 | 2026-07-18 | persistent SSM host의 Platform foundation schema drift를 위한 one-time additive DB operator 절차를 추가했다. |
