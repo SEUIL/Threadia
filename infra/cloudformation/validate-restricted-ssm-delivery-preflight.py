@@ -40,9 +40,17 @@ trust_sources = {
     )
 }
 workflow = (BASE.parent.parent / ".github/workflows/restricted-ssm-release.yml").read_text(encoding="utf-8")
+helper_artifact_workflow = (BASE.parent.parent / ".github/workflows/restricted-ssm-helper-artifact.yml").read_text(encoding="utf-8")
+helper_maintenance_workflow = (BASE.parent.parent / ".github/workflows/restricted-ssm-helper-maintenance.yml").read_text(encoding="utf-8")
 release_helper = (BASE.parent.parent / "scripts/ssm-delivery/apply-release").read_text(encoding="utf-8")
+bootstrap_runner = (BASE.parent.parent / "backend/src/main/java/com/threadia/backend/platform/bootstrap/PlatformAdminBootstrap.java").read_text(encoding="utf-8")
+bootstrap_service = (BASE.parent.parent / "backend/src/main/java/com/threadia/backend/platform/bootstrap/PlatformAdminBootstrapService.java").read_text(encoding="utf-8")
 service_unit = (BASE.parent.parent / "scripts/ssm-delivery/threadia-backend.service").read_text(encoding="utf-8")
 bootstrap = (BASE.parent.parent / "scripts/ssm-delivery/bootstrap-host.sh").read_text(encoding="utf-8")
+runbook = (BASE.parent.parent / "docs/00-project/restricted-ssm-release-runbook.md").read_text(encoding="utf-8")
+platform_migration_runbook = (BASE.parent.parent / "docs/00-project/restricted-ssm-platform-foundation-db-migration-runbook.md").read_text(encoding="utf-8")
+platform_migration_sql = (BASE.parent.parent / "scripts/ssm-delivery/platform-foundation-additive.sql").read_text(encoding="utf-8")
+architecture = (BASE.parent.parent / "docs/05-architecture/GitHub-OIDC-SSM-EC2-배포-설계.md").read_text(encoding="utf-8")
 version_pattern = "^[A-Za-z0-9._+=/-]{1,1000}[A-Za-z0-9._+=/-]{0,24}$"
 required_runtime_parameters = {
     "/threadia/restricted-nonprod/runtime/THREADIA_DB_URL",
@@ -51,6 +59,7 @@ required_runtime_parameters = {
     "/threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET",
     "/threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE",
     "/threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN",
+    "/threadia/restricted-nonprod/runtime/THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL",
 }
 optional_mail_runtime_parameters = {
     "/threadia/restricted-nonprod/runtime/MAIL_HOST",
@@ -59,14 +68,26 @@ optional_mail_runtime_parameters = {
     "/threadia/restricted-nonprod/runtime/MAIL_PASSWORD",
     "/threadia/restricted-nonprod/runtime/NOTIFICATION_FROM_EMAIL",
 }
-
-
 def optional_mail_group_action(returned: set[str], invalid: set[str]) -> str:
     if not returned and invalid == optional_mail_runtime_parameters:
         return "omit"
     if returned == optional_mail_runtime_parameters and not invalid:
         return "materialize"
     return "reject"
+
+
+expected_parameter_keys = {
+    "NetworkStackName",
+    "ExistingEc2InstanceId",
+    "ExistingEc2RoleName",
+    "ArtifactNoncurrentVersionRetentionDays",
+    "HelperArtifactKey",
+    "HelperArtifactVersionId",
+    "HelperArtifactSha256",
+    "HelperArtifactKeyV2",
+    "HelperArtifactVersionIdV2",
+    "HelperArtifactSha256V2",
+}
 
 for source_name, source in (("template", template), ("network", network)):
     for prohibited in ("AWS::CodeDeploy", "AWS-RunShellScript", "NatGateway", "MapPublicIpOnLaunch: true", "0.0.0.0/0"):
@@ -163,6 +184,12 @@ for required in (
 assert "token.actions.githubusercontent.com:aud: sts.amazonaws.com" in template
 assert "token.actions.githubusercontent.com:sub: repo:SEUIL/Threadia:environment:restricted-nonprod" in template
 assert "StringLike:" not in template.split("GitHubDeployRole:", 1)[1].split("ExistingEc2DeliveryPolicy:", 1)[0]
+github_role = template.split("GitHubDeployRole:", 1)[1].split("ExistingEc2DeliveryPolicy:", 1)[0]
+assert "${ReleaseCommandDocument}" in github_role
+assert "!Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/threadia-restricted-ssm-delivery-helper-maintenance-v2" in github_role
+assert "${HelperMaintenanceCommandDocumentV2}" not in github_role
+assert "${HelperMaintenanceCommandDocument}" not in github_role
+assert "${ExistingEc2InstanceId}" in github_role
 assert "ssm:GetParametersByPath" not in template
 assert "secretsmanager:" not in template.lower()
 assert "ManageMasterUserPassword" not in template
@@ -171,6 +198,89 @@ assert runtime_parameter_arns == required_runtime_parameters | optional_mail_run
 assert "Resource: '*'" in template and "Action: ssm:GetCommandInvocation" in template
 assert "AWS-RunShellScript" not in template
 assert f"allowedPattern: '{version_pattern}'" in template
+assert "HelperArtifactKey:" in template
+assert "HelperArtifactVersionId:" in template
+assert "HelperArtifactSha256:" in template
+assert "HelperArtifactKeyV2:" in template
+assert "HelperArtifactVersionIdV2:" in template
+assert "HelperArtifactSha256V2:" in template
+template_parameters = template.split("Parameters:\n", 1)[1].split("\nResources:", 1)[0]
+assert set(re.findall(r"^  ([A-Za-z0-9]+):\n    Type:", template_parameters, re.MULTILINE)) == expected_parameter_keys
+
+
+def parameter_definition(name):
+    return re.search(
+        rf"^  {re.escape(name)}:\n(?P<definition>(?:    .+(?:\n|$))*)",
+        template_parameters,
+        re.MULTILINE,
+    ).group("definition")
+
+
+for legacy_parameter, v2_parameter in (
+    ("HelperArtifactKey", "HelperArtifactKeyV2"),
+    ("HelperArtifactVersionId", "HelperArtifactVersionIdV2"),
+    ("HelperArtifactSha256", "HelperArtifactSha256V2"),
+):
+    legacy_definition = parameter_definition(legacy_parameter)
+    v2_definition = parameter_definition(v2_parameter)
+    assert re.search(r"^    Type: .+$", legacy_definition, re.MULTILINE).group() == re.search(
+        r"^    Type: .+$", v2_definition, re.MULTILINE
+    ).group()
+    assert re.search(r"^    AllowedPattern: .+$", legacy_definition, re.MULTILINE).group() == re.search(
+        r"^    AllowedPattern: .+$", v2_definition, re.MULTILINE
+    ).group()
+assert "HelperMaintenanceCommandDocument:" in template
+assert template.count("HelperMaintenanceCommandDocumentV2:") == 1
+helper_document_v2 = template.split("HelperMaintenanceCommandDocumentV2:", 1)[1].split("HelperMaintenanceCommandDocument:", 1)[0]
+assert "Name: threadia-restricted-ssm-delivery-helper-maintenance-v2" in helper_document_v2
+assert "UpdateMethod: NewVersion" in helper_document_v2
+assert "--version-id '${HelperArtifactVersionIdV2}'" in helper_document_v2
+assert "--key '${HelperArtifactKeyV2}'" in helper_document_v2
+assert helper_document_v2.count("'${HelperArtifactKeyV2}'") == 1
+assert helper_document_v2.count("'${HelperArtifactVersionIdV2}'") == 1
+assert helper_document_v2.count("'${HelperArtifactSha256V2}'") == 3
+assert "'${HelperArtifactKey}'" not in helper_document_v2
+assert "'${HelperArtifactVersionId}'" not in helper_document_v2
+assert "'${HelperArtifactSha256}'" not in helper_document_v2
+helper_document = template.split("HelperMaintenanceCommandDocument:", 1)[1].split("Outputs:", 1)[0]
+assert "parameters:" not in helper_document
+assert "{{ " not in helper_document
+assert "aws:runShellScript" in helper_document
+assert "aws s3api get-object" in helper_document
+legacy_helper_get_object = (
+    "aws s3api get-object --region '${AWS::Region}' --bucket '${ArtifactBucket}' "
+    "--key '${HelperArtifactKey}' --version-id '${HelperArtifactVersionId}' \"$DOWNLOAD\" >/dev/null"
+)
+assert helper_document.count(legacy_helper_get_object) == 1
+assert helper_document.count("'${HelperArtifactKey}'") == 1
+assert helper_document.count("'${HelperArtifactVersionId}'") == 1
+assert helper_document.count("'${HelperArtifactSha256}'") == 3
+assert "'${HelperArtifactKeyV2}'" not in helper_document
+assert "'${HelperArtifactVersionIdV2}'" not in helper_document
+assert "'${HelperArtifactSha256V2}'" not in helper_document
+assert "bash -n \"$DOWNLOAD\"" in helper_document
+assert "bash -n \"$STAGED\"" in helper_document
+assert "bash -n \"$TARGET\"" in helper_document
+assert "install -o root -g root -m 0750" in helper_document
+assert 'readonly HOST_LOCK=/run/threadia-release-maintenance.lock' in helper_document
+assert "flock cp" in helper_document
+assert 'exec 9>"$HOST_LOCK"' in helper_document
+assert 'flock -n 9 || {' in helper_document
+assert helper_document.index('exec 9>"$HOST_LOCK"') < helper_document.index('readonly DOWNLOAD=')
+assert 'readonly BACKUP="$(mktemp /usr/local/lib/threadia-release/.apply-release.backup.XXXXXX)"' in helper_document
+assert 'cp -p "$TARGET" "$BACKUP"' in helper_document
+assert "backup_ready=false" in helper_document
+assert 'backup_ready=true\n                    mv -Tf "$STAGED" "$TARGET"' in helper_document
+assert '"$backup_ready" == true && -f "$BACKUP"' in helper_document
+assert 'mv -Tf "$STAGED" "$TARGET"' in helper_document
+assert 'mv -Tf "$BACKUP" "$TARGET"' in helper_document
+assert 'mv -Tf "$TARGET" "$BACKUP"' not in helper_document
+assert "trap 'restore \"$?\"' ERR EXIT" in helper_document
+assert "trap 'restore 130' INT" in helper_document
+assert "trap 'restore 143' TERM" in helper_document
+assert "success=true" in helper_document and "trap - ERR INT TERM EXIT" in helper_document
+for prohibited in ("systemctl", "get-parameter", "get_parameter", "secretsmanager", "restart "):
+    assert prohibited not in helper_document, f"helper document: prohibited {prohibited}"
 assert f'[[ "$version_id" =~ {version_pattern} ]] || fail "invalid version ID"' in release_helper
 
 compiled_version_pattern = re.compile(version_pattern)
@@ -188,20 +298,41 @@ assert "ssm:GetParametersByPath" in service_text
 assert "ssm:SendCommand" in service_text
 assert "secretsmanager:*" in service_text
 assert "AllowManageFixedCommandDocument" in service_text
-fixed_command_document = next(
-    statement
-    for statement in service_policy["Statement"]
-    if statement["Sid"] == "AllowManageFixedCommandDocument"
-)
-assert fixed_command_document["Action"] == [
+expected_document_lifecycle_actions = {
     "ssm:CreateDocument",
     "ssm:DescribeDocument",
     "ssm:GetDocument",
     "ssm:UpdateDocument",
+    "ssm:UpdateDocumentDefaultVersion",
     "ssm:DeleteDocument",
     "ssm:AddTagsToResource",
     "ssm:RemoveTagsFromResource",
-]
+}
+
+
+def require_exact_document_lifecycle_statement(sid, resource):
+    statements = [statement for statement in service_policy["Statement"] if statement.get("Sid") == sid]
+    assert len(statements) == 1, f"service policy: expected exactly one {sid} statement"
+    statement = statements[0]
+    assert statement["Effect"] == "Allow"
+    actions = statement["Action"]
+    assert isinstance(actions, list) and len(actions) == len(expected_document_lifecycle_actions)
+    assert set(actions) == expected_document_lifecycle_actions
+    assert statement["Resource"] == resource
+
+
+require_exact_document_lifecycle_statement(
+    "AllowManageFixedCommandDocument",
+    "arn:aws:ssm:ap-northeast-2:<AWS_ACCOUNT_ID>:document/threadia-restricted-ssm-delivery-ReleaseCommandDocument-*",
+)
+require_exact_document_lifecycle_statement(
+    "AllowManageFixedHelperMaintenanceCommandDocument",
+    "arn:aws:ssm:ap-northeast-2:<AWS_ACCOUNT_ID>:document/threadia-restricted-ssm-delivery-HelperMaintenanceCommandDocument-*",
+)
+require_exact_document_lifecycle_statement(
+    "ManageThreadiaRestrictedSsmDeliveryHelperMaintenanceV2",
+    "arn:aws:ssm:ap-northeast-2:<AWS_ACCOUNT_ID>:document/threadia-restricted-ssm-delivery-helper-maintenance-v2",
+)
 assert "restricted-ssm-delivery-GitHubDeployRole-*" in service_text
 operator_text = json.dumps(operator_policy)
 assert "threadia-restricted-ssm-delivery" in operator_text
@@ -226,8 +357,9 @@ assert operator_actions == {
 pass_role = next(statement for statement in operator_policy["Statement"] if statement["Action"] == "iam:PassRole")
 assert pass_role["Resource"] == "arn:aws:iam::<AWS_ACCOUNT_ID>:role/ThreadiaRestrictedSsmDeliveryCloudFormationServiceRole"
 assert pass_role["Condition"] == {"StringEquals": {"iam:PassedToService": "cloudformation.amazonaws.com"}}
-assert isinstance(parameters, list) and len(parameters) == 4
+assert isinstance(parameters, list) and len(parameters) == 10
 assert all(not re.search(r"(?<![0-9])[0-9]{12}(?![0-9])", json.dumps(item)) for item in parameters)
+assert {item["ParameterKey"] for item in parameters} == expected_parameter_keys
 assert trust_sources["restricted-ssm-delivery-operator-role-trust-policy.json"]["Statement"][0]["Principal"] == {"AWS": "arn:aws:iam::<AWS_ACCOUNT_ID>:user/ThreadiaBootstrapOperator"}
 assert trust_sources["restricted-ssm-delivery-bootstrap-assume-policy.json"]["Statement"][0]["Resource"] == "arn:aws:iam::<AWS_ACCOUNT_ID>:role/ThreadiaRestrictedSsmDeliveryOperatorRole"
 assert trust_sources["restricted-ssm-delivery-service-role-trust-policy.json"]["Statement"][0]["Principal"] == {"Service": "cloudformation.amazonaws.com"}
@@ -243,16 +375,55 @@ for action, sha in (
     ("aws-actions/configure-aws-credentials", "7474bc4690e29a8392af63c5b98e7449536d5c3a"),
 ):
     assert f"uses: {action}@{sha}" in workflow
-assert "cp -a \"$JAVA_HOME\" \"$stage/runtime\"" in workflow
+assert "cp -aL \"$JAVA_HOME\" \"$stage/runtime\"" in workflow
+assert "test ! -L \"$stage/runtime\"" in workflow
 assert "tar -C \"$stage\" -czf \"$archive\" app.jar app.jar.sha256 manifest.json runtime" in workflow
 release_job = workflow.split("  release:", 1)[1]
 assert "    if: github.ref == 'refs/heads/main'" in release_job
-assert "    concurrency:\n      group: restricted-ssm-release\n      cancel-in-progress: false" in release_job
+assert "    concurrency:\n      group: restricted-ssm-host-change\n      cancel-in-progress: false" in release_job
 assert "    timeout-minutes: 30" in release_job
 assert 'aws s3api put-object --region "$AWS_REGION"' in release_job
 assert 'aws ssm send-command --region "$AWS_REGION"' in release_job
 assert 'aws ssm get-command-invocation --region "$AWS_REGION"' in release_job
 assert "--cli-connect-timeout 5 --cli-read-timeout 10" in release_job
+for source in (helper_artifact_workflow, helper_maintenance_workflow):
+    assert "on:\n  workflow_dispatch:" in source
+    assert "push:" not in source
+    assert "if: github.ref == 'refs/heads/main'" in source
+    assert "environment: restricted-nonprod" in source
+    assert "actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5" in source
+    assert "aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a" in source
+
+assert 'helper=scripts/ssm-delivery/apply-release' in helper_artifact_workflow
+assert 'key="releases/${GITHUB_SHA}/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/apply-release"' in helper_artifact_workflow
+assert "sha256sum \"$helper\"" in helper_artifact_workflow
+assert "aws s3api put-object" in helper_artifact_workflow
+assert "--body scripts/ssm-delivery/apply-release" in helper_artifact_workflow
+assert "--query VersionId --output text" in helper_artifact_workflow
+assert '[[ -n "$version_id" && "$version_id" != None && "$version_id" != null && "$version_id" =~ ^[A-Za-z0-9._+=/-]{1,1000}[A-Za-z0-9._+=/-]{0,24}$ ]]' in helper_artifact_workflow
+assert "aws ssm" not in helper_artifact_workflow
+assert "helper_key=" in helper_artifact_workflow
+assert "helper_version_id=" in helper_artifact_workflow
+assert "helper_sha256=" in helper_artifact_workflow
+assert "commit=" in helper_artifact_workflow and "run=" in helper_artifact_workflow
+
+assert "THREADIA_SSM_HELPER_MAINTENANCE_DOCUMENT_NAME" in helper_maintenance_workflow
+assert "THREADIA_DELIVERY_INSTANCE_ID" in helper_maintenance_workflow
+assert "    concurrency:\n      group: restricted-ssm-host-change\n      cancel-in-progress: false" in helper_maintenance_workflow
+maintenance_command = helper_maintenance_workflow.split("aws ssm send-command", 1)[1].split("--query", 1)[0]
+assert "--document-name \"$THREADIA_SSM_HELPER_MAINTENANCE_DOCUMENT_NAME\"" in maintenance_command
+assert "--instance-ids \"$THREADIA_DELIVERY_INSTANCE_ID\"" in maintenance_command
+assert "--parameters" not in maintenance_command
+assert "aws ssm get-command-invocation" in helper_maintenance_workflow
+assert "--cli-connect-timeout 5 --cli-read-timeout 10" in helper_maintenance_workflow
+assert "for attempt in $(seq 1 60); do" in helper_maintenance_workflow
+assert '"$GITHUB_STEP_SUMMARY"' in helper_maintenance_workflow
+assert "document_name=%s" in helper_maintenance_workflow
+assert "instance_id=%s" in helper_maintenance_workflow
+assert "terminal_status=%s" in helper_maintenance_workflow
+assert "StandardErrorContent:StandardErrorContent" in helper_maintenance_workflow
+assert "StandardOutputContent:StandardOutputContent" in helper_maintenance_workflow
+assert "cut -c1-4000" in helper_maintenance_workflow
 assert "java " not in release_helper.split("for command", 1)[1].split("umask", 1)[0]
 assert "runtime/bin/java" in release_helper and "ExecStart=/opt/threadia/current/runtime/bin/java" in service_unit
 assert "yum " not in bootstrap and "apt " not in bootstrap and "http" not in bootstrap
@@ -261,7 +432,6 @@ assert all(name in document_parameters for name in ("ArtifactKey:", "ArtifactVer
 assert "Command:" not in document_parameters and "runCommand:" not in document_parameters
 assert "AWS_REGION:" not in document_parameters and "AWS_DEFAULT_REGION:" not in document_parameters
 assert "AWS_REGION='${AWS::Region}' AWS_DEFAULT_REGION='${AWS::Region}'\n                  /usr/local/lib/threadia-release/apply-release" in template
-assert "timeoutSeconds: '540'" in template
 assert '[[ -n "${AWS_REGION:-}" ]] || fail "AWS_REGION is required"' in release_helper
 assert '[[ "$AWS_REGION" =~ ^[a-z]{2}(-[a-z0-9]+)+-[0-9]+$ ]] || fail "invalid AWS_REGION"' in release_helper
 assert 'aws s3api get-object --region "$AWS_REGION"' in release_helper
@@ -287,6 +457,22 @@ assert 'raise SystemExit("optional runtime parameter group is incomplete or inva
 assert 'if value == "":' in release_helper
 assert 'raise SystemExit("optional runtime parameter is blank: " + parameter_name)' in release_helper
 assert 'escaped_value = value.replace(chr(92), chr(92) * 2).replace(chr(34), chr(92) + chr(34))' in release_helper
+assert 'import re' in release_helper
+assert 'bootstrap_email = values[bootstrap_parameter].strip().lower()' in release_helper
+assert 're.fullmatch(r"[^\\s@]+@[^\\s@]+\\.[^\\s@]+", bootstrap_email)' in release_helper
+assert 'raise SystemExit("platform admin bootstrap email is blank or malformed")' in release_helper
+assert release_helper.index('bootstrap_email = values[bootstrap_parameter].strip().lower()') < release_helper.index('with open(sys.argv[2], "w", encoding="utf-8") as target:')
+assert 'value = bootstrap_email if parameter_name == bootstrap_parameter else values[parameter_name]' in release_helper
+assert 'String normalizedEmail = EmailNormalizer.normalize(bootstrapEmail);' in bootstrap_runner
+assert 'if (normalizedEmail != null && !normalizedEmail.isBlank()) {' in bootstrap_runner
+assert 'bootstrapService.bootstrap(bootstrapEmail);' in bootstrap_runner
+assert 'Pattern.compile("^[^\\\\s@]+@[^\\\\s@]+\\\\.[^\\\\s@]+$")' in bootstrap_service
+assert 'String normalizedEmail = EmailNormalizer.normalize(bootstrapEmail);' in bootstrap_service
+assert 'normalizedEmail == null || !EMAIL_PATTERN.matcher(normalizedEmail).matches()' in bootstrap_service
+assert 'if not returned and invalid == set(optional):' in release_helper
+assert 'if returned != set(optional) or invalid:' in release_helper
+assert 'raise SystemExit("optional runtime parameter is blank: " + parameter_name)' in release_helper
+assert 'raise SystemExit("optional runtime parameter contains an unsupported control character: " + parameter_name)' in release_helper
 assert 'previous_env="$stage/runtime.env.previous"' in release_helper
 assert 'cp -a "$RUNTIME_ENV" "$previous_env"' in release_helper
 assert 'install -o root -g threadia -m 0640 "$previous_env" "$RUNTIME_ENV"' in release_helper
@@ -297,11 +483,22 @@ assert "readonly READINESS_TIMEOUT_SECONDS=120" in release_helper
 assert "readiness_deadline=$((SECONDS + READINESS_TIMEOUT_SECONDS))" in release_helper
 assert 'systemctl is-active --quiet "$SERVICE_NAME"' in release_helper
 assert "http://127.0.0.1:8080/actuator/health" in release_helper
-assert "readonly RELEASE_LOCK_FILE=/run/lock/threadia-release.lock" in release_helper
-assert 'exec 9>"$RELEASE_LOCK_FILE"' in release_helper
-assert 'flock -n 9 || fail "another release is already active"' in release_helper
-assert "flock" in bootstrap
 assert "Environment=MANAGEMENT_HEALTH_MAIL_ENABLED=false" in service_unit
+assert 'readonly HOST_LOCK=/run/threadia-release-maintenance.lock' in release_helper
+assert "curl install uname flock" in release_helper
+assert 'exec 9>"$HOST_LOCK"' in release_helper
+assert 'flock -n 9 || fail "another release or helper maintenance operation is active"' in release_helper
+assert "Environment=MANAGEMENT_HEALTH_MAIL_ENABLED=false" in runbook
+assert "Service-unit maintenance는 helper maintenance와 별도 channel" in runbook
+assert "Helper maintenance는 `apply-release`만 갱신한다." in architecture
+assert "Service-unit maintenance는 release helper maintenance와 분리된 manual-only channel" in architecture
+assert "SET NAMES utf8mb4;" in platform_migration_sql
+assert "SET SESSION lock_wait_timeout = 30;" in platform_migration_sql
+assert "SET SESSION innodb_lock_wait_timeout = 30;" in platform_migration_sql
+assert "unknown Java enum key and is a strict NO-GO" in platform_migration_runbook
+assert "Korean label literal과 JSON 구조를 직접 비교해 mojibake를 검출" in platform_migration_runbook
+assert "Authorization reconciliation (strict pre-release gate)" in platform_migration_runbook
+assert "global `SUPER_ADMIN`은 exactly one row" in platform_migration_runbook
 assert (BASE.parent.parent / "scripts/ssm-delivery/apply-release").stat().st_mode & 0o111
 assert (BASE.parent.parent / "scripts/ssm-delivery/bootstrap-host.sh").stat().st_mode & 0o111
 assert not (BASE.parent.parent / "scripts/ssm-delivery/threadia-backend.service").stat().st_mode & 0o111

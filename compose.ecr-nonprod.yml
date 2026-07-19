@@ -1,0 +1,54 @@
+name: threadia-ecr-nonprod
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${THREADIA_DB_NAME:?THREADIA_DB_NAME is required}
+      MYSQL_USER: ${THREADIA_DB_USERNAME:?THREADIA_DB_USERNAME is required}
+      MYSQL_PASSWORD: ${THREADIA_DB_PASSWORD:?THREADIA_DB_PASSWORD is required}
+      MYSQL_ROOT_PASSWORD: ${THREADIA_DB_ROOT_PASSWORD:?THREADIA_DB_ROOT_PASSWORD is required}
+    volumes:
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysql -h localhost -u\"$${MYSQL_USER}\" -p\"$${MYSQL_PASSWORD}\" -Nse 'SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = \"users\" LIMIT 1' \"$${MYSQL_DATABASE}\" | grep -Fx 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    image: ${THREADIA_ECR_REGISTRY:?THREADIA_ECR_REGISTRY is required}/${THREADIA_ECR_BACKEND_REPOSITORY:?THREADIA_ECR_BACKEND_REPOSITORY is required}:${THREADIA_IMAGE_TAG:?THREADIA_IMAGE_TAG is required}
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      THREADIA_DB_URL: jdbc:mysql://mysql:3306/${THREADIA_DB_NAME:?THREADIA_DB_NAME is required}
+      THREADIA_DB_USERNAME: ${THREADIA_DB_USERNAME:?THREADIA_DB_USERNAME is required}
+      THREADIA_DB_PASSWORD: ${THREADIA_DB_PASSWORD:?THREADIA_DB_PASSWORD is required}
+      THREADIA_JWT_SECRET: ${THREADIA_JWT_SECRET:?THREADIA_JWT_SECRET is required}
+      THREADIA_COOKIE_SECURE: ${THREADIA_COOKIE_SECURE:?THREADIA_COOKIE_SECURE is required}
+      THREADIA_CORS_ALLOWED_ORIGIN: ${THREADIA_CORS_ALLOWED_ORIGIN:?THREADIA_CORS_ALLOWED_ORIGIN is required}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      THREADIA_OAUTH_SUCCESS_REDIRECT_URL: ${THREADIA_OAUTH_SUCCESS_REDIRECT_URL:-}
+      THREADIA_OAUTH_FAILURE_REDIRECT_URL: ${THREADIA_OAUTH_FAILURE_REDIRECT_URL:-}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      NOTIFICATION_FROM_EMAIL: ${NOTIFICATION_FROM_EMAIL:-}
+      THREADIA_PASSWORD_RESET_URL_PREFIX: ${THREADIA_PASSWORD_RESET_URL_PREFIX:-}
+    expose:
+      - "8080"
+
+  frontend:
+    image: ${THREADIA_ECR_REGISTRY:?THREADIA_ECR_REGISTRY is required}/${THREADIA_ECR_FRONTEND_REPOSITORY:?THREADIA_ECR_FRONTEND_REPOSITORY is required}:${THREADIA_IMAGE_TAG:?THREADIA_IMAGE_TAG is required}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "${THREADIA_FRONTEND_PORT:-3000}:3000"
