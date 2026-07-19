@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
 > **최종 수정**: 2026-07-19
-> **버전**: v3.9 회사 멤버 제거 API 반영
+> **버전**: v3.10 WBS 4.9.1 Activity Feed Backend 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -466,16 +466,48 @@ WBS `4.8.1`은 MySQL의 기존 `notification_events`, `notification_recipients`�
 
 | Method | Endpoint | 권한 | 설명 | 상태 |
 |---|---|---|---|---|
-| GET | `/api/v1/projects/{projectId}/activity-events` | A/P/C | 프로젝트 활동 피드 조회 | Sprint 3 후보 |
+| GET | `/api/v1/projects/{projectId}/activity-events` | A/P/C | 프로젝트 활동 피드 조회 | WBS `4.9.1.1` Backend 구현 |
 | GET | `/api/v1/search` | A/P/C | 프로젝트 내부 통합 검색 | WBS `4.9.4.1` Backend 구현 완료 |
 | GET | `/api/v1/projects/{projectId}/dashboard` | A/P/C | 프로젝트 홈/대시보드 summary | Sprint 3 후보 |
 
 ### 10.1 활동 피드
 
-- MySQL `activity_events`를 원장으로 사용한다.
-- STOMP push topic: `/topic/projects.{projectId}.activity`.
-- push 메시지는 새 이벤트 신호만 보내고, 클라이언트는 REST API로 feed를 재조회한다.
-- Redis cache key 예시: `activity:project:{projectId}:latest`.
+- WBS `4.9.1.1`은 기존 MySQL `activity_events`를 원장으로 사용하는 Backend-only 최소 slice다. notification event와 연계하거나 통합 저장소로 합치지 않는다.
+- 요청은 `GET /api/v1/projects/{projectId}/activity-events?page=0&size=20`이다. `page` 기본값은 `0`이며 0 이상, `size` 기본값은 `20`이며 1 이상 100 이하여야 한다. 범위를 벗어나면 `400 VALIDATION_ERROR`다.
+- 응답은 `ApiResponse<ActivityEventPageData>`이며 `data.events`, `data.page`, `data.size`, `data.total`을 반환한다. 조회 순서는 `createdAt DESC, id DESC`로 고정한다.
+- 인증된 ACTIVE 사용자만 조회할 수 있다. 회사의 ACTIVE `COMPANY_ADMIN`은 project membership 없이 접근할 수 있고, 그 외 사용자는 회사 ACTIVE membership과 해당 프로젝트 ACTIVE membership이 모두 필요하다. 위반 시 `403 FORBIDDEN`이다.
+- 이번 slice의 producer는 성공한 Issue 생성, 상태 변경, trash, restore뿐이다. event type은 `ISSUE_CREATED`, `ISSUE_STATUS_CHANGED`, `ISSUE_TRASHED`, `ISSUE_RESTORED`이며 같은 상태 변경 및 이미 trashed/restored 상태의 idempotent no-op에는 event를 생성하지 않는다.
+- `metadata`는 allowlist DTO로만 반환한다: `issueKey`, `title`, `assigneeUserId`, 그리고 상태 전이의 `fromStatus`, `toStatus`. raw `metadata_json`, reporter와 그 밖의 사용자 정보는 노출하지 않는다.
+
+```json
+{
+  "data": {
+    "events": [
+      {
+        "id": 10,
+        "eventType": "ISSUE_STATUS_CHANGED",
+        "targetType": "ISSUE",
+        "targetId": 100,
+        "actorUserId": 1,
+        "metadata": {
+          "issueKey": "THD-1",
+          "title": "로그인 오류",
+          "assigneeUserId": 2,
+          "fromStatus": "BACKLOG",
+          "toStatus": "TODO"
+        },
+        "createdAt": "2026-07-19T00:00:00Z"
+      }
+    ],
+    "page": 0,
+    "size": 20,
+    "total": 1
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+- offset pagination은 page 사이의 새 event 삽입 또는 삭제로 중복/누락이 발생할 수 있다. 이는 cursor pagination을 추가하지 않는 최소 slice의 허용된 drift이며, STOMP, Redis, cache, NoSQL, dashboard `recentActivities`, summary table과 Frontend는 이번 범위에 포함하지 않는다.
 
 ### 10.2 WBS 4.9.4.1 통합 검색 Backend 정책
 
