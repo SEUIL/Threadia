@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression tests for the optional MAIL runtime parser embedded in apply-release."""
+"""Regression tests for the runtime parameter parsers embedded in apply-release."""
 
 import json
 import re
@@ -18,6 +18,16 @@ MAIL_PARAMETER_NAMES = [
     "/threadia/restricted-nonprod/runtime/MAIL_PASSWORD",
     "/threadia/restricted-nonprod/runtime/NOTIFICATION_FROM_EMAIL",
 ]
+REQUIRED_RUNTIME_PARAMETERS = [
+    "/threadia/restricted-nonprod/runtime/THREADIA_DB_URL",
+    "/threadia/restricted-nonprod/runtime/THREADIA_DB_USERNAME",
+    "/threadia/restricted-nonprod/runtime/THREADIA_DB_PASSWORD",
+    "/threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET",
+    "/threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE",
+    "/threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN",
+    "/threadia/restricted-nonprod/runtime/THREADIA_AUDIT_CURSOR_HMAC_SECRET",
+]
+BOOTSTRAP_PARAMETER = "/threadia/restricted-nonprod/runtime/THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL"
 
 
 def load_optional_mail_parser():
@@ -31,6 +41,32 @@ def load_optional_mail_parser():
     if match is None:
         raise AssertionError("optional MAIL parser heredoc was not found")
     return compile(match.group(1), str(HELPER_PATH), "exec")
+
+
+def load_primary_runtime_parser():
+    helper = HELPER_PATH.read_text(encoding="utf-8")
+    match = re.search(
+        r'parameters_json="\$stage/runtime-parameters\.json".*?'
+        r'python3 - "\$parameters_json" "\$new_env" <<\'PY\'\n(.*?)\nPY',
+        helper,
+        re.DOTALL,
+    )
+    if match is None:
+        raise AssertionError("primary runtime parser heredoc was not found")
+    return compile(match.group(1), str(HELPER_PATH), "exec")
+
+
+def required_runtime_response():
+    values = {
+        REQUIRED_RUNTIME_PARAMETERS[0]: "jdbc:mysql://db.invalid/threadia",
+        REQUIRED_RUNTIME_PARAMETERS[1]: "app-user",
+        REQUIRED_RUNTIME_PARAMETERS[2]: "test-password",
+        REQUIRED_RUNTIME_PARAMETERS[3]: "test-jwt-secret",
+        REQUIRED_RUNTIME_PARAMETERS[4]: "true",
+        REQUIRED_RUNTIME_PARAMETERS[5]: "https://app.invalid",
+        REQUIRED_RUNTIME_PARAMETERS[6]: "a" * 32,
+    }
+    return {"Parameters": [{"Name": name, "Value": value} for name, value in values.items()]}
 
 
 class OptionalMailRuntimeParserTest(unittest.TestCase):
@@ -134,7 +170,7 @@ class OptionalMailRuntimeParserTest(unittest.TestCase):
                 "Parameters": [
                     {
                         "Name": name,
-                        "Value": "invalid\nvalue" if name == MAIL_PARAMETER_NAMES[0] else "valid-value",
+                        "Value": "invalid\tvalue" if name == MAIL_PARAMETER_NAMES[0] else "valid-value",
                     }
                     for name in MAIL_PARAMETER_NAMES
                 ],
@@ -148,7 +184,100 @@ class OptionalMailRuntimeParserTest(unittest.TestCase):
             exit_code,
         )
         self.assertEqual("REQUIRED_SIX_ONLY=true\n", runtime_env)
-        self.assertNotIn("invalid\nvalue", str(exit_code))
+        self.assertNotIn("invalid\tvalue", str(exit_code))
+
+
+class PrimaryRuntimeParserTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.parser = load_primary_runtime_parser()
+
+    def run_parser(self, response):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture_path = Path(directory) / "runtime-parameters.json"
+            runtime_env_path = Path(directory) / "runtime.env"
+            fixture_path.write_text(json.dumps(response), encoding="utf-8")
+
+            previous_argv = sys.argv
+            sys.argv = ["primary-runtime-parser", str(fixture_path), str(runtime_env_path)]
+            try:
+                exec(self.parser, {"__name__": "__main__"})
+            except SystemExit as error:
+                exit_code = error.code
+            else:
+                exit_code = 0
+            finally:
+                sys.argv = previous_argv
+
+            return exit_code, runtime_env_path.read_text(encoding="utf-8") if runtime_env_path.exists() else ""
+
+    def test_phase_one_omits_only_absent_bootstrap_parameter(self):
+        response = required_runtime_response()
+        response["InvalidParameters"] = [BOOTSTRAP_PARAMETER]
+
+        exit_code, runtime_env = self.run_parser(response)
+
+        self.assertEqual(0, exit_code)
+        self.assertIn('THREADIA_AUDIT_CURSOR_HMAC_SECRET="' + "a" * 32 + '"', runtime_env)
+        self.assertNotIn("THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL", runtime_env)
+
+    def test_phase_two_normalizes_and_materializes_valid_bootstrap_email(self):
+        response = required_runtime_response()
+        response["Parameters"].append({"Name": BOOTSTRAP_PARAMETER, "Value": " Intended.User@Example.Invalid "})
+        response["InvalidParameters"] = []
+
+        exit_code, runtime_env = self.run_parser(response)
+
+        self.assertEqual(0, exit_code)
+        self.assertIn('THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL="intended.user@example.invalid"', runtime_env)
+
+    def test_returned_blank_bootstrap_email_fails_without_materializing_environment(self):
+        response = required_runtime_response()
+        response["Parameters"].append({"Name": BOOTSTRAP_PARAMETER, "Value": "   "})
+        response["InvalidParameters"] = []
+
+        exit_code, runtime_env = self.run_parser(response)
+
+        self.assertEqual("platform admin bootstrap email is blank or malformed", exit_code)
+        self.assertEqual("", runtime_env)
+
+    def test_returned_malformed_or_control_character_bootstrap_email_fails_without_materializing_environment(self):
+        for value, expected_error in (
+            ("not-an-email", "platform admin bootstrap email is blank or malformed"),
+            ("intended@example.invalid\t", "runtime parameter contains an unsupported control character: " + BOOTSTRAP_PARAMETER),
+            ("intended@example.invalid\n", "runtime parameter contains an unsupported control character: " + BOOTSTRAP_PARAMETER),
+        ):
+            with self.subTest(value=value):
+                response = required_runtime_response()
+                response["Parameters"].append({"Name": BOOTSTRAP_PARAMETER, "Value": value})
+                response["InvalidParameters"] = []
+
+                exit_code, runtime_env = self.run_parser(response)
+
+                self.assertEqual(expected_error, exit_code)
+                self.assertEqual("", runtime_env)
+
+    def test_short_audit_secret_fails_without_materializing_environment(self):
+        for value in ("short", " " * 32):
+            with self.subTest(value=value):
+                response = required_runtime_response()
+                response["Parameters"][-1]["Value"] = value
+                response["InvalidParameters"] = [BOOTSTRAP_PARAMETER]
+
+                exit_code, runtime_env = self.run_parser(response)
+
+                self.assertEqual("audit cursor runtime secret is blank or shorter than 32 UTF-8 bytes", exit_code)
+                self.assertEqual("", runtime_env)
+
+    def test_base_or_audit_mismatch_fails_without_materializing_environment(self):
+        response = required_runtime_response()
+        response["Parameters"] = response["Parameters"][:-1]
+        response["InvalidParameters"] = [REQUIRED_RUNTIME_PARAMETERS[-1], BOOTSTRAP_PARAMETER]
+
+        exit_code, runtime_env = self.run_parser(response)
+
+        self.assertEqual("required SecureString runtime parameter is missing", exit_code)
+        self.assertEqual("", runtime_env)
 
 
 if __name__ == "__main__":
