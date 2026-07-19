@@ -84,6 +84,7 @@ jobs:
       - name: Validate restricted SSM delivery source
         run: |
           bash -n ../scripts/ssm-delivery/apply-release
+          python3 ../infra/cloudformation/test-optional-mail-runtime-parser.py
           python3 ../infra/cloudformation/validate-restricted-ssm-delivery-preflight.py
 
       - name: Run backend tests
