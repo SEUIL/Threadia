@@ -78,6 +78,28 @@ public class Company {
 		this.updatedAt = updatedAt;
 	}
 
+	public Company(
+			String name,
+			String representativeName,
+			String description,
+			String industryCategory,
+			String logoUrl,
+			String status,
+			User createdBy,
+			LocalDateTime createdAt,
+			LocalDateTime updatedAt) {
+		this(
+				name,
+				representativeName,
+				description,
+				industryCategory,
+				logoUrl,
+				CompanyStatus.valueOf(status),
+				createdBy,
+				createdAt,
+				updatedAt);
+	}
+
 	public Long getId() {
 		return id;
 	}

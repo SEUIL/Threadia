@@ -5,6 +5,8 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
+import com.threadia.backend.common.auth.EmailNormalizer;
+
 @Component
 public class PlatformAdminBootstrap implements ApplicationRunner {
 
@@ -20,6 +22,9 @@ public class PlatformAdminBootstrap implements ApplicationRunner {
 
 	@Override
 	public void run(ApplicationArguments args) {
-		bootstrapService.bootstrap(bootstrapEmail);
+		String normalizedEmail = EmailNormalizer.normalize(bootstrapEmail);
+		if (normalizedEmail != null && !normalizedEmail.isBlank()) {
+			bootstrapService.bootstrap(bootstrapEmail);
+		}
 	}
 }
