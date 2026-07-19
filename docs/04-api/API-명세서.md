@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
 > **최종 수정**: 2026-07-19
-> **버전**: v3.9 회사 멤버 제거 API 반영
+> **버전**: v3.10 WBS 4.9.3 Dashboard Core Backend 계약 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -13,7 +13,7 @@
 
 > **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows이며, DB는 ERD 기반 `db/schema.sql`과 문서 변경이력으로 관리한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
-> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15 `4.10.1` support case, `4.10.3` typed system settings, `4.10.4` Backend lifecycle/audit-read, `4.8.1` notification inbox/read-state, `4.9.4.1` Search Backend 계약을 확정한다. `4.9.4.2` Frontend는 계획/0% 상태다. notification producer matrix, preferences, push/WebSocket, S15 Frontend, enforcement, dashboard, retention/cleanup은 후속 범위다.
+> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15 `4.10.1` support case, `4.10.3` typed system settings, `4.10.4` Backend lifecycle/audit-read, `4.8.1` notification inbox/read-state, `4.9.3.1` Dashboard Core Backend, `4.9.4.1` Search Backend 계약을 확정한다. `4.9.3.2`, `4.9.4.2` Frontend는 계획/0% 상태다. notification producer matrix, preferences, push/WebSocket, S15 Frontend, enforcement, activity feed, dashboard cache/summary table, retention/cleanup은 후속 범위다.
 
 
 ## 1. 공통 규칙
@@ -468,7 +468,7 @@ WBS `4.8.1`은 MySQL의 기존 `notification_events`, `notification_recipients`�
 |---|---|---|---|---|
 | GET | `/api/v1/projects/{projectId}/activity-events` | A/P/C | 프로젝트 활동 피드 조회 | Sprint 3 후보 |
 | GET | `/api/v1/search` | A/P/C | 프로젝트 내부 통합 검색 | WBS `4.9.4.1` Backend 구현 완료 |
-| GET | `/api/v1/projects/{projectId}/dashboard` | A/P/C | 프로젝트 홈/대시보드 summary | Sprint 3 후보 |
+| GET | `/api/v1/projects/{projectId}/dashboard` | A/P/C | 프로젝트 홈/대시보드 live summary | WBS `4.9.3.1` Backend 구현 |
 
 ### 10.1 활동 피드
 
@@ -546,9 +546,39 @@ MySQL FULLTEXT, 외부 검색 엔진, Redis, DB schema/index 변경, Frontend, �
 
 ### 10.3 프로젝트 대시보드
 
-- progress, recentIssues, recentDocuments, recentActivities, sprintSummary를 반환한다.
-- 기본은 MySQL aggregate query다.
-- 성능 문제가 확인되면 `project_dashboard_summaries`와 Redis cache를 추가한다.
+`GET /api/v1/projects/{projectId}/dashboard`는 인증된 ACTIVE 사용자의 프로젝트 대시보드 live-read API다. 기존 프로젝트 조회와 동일하게 ACTIVE company membership을 먼저 요구하고, ACTIVE `COMPANY_ADMIN`은 project membership 없이 허용하며 그 외 역할은 ACTIVE project membership을 요구한다. 권한 없는 프로젝트의 aggregate는 반환하지 않는다.
+
+#### Response
+
+응답 `data`는 정확히 `progress`, `recentIssues`, `recentDocuments`, `sprintSummary`만 포함한다. `recentActivities`는 반환하지 않으며 activity feed는 WBS `4.9.1` deferred 범위다.
+
+```json
+{
+  "data": {
+    "progress": { "totalIssueCount": 12, "doneIssueCount": 5, "percentage": 41 },
+    "recentIssues": [
+      { "id": 101, "issueKey": "THD-101", "title": "대시보드 구현", "status": "IN_PROGRESS", "updatedAt": "2026-07-19T03:00:00Z" }
+    ],
+    "recentDocuments": [
+      { "id": 201, "title": "Sprint 회의록", "type": "MEETING_NOTE", "updatedAt": "2026-07-19T02:00:00Z" }
+    ],
+    "sprintSummary": { "id": 30, "name": "Sprint 3", "goal": "Dashboard core", "startDate": "2026-07-17", "endDate": "2026-07-24", "issueCount": 8, "doneIssueCount": 3 }
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+#### Live aggregate 규칙
+
+- MySQL의 project-scoped parameterized query만 사용한다. 이 read endpoint에는 임의 lock을 추가하지 않는다.
+- progress는 trashed가 아닌 Issue의 전체 수와 `DONE` 수로 계산하며 전체가 0이면 `percentage`는 0이다.
+- 최근 Issue와 Document는 trashed row를 제외하고 각각 최대 10개를 `(updatedAt DESC, id DESC)`로 정렬한다. 결과가 없으면 빈 배열이다. full Issue/Document response가 아닌 이 섹션의 최소 field만 반환한다.
+- `sprintSummary`는 ACTIVE Sprint 하나를 나타내며 없으면 `null`이다. 포함된 `issueCount`와 `doneIssueCount`도 trashed Issue를 제외한다.
+- 각 aggregate는 live read 시점의 MySQL 데이터를 사용한다. 별도 snapshot transaction이나 cache 일관성은 보장하지 않는다.
+
+#### 비범위
+
+`activity_events`, recent activity feed, `project_dashboard_summaries`, Redis, STOMP, pagination은 이 endpoint 범위에 포함하지 않는다.
 
 ---
 
