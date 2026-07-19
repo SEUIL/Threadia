@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
 > **최종 수정**: 2026-07-19
-> **버전**: v3.10 WBS 4.9.1 Activity Feed Backend 반영
+> **버전**: v3.11 회사 자율 생성 seed-only 제한 해제, WBS 4.10.4 Backend 완료 기준, 회사 멤버 제거 API 및 WBS 4.9.1 Activity Feed Backend 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -254,7 +254,7 @@ POST /api/v1/auth/refresh
 
 Sprint 1.5부터 구성원 추가는 등록 사용자 exact email lookup 후 `invitations`를 생성한다. 가입되지 않은 이메일 대상 invitation, 외부 email 발송, token link 초대는 Sprint 1.5 범위가 아니며 user-facing membership create API로 즉시 소속을 만들지 않는다.
 
-Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local/dev/demo seed로 준비한다. `POST /api/v1/companies`는 Sprint 1.5 구현 범위에 포함하지 않고 MVP/Sprint 2 reference로 유지하며, 운영 데이터에는 seed를 포함하지 않는다.
+Sprint 1.5 invitation 검증은 local/dev/demo seed 회사 1개와 `COMPANY_ADMIN` 1명으로 진행했다. **(2026-07-18 갱신, `기획문서-변경이력.md` 2026-07-18 항목)** `POST /api/v1/companies`의 seed-only 제한은 해제됐다 — 로그인 사용자는 프론트에서 직접 회사를 생성할 수 있고 생성자는 자동 `COMPANY_ADMIN`이 된다. seed 기반 dev/demo 데이터 구성 자체는 계속 유효하다.
 
 ---
 
@@ -2328,7 +2328,7 @@ Response 200:
 
 ### Phase C 추가 동기화 결정
 
-1. Sprint 1.5 invitation 검증은 local/dev/demo seed 회사 1개와 `COMPANY_ADMIN` 1명을 사용한다. `POST /api/v1/companies`는 Sprint 1.5 구현 범위에 포함하지 않고 MVP/Sprint 2 reference로 유지하며 운영 데이터에는 seed를 포함하지 않는다.
+1. Sprint 1.5 invitation 검증은 local/dev/demo seed 회사 1개와 `COMPANY_ADMIN` 1명을 사용했다. **(2026-07-18 갱신, `기획문서-변경이력.md` 2026-07-18 항목)** `POST /api/v1/companies`의 seed-only 제한은 해제됐다 — 로그인 사용자는 프론트에서 직접 회사를 생성할 수 있고 생성자는 자동 `COMPANY_ADMIN`이 된다. seed 기반 dev/demo 데이터 구성 자체는 계속 유효하다. 회사 생성 이후 추가 소속 확대는 계속 invitation 전용이다.
 2. `activity_events`는 활동 원장, `notification_events`는 알림 사건 원본으로 별도 운영한다. 두 저장소를 통합하지 않고, 필요 시 activity 이벤트에서 notification 이벤트를 생성하는 연계만 허용한다.
 3. 서버 생성 시각과 만료 시각은 UTC 기준으로 생성, 저장, 비교한다. ERD의 `DATETIME` 타입은 유지하고 API 응답은 ISO-8601 UTC `Z` 형식으로 반환한다.
 4. 로그인 이메일은 모든 진입점에서 `trim + lowercase`로 정규화한 값을 저장, 조회, 비교한다. 이 기준은 signup, login, password reset, OAuth 계정 연결, invitation lookup에 동일하게 적용한다.

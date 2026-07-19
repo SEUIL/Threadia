@@ -59,8 +59,9 @@ required_runtime_parameters = {
     "/threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET",
     "/threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE",
     "/threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN",
-    "/threadia/restricted-nonprod/runtime/THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL",
+    "/threadia/restricted-nonprod/runtime/THREADIA_AUDIT_CURSOR_HMAC_SECRET",
 }
+bootstrap_runtime_parameter = "/threadia/restricted-nonprod/runtime/THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL"
 optional_mail_runtime_parameters = {
     "/threadia/restricted-nonprod/runtime/MAIL_HOST",
     "/threadia/restricted-nonprod/runtime/MAIL_PORT",
@@ -194,7 +195,7 @@ assert "ssm:GetParametersByPath" not in template
 assert "secretsmanager:" not in template.lower()
 assert "ManageMasterUserPassword" not in template
 runtime_parameter_arns = set(re.findall(r"parameter(/threadia/restricted-nonprod/runtime/[A-Z_]+)", template))
-assert runtime_parameter_arns == required_runtime_parameters | optional_mail_runtime_parameters
+assert runtime_parameter_arns == required_runtime_parameters | {bootstrap_runtime_parameter} | optional_mail_runtime_parameters
 assert "Resource: '*'" in template and "Action: ssm:GetCommandInvocation" in template
 assert "AWS-RunShellScript" not in template
 assert f"allowedPattern: '{version_pattern}'" in template
@@ -438,10 +439,11 @@ assert 'aws s3api get-object --region "$AWS_REGION"' in release_helper
 assert 'aws ssm get-parameters --region "$AWS_REGION"' in release_helper
 assert release_helper.count('aws ssm get-parameters --region "$AWS_REGION" --with-decryption --names') == 2
 assert "ssm:GetParametersByPath" not in release_helper
-assert all(parameter in release_helper for parameter in required_runtime_parameters | optional_mail_runtime_parameters)
+assert all(parameter in release_helper for parameter in required_runtime_parameters | {bootstrap_runtime_parameter} | optional_mail_runtime_parameters)
 required_parameter_fetch = release_helper.split('parameters_json="$stage/runtime-parameters.json"', 1)[1].split("python3 -", 1)[0]
 mail_parameter_fetch = release_helper.split('mail_parameters_json="$stage/mail-runtime-parameters.json"', 1)[1].split("python3 -", 1)[0]
 assert all(parameter in required_parameter_fetch for parameter in required_runtime_parameters)
+assert bootstrap_runtime_parameter in required_parameter_fetch
 assert not any(parameter in required_parameter_fetch for parameter in optional_mail_runtime_parameters)
 assert all(parameter in mail_parameter_fetch for parameter in optional_mail_runtime_parameters)
 assert not any(parameter in mail_parameter_fetch for parameter in required_runtime_parameters)
@@ -458,11 +460,21 @@ assert 'if value == "":' in release_helper
 assert 'raise SystemExit("optional runtime parameter is blank: " + parameter_name)' in release_helper
 assert 'escaped_value = value.replace(chr(92), chr(92) * 2).replace(chr(34), chr(92) + chr(34))' in release_helper
 assert 'import re' in release_helper
+assert 'bootstrap_parameter = "/threadia/restricted-nonprod/runtime/THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL"' in release_helper
+assert 'audit_parameter = "/threadia/restricted-nonprod/runtime/THREADIA_AUDIT_CURSOR_HMAC_SECRET"' in release_helper
+assert 'if set(required) != (returned & set(required)) or (invalid & set(required)):' in release_helper
+assert 'if bootstrap_parameter not in returned and invalid != {bootstrap_parameter}:' in release_helper
+assert 'audit_secret = values[audit_parameter].strip()' in release_helper
+assert 'if not audit_secret or len(audit_secret.encode("utf-8")) < 32:' in release_helper
+assert 'raise SystemExit("audit cursor runtime secret is blank or shorter than 32 UTF-8 bytes")' in release_helper
+assert 'bootstrap_email = None' in release_helper
+assert 'if bootstrap_parameter in returned:' in release_helper
 assert 'bootstrap_email = values[bootstrap_parameter].strip().lower()' in release_helper
 assert 're.fullmatch(r"[^\\s@]+@[^\\s@]+\\.[^\\s@]+", bootstrap_email)' in release_helper
 assert 'raise SystemExit("platform admin bootstrap email is blank or malformed")' in release_helper
 assert release_helper.index('bootstrap_email = values[bootstrap_parameter].strip().lower()') < release_helper.index('with open(sys.argv[2], "w", encoding="utf-8") as target:')
-assert 'value = bootstrap_email if parameter_name == bootstrap_parameter else values[parameter_name]' in release_helper
+assert 'if bootstrap_email is not None:' in release_helper
+assert "target.write(f'THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL=\"{escaped_value}\"\\n')" in release_helper
 assert 'String normalizedEmail = EmailNormalizer.normalize(bootstrapEmail);' in bootstrap_runner
 assert 'if (normalizedEmail != null && !normalizedEmail.isBlank()) {' in bootstrap_runner
 assert 'bootstrapService.bootstrap(bootstrapEmail);' in bootstrap_runner

@@ -7,12 +7,11 @@
  * 없어 /{companyId}/... 하위로 진입시킬 수 없다. 설계 근거는
  * docs/08-members/member-정철진/기술-연구/s14-invitation-프론트-연동-설계.md §1.
  *
- * ⚠️ accept 성공 후에도 로그인 세션(AuthContext.companyMemberships)은 갱신되지
- *    않는다. AuthContext는 로그인/세션 복원 시점에만
- *    GET /users/me/company-memberships를 호출하고(AuthContext.tsx 참고),
- *    이 화면의 accept 액션 후 자동 재조회는 하지 않으므로 새 membership을
- *    실제로 쓰려면(RailShell 등에서) 재로그인이 필요하다. 이건 COMPANY 초대에만
- *    해당한다 — PROJECT 초대 수락자는 이미 그 회사 소속이라 재로그인이 필요 없다.
+ * COMPANY 초대를 accept하면 AuthContext.refreshCompanyMemberships()로 세션의
+ * companyMemberships를 즉시 다시 채운다 — 예전에는 로그인/세션 복원 시점에만
+ * 갱신돼 재로그인이 필요했다(2026-07-18 회사 자율 생성 결정과 같은 묶음으로 수정,
+ * `기획문서-변경이력.md` 2026-07-18 항목). PROJECT 초대 수락자는 이미 그 회사
+ * 소속이라 애초에 재조회가 필요 없다.
  *
  * WBS 4.3.2: 이 목록에는 COMPANY와 PROJECT 초대가 섞여 내려온다
  * (GET /users/me/invitations가 둘 다 반환). 화면 표기(어디로 오는 초대인지, role
@@ -28,11 +27,13 @@ import {
 } from "@/lib/invitation";
 import { InvitationEnvelope } from "@/components/invitations/InvitationEnvelope";
 import { InvitationLetter } from "@/components/invitations/InvitationLetter";
+import { useAuth } from "@/contexts/AuthContext";
 import type { InvitationResponse } from "@/types/invitation.types";
 
 type LoadState = "loading" | "ready" | "error";
 
 export default function InvitationsPage() {
+  const { refreshCompanyMemberships } = useAuth();
   const [invitations, setInvitations] = useState<InvitationResponse[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -78,9 +79,24 @@ export default function InvitationsPage() {
         prev.map((i) => (i.id === invitation.id ? { ...i, status: data.data.status } : i))
       );
       if (action === "accept") {
-        // 회사 초대는 재로그인 안내가 필요하지만 프로젝트 초대는 이미 그 회사 소속이라
-        // 필요 없다 — scope별로 안내가 다르다.
-        setAcceptNotice(invitationAcceptedMessage(invitation));
+        // 회사 초대만 소속이 새로 생기므로 세션 companyMemberships를 다시 채운다.
+        // 프로젝트 초대 수락자는 이미 그 회사 소속이라 재조회가 필요 없다.
+        if (invitation.scopeType === "COMPANY") {
+          try {
+            await refreshCompanyMemberships();
+            setAcceptNotice(invitationAcceptedMessage(invitation));
+          } catch {
+            // accept 자체는 이미 성공했다(위 setInvitations로 상태 반영됨) — 세션
+            // companyMemberships 재조회만 실패한 것이므로 "수락 실패"로 보이면
+            // 안 된다(PR #171 리뷰 반영). 새로고침을 안내하고 재조회는 다시 로그인
+            // 또는 새로고침 시 자연히 채워진다.
+            setActionError(
+              "초대는 수락됐지만 새 소속 정보를 반영하지 못했습니다. 페이지를 새로고침해주세요."
+            );
+          }
+        } else {
+          setAcceptNotice(invitationAcceptedMessage(invitation));
+        }
       }
     } catch (error) {
       setActionError(
