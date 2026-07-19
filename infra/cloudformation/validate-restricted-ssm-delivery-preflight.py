@@ -41,6 +41,7 @@ trust_sources = {
 }
 workflow = (BASE.parent.parent / ".github/workflows/restricted-ssm-release.yml").read_text(encoding="utf-8")
 backend_ci = (BASE.parent.parent / ".github/workflows/backend-ci.yml").read_text(encoding="utf-8")
+pre_deploy_readiness = (BASE.parent.parent / ".github/workflows/pre-deploy-readiness.yml").read_text(encoding="utf-8")
 helper_artifact_workflow = (BASE.parent.parent / ".github/workflows/restricted-ssm-helper-artifact.yml").read_text(encoding="utf-8")
 helper_maintenance_workflow = (BASE.parent.parent / ".github/workflows/restricted-ssm-helper-maintenance.yml").read_text(encoding="utf-8")
 release_helper = (BASE.parent.parent / "scripts/ssm-delivery/apply-release").read_text(encoding="utf-8")
@@ -62,6 +63,8 @@ required_runtime_parameters = {
     "/threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET",
     "/threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE",
     "/threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN",
+    "/threadia/restricted-nonprod/runtime/THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET",
+    "/threadia/restricted-nonprod/runtime/THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET",
     "/threadia/restricted-nonprod/runtime/THREADIA_AUDIT_CURSOR_HMAC_SECRET",
 }
 bootstrap_runtime_parameter = "/threadia/restricted-nonprod/runtime/THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL"
@@ -72,6 +75,14 @@ optional_mail_runtime_parameters = {
     "/threadia/restricted-nonprod/runtime/MAIL_PASSWORD",
     "/threadia/restricted-nonprod/runtime/NOTIFICATION_FROM_EMAIL",
 }
+expected_runtime_parameter_names = (
+    "/threadia/restricted-nonprod/runtime/"
+    "{THREADIA_DB_URL,THREADIA_DB_USERNAME,THREADIA_DB_PASSWORD,THREADIA_JWT_SECRET,"
+    "THREADIA_COOKIE_SECURE,THREADIA_CORS_ALLOWED_ORIGIN,"
+    "THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET,THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET,"
+    "THREADIA_AUDIT_CURSOR_HMAC_SECRET,THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL,"
+    "MAIL_HOST,MAIL_PORT,MAIL_USERNAME,MAIL_PASSWORD,NOTIFICATION_FROM_EMAIL}"
+)
 def optional_mail_group_action(returned: set[str], invalid: set[str]) -> str:
     if not returned and invalid == optional_mail_runtime_parameters:
         return "omit"
@@ -199,6 +210,7 @@ assert "secretsmanager:" not in template.lower()
 assert "ManageMasterUserPassword" not in template
 runtime_parameter_arns = set(re.findall(r"parameter(/threadia/restricted-nonprod/runtime/[A-Z_]+)", template))
 assert runtime_parameter_arns == required_runtime_parameters | {bootstrap_runtime_parameter} | optional_mail_runtime_parameters
+assert expected_runtime_parameter_names in template
 assert "Resource: '*'" in template and "Action: ssm:GetCommandInvocation" in template
 assert "AWS-RunShellScript" not in template
 assert f"allowedPattern: '{version_pattern}'" in template
@@ -464,12 +476,22 @@ assert 'raise SystemExit("optional runtime parameter is blank: " + parameter_nam
 assert 'escaped_value = value.replace(chr(92), chr(92) * 2).replace(chr(34), chr(92) + chr(34))' in release_helper
 assert 'import re' in release_helper
 assert 'bootstrap_parameter = "/threadia/restricted-nonprod/runtime/THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL"' in release_helper
-assert 'audit_parameter = "/threadia/restricted-nonprod/runtime/THREADIA_AUDIT_CURSOR_HMAC_SECRET"' in release_helper
 assert 'if set(required) != (returned & set(required)) or (invalid & set(required)):' in release_helper
 assert 'if bootstrap_parameter not in returned and invalid != {bootstrap_parameter}:' in release_helper
-assert 'audit_secret = values[audit_parameter].strip()' in release_helper
-assert 'if not audit_secret or len(audit_secret.encode("utf-8")) < 32:' in release_helper
-assert 'raise SystemExit("audit cursor runtime secret is blank or shorter than 32 UTF-8 bytes")' in release_helper
+assert 'cursor_secret_parameters = (' in release_helper
+for cursor_parameter in (
+    "/threadia/restricted-nonprod/runtime/THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET",
+    "/threadia/restricted-nonprod/runtime/THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET",
+    "/threadia/restricted-nonprod/runtime/THREADIA_AUDIT_CURSOR_HMAC_SECRET",
+):
+    assert cursor_parameter in release_helper
+assert 'for parameter_name in cursor_secret_parameters:' in release_helper
+assert 'types = {item["Name"]: item.get("Type") for item in parameter_items}' in release_helper
+assert 'if types.get(parameter_name) != "SecureString":' in release_helper
+assert 'raise SystemExit("cursor runtime parameter must be SecureString: " + parameter_name)' in release_helper
+assert 'secret = values[parameter_name].strip()' in release_helper
+assert 'if not secret or len(secret.encode("utf-8")) < 32:' in release_helper
+assert 'raise SystemExit("cursor runtime secret is blank or shorter than 32 UTF-8 bytes: " + parameter_name)' in release_helper
 assert 'bootstrap_email = None' in release_helper
 assert 'if bootstrap_parameter in returned:' in release_helper
 assert 'bootstrap_email = values[bootstrap_parameter].strip().lower()' in release_helper
@@ -522,6 +544,14 @@ assert 'platform_admin_count == "0"' in platform_migration_test
 assert "Platform foundation additive migration and Phase 1 empty-admin fixture passed." in platform_migration_test
 assert "test-platform-foundation-additive-migration.py" in backend_ci
 assert "JpaSchemaValidationTests" in backend_ci
+assert "test-optional-mail-runtime-parser.py" in backend_ci
+for environment_name in (
+    "THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET",
+    "THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET",
+    "THREADIA_AUDIT_CURSOR_HMAC_SECRET",
+):
+    assert environment_name + ":" in backend_ci
+    assert environment_name + ":" in pre_deploy_readiness
 assert "THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL:" not in backend_ci.split("    env:\n", 1)[1].split("    services:", 1)[0]
 assert "INSERT INTO platform_admins" not in backend_ci
 assert "@MockitoBean" not in jpa_schema_validation_test
