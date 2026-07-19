@@ -141,7 +141,7 @@ class ProjectServiceTest {
 		Company company = company(10L, admin);
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
-		when(companyRepository.findById(10L)).thenReturn(Optional.of(company));
+		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
 		when(projectRepository.existsByCompany_IdAndProjectKey(10L, "THD")).thenReturn(false);
 		when(projectRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> {
 			Project project = invocation.getArgument(0);
@@ -168,8 +168,8 @@ class ProjectServiceTest {
 		InOrder inOrder = inOrder(authContextService, companyRepository, companyMembershipService);
 		inOrder.verify(authContextService).fromAccessToken("admin-token");
 		inOrder.verify(authContextService).requireActiveUser(authContext);
-		inOrder.verify(companyRepository).findById(10L);
-		inOrder.verify(companyMembershipService).requireCompanyAdmin(10L, authContext);
+		inOrder.verify(companyRepository).findByIdForUpdate(10L);
+		inOrder.verify(companyMembershipService).requireCompanyAdminForUpdate(10L, authContext);
 		ArgumentCaptor<Project> projectCaptor = ArgumentCaptor.forClass(Project.class);
 		verify(projectRepository).save(projectCaptor.capture());
 		assertThat(projectCaptor.getValue().getCompany()).isSameAs(company);
@@ -189,9 +189,9 @@ class ProjectServiceTest {
 		Company company = company(10L, member);
 		when(authContextService.fromAccessToken("member-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(member);
-		when(companyRepository.findById(10L)).thenReturn(Optional.of(company));
+		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
 		org.mockito.Mockito.doThrow(new ForbiddenException("회사 관리자 권한이 필요합니다."))
-				.when(companyMembershipService).requireCompanyAdmin(10L, authContext);
+				.when(companyMembershipService).requireCompanyAdminForUpdate(10L, authContext);
 
 		assertThatThrownBy(() -> projectService.create(
 				"member-token",
@@ -207,7 +207,7 @@ class ProjectServiceTest {
 		Company company = company(10L, admin);
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
-		when(companyRepository.findById(10L)).thenReturn(Optional.of(company));
+		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
 		when(projectRepository.existsByCompany_IdAndProjectKey(10L, "THD")).thenReturn(true);
 
 		assertThatThrownBy(() -> projectService.create(
@@ -227,7 +227,7 @@ class ProjectServiceTest {
 		Company company = company(10L, admin);
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
-		when(companyRepository.findById(10L)).thenReturn(Optional.of(company));
+		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
 
 		assertThatThrownBy(() -> projectService.create(
 				"admin-token",
@@ -246,7 +246,7 @@ class ProjectServiceTest {
 		Company company = company(10L, admin);
 		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
 		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
-		when(companyRepository.findById(10L)).thenReturn(Optional.of(company));
+		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
 
 		assertThatThrownBy(() -> projectService.create(
 				"admin-token",

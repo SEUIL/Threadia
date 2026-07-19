@@ -2,6 +2,7 @@ package com.threadia.backend.company.controller;
 
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -22,6 +23,7 @@ import com.threadia.backend.common.auth.UserResponse;
 import com.threadia.backend.common.exception.ForbiddenException;
 import com.threadia.backend.company.domain.CompanyMemberStatus;
 import com.threadia.backend.company.dto.CompanyMemberData;
+import com.threadia.backend.company.dto.CompanyMemberRemoveData;
 import com.threadia.backend.company.dto.CompanyMemberResponse;
 import com.threadia.backend.company.dto.CompanyMembersData;
 import com.threadia.backend.company.exception.CompanyMemberConflictException;
@@ -164,6 +166,31 @@ class CompanyMemberControllerTest {
 					.header(HttpHeaders.AUTHORIZATION, "Bearer admin-token")
 					.contentType(MediaType.APPLICATION_JSON)
 					.content(updateBody("MEMBER", "ACTIVE", 1L)))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.error.code").value("CONFLICT"));
+	}
+
+	@Test
+	void removeReturnsRemovedResult() throws Exception {
+		when(companyMemberService.remove("admin-token", 10L, 100L))
+				.thenReturn(new CompanyMemberRemoveData(true, 2));
+
+		mockMvc.perform(delete("/api/v1/companies/10/company-members/100")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer admin-token"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.removed").value(true))
+				.andExpect(jsonPath("$.data.removedProjectMemberCount").value(2));
+
+		verify(companyMemberService).remove("admin-token", 10L, 100L);
+	}
+
+	@Test
+	void removeReturnsConflictWhenServiceRejectsRemoval() throws Exception {
+		when(companyMemberService.remove("admin-token", 10L, 100L))
+				.thenThrow(CompanyMemberConflictException.selfRemoval());
+
+		mockMvc.perform(delete("/api/v1/companies/10/company-members/100")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer admin-token"))
 				.andExpect(status().isConflict())
 				.andExpect(jsonPath("$.error.code").value("CONFLICT"));
 	}
