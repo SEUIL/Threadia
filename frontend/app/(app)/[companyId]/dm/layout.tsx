@@ -14,7 +14,7 @@
  *   - unread가 있는 방은 아바타에 점 배지를 보여준다(설계 메모: unread count만
  *     다룬다, read receipt는 제외).
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useParams, useRouter } from "next/navigation";
 import { companyMemberService } from "@/services/company-member.service";
@@ -36,11 +36,25 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
   const [pickerError, setPickerError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
 
+  /*
+   * stale response 방어(PR #173 재리뷰 반영, pktewon): dev 환경에서는 React
+   * Strict Mode가 mount effect를 두 번 실행해 loadRooms()가 초기 마운트에서
+   * 두 번 호출된다. 그중 하나가 늦게 응답하면, 그사이 markRoomRead()로 지운
+   * 배지를 뒤늦게 도착한 옛 데이터가 덮어쓰는 race가 있었다. loadRooms와
+   * markRoomRead가 같은 generation 카운터를 공유해서, 호출 시점 이후 뭔가가
+   * generation을 더 올렸다면(다른 loadRooms 호출이든 markRoomRead든) 그 응답은
+   * 버린다(검색 페이지의 stale-response 방어와 같은 패턴).
+   */
+  const roomsGenerationRef = useRef(0);
+
   const loadRooms = useCallback(async () => {
+    const generation = ++roomsGenerationRef.current;
     try {
       const { data } = await directMessageService.listRooms(companyId);
+      if (roomsGenerationRef.current !== generation) return;
       setRooms(data.data.rooms);
     } catch {
+      if (roomsGenerationRef.current !== generation) return;
       setRooms([]);
     }
   }, [companyId]);
@@ -68,8 +82,10 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
   };
 
   // room 입장 시 markRead API 호출이 성공하면 이걸로 레일 배지를 즉시 지운다
-  // (재조회 없이 로컬 state만 갱신 — PR #173 리뷰 반영).
+  // (재조회 없이 로컬 state만 갱신). generation을 먼저 올려서, 이 시점 이전에
+  // 시작된 loadRooms() 응답이 나중에 도착해도 무시되게 한다.
   const markRoomRead = useCallback((roomId: number) => {
+    roomsGenerationRef.current += 1;
     setRooms((prev) => prev.map((r) => (r.id === roomId ? { ...r, unreadCount: 0 } : r)));
   }, []);
 

@@ -175,7 +175,7 @@ export default function DmRoomPage() {
             aria-label="메시지 입력"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && void send()}
+            onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && void send()}
             disabled={sending}
             placeholder={`${displayName}에게 메시지 보내기`}
             className="flex-1 bg-transparent text-sm text-foreground placeholder:text-placeholder focus:outline-none disabled:opacity-50"
