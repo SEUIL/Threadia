@@ -162,6 +162,8 @@ Resources:
               - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET
               - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE
               - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET
               - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_AUDIT_CURSOR_HMAC_SECRET
               - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL
               - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/threadia/restricted-nonprod/runtime/MAIL_HOST
@@ -374,4 +376,4 @@ Outputs:
     Value: !Ref HelperMaintenanceCommandDocument
   RuntimeParameterNames:
     Description: Exact SecureString names that the approved platform owner must create and rotate outside this template.
-    Value: /threadia/restricted-nonprod/runtime/{THREADIA_DB_URL,THREADIA_DB_USERNAME,THREADIA_DB_PASSWORD,THREADIA_JWT_SECRET,THREADIA_COOKIE_SECURE,THREADIA_CORS_ALLOWED_ORIGIN,THREADIA_AUDIT_CURSOR_HMAC_SECRET,THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL,MAIL_HOST,MAIL_PORT,MAIL_USERNAME,MAIL_PASSWORD,NOTIFICATION_FROM_EMAIL}
+    Value: /threadia/restricted-nonprod/runtime/{THREADIA_DB_URL,THREADIA_DB_USERNAME,THREADIA_DB_PASSWORD,THREADIA_JWT_SECRET,THREADIA_COOKIE_SECURE,THREADIA_CORS_ALLOWED_ORIGIN,THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET,THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET,THREADIA_AUDIT_CURSOR_HMAC_SECRET,THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL,MAIL_HOST,MAIL_PORT,MAIL_USERNAME,MAIL_PASSWORD,NOTIFICATION_FROM_EMAIL}

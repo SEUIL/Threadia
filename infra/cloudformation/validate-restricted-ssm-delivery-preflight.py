@@ -40,6 +40,8 @@ trust_sources = {
     )
 }
 workflow = (BASE.parent.parent / ".github/workflows/restricted-ssm-release.yml").read_text(encoding="utf-8")
+backend_ci = (BASE.parent.parent / ".github/workflows/backend-ci.yml").read_text(encoding="utf-8")
+pre_deploy_readiness = (BASE.parent.parent / ".github/workflows/pre-deploy-readiness.yml").read_text(encoding="utf-8")
 helper_artifact_workflow = (BASE.parent.parent / ".github/workflows/restricted-ssm-helper-artifact.yml").read_text(encoding="utf-8")
 helper_maintenance_workflow = (BASE.parent.parent / ".github/workflows/restricted-ssm-helper-maintenance.yml").read_text(encoding="utf-8")
 release_helper = (BASE.parent.parent / "scripts/ssm-delivery/apply-release").read_text(encoding="utf-8")
@@ -50,6 +52,8 @@ bootstrap = (BASE.parent.parent / "scripts/ssm-delivery/bootstrap-host.sh").read
 runbook = (BASE.parent.parent / "docs/00-project/restricted-ssm-release-runbook.md").read_text(encoding="utf-8")
 platform_migration_runbook = (BASE.parent.parent / "docs/00-project/restricted-ssm-platform-foundation-db-migration-runbook.md").read_text(encoding="utf-8")
 platform_migration_sql = (BASE.parent.parent / "scripts/ssm-delivery/platform-foundation-additive.sql").read_text(encoding="utf-8")
+platform_migration_test = (BASE / "test-platform-foundation-additive-migration.py").read_text(encoding="utf-8")
+jpa_schema_validation_test = (BASE.parent.parent / "backend/src/test/java/com/threadia/backend/JpaSchemaValidationTests.java").read_text(encoding="utf-8")
 architecture = (BASE.parent.parent / "docs/05-architecture/GitHub-OIDC-SSM-EC2-배포-설계.md").read_text(encoding="utf-8")
 version_pattern = "^[A-Za-z0-9._+=/-]{1,1000}[A-Za-z0-9._+=/-]{0,24}$"
 required_runtime_parameters = {
@@ -59,6 +63,8 @@ required_runtime_parameters = {
     "/threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET",
     "/threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE",
     "/threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN",
+    "/threadia/restricted-nonprod/runtime/THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET",
+    "/threadia/restricted-nonprod/runtime/THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET",
     "/threadia/restricted-nonprod/runtime/THREADIA_AUDIT_CURSOR_HMAC_SECRET",
 }
 bootstrap_runtime_parameter = "/threadia/restricted-nonprod/runtime/THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL"
@@ -69,6 +75,14 @@ optional_mail_runtime_parameters = {
     "/threadia/restricted-nonprod/runtime/MAIL_PASSWORD",
     "/threadia/restricted-nonprod/runtime/NOTIFICATION_FROM_EMAIL",
 }
+expected_runtime_parameter_names = (
+    "/threadia/restricted-nonprod/runtime/"
+    "{THREADIA_DB_URL,THREADIA_DB_USERNAME,THREADIA_DB_PASSWORD,THREADIA_JWT_SECRET,"
+    "THREADIA_COOKIE_SECURE,THREADIA_CORS_ALLOWED_ORIGIN,"
+    "THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET,THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET,"
+    "THREADIA_AUDIT_CURSOR_HMAC_SECRET,THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL,"
+    "MAIL_HOST,MAIL_PORT,MAIL_USERNAME,MAIL_PASSWORD,NOTIFICATION_FROM_EMAIL}"
+)
 def optional_mail_group_action(returned: set[str], invalid: set[str]) -> str:
     if not returned and invalid == optional_mail_runtime_parameters:
         return "omit"
@@ -196,6 +210,7 @@ assert "secretsmanager:" not in template.lower()
 assert "ManageMasterUserPassword" not in template
 runtime_parameter_arns = set(re.findall(r"parameter(/threadia/restricted-nonprod/runtime/[A-Z_]+)", template))
 assert runtime_parameter_arns == required_runtime_parameters | {bootstrap_runtime_parameter} | optional_mail_runtime_parameters
+assert expected_runtime_parameter_names in template
 assert "Resource: '*'" in template and "Action: ssm:GetCommandInvocation" in template
 assert "AWS-RunShellScript" not in template
 assert f"allowedPattern: '{version_pattern}'" in template
@@ -461,12 +476,22 @@ assert 'raise SystemExit("optional runtime parameter is blank: " + parameter_nam
 assert 'escaped_value = value.replace(chr(92), chr(92) * 2).replace(chr(34), chr(92) + chr(34))' in release_helper
 assert 'import re' in release_helper
 assert 'bootstrap_parameter = "/threadia/restricted-nonprod/runtime/THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL"' in release_helper
-assert 'audit_parameter = "/threadia/restricted-nonprod/runtime/THREADIA_AUDIT_CURSOR_HMAC_SECRET"' in release_helper
 assert 'if set(required) != (returned & set(required)) or (invalid & set(required)):' in release_helper
 assert 'if bootstrap_parameter not in returned and invalid != {bootstrap_parameter}:' in release_helper
-assert 'audit_secret = values[audit_parameter].strip()' in release_helper
-assert 'if not audit_secret or len(audit_secret.encode("utf-8")) < 32:' in release_helper
-assert 'raise SystemExit("audit cursor runtime secret is blank or shorter than 32 UTF-8 bytes")' in release_helper
+assert 'cursor_secret_parameters = (' in release_helper
+for cursor_parameter in (
+    "/threadia/restricted-nonprod/runtime/THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET",
+    "/threadia/restricted-nonprod/runtime/THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET",
+    "/threadia/restricted-nonprod/runtime/THREADIA_AUDIT_CURSOR_HMAC_SECRET",
+):
+    assert cursor_parameter in release_helper
+assert 'for parameter_name in cursor_secret_parameters:' in release_helper
+assert 'types = {item["Name"]: item.get("Type") for item in parameter_items}' in release_helper
+assert 'if types.get(parameter_name) != "SecureString":' in release_helper
+assert 'raise SystemExit("cursor runtime parameter must be SecureString: " + parameter_name)' in release_helper
+assert 'secret = values[parameter_name].strip()' in release_helper
+assert 'if not secret or len(secret.encode("utf-8")) < 32:' in release_helper
+assert 'raise SystemExit("cursor runtime secret is blank or shorter than 32 UTF-8 bytes: " + parameter_name)' in release_helper
 assert 'bootstrap_email = None' in release_helper
 assert 'if bootstrap_parameter in returned:' in release_helper
 assert 'bootstrap_email = values[bootstrap_parameter].strip().lower()' in release_helper
@@ -507,10 +532,35 @@ assert "Service-unit maintenance는 release helper maintenance와 분리된 manu
 assert "SET NAMES utf8mb4;" in platform_migration_sql
 assert "SET SESSION lock_wait_timeout = 30;" in platform_migration_sql
 assert "SET SESSION innodb_lock_wait_timeout = 30;" in platform_migration_sql
+assert "CREATE TABLE IF NOT EXISTS admin_action_audits" in platform_migration_sql
+assert "idx_platform_admins_status_role" in platform_migration_sql
+assert "chk_platform_admins_revocation" in platform_migration_sql
+assert "idx_aaa_created" in platform_migration_sql
+assert "PLATFORM_ADMIN_ROLE_CHANGED" in platform_migration_sql
+assert "VARCHAR(50) NOT NULL DEFAULT ''ACTIVE''" in platform_migration_sql
+assert "for _ in range(2):" in platform_migration_test
+assert "DROP TABLE admin_action_audits;" in platform_migration_test
+assert 'platform_admin_count == "0"' in platform_migration_test
+assert "Platform foundation additive migration and Phase 1 empty-admin fixture passed." in platform_migration_test
+assert "test-platform-foundation-additive-migration.py" in backend_ci
+assert "JpaSchemaValidationTests" in backend_ci
+assert "test-optional-mail-runtime-parser.py" in backend_ci
+for environment_name in (
+    "THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET",
+    "THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET",
+    "THREADIA_AUDIT_CURSOR_HMAC_SECRET",
+):
+    assert environment_name + ":" in backend_ci
+    assert environment_name + ":" in pre_deploy_readiness
+assert "THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL:" not in backend_ci.split("    env:\n", 1)[1].split("    services:", 1)[0]
+assert "INSERT INTO platform_admins" not in backend_ci
+assert "@MockitoBean" not in jpa_schema_validation_test
 assert "unknown Java enum key and is a strict NO-GO" in platform_migration_runbook
 assert "Korean label literal과 JSON 구조를 직접 비교해 mojibake를 검출" in platform_migration_runbook
-assert "Authorization reconciliation (strict pre-release gate)" in platform_migration_runbook
-assert "global `SUPER_ADMIN`은 exactly one row" in platform_migration_runbook
+assert "Phase 1에서는 `THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL`이 response와 staged runtime env에서 정확히 absent이고, `platform_admins` row count가 zero" in platform_migration_runbook
+assert "Phase 2 Authorization reconciliation (strict pre-release gate)" in platform_migration_runbook
+assert "global `SUPER_ADMIN`은 exactly one row" in platform_migration_runbook.split("Phase 2 Authorization reconciliation", 1)[1]
+assert "Phase 1 hard gate" in runbook and "`platform_admins` row count가 zero" in runbook
 assert (BASE.parent.parent / "scripts/ssm-delivery/apply-release").stat().st_mode & 0o111
 assert (BASE.parent.parent / "scripts/ssm-delivery/bootstrap-host.sh").stat().st_mode & 0o111
 assert not (BASE.parent.parent / "scripts/ssm-delivery/threadia-backend.service").stat().st_mode & 0o111

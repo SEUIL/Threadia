@@ -46,12 +46,14 @@ import com.threadia.backend.project.dto.ProjectArchiveData;
 import com.threadia.backend.project.dto.ProjectArchiveRequest;
 import com.threadia.backend.project.dto.ProjectDetailData;
 import com.threadia.backend.project.dto.ProjectData;
+import com.threadia.backend.project.dto.ProjectDashboardData;
 import com.threadia.backend.project.dto.ProjectsData;
 import com.threadia.backend.project.dto.ProjectUpdateRequest;
 import com.threadia.backend.project.exception.ProjectConflictException;
 import com.threadia.backend.project.exception.ProjectNotFoundException;
 import com.threadia.backend.project.exception.ProjectValidationException;
 import com.threadia.backend.project.repository.ProjectMemberRepository;
+import com.threadia.backend.project.repository.ProjectDashboardRepository;
 import com.threadia.backend.project.repository.ProjectRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -74,6 +76,9 @@ class ProjectServiceTest {
 	@Mock
 	private ProjectMemberRepository projectMemberRepository;
 
+	@Mock
+	private ProjectDashboardRepository projectDashboardRepository;
+
 	private ProjectService projectService;
 
 	@BeforeEach
@@ -84,6 +89,7 @@ class ProjectServiceTest {
 				companyRepository,
 				projectRepository,
 				projectMemberRepository,
+				projectDashboardRepository,
 				FIXED_CLOCK);
 	}
 
@@ -378,6 +384,86 @@ class ProjectServiceTest {
 	}
 
 	@Test
+	void dashboardReturnsLiveDataForCompanyAdminWithoutProjectMembership() {
+		AuthContext authContext = authContext();
+		User admin = user(1L);
+		Company company = company(10L, admin);
+		Project project = project(20L, company, admin, "Threadia MVP", "THD");
+		ProjectDashboardData expected = dashboardData();
+		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(project));
+		when(companyMembershipService.findMembership(10L, authContext))
+				.thenReturn(Optional.of(companyMember(company, admin, CompanyMemberRole.COMPANY_ADMIN, CompanyMemberStatus.ACTIVE)));
+		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L)).thenReturn(Optional.empty());
+		when(projectDashboardRepository.load(20L)).thenReturn(expected);
+
+		ProjectDashboardData data = projectService.dashboard("admin-token", 20L);
+
+		assertThat(data).isSameAs(expected);
+		verify(projectDashboardRepository).load(20L);
+	}
+
+	@Test
+	void dashboardReturnsLiveDataForActiveProjectMember() {
+		AuthContext authContext = authContext();
+		User member = user(1L);
+		Company company = company(10L, member);
+		Project project = project(20L, company, member, "Threadia MVP", "THD");
+		when(authContextService.fromAccessToken("member-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(member);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(project));
+		when(companyMembershipService.findMembership(10L, authContext))
+				.thenReturn(Optional.of(companyMember(company, member, CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE)));
+		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L))
+				.thenReturn(Optional.of(projectMember(project, member, ProjectMemberRole.MEMBER, ProjectMemberStatus.ACTIVE)));
+		when(projectDashboardRepository.load(20L)).thenReturn(dashboardData());
+
+		ProjectDashboardData data = projectService.dashboard("member-token", 20L);
+
+		assertThat(data.progress().percentage()).isEqualTo(50);
+		verify(projectDashboardRepository).load(20L);
+	}
+
+	@Test
+	void dashboardRejectsInactiveCompanyMembership() {
+		AuthContext authContext = authContext();
+		User member = user(1L);
+		Company company = company(10L, member);
+		Project project = project(20L, company, member, "Threadia MVP", "THD");
+		when(authContextService.fromAccessToken("member-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(member);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(project));
+		when(companyMembershipService.findMembership(10L, authContext))
+				.thenReturn(Optional.of(companyMember(company, member, CompanyMemberRole.MEMBER, CompanyMemberStatus.LEFT)));
+
+		assertThatThrownBy(() -> projectService.dashboard("member-token", 20L))
+				.isInstanceOf(ForbiddenException.class)
+				.hasMessage("회사 접근 권한이 없습니다.");
+		verify(projectDashboardRepository, never()).load(20L);
+	}
+
+	@Test
+	void dashboardRejectsInactiveProjectMembership() {
+		AuthContext authContext = authContext();
+		User member = user(1L);
+		Company company = company(10L, member);
+		Project project = project(20L, company, member, "Threadia MVP", "THD");
+		when(authContextService.fromAccessToken("member-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(member);
+		when(projectRepository.findById(20L)).thenReturn(Optional.of(project));
+		when(companyMembershipService.findMembership(10L, authContext))
+				.thenReturn(Optional.of(companyMember(company, member, CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE)));
+		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L))
+				.thenReturn(Optional.of(projectMember(project, member, ProjectMemberRole.MEMBER, ProjectMemberStatus.REMOVED)));
+
+		assertThatThrownBy(() -> projectService.dashboard("member-token", 20L))
+				.isInstanceOf(ForbiddenException.class)
+				.hasMessage("프로젝트 접근 권한이 없습니다.");
+		verify(projectDashboardRepository, never()).load(20L);
+	}
+
+	@Test
 	void updateUpdatesProjectForProjectAdmin() {
 		AuthContext authContext = authContext();
 		User projectAdmin = user(1L);
@@ -611,6 +697,14 @@ class ProjectServiceTest {
 
 	private static AuthContext authContext() {
 		return new AuthContext(1L, "admin@example.com");
+	}
+
+	private static ProjectDashboardData dashboardData() {
+		return new ProjectDashboardData(
+				new ProjectDashboardData.Progress(2, 1, 50),
+				List.of(),
+				List.of(),
+				null);
 	}
 
 	private static User user(Long id) {

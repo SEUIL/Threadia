@@ -14,8 +14,10 @@ import com.threadia.backend.company.domain.CompanyMember;
 import com.threadia.backend.company.domain.CompanyMemberRole;
 import com.threadia.backend.company.domain.CompanyMemberStatus;
 import com.threadia.backend.company.domain.CompanyStatus;
+import com.threadia.backend.company.domain.CompanyStatusConverter;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -37,7 +39,7 @@ class InvitationEntityMappingTests {
 	@Test
 	void companiesMapCreatedByUserAndStatusWithoutUserRole() {
 		assertRequiredLazyRelation(Company.class, "createdBy", User.class, "created_by_user_id", "fk_companies_created_by");
-		assertStringEnum(Company.class, "status");
+		assertVarcharEnum(Company.class, "status", CompanyStatusConverter.class);
 		assertThat(CompanyStatus.values()).containsExactly(CompanyStatus.ACTIVE, CompanyStatus.INACTIVE);
 		assertThat(newInstance(Company.class).getStatus()).isEqualTo(CompanyStatus.ACTIVE);
 	}
@@ -95,6 +97,13 @@ class InvitationEntityMappingTests {
 
 		assertThat(enumerated).isNotNull();
 		assertThat(enumerated.value()).isEqualTo(EnumType.STRING);
+	}
+
+	private static void assertVarcharEnum(Class<?> entityType, String fieldName, Class<?> converterType) {
+		Convert convert = field(entityType, fieldName).getAnnotation(Convert.class);
+
+		assertThat(convert).isNotNull();
+		assertThat(convert.converter()).isEqualTo(converterType);
 	}
 
 	private static void assertRequiredLazyRelation(
