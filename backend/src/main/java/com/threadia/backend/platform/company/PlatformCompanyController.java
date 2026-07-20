@@ -1,11 +1,13 @@
 package com.threadia.backend.platform.company;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.threadia.backend.common.response.ApiResponse;
@@ -21,6 +23,16 @@ public class PlatformCompanyController {
 
 	public PlatformCompanyController(PlatformCompanyService companyService) {
 		this.companyService = companyService;
+	}
+
+	@GetMapping
+	public ResponseEntity<ApiResponse<PlatformCompanyPageData>> list(
+			@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+			@RequestParam(required = false) String status,
+			@RequestParam(required = false) String q,
+			@RequestParam(required = false) String cursor,
+			@RequestParam(required = false) Integer size) {
+		return ResponseEntity.ok(ApiResponse.of(companyService.list(accessToken(authorizationHeader), status, q, cursor, size)));
 	}
 
 	@PatchMapping("/{companyId}/status")
