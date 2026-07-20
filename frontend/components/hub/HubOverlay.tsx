@@ -31,6 +31,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePendingInvitationCount } from "@/hooks/usePendingInvitationCount";
 import { useUnreadNotificationCount } from "@/hooks/useUnreadNotificationCount";
 import { useDmUnreadCount } from "@/hooks/useDmUnreadCount";
+import { useIsPlatformAdmin } from "@/hooks/useIsPlatformAdmin";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 import { ProfileEditModal } from "@/components/profile/ProfileEditModal";
 
@@ -99,6 +100,20 @@ function BuildingIcon() {
   );
 }
 
+function ShieldIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+      <path
+        d="M12 3.5 5 6v5.5c0 4.4 3 8.1 7 9 4-.9 7-4.6 7-9V6l-7-2.5Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path d="m9 12 2 2 4-4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function LogoutIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
@@ -131,6 +146,7 @@ function HubRail() {
   const primaryMembership = companyMemberships[0] ?? null;
   const unreadNotificationCount = useUnreadNotificationCount(primaryMembership?.companyId);
   const dmUnreadCount = useDmUnreadCount();
+  const isPlatformAdmin = useIsPlatformAdmin();
 
   const handleLogout = async () => {
     await logout();
@@ -153,6 +169,11 @@ function HubRail() {
     if (role === "COMPANY_ADMIN") {
       items.push({ href: `/${companyId}/settings`, label: "회사 관리", icon: <BuildingIcon /> });
     }
+  }
+  // platform admin(회사 membership과 무관한 별도 authority)만 S15 콘솔 진입점이 보인다.
+  // company-agnostic이라 primaryMembership 유무와 무관하게 노출한다(RailShell과 동일 원칙).
+  if (isPlatformAdmin) {
+    items.push({ href: "/platform", label: "플랫폼 관리자", icon: <ShieldIcon /> });
   }
 
   return (
