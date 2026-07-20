@@ -11,7 +11,7 @@
  * offset(page) pagination이라 cursor가 아니라 page를 증가시키며 "더 보기"를
  * 구현한다.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { activityService } from "@/services/activity.service";
@@ -64,17 +64,32 @@ export default function ProjectActivityPage() {
   const [state, setState] = useState<LoadState>("loading");
   const [error, setError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+
+  /*
+   * 리뷰 반영(PR #205, xaphxe): stale response 방어가 없어서 project 전환이나
+   * 빠른 재요청 상황에서 이전 응답이 현재 feed를 덮거나 append할 수 있었다.
+   * load()는 매 호출마다 이 값을 증가시켜 "이 요청이 최신인지"를 응답 시점에
+   * 확인한다. loadMore()는 새 generation을 만들지 않고 호출 시점의 값을 캡처해서
+   * 응답 시점에도 같은 generation인지(=그 사이 load()로 project가 바뀌지 않았는지)
+   * 확인한다.
+   */
+  const loadSeqRef = useRef(0);
 
   const load = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     setState("loading");
     setError(null);
+    setLoadMoreError(null);
     try {
       const { data } = await activityService.list(projectId, { page: 0, size: PAGE_SIZE });
+      if (loadSeqRef.current !== seq) return;
       setEvents(data.data.events);
       setPage(0);
       setTotal(data.data.total);
       setState("ready");
     } catch (err) {
+      if (loadSeqRef.current !== seq) return;
       setError(invitationErrorMessage(err, "활동 내역을 불러오지 못했습니다."));
       setState("error");
     }
@@ -88,17 +103,21 @@ export default function ProjectActivityPage() {
 
   const loadMore = async () => {
     if (loadingMore) return;
+    const seq = loadSeqRef.current;
+    const requestPage = page + 1;
     setLoadingMore(true);
+    setLoadMoreError(null);
     try {
-      const nextPage = page + 1;
-      const { data } = await activityService.list(projectId, { page: nextPage, size: PAGE_SIZE });
+      const { data } = await activityService.list(projectId, { page: requestPage, size: PAGE_SIZE });
+      if (loadSeqRef.current !== seq) return;
       setEvents((prev) => [...prev, ...data.data.events]);
-      setPage(nextPage);
+      setPage(requestPage);
       setTotal(data.data.total);
     } catch (err) {
-      setError(invitationErrorMessage(err, "다음 활동 내역을 불러오지 못했습니다."));
+      if (loadSeqRef.current !== seq) return;
+      setLoadMoreError(invitationErrorMessage(err, "다음 활동 내역을 불러오지 못했습니다."));
     } finally {
-      setLoadingMore(false);
+      if (loadSeqRef.current === seq) setLoadingMore(false);
     }
   };
 
@@ -154,6 +173,7 @@ export default function ProjectActivityPage() {
           {loadingMore ? "불러오는 중..." : "더 보기"}
         </button>
       )}
+      {loadMoreError && <p className="mt-2 text-xs text-destructive">{loadMoreError}</p>}
     </div>
   );
 }
