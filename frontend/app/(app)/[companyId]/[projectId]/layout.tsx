@@ -18,6 +18,7 @@ import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
 
 const TABS = [
+  { key: "dashboard", label: "홈" },
   { key: "graph", label: "그래프" },
   { key: "board", label: "보드" },
   { key: "backlog", label: "백로그" },
