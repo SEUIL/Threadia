@@ -220,25 +220,33 @@ test("mark-read가 실패하면 unread 배지가 그대로 남는다", async ({ 
   await expect(railLink.locator("span.bg-destructive")).toBeVisible();
 });
 
-test("markRoomRead 이후 지연 도착한 loadRooms 응답이 unread 배지를 되돌리지 않는다", async ({ page }) => {
-  /*
-   * 재현 순서(재리뷰 지적, pktewon): dev 서버는 React Strict Mode라 DmLayout의
-   * mount effect가 두 번 실행되어 loadRooms()가 초기 마운트에서 두 번 호출된다.
-   *  1. 두 loadRooms() 호출 중 하나(두 번째 GET rooms 요청)를 응답 직전에 붙잡아둔다.
-   *  2. 그사이 room 301(unread 3) 페이지의 자체 조회 + mark-read가 먼저 끝나
-   *     markRoomRead(301)로 레일 배지가 지워진다.
-   *  3. 붙잡아뒀던 응답(옛 unreadCount 3 스냅샷)을 그제서야 흘려보낸다.
-   *  4. generation이 이미 지나갔으므로 이 응답은 버려져야 하고, 배지는 계속
-   *     지워진 상태로 남아야 한다(고치기 전에는 3으로 되돌아갔다 — 실측 확인).
-   */
+/*
+ * markRoomRead 이후 지연 도착한 loadRooms 응답 시나리오 — 2차 재리뷰(pktewon) 반영.
+ *
+ * 1차 fix(generation 불일치 시 응답 전체 폐기)는 dev의 React Strict Mode가
+ * mount effect를 두 번 실행해 loadRooms()가 두 번 호출되는 상황에서만 우연히
+ * 통과했다 — 먼저 끝난 "여벌" 호출이 폐기된 응답의 빈자리를 채워줬을 뿐이다.
+ * production처럼 초기 loadRooms() 호출이 단 하나뿐이고 그게 지연되면, 응답을
+ * 통째로 버리는 순간 rail 자체가 텅 비어버리는 회귀가 있었다(room 링크 자체가
+ * 사라짐 — 배지만 사라진 게 아니라). 지금 fix는 응답을 폐기하지 않고 room 단위로
+ * merge하므로 이 문제가 구조적으로 없다.
+ *
+ * ⚠️ 정직한 한계: `HOLD_CALL_INDEX`를 1로 잡아도 이 dev 서버 환경에서는 Strict
+ * Mode가 항상 두 번째 호출을 "여벌"로 만들어주기 때문에, 실측 결과 1차 fix
+ * (응답 전체 폐기)로 되돌려도 이 테스트는 여전히 통과했다 — 즉 이 두 테스트가
+ * "production에 단 하나의 호출만 있는 상황"을 강제로 재현하지는 못한다(이 dev
+ * 환경에서 그걸 결정론적으로 만들 방법을 못 찾았다). 대신 이 두 테스트는 "어느
+ * 순번의 초기 호출이 지연되든 merge 로직이 해당 room의 읽음 상태를 지키면서
+ * 목록 데이터 자체는 항상 반영한다"는 걸 확인한다 — merge 방식은 설계상 응답을
+ * 절대 통째로 버리지 않으므로(개별 room의 unreadCount만 보정) 호출이 몇 개든,
+ * 어떤 순서로 도착하든 같은 보장이 성립한다.
+ */
+async function runStaleRoomsRaceScenario(page: Page, holdCallIndex: number) {
   const rooms = [room({ id: 301, otherUserId: 2, nickname: "김민정", unreadCount: 3 })];
   const messages: Record<number, unknown[]> = {
     301: [{ id: 1, roomId: 301, sender: { id: 2, email: "b@test.dev", nickname: "김민정", avatarUrl: null }, content: "안녕하세요", createdAt: "2026-07-19T00:00:00Z" }],
   };
 
-  // 실측(HOLD_IDX 1~4로 스캔) 결과 dev의 Strict Mode 이중 mount에서 DmLayout의
-  // loadRooms()가 두 번째로 도착하는 GET rooms 요청이 이 race를 재현한다.
-  const HOLD_CALL_INDEX = 2;
   let roomsCallIndex = 0;
   let staleCallHeld = false;
   let releaseStaleRooms: () => void = () => {};
@@ -280,7 +288,7 @@ test("markRoomRead 이후 지연 도착한 loadRooms 응답이 unread 배지를 
       // 늦게 도착"하는 상황을 재현하려면 mark-read로 뮤테이션되기 전 상태를
       // 붙잡아둬야 한다.
       const snapshot = rooms.map((r) => ({ ...r }));
-      if (roomsCallIndex === HOLD_CALL_INDEX) {
+      if (roomsCallIndex === holdCallIndex) {
         staleCallHeld = true;
         await staleGate;
       }
@@ -309,14 +317,27 @@ test("markRoomRead 이후 지연 도착한 loadRooms 응답이 unread 배지를 
 
   await page.goto("/1/dm/301");
   await expect(page.getByRole("heading", { name: "김민정" })).toBeVisible();
-
-  // mark-read가 끝나 배지가 지워질 시간을 충분히 준다(held 요청과 무관하게 진행된다).
-  const railBadge = page.locator('a[title="김민정"] span.bg-destructive');
-  await expect(railBadge).toHaveCount(0);
   await expect.poll(() => staleCallHeld).toBe(true);
 
-  // 붙잡아뒀던 stale 응답(unreadCount 3)을 풀어준다 — 배지가 되돌아가면 안 된다.
+  const railLink = page.locator('a[title="김민정"]');
+  const railBadge = railLink.locator("span.bg-destructive");
+
+  // 지연된 응답이 아직 안 왔어도(단, holdCallIndex가 유일한 초기 호출인 경우엔
+  // 이 시점엔 rail이 비어 있을 수 있다 — 그건 정상이다). 응답을 풀어준 뒤가
+  // 진짜 검증 지점이다.
   releaseStaleRooms();
   await page.waitForTimeout(300);
+
+  // room 링크 자체가 사라지면 안 되고(1차 fix의 회귀 지점), unread 배지만
+  // 제거된 상태여야 한다.
+  await expect(railLink).toHaveCount(1);
   await expect(railBadge).toHaveCount(0);
+}
+
+test("markRoomRead 이후 지연 도착한 두 번째 초기 loadRooms 응답이 room 링크를 유지한 채 배지만 제거한다", async ({ page }) => {
+  await runStaleRoomsRaceScenario(page, 2);
+});
+
+test("markRoomRead 이후 지연 도착한 첫 번째 초기 loadRooms 응답이 room 링크를 유지한 채 배지만 제거한다", async ({ page }) => {
+  await runStaleRoomsRaceScenario(page, 1);
 });

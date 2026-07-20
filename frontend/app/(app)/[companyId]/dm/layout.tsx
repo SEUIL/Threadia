@@ -37,23 +37,37 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
   const [starting, setStarting] = useState(false);
 
   /*
-   * stale response 방어(PR #173 재리뷰 반영, pktewon): dev 환경에서는 React
-   * Strict Mode가 mount effect를 두 번 실행해 loadRooms()가 초기 마운트에서
-   * 두 번 호출된다. 그중 하나가 늦게 응답하면, 그사이 markRoomRead()로 지운
-   * 배지를 뒤늦게 도착한 옛 데이터가 덮어쓰는 race가 있었다. loadRooms와
-   * markRoomRead가 같은 generation 카운터를 공유해서, 호출 시점 이후 뭔가가
-   * generation을 더 올렸다면(다른 loadRooms 호출이든 markRoomRead든) 그 응답은
-   * 버린다(검색 페이지의 stale-response 방어와 같은 패턴).
+   * stale response 방어(PR #173 2차 재리뷰 반영, pktewon): 처음엔 generation이
+   * 안 맞는 loadRooms() 응답을 통째로 버렸는데, 이러면 production처럼 초기
+   * loadRooms() 호출이 단 하나뿐인 환경에서 그 호출이 markRoomRead()보다 늦게
+   * 끝나면 응답 전체가 버려져 rail이 텅 빈 채로 남는 회귀가 있었다(dev의 React
+   * Strict Mode는 mount effect를 두 번 실행해 두 번째 호출이 첫 번째의 빈 결과를
+   * 덮어써 줬을 뿐 — 그 안전망이 없는 production에서는 재현됐다).
+   *
+   * 그래서 응답 자체는 항상 반영하되(room 목록 데이터는 신뢰), 그 요청이 시작된
+   * "이후"에 markRoomRead()로 로컬 읽음 처리된 room만 서버의 옛 unreadCount로
+   * 되돌아가지 않게 개별 보정한다 — 목록 전체 폐기가 아니라 room 단위 merge.
    */
   const roomsGenerationRef = useRef(0);
+  // roomId → 그 room을 읽음 처리한 시점의 generation. loadRooms() 응답을 적용할
+  // 때, 이 값이 요청 시작 시점의 generation보다 크면(=응답이 시작된 뒤에 읽음
+  // 처리가 일어났으면) 응답의 unreadCount를 무시하고 0으로 강제한다.
+  const readGenerationsRef = useRef<Map<number, number>>(new Map());
 
   const loadRooms = useCallback(async () => {
     const generation = ++roomsGenerationRef.current;
     try {
       const { data } = await directMessageService.listRooms(companyId);
-      if (roomsGenerationRef.current !== generation) return;
-      setRooms(data.data.rooms);
+      const merged = data.data.rooms.map((r) => {
+        const readGeneration = readGenerationsRef.current.get(r.id);
+        return readGeneration !== undefined && readGeneration > generation
+          ? { ...r, unreadCount: 0 }
+          : r;
+      });
+      setRooms(merged);
     } catch {
+      // 네트워크/서버 오류는 목록을 지울 근거가 없다 — 이미 더 최신 결과가
+      // 반영돼 있다면(generation 불일치) 그 상태를 그대로 둔다.
       if (roomsGenerationRef.current !== generation) return;
       setRooms([]);
     }
@@ -82,10 +96,12 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
   };
 
   // room 입장 시 markRead API 호출이 성공하면 이걸로 레일 배지를 즉시 지운다
-  // (재조회 없이 로컬 state만 갱신). generation을 먼저 올려서, 이 시점 이전에
-  // 시작된 loadRooms() 응답이 나중에 도착해도 무시되게 한다.
+  // (재조회 없이 로컬 state만 갱신). 이 room을 이 generation에 읽었다고 기록해
+  // 두면, 이 시점 이전에 시작된 loadRooms() 응답이 나중에 도착해도 이 room의
+  // unreadCount만 0으로 보정되고 나머지 목록 데이터는 정상 반영된다.
   const markRoomRead = useCallback((roomId: number) => {
-    roomsGenerationRef.current += 1;
+    const generation = ++roomsGenerationRef.current;
+    readGenerationsRef.current.set(roomId, generation);
     setRooms((prev) => prev.map((r) => (r.id === roomId ? { ...r, unreadCount: 0 } : r)));
   }, []);
 
