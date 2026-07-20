@@ -7,7 +7,7 @@
  * 범위를 넘어서, JSON 원문 편집 방식을 택했다. 조회는 PLATFORM_ADMIN도
  * 가능하지만 PUT은 SUPER_ADMIN 전용(backend requireSuperAdminFresh)이라
  * PLATFORM_ADMIN에게는 편집 버튼을 아예 숨긴다. expectedVersion은 화면에
- *떠 있는 값을 그대로 보내 optimistic concurrency를 건다 — 충돌 시
+ * 떠 있는 값을 그대로 보내 optimistic concurrency를 건다 — 충돌 시
  * 409 SYSTEM_SETTING_VERSION_CONFLICT 메시지를 보여주고 재조회를 유도한다.
  */
 import { useCallback, useEffect, useState } from "react";

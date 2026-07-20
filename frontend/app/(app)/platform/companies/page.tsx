@@ -152,7 +152,13 @@ export default function PlatformCompaniesPage() {
       {companies.length > 0 && (
         <ul className="mt-4 divide-y divide-border rounded-xl border border-border bg-surface">
           {companies.map((company) => {
-            const status = company.status as CompanyStatus;
+            // 백엔드가 ACTIVE/INACTIVE 외 값을 주는 경우를 대비해 알 수 없는
+            // status는 캐스팅 없이 raw 문자열 그대로 중립 스타일로 보여준다
+            // (리뷰 반영, minjeong333).
+            const isKnownStatus = company.status === "ACTIVE" || company.status === "INACTIVE";
+            const status = isKnownStatus ? (company.status as CompanyStatus) : null;
+            const statusLabel = status ? STATUS_LABEL[status] : company.status;
+            const statusClass = status ? STATUS_CLASS[status] : "bg-border text-muted";
             return (
               <li key={company.id} className="px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
@@ -165,8 +171,8 @@ export default function PlatformCompaniesPage() {
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_CLASS[status]}`}>
-                      {STATUS_LABEL[status]}
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusClass}`}>
+                      {statusLabel}
                     </span>
                     <button
                       onClick={() => openAction(company)}

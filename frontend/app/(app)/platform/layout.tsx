@@ -12,6 +12,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { isAxiosError } from "axios";
 import { platformActorService } from "@/services/platform-actor.service";
 import { platformErrorMessage } from "@/lib/platform";
 import { PlatformAdminProvider } from "@/contexts/PlatformAdminContext";
@@ -40,7 +41,11 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
         setActor(data.data.platformAdmin);
         setState("ready");
       } catch (err) {
-        setState("denied");
+        // 403(FORBIDDEN)만 "권한 없음"으로 본다. 500/네트워크 오류까지 같은
+        // 문구로 묶으면 서버 장애 상황을 사용자가 "나는 권한이 없다"로
+        // 오해할 수 있다(리뷰 반영, minjeong333).
+        const isForbidden = isAxiosError(err) && err.response?.status === 403;
+        setState(isForbidden ? "denied" : "error");
         setError(platformErrorMessage(err, "플랫폼 관리자 정보를 불러오지 못했습니다."));
       }
     })();
@@ -50,12 +55,17 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
     return <div className="mx-auto max-w-5xl px-6 py-10 text-sm text-muted">확인하는 중...</div>;
   }
 
-  if (state === "denied" || !actor) {
+  if (state === "denied" || state === "error" || !actor) {
+    const title =
+      state === "error" ? "플랫폼 관리자 정보를 확인하지 못했습니다." : "플랫폼 관리자 콘솔에 접근할 수 없습니다.";
     return (
       <div className="mx-auto max-w-5xl px-6 py-10">
         <div className="rounded-xl border border-destructive-subtle bg-destructive-subtle px-6 py-8 text-center">
-          <p className="text-sm font-semibold text-destructive">플랫폼 관리자 콘솔에 접근할 수 없습니다.</p>
+          <p className="text-sm font-semibold text-destructive">{title}</p>
           <p className="mt-1 text-xs text-destructive">{error}</p>
+          {state === "error" && (
+            <p className="mt-1 text-xs text-destructive">권한 문제가 아니라 서버 오류일 수 있습니다. 잠시 후 다시 시도해 주세요.</p>
+          )}
           <Link href="/hub" className="mt-4 inline-block text-sm font-medium text-primary hover:underline">
             허브로 돌아가기
           </Link>
