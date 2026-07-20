@@ -50,7 +50,7 @@ class DirectMessageControllerTest {
 	@Autowired MockMvc mockMvc;
 	@Autowired ObjectMapper objectMapper;
 	@MockitoBean DirectMessageService directMessageService;
-	@Test void exposesAllSixRestEndpointsWithExpectedEnvelopes() throws Exception {
+	@Test void exposesSixExistingRestEndpointsWithExpectedEnvelopes() throws Exception {
 		DirectMessageRoomResponse room = new DirectMessageRoomResponse(30L, 10L, new UserResponse(2L, "other@example.com", "other", null), 1, "2026-07-15T00:00:00Z");
 		when(directMessageService.listRooms("token", 10L)).thenReturn(new DirectMessageRoomsData(List.of(room)));
 		when(directMessageService.getOrCreateRoom(eq("token"), eq(10L), any())).thenReturn(new DirectMessageRoomCreationResult(new DirectMessageRoomData(room), true));
