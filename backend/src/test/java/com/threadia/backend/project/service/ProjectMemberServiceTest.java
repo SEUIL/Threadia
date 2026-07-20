@@ -13,6 +13,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -90,6 +91,8 @@ class ProjectMemberServiceTest {
 				ProjectMemberStatus.ACTIVE,
 				"member@example"))
 				.thenReturn(List.of(member));
+		when(companyMembershipService.findActiveRolesByCompanyIdAndUserIds(10L, List.of(2L)))
+				.thenReturn(Map.of(2L, CompanyMemberRole.COMPANY_ADMIN));
 
 		ProjectMembersData data = projectMemberService.list(
 				"admin-token",
@@ -99,6 +102,7 @@ class ProjectMemberServiceTest {
 				"  Member@Example  ");
 
 		assertThat(data.projectMembers()).extracting("id").containsExactly(200L);
+		assertThat(data.projectMembers().get(0).companyRole()).isEqualTo("COMPANY_ADMIN");
 		assertThat(data.projectMembers().get(0).user().email()).isEqualTo("member@example.com");
 		verify(projectMemberRepository, never()).findByProject_IdAndUser_Id(20L, 1L);
 	}
@@ -117,11 +121,14 @@ class ProjectMemberServiceTest {
 		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L)).thenReturn(Optional.of(requester));
 		when(projectMemberRepository.findByProjectIdWithFiltersOrderByIdAsc(20L, null, null, null))
 				.thenReturn(List.of(requester));
+		when(companyMembershipService.findActiveRolesByCompanyIdAndUserIds(10L, List.of(1L)))
+				.thenReturn(Map.of(1L, CompanyMemberRole.MEMBER));
 
 		ProjectMembersData data = projectMemberService.list("member-token", 20L, null, null, "   ");
 
 		verify(companyMembershipService).requireActiveMember(10L, authContext);
 		assertThat(data.projectMembers()).hasSize(1);
+		assertThat(data.projectMembers().get(0).companyRole()).isEqualTo("MEMBER");
 	}
 
 	@Test
@@ -163,6 +170,8 @@ class ProjectMemberServiceTest {
 		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false);
 		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L)).thenReturn(Optional.of(requester));
 		when(companyMembershipService.isActiveMemberForUpdate(10L, 2L)).thenReturn(true);
+		when(companyMembershipService.findActiveRolesByCompanyIdAndUserIds(10L, List.of(2L)))
+				.thenReturn(Map.of(2L, CompanyMemberRole.MEMBER));
 
 		ProjectMemberData data = projectMemberService.update(
 				"project-admin-token",
@@ -174,6 +183,7 @@ class ProjectMemberServiceTest {
 		assertThat(target.getStatus()).isEqualTo(ProjectMemberStatus.ACTIVE);
 		assertThat(target.getUpdatedAt()).isEqualTo(LocalDateTime.of(2026, 7, 7, 0, 0));
 		assertThat(data.projectMember().role()).isEqualTo("PROJECT_ADMIN");
+		assertThat(data.projectMember().companyRole()).isEqualTo("MEMBER");
 	}
 
 	@Test
@@ -195,12 +205,15 @@ class ProjectMemberServiceTest {
 		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(project));
 		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
 		when(companyMembershipService.isActiveMemberForUpdate(10L, 2L)).thenReturn(true);
+		when(companyMembershipService.findActiveRolesByCompanyIdAndUserIds(10L, List.of(2L)))
+				.thenReturn(Map.of(2L, CompanyMemberRole.COMPANY_ADMIN));
 
-		projectMemberService.update(
+		ProjectMemberData data = projectMemberService.update(
 				"admin-token",
 				201L,
 				new ProjectMemberUpdateRequest(ProjectMemberRole.PROJECT_ADMIN, ProjectMemberStatus.ACTIVE));
 
+		assertThat(data.projectMember().companyRole()).isEqualTo("COMPANY_ADMIN");
 		verify(projectMemberRepository, never()).findByProject_IdAndUser_Id(20L, 1L);
 	}
 
@@ -327,6 +340,8 @@ class ProjectMemberServiceTest {
 				.thenReturn(List.of(target, otherAdmin));
 		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(project));
 		when(companyMembershipService.hasActiveRole(10L, authContext, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+		when(companyMembershipService.findActiveRolesByCompanyIdAndUserIds(10L, List.of(1L)))
+				.thenReturn(Map.of(1L, CompanyMemberRole.COMPANY_ADMIN));
 
 		ProjectMemberData data = projectMemberService.update(
 				"admin-token",
@@ -336,6 +351,7 @@ class ProjectMemberServiceTest {
 		assertThat(target.getRole()).isEqualTo(ProjectMemberRole.MEMBER);
 		assertThat(target.getStatus()).isEqualTo(ProjectMemberStatus.REMOVED);
 		assertThat(data.projectMember().status()).isEqualTo("REMOVED");
+		assertThat(data.projectMember().companyRole()).isEqualTo("COMPANY_ADMIN");
 	}
 
 	@Test

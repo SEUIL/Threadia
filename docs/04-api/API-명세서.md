@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-07-19
-> **버전**: v3.10 회사 자율 생성 seed-only 제한 해제 반영 + WBS 4.10.4 Backend 완료 기준 + 회사 멤버 제거 API 통합
+> **최종 수정**: 2026-07-20
+> **버전**: v3.12 Platform 회사 목록 API 계약 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -690,6 +690,8 @@ JSON value의 top-level/object field는 key별 code-owned validator가 검증한
 | POST | `/api/v1/platform/admins/{platformAdminId}/reactivate` | `SUPER_ADMIN` | revoke 이력 재활성화 |
 | PATCH | `/api/v1/platform/admins/{platformAdminId}/role` | `SUPER_ADMIN` | ACTIVE 관리자 role 변경 |
 | GET | `/api/v1/platform/audits` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | redacted platform audit keyset 조회 |
+| GET | `/api/v1/platform/companies` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | 회사 목록 keyset 조회 |
+| PATCH | `/api/v1/platform/companies/{companyId}/status` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | 회사 상태 변경과 immutable audit 기록 |
 
 - lifecycle write는 singleton lock row를 먼저 `PESSIMISTIC_WRITE`로 획득한 뒤 token actor와 ACTIVE `platform_admins` row를 새 DB query로 재인가한다. 캐시된 authority로 write하지 않는다.
 - revoke는 `status=REVOKED`, `revokedAt`을 기록하며 revoked row는 모든 platform API authority에서 제외된다. reactivate는 ACTIVE 사용자만 가능하며 `reactivatedAt`을 기록한다.
@@ -706,6 +708,60 @@ JSON value의 top-level/object field는 key별 code-owned validator가 검증한
 응답 `data`는 `audits`, `nextCursor`, `hasNext`, `size`를 포함한다. 각 audit은 `id`, `supportCaseId`, `actorUserId`, `actorPlatformAdminId`, `authoritySource`, `authorityRole`, `action`, `targetType`, `targetId`, `reason`, `beforeState`, `afterState`, `createdAt`만 반환한다. persisted state는 object JSON만 parse한 뒤 중앙 sanitizer를 다시 적용하고 scalar allowlist만 반환한다. null은 null, malformed/non-object state는 `{}`이며 raw snapshot text, email, name은 반환하지 않는다.
 
 audit record의 3년 보존 정책은 유지한다. cleanup/purge/archive job, legacy data sanitation/migration은 이 API 범위가 아니다.
+
+### 10-C.2 Platform company operations
+
+`GET /api/v1/platform/companies`와 `PATCH /api/v1/platform/companies/{companyId}/status`는 ACTIVE `PLATFORM_ADMIN` 또는 `SUPER_ADMIN`만 호출할 수 있다. authorization은 `platform_admins`만 사용하며 company/project membership은 필요하지도, 권한 근거도 아니다.
+
+#### GET `/api/v1/platform/companies`
+
+| Parameter | 필수 | 규칙 |
+|---|---|---|
+| `status` | 선택 | `ACTIVE` 또는 `INACTIVE`, 대소문자 무관. 다른 값은 `400 VALIDATION_ERROR`다. |
+| `q` | 선택 | blank는 미지정으로 처리한다. 앞뒤 공백 제거 후 회사명 대소문자 무관 부분 일치이며 최대 150자다. |
+| `cursor` | 선택 | 서버가 발급한 opaque HMAC-SHA256 cursor다. |
+| `size` | 선택 | 기본 20, 허용 범위 1~100이다. |
+
+결과는 `id DESC`로 정렬한다. cursor가 있으면 마지막 회사 ID보다 작은 row만 조회하며 `size + 1` 방식으로 다음 page를 판정한다. cursor는 고정 domain `PLATFORM_COMPANY`, version, requester user ID, 정규화된 `status`, 원문 회사명을 포함하지 않는 정규화된 `q` binding, 마지막 company ID에 서명 결합한다. 변조, 다른 requester/filter/domain의 cursor 재사용, malformed cursor는 모두 `400 VALIDATION_ERROR`다.
+
+성공 응답은 `ApiResponse`의 `data.companies`, `data.nextCursor`, `data.hasNext`, `data.size`를 반환한다. `companies`의 각 항목은 기존 `CompanyResponse`(`id`, `name`, `representativeName`, `description`, `industryCategory`, `logoUrl`, `status`, `createdAt`, `updatedAt`)다. 다음 page가 없으면 `nextCursor`는 `null`이고 `hasNext`는 `false`다. member count, membership, project 정보와 별도 description 확장은 반환하지 않는다.
+
+```json
+{
+  "data": {
+    "companies": [
+      {
+        "id": 42,
+        "name": "Threadia",
+        "representativeName": "홍길동",
+        "description": "협업 플랫폼 회사",
+        "industryCategory": "IT",
+        "logoUrl": null,
+        "status": "ACTIVE",
+        "createdAt": "2026-07-20T00:00:00Z",
+        "updatedAt": "2026-07-20T00:00:00Z"
+      }
+    ],
+    "nextCursor": "opaque_cursor",
+    "hasNext": true,
+    "size": 20
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+#### PATCH `/api/v1/platform/companies/{companyId}/status`
+
+기존 상태 변경 계약은 유지한다. request body는 `status`와 trim 후 3~500자인 `reason`을 받으며, `status`는 `ACTIVE` 또는 `INACTIVE`다. 같은 상태 요청은 `409 CONFLICT`, 없는 회사는 `404 NOT_FOUND`다. 성공 시 기존 `CompanyData` wrapper의 `data.company`를 반환하고, 상태 전/후와 reason을 포함한 immutable platform audit를 같은 transaction에 기록한다.
+
+| API | 상황 | HTTP | `error.code` |
+|---|---|---:|---|
+| `GET /platform/companies` | 잘못된 `status`, 150자 초과 `q`, 1~100 밖 `size`, malformed/tampered/requester/filter/domain 불일치 cursor | 400 | `VALIDATION_ERROR` |
+| `GET /platform/companies` | JWT Bearer token 없음 또는 invalid | 401 | `UNAUTHORIZED` |
+| `GET /platform/companies` | ACTIVE platform admin이 아님 | 403 | `FORBIDDEN` |
+| `PATCH /platform/companies/{companyId}/status` | 잘못된 request 또는 reason | 400 | `VALIDATION_ERROR` |
+| `PATCH /platform/companies/{companyId}/status` | 동일 상태 | 409 | `CONFLICT` |
+| `PATCH /platform/companies/{companyId}/status` | 회사 없음 | 404 | `NOT_FOUND` |
 
 ## 11. MVP 보류/Stub 목록
 
@@ -1196,6 +1252,38 @@ Response 200:
 }
 ```
 
+#### GET `/api/v1/projects/{projectId}/project-members`
+
+Response 200:
+
+```json
+{
+  "data": {
+    "projectMembers": [
+      {
+        "id": 200,
+        "projectId": 20,
+        "role": "MEMBER",
+        "companyRole": "COMPANY_ADMIN",
+        "status": "ACTIVE",
+        "joinedAt": "2026-07-07T00:00:00Z",
+        "createdAt": "2026-07-07T00:00:00Z",
+        "updatedAt": "2026-07-07T00:00:00Z",
+        "user": {
+          "id": 2,
+          "email": "member@example.com",
+          "nickname": "김민정",
+          "avatarUrl": null
+        }
+      }
+    ]
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+`role`은 프로젝트 membership 역할이고, `companyRole`은 같은 회사의 ACTIVE company membership 역할이다. `companyRole`은 `COMPANY_ADMIN`, `MEMBER`, `null` 중 하나이며, S12 멤버 목록은 이 값을 사용해 프로젝트 role이 `MEMBER`여도 회사 관리자임을 표시한다.
+
 #### Deprecated/Internal Note: POST `/api/v1/projects/{projectId}/project-members`
 
 > Sprint 1.5에서는 이 endpoint와 프로젝트 멤버 invitation 흐름을 user-facing API로 제공하지 않는다.
@@ -1210,6 +1298,32 @@ Request Body:
 {
   "role": "PROJECT_ADMIN",
   "status": "ACTIVE"
+}
+```
+
+Response 200:
+
+```json
+{
+  "data": {
+    "projectMember": {
+      "id": 200,
+      "projectId": 20,
+      "role": "PROJECT_ADMIN",
+      "companyRole": "COMPANY_ADMIN",
+      "status": "ACTIVE",
+      "joinedAt": "2026-07-07T00:00:00Z",
+      "createdAt": "2026-07-07T00:00:00Z",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "user": {
+        "id": 2,
+        "email": "member@example.com",
+        "nickname": "김민정",
+        "avatarUrl": null
+      }
+    }
+  },
+  "meta": { "requestId": "req_..." }
 }
 ```
 

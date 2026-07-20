@@ -52,6 +52,7 @@ class ProjectMemberControllerTest {
 				.andExpect(jsonPath("$.data.projectMembers[0].id").value(200))
 				.andExpect(jsonPath("$.data.projectMembers[0].projectId").value(20))
 				.andExpect(jsonPath("$.data.projectMembers[0].role").value("PROJECT_ADMIN"))
+				.andExpect(jsonPath("$.data.projectMembers[0].companyRole").value("COMPANY_ADMIN"))
 				.andExpect(jsonPath("$.data.projectMembers[0].status").value("ACTIVE"))
 				.andExpect(jsonPath("$.data.projectMembers[0].user.email").value("user200@example.com"))
 				.andExpect(jsonPath("$.meta.requestId").exists());
@@ -86,6 +87,7 @@ class ProjectMemberControllerTest {
 				.andExpect(jsonPath("$.data.projectMember.id").value(200))
 				.andExpect(jsonPath("$.data.projectMember.projectId").value(20))
 				.andExpect(jsonPath("$.data.projectMember.role").value("MEMBER"))
+				.andExpect(jsonPath("$.data.projectMember.companyRole").value("COMPANY_ADMIN"))
 				.andExpect(jsonPath("$.data.projectMember.status").value("REMOVED"));
 	}
 
@@ -150,6 +152,7 @@ class ProjectMemberControllerTest {
 				id,
 				20L,
 				role,
+				"COMPANY_ADMIN",
 				status,
 				"2026-07-07T00:00:00Z",
 				"2026-07-07T00:00:00Z",
