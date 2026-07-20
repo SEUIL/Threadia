@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -72,13 +73,16 @@ public class ProjectMemberService {
 		AuthContext authContext = activeAuthContext(accessToken);
 		Project project = project(projectId);
 		requireProjectView(project, authContext);
-		return new ProjectMembersData(projectMemberRepository.findByProjectIdWithFiltersOrderByIdAsc(
-					projectId,
-					role,
-					status,
-					normalizeQ(q))
-				.stream()
-				.map(ProjectMemberResponse::from)
+		List<ProjectMember> projectMembers = projectMemberRepository.findByProjectIdWithFiltersOrderByIdAsc(
+				projectId,
+				role,
+				status,
+				normalizeQ(q));
+		Map<Long, CompanyMemberRole> companyRoles = companyRoles(project, projectMembers);
+		return new ProjectMembersData(projectMembers.stream()
+				.map(projectMember -> ProjectMemberResponse.from(
+						projectMember,
+						companyRoles.get(projectMember.getUser().getId())))
 				.toList());
 	}
 
@@ -96,7 +100,9 @@ public class ProjectMemberService {
 		projectMember.setRole(request.role());
 		projectMember.setStatus(request.status());
 		projectMember.setUpdatedAt(now());
-		return new ProjectMemberData(ProjectMemberResponse.from(projectMember));
+		return new ProjectMemberData(ProjectMemberResponse.from(
+				projectMember,
+				companyRole(projectMember.getProject().getCompany().getId(), projectMember.getUser().getId())));
 	}
 
 	@Transactional
@@ -111,6 +117,18 @@ public class ProjectMemberService {
 		projectMember.setStatus(ProjectMemberStatus.REMOVED);
 		projectMember.setUpdatedAt(now());
 		return new ProjectMemberRemoveData(true);
+	}
+
+	private Map<Long, CompanyMemberRole> companyRoles(Project project, List<ProjectMember> projectMembers) {
+		return companyMembershipService.findActiveRolesByCompanyIdAndUserIds(
+				project.getCompany().getId(),
+				projectMembers.stream()
+						.map(projectMember -> projectMember.getUser().getId())
+						.toList());
+	}
+
+	private CompanyMemberRole companyRole(Long companyId, Long userId) {
+		return companyMembershipService.findActiveRolesByCompanyIdAndUserIds(companyId, List.of(userId)).get(userId);
 	}
 
 	private static String normalizeQ(String q) {
