@@ -24,6 +24,7 @@ const TABS = [
   { key: "docs", label: "문서" },
   { key: "messages", label: "채팅" },
   { key: "search", label: "검색" },
+  { key: "activity", label: "활동" },
   { key: "settings", label: "설정" },
 ];
 
