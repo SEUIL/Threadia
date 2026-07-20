@@ -21,6 +21,7 @@ type GateState = "loading" | "ready" | "denied" | "error";
 
 const NAV_ITEMS = [
   { href: "/platform/support-cases", label: "문의·신고" },
+  { href: "/platform/companies", label: "회사" },
   { href: "/platform/settings", label: "시스템 설정" },
   { href: "/platform/admins", label: "관리자" },
   { href: "/platform/audits", label: "운영 로그" },
