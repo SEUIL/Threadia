@@ -32,6 +32,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePendingInvitationCount } from "@/hooks/usePendingInvitationCount";
 import { useUnreadNotificationCount } from "@/hooks/useUnreadNotificationCount";
 import { useDmUnreadCount } from "@/hooks/useDmUnreadCount";
+import { useIsPlatformAdmin } from "@/hooks/useIsPlatformAdmin";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 import { ProfileEditModal } from "@/components/profile/ProfileEditModal";
 import { PageTransition } from "./PageTransition";
@@ -101,6 +102,20 @@ function BuildingIcon() {
   );
 }
 
+function ShieldIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+      <path
+        d="M12 3.5 5 6v5.5c0 4.4 3 8.1 7 9 4-.9 7-4.6 7-9V6l-7-2.5Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path d="m9 12 2 2 4-4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function LogoutIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
@@ -132,6 +147,7 @@ function Rail({ companyId }: { companyId: string }) {
   const pendingInvitationCount = usePendingInvitationCount();
   const unreadNotificationCount = useUnreadNotificationCount(companyId);
   const dmUnreadCount = useDmUnreadCount();
+  const isPlatformAdmin = useIsPlatformAdmin();
   const membership = companyMemberships.find((m) => m.companyId === Number(companyId)) ?? null;
   const companyName = membership?.companyName ?? "소속 회사 없음";
 
@@ -150,6 +166,10 @@ function Rail({ companyId }: { companyId: string }) {
   // C(회사 관리자)만 회사 관리 메뉴가 보인다 (화면정의서 S03 메뉴 노출 규칙, 이전 AppShell과 동일)
   if (membership?.role === "COMPANY_ADMIN") {
     items.push({ href: `/${companyId}/settings`, label: "회사 관리", icon: <BuildingIcon /> });
+  }
+  // platform admin(회사 membership과 무관한 별도 authority)만 S15 콘솔 진입점이 보인다.
+  if (isPlatformAdmin) {
+    items.push({ href: "/platform", label: "플랫폼 관리자", icon: <ShieldIcon /> });
   }
 
   return (
