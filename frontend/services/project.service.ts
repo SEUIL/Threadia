@@ -13,6 +13,7 @@ import type {
   ProjectArchiveData,
   ProjectCreateData,
   ProjectData,
+  ProjectDashboardData,
   ProjectDetailData,
   ProjectStatus,
   ProjectsData,
@@ -36,6 +37,10 @@ export const projectService = {
 
   detail: (projectId: string | number) =>
     apiClient.get<ApiResponse<ProjectDetailData>>(`/api/v1/projects/${projectId}`),
+
+  /** live-read 집계 — WBS 4.9.3.1. cache/snapshot 없이 매번 MySQL을 그대로 읽는다. */
+  dashboard: (projectId: string | number) =>
+    apiClient.get<ApiResponse<ProjectDashboardData>>(`/api/v1/projects/${projectId}/dashboard`),
 
   /** status를 항상 현재 값 그대로 같이 보낸다(full-replace, ARCHIVED 불가). */
   update: (
