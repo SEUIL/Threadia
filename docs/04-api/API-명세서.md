@@ -410,7 +410,7 @@ Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PL
 GET /api/v1/companies/{companyId}/direct-messages/candidates
 ```
 
-응답은 표준 envelope의 `data.candidates`를 사용한다. candidate item은 `id`, `nickname`, `avatarUrl`만 포함하며 email, status, role은 노출하지 않는다.
+응답은 표준 envelope의 `data.candidates`를 사용한다. candidate item은 `id`, `nickname`, `avatarUrl`만 포함하며 email, status, role은 노출하지 않는다. `candidates[].id`는 `company_members.id`가 아니라 `users.id`이며, room get-or-create 요청의 `otherUserId`로 그대로 전달한다.
 
 ```json
 {
