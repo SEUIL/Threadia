@@ -37,6 +37,7 @@ export const directMessageService = {
       body
     ),
 
+  /** 모든 회사에 걸친 DM room의 unread 합계 — companyId로 필터하지 않는다(backend 계약, PR #206). */
   unreadCount: () =>
     apiClient.get<ApiResponse<DirectMessageUnreadCountData>>("/api/v1/direct-messages/unread-count"),
 };

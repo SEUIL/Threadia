@@ -47,6 +47,7 @@ export interface DirectMessageReadData {
   readAt: string;
 }
 
+/** GET /api/v1/direct-messages/unread-count — 모든 회사에 걸친 합계(PR #206). */
 export interface DirectMessageUnreadCountData {
   unreadCount: number;
 }

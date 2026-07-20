@@ -58,6 +58,7 @@ import com.threadia.backend.platform.settings.SystemSettingValidationException;
 import com.threadia.backend.platform.lifecycle.PlatformAdminConflictException;
 import com.threadia.backend.platform.lifecycle.PlatformAdminNotFoundException;
 import com.threadia.backend.platform.audit.AuditValidationException;
+import com.threadia.backend.platform.company.PlatformCompanyValidationException;
 import com.threadia.backend.thread.exception.ThreadNotFoundException;
 import com.threadia.backend.thread.exception.ThreadValidationException;
 
@@ -129,6 +130,11 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(AuditValidationException.class)
 	public ResponseEntity<ErrorResponse> handleAuditValidation(AuditValidationException ex) {
+		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(ErrorBody.of("VALIDATION_ERROR", ex.getMessage())));
+	}
+
+	@ExceptionHandler(PlatformCompanyValidationException.class)
+	public ResponseEntity<ErrorResponse> handlePlatformCompanyValidation(PlatformCompanyValidationException ex) {
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(ErrorBody.of("VALIDATION_ERROR", ex.getMessage())));
 	}
 
