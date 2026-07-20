@@ -1,6 +1,9 @@
 package com.threadia.backend.company.service;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,6 +54,18 @@ public class CompanyMembershipService {
 
 	public boolean isActiveMember(Long companyId, AuthContext authContext) {
 		return isActiveMember(companyId, authContext.userId());
+	}
+
+	public Map<Long, CompanyMemberRole> findActiveRolesByCompanyIdAndUserIds(Long companyId, List<Long> userIds) {
+		if (userIds.isEmpty() || !isCompanyActive(companyId)) {
+			return Map.of();
+		}
+		return companyMemberRepository.findByCompany_IdAndUser_IdInAndStatus(
+				companyId,
+				userIds,
+				CompanyMemberStatus.ACTIVE)
+				.stream()
+				.collect(Collectors.toMap(companyMember -> companyMember.getUser().getId(), CompanyMember::getRole));
 	}
 
 	public boolean isActiveMemberForUpdate(Long companyId, Long userId) {
