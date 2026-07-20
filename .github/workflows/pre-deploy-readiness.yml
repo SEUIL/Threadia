@@ -18,6 +18,9 @@ jobs:
       THREADIA_DB_USERNAME: threadia
       THREADIA_DB_PASSWORD: ""
       THREADIA_JWT_SECRET: public-ci-test-jwt-secret-not-for-production-please-replace
+      THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET: public-ci-test-project-chat-cursor-hmac-secret-not-for-production
+      THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET: public-ci-test-notification-cursor-hmac-secret-not-for-production
+      THREADIA_AUDIT_CURSOR_HMAC_SECRET: public-ci-test-audit-cursor-hmac-secret-not-for-production
       THREADIA_COOKIE_SECURE: "false"
       THREADIA_CORS_ALLOWED_ORIGIN: http://localhost:3000
 
@@ -76,6 +79,9 @@ jobs:
       THREADIA_DB_USERNAME: threadia_smoke
       THREADIA_DB_PASSWORD: threadia_smoke_password
       THREADIA_JWT_SECRET: ci-only-smoke-jwt-secret-not-for-production
+      THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET: ci-only-project-chat-cursor-hmac-secret-not-for-production
+      THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET: ci-only-notification-cursor-hmac-secret-not-for-production
+      THREADIA_AUDIT_CURSOR_HMAC_SECRET: ci-only-audit-cursor-hmac-secret-not-for-production
       THREADIA_COOKIE_SECURE: "false"
       THREADIA_CORS_ALLOWED_ORIGIN: http://127.0.0.1:3001
       THREADIA_E2E_REQUIRE_OAUTH: "false"

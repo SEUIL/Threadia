@@ -40,8 +40,10 @@ jobs:
       THREADIA_DB_USERNAME: threadia_ci
       THREADIA_DB_PASSWORD: threadia_ci_password
       THREADIA_DB_SCHEMA_VALIDATION: "true"
-      THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL: ci-platform-admin@threadia.invalid
       THREADIA_JWT_SECRET: public-ci-test-jwt-secret-not-for-production-please-replace
+      THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET: public-ci-test-project-chat-cursor-hmac-secret-not-for-production
+      THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET: public-ci-test-notification-cursor-hmac-secret-not-for-production
+      THREADIA_AUDIT_CURSOR_HMAC_SECRET: public-ci-test-audit-cursor-hmac-secret-not-for-production
       THREADIA_COOKIE_SECURE: "false"
       THREADIA_CORS_ALLOWED_ORIGIN: http://localhost:3000
 
@@ -72,23 +74,17 @@ jobs:
           java-version: "17"
           cache: gradle
 
-      - name: Initialize MySQL schema
+      - name: Validate additive Platform foundation migration
         run: |
-          MYSQL_PWD="$THREADIA_DB_PASSWORD" mysql --host=127.0.0.1 --port=3306 --user="$THREADIA_DB_USERNAME" threadia_ci < ../db/schema.sql
-          MYSQL_PWD="$THREADIA_DB_PASSWORD" mysql --host=127.0.0.1 --port=3306 --user="$THREADIA_DB_USERNAME" threadia_ci <<SQL
-          INSERT INTO users (email, password_hash, nickname, avatar_url, status, created_at, updated_at)
-          VALUES ('${THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL}', NULL, 'ci-bootstrap-admin', NULL, 'ACTIVE', UTC_TIMESTAMP(), UTC_TIMESTAMP())
-          ON DUPLICATE KEY UPDATE
-              password_hash = VALUES(password_hash),
-              nickname = VALUES(nickname),
-              avatar_url = VALUES(avatar_url),
-              status = VALUES(status),
-              updated_at = VALUES(updated_at);
-          SQL
+          python3 ../infra/cloudformation/test-platform-foundation-additive-migration.py
+
+      - name: Validate packaged backend against additive Phase 1 schema
+        run: ./gradlew test --tests com.threadia.backend.JpaSchemaValidationTests
 
       - name: Validate restricted SSM delivery source
         run: |
           bash -n ../scripts/ssm-delivery/apply-release
+          python3 ../infra/cloudformation/test-optional-mail-runtime-parser.py
           python3 ../infra/cloudformation/validate-restricted-ssm-delivery-preflight.py
 
       - name: Run backend tests

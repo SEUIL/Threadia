@@ -146,7 +146,7 @@ class MysqlSchemaValidationTests {
 		applySchemaSql();
 
 		assertRequiredColumn("projects", "company_id", "bigint");
-		assertEnumColumn("companies", "status", "ACTIVE", "ACTIVE", "INACTIVE");
+		assertRequiredColumn("companies", "status", "varchar");
 		assertRequiredColumn("projects", "name", "varchar");
 		assertRequiredColumn("projects", "project_key", "varchar");
 		assertEnumColumn("projects", "status", "PLANNING", "PLANNING", "ACTIVE", "PAUSED", "COMPLETED", "ARCHIVED");

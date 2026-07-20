@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-14
 > **최종 수정**: 2026-07-19
-> **버전**: v0.9
+> **버전**: v1.0
 > **상태**: 검토 중
 > **태그**: aws, github-actions, oidc, ssm, s3, ec2, parameter-store
 
@@ -39,12 +39,14 @@ platform owner는 아래 exact Parameter Store `SecureString`을 release 전에 
 - `/threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET`
 - `/threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE`
 - `/threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN`
+- `/threadia/restricted-nonprod/runtime/THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET`
+- `/threadia/restricted-nonprod/runtime/THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET`
 - `/threadia/restricted-nonprod/runtime/THREADIA_AUDIT_CURSOR_HMAC_SECRET`
 - `/threadia/restricted-nonprod/runtime/THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL`
 
-EC2 instance role은 위 ARN의 `ssm:GetParameter(s)`만 받을 수 있으며 wildcard SSM/Secrets Manager permission, `GetParametersByPath`, RDS master credential read를 받지 않는다. audit cursor secret도 정확한 Parameter Store ARN 하나로만 허용한다. DB 연결에는 RDS master와 분리된 최소 권한 application DB user가 사전에 존재해야 한다. DB migration은 이 release path에 포함하지 않는다.
+EC2 instance role은 위 ARN의 `ssm:GetParameter(s)`만 받을 수 있으며 wildcard SSM/Secrets Manager permission, `GetParametersByPath`, RDS master credential read를 받지 않는다. project-chat·notification·audit cursor secret도 각각 정확한 Parameter Store ARN 하나로만 허용한다. DB 연결에는 RDS master와 분리된 최소 권한 application DB user가 사전에 존재해야 한다. DB migration은 이 release path에 포함하지 않는다.
 
-helper는 여섯 legacy base key와 audit cursor secret을 required exact-name으로 읽는다. audit secret은 control character 없이 UTF-8 32바이트 이상이어야 하며, 해당 required set이 모두 정확히 반환되지 않으면 env/symlink activation 전에 실패한다. bootstrap email은 IAM에서 exact-name으로 허용하되 required set과 분리한다. key가 정확히 absent인 Phase 1은 env에서 생략하고 release를 계속한다. key가 반환된 Phase 2는 trim + lowercase, control-character rejection, service와 같은 email shape 검증을 통과해야만 env에 materialize한다. 이 email은 이미 존재하는 intended ACTIVE user와 일치해야 하며, runner blank/null no-op 및 service의 fail-closed validation은 변경하지 않는다. 모든 값은 log나 evidence에 남기지 않는다.
+helper는 여섯 legacy base key와 project-chat·notification·audit cursor secret을 required exact-name으로 읽는다. 세 cursor secret은 control character 없이 nonblank UTF-8 32바이트 이상이어야 하며, 해당 required set이 모두 정확히 반환되지 않으면 env/symlink activation 전에 실패한다. bootstrap email은 IAM에서 exact-name으로 허용하되 required set과 분리한다. key가 정확히 absent인 Phase 1은 env에서 생략하고 release를 계속한다. key가 반환된 Phase 2는 trim + lowercase, control-character rejection, service와 같은 email shape 검증을 통과해야만 env에 materialize한다. 이 email은 이미 존재하는 intended ACTIVE user와 일치해야 하며, runner blank/null no-op 및 service의 fail-closed validation은 변경하지 않는다. 모든 값은 log나 evidence에 남기지 않는다.
 
 ## 4. Host release 계약
 
@@ -63,6 +65,7 @@ Helper maintenance는 `apply-release`만 갱신한다. service unit remediation�
 | 날짜 | 내용 |
 |---|---|
 | 2026-07-19 | required audit cursor secret의 exact SSM/IAM/runtime validation과 absent-only two-phase bootstrap email delivery contract를 추가했다. |
+| 2026-07-19 | project-chat·notification·audit cursor secret 세 개를 required exact SSM/IAM/runtime validation contract로 정렬했다. |
 | 2026-07-18 | bootstrap email required key와 helper/service-unit maintenance channel을 추가하고, 미전달 audit cursor secret의 release No-Go 경계를 명시했다. |
 | 2026-07-17 | SES SMTP PrivateLink의 private DNS 및 TCP/587 전용 network gate를 승인된 endpoint 집합에 추가했다. UPDATE Change Set에서 pre-existing resource Modify/Remove, Replacement `True`/`Conditional`을 hard reject하고 네 SES logical resource의 신규 Add만 승인하며 SMTP credential과 `MAIL_*` runtime delivery는 후속 gate로 유지했다. |
 | 2026-07-16 | active restricted SSM path의 six-key 제한, bootstrap email 미전달, `platform_admins`가 비어 있는 첫 배포의 No-Go 경계를 명시했다. |

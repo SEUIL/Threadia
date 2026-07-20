@@ -25,6 +25,8 @@ REQUIRED_RUNTIME_PARAMETERS = [
     "/threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET",
     "/threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE",
     "/threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN",
+    "/threadia/restricted-nonprod/runtime/THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET",
+    "/threadia/restricted-nonprod/runtime/THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET",
     "/threadia/restricted-nonprod/runtime/THREADIA_AUDIT_CURSOR_HMAC_SECRET",
 ]
 BOOTSTRAP_PARAMETER = "/threadia/restricted-nonprod/runtime/THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL"
@@ -64,9 +66,16 @@ def required_runtime_response():
         REQUIRED_RUNTIME_PARAMETERS[3]: "test-jwt-secret",
         REQUIRED_RUNTIME_PARAMETERS[4]: "true",
         REQUIRED_RUNTIME_PARAMETERS[5]: "https://app.invalid",
-        REQUIRED_RUNTIME_PARAMETERS[6]: "a" * 32,
+        REQUIRED_RUNTIME_PARAMETERS[6]: "p" * 32,
+        REQUIRED_RUNTIME_PARAMETERS[7]: "n" * 32,
+        REQUIRED_RUNTIME_PARAMETERS[8]: "a" * 32,
     }
-    return {"Parameters": [{"Name": name, "Value": value} for name, value in values.items()]}
+    return {
+        "Parameters": [
+            {"Name": name, "Value": value, "Type": "SecureString"}
+            for name, value in values.items()
+        ]
+    }
 
 
 class OptionalMailRuntimeParserTest(unittest.TestCase):
@@ -218,6 +227,8 @@ class PrimaryRuntimeParserTest(unittest.TestCase):
         exit_code, runtime_env = self.run_parser(response)
 
         self.assertEqual(0, exit_code)
+        self.assertIn('THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET="' + "p" * 32 + '"', runtime_env)
+        self.assertIn('THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET="' + "n" * 32 + '"', runtime_env)
         self.assertIn('THREADIA_AUDIT_CURSOR_HMAC_SECRET="' + "a" * 32 + '"', runtime_env)
         self.assertNotIn("THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL", runtime_env)
 
@@ -257,16 +268,46 @@ class PrimaryRuntimeParserTest(unittest.TestCase):
                 self.assertEqual(expected_error, exit_code)
                 self.assertEqual("", runtime_env)
 
-    def test_short_audit_secret_fails_without_materializing_environment(self):
-        for value in ("short", " " * 32):
-            with self.subTest(value=value):
+    def test_invalid_cursor_secret_fails_without_materializing_environment(self):
+        for parameter_name in REQUIRED_RUNTIME_PARAMETERS[-3:]:
+            for value in ("short", " " * 32, "valid\tvalue" * 4):
+                with self.subTest(parameter_name=parameter_name, value=value):
+                    response = required_runtime_response()
+                    response["Parameters"] = [
+                        {
+                            "Name": item["Name"],
+                            "Value": value if item["Name"] == parameter_name else item["Value"],
+                            "Type": item["Type"],
+                        }
+                        for item in response["Parameters"]
+                    ]
+                    response["InvalidParameters"] = [BOOTSTRAP_PARAMETER]
+
+                    exit_code, runtime_env = self.run_parser(response)
+
+                    expected_error = (
+                        "runtime parameter contains an unsupported control character: " + parameter_name
+                        if "\t" in value
+                        else "cursor runtime secret is blank or shorter than 32 UTF-8 bytes: " + parameter_name
+                    )
+                    self.assertEqual(expected_error, exit_code)
+                    self.assertEqual("", runtime_env)
+
+    def test_non_secure_string_cursor_secret_fails_without_materializing_environment(self):
+        for parameter_name in REQUIRED_RUNTIME_PARAMETERS[-3:]:
+            with self.subTest(parameter_name=parameter_name):
                 response = required_runtime_response()
-                response["Parameters"][-1]["Value"] = value
+                for parameter in response["Parameters"]:
+                    if parameter["Name"] == parameter_name:
+                        parameter["Type"] = "String"
                 response["InvalidParameters"] = [BOOTSTRAP_PARAMETER]
 
                 exit_code, runtime_env = self.run_parser(response)
 
-                self.assertEqual("audit cursor runtime secret is blank or shorter than 32 UTF-8 bytes", exit_code)
+                self.assertEqual(
+                    "cursor runtime parameter must be SecureString: " + parameter_name,
+                    exit_code,
+                )
                 self.assertEqual("", runtime_env)
 
     def test_base_or_audit_mismatch_fails_without_materializing_environment(self):
