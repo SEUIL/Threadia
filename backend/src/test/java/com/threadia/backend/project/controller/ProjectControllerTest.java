@@ -22,6 +22,7 @@ import com.threadia.backend.common.exception.ForbiddenException;
 import com.threadia.backend.project.dto.ProjectArchiveData;
 import com.threadia.backend.project.dto.ProjectCreateData;
 import com.threadia.backend.project.dto.ProjectData;
+import com.threadia.backend.project.dto.ProjectDashboardData;
 import com.threadia.backend.project.dto.ProjectDetailData;
 import com.threadia.backend.project.dto.ProjectMemberSummaryResponse;
 import com.threadia.backend.project.dto.ProjectResponse;
@@ -200,6 +201,42 @@ class ProjectControllerTest {
 		when(projectService.detail("outsider-token", 20L)).thenThrow(new ForbiddenException("프로젝트 접근 권한이 없습니다."));
 
 		mockMvc.perform(get("/api/v1/projects/20")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer outsider-token"))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+	}
+
+	@Test
+	void dashboardReturnsLiveSummaryForPermittedUser() throws Exception {
+		when(projectService.dashboard("valid-token", 20L)).thenReturn(new ProjectDashboardData(
+				new ProjectDashboardData.Progress(2, 1, 50),
+				List.of(new ProjectDashboardData.RecentIssue(31L, "THD-1", "대시보드 구현", "IN_PROGRESS", "2026-07-19T00:00:00Z")),
+				List.of(new ProjectDashboardData.RecentDocument(41L, "회의록", "MEETING", "2026-07-19T00:00:00Z")),
+				null));
+
+		mockMvc.perform(get("/api/v1/projects/20/dashboard")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.progress.totalIssueCount").value(2))
+				.andExpect(jsonPath("$.data.progress.percentage").value(50))
+				.andExpect(jsonPath("$.data.recentIssues[0].issueKey").value("THD-1"))
+				.andExpect(jsonPath("$.data.recentDocuments[0].title").value("회의록"))
+				.andExpect(jsonPath("$.data.sprintSummary").doesNotExist())
+				.andExpect(jsonPath("$.data.recentActivities").doesNotExist());
+	}
+
+	@Test
+	void dashboardReturnsUnauthorizedWithoutBearerToken() throws Exception {
+		mockMvc.perform(get("/api/v1/projects/20/dashboard"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"));
+	}
+
+	@Test
+	void dashboardReturnsForbiddenWhenRequesterCannotViewProject() throws Exception {
+		when(projectService.dashboard("outsider-token", 20L)).thenThrow(new ForbiddenException("프로젝트 접근 권한이 없습니다."));
+
+		mockMvc.perform(get("/api/v1/projects/20/dashboard")
 					.header(HttpHeaders.AUTHORIZATION, "Bearer outsider-token"))
 				.andExpect(status().isForbidden())
 				.andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
