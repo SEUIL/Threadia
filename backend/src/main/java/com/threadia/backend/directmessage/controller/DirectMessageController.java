@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.threadia.backend.common.response.ApiResponse;
 import com.threadia.backend.config.jwt.JwtAuthenticationException;
 import com.threadia.backend.directmessage.dto.DirectMessageData;
+import com.threadia.backend.directmessage.dto.DirectMessageCandidatesData;
 import com.threadia.backend.directmessage.dto.DirectMessageMarkReadRequest;
 import com.threadia.backend.directmessage.dto.DirectMessageReadData;
 import com.threadia.backend.directmessage.dto.DirectMessageRoomCreateRequest;
@@ -32,6 +33,10 @@ public class DirectMessageController {
 	private static final String BEARER_PREFIX = "Bearer ";
 	private final DirectMessageService directMessageService;
 	public DirectMessageController(DirectMessageService directMessageService) { this.directMessageService = directMessageService; }
+	@GetMapping("/companies/{companyId}/direct-messages/candidates")
+	public ResponseEntity<ApiResponse<DirectMessageCandidatesData>> listCandidates(@RequestHeader(value = "Authorization", required = false) String authorization, @PathVariable Long companyId) {
+		return ResponseEntity.ok(ApiResponse.of(directMessageService.listCandidates(token(authorization), companyId)));
+	}
 	@GetMapping("/companies/{companyId}/direct-messages/rooms")
 	public ResponseEntity<ApiResponse<DirectMessageRoomsData>> listRooms(@RequestHeader(value = "Authorization", required = false) String authorization, @PathVariable Long companyId) {
 		return ResponseEntity.ok(ApiResponse.of(directMessageService.listRooms(token(authorization), companyId)));
