@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import java.lang.reflect.Field;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -43,6 +44,13 @@ import com.threadia.backend.company.exception.DepartmentNotFoundException;
 import com.threadia.backend.company.repository.CompanyMemberRepository;
 import com.threadia.backend.company.repository.CompanyRepository;
 import com.threadia.backend.company.repository.DepartmentRepository;
+import com.threadia.backend.project.domain.ProjectMemberRole;
+import com.threadia.backend.project.domain.ProjectMemberStatus;
+import com.threadia.backend.project.domain.Project;
+import com.threadia.backend.project.domain.ProjectStatus;
+import com.threadia.backend.project.exception.ProjectMemberConflictException;
+import com.threadia.backend.project.repository.ProjectMemberRepository;
+import com.threadia.backend.project.repository.ProjectRepository;
 
 @ExtendWith(MockitoExtension.class)
 class CompanyMemberServiceTest {
@@ -64,6 +72,12 @@ class CompanyMemberServiceTest {
 	@Mock
 	private DepartmentRepository departmentRepository;
 
+	@Mock
+	private ProjectMemberRepository projectMemberRepository;
+
+	@Mock
+	private ProjectRepository projectRepository;
+
 	private CompanyMemberService companyMemberService;
 
 	@BeforeEach
@@ -74,6 +88,8 @@ class CompanyMemberServiceTest {
 				companyRepository,
 				companyMemberRepository,
 				departmentRepository,
+				projectMemberRepository,
+				projectRepository,
 				FIXED_CLOCK);
 	}
 
@@ -346,6 +362,29 @@ class CompanyMemberServiceTest {
 	}
 
 	@Test
+	void updateThrowsConflictWhenStatusIsLeft() {
+		AuthContext authContext = authContext();
+		User admin = user(1L, "admin@example.com");
+		Company company = company(10L, admin);
+		CompanyMember member = companyMember(101L, company, user(2L, "member@example.com"), 5L, CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE);
+		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
+		when(companyMemberRepository.findByIdAndCompanyIdForUpdate(101L, 10L)).thenReturn(Optional.of(member));
+		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
+
+		assertThatThrownBy(() -> companyMemberService.update(
+				"admin-token",
+				10L,
+				101L,
+				new CompanyMemberUpdateRequest(CompanyMemberRole.MEMBER, CompanyMemberStatus.LEFT, null)))
+				.isInstanceOf(CompanyMemberConflictException.class)
+				.hasMessage("회사 구성원 제거는 삭제 API를 사용해야 합니다.");
+		assertThat(member.getStatus()).isEqualTo(CompanyMemberStatus.ACTIVE);
+		assertThat(member.getDepartmentId()).isEqualTo(5L);
+		verifyNoInteractions(projectMemberRepository);
+	}
+
+	@Test
 	void updateThrowsConflictWhenDemotingLastActiveCompanyAdmin() {
 		AuthContext authContext = authContext();
 		User admin = user(1L, "admin@example.com");
@@ -390,6 +429,151 @@ class CompanyMemberServiceTest {
 		assertThat(data.companyMember().status()).isEqualTo("SUSPENDED");
 	}
 
+	@Test
+	void removeMarksCompanyMemberLeftAndRemovesActiveProjectMemberships() {
+		AuthContext authContext = authContext();
+		User admin = user(1L, "admin@example.com");
+		User target = user(2L, "member@example.com");
+		Company company = company(10L, admin);
+		Project project = project(20L, company, admin);
+		CompanyMember member = companyMember(101L, company, target, 5L, CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE);
+		com.threadia.backend.project.domain.ProjectMember projectMember = projectMember(201L, project, target, ProjectMemberRole.MEMBER, ProjectMemberStatus.ACTIVE);
+		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
+		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
+		when(companyMemberRepository.findByIdAndCompanyIdForUpdate(101L, 10L)).thenReturn(Optional.of(member));
+		when(projectMemberRepository.findActiveTargetMembershipsAndActiveProjectAdminsInTargetProjectsForUpdate(
+				10L,
+				2L,
+				ProjectMemberRole.PROJECT_ADMIN,
+				ProjectMemberStatus.ACTIVE))
+				.thenReturn(List.of(projectMember));
+		when(projectMemberRepository.removeActiveMembershipsByCompanyIdAndUserId(
+				10L,
+				2L,
+				ProjectMemberStatus.ACTIVE,
+				ProjectMemberStatus.REMOVED,
+				LocalDateTime.of(2026, 7, 7, 0, 0)))
+				.thenReturn(3);
+
+		var data = companyMemberService.remove("admin-token", 10L, 101L);
+
+		verify(companyAccessService).requireCompanyAdmin(10L, authContext);
+		InOrder removeOrder = inOrder(projectMemberRepository, projectRepository);
+		removeOrder.verify(projectMemberRepository).findActiveTargetMembershipsAndActiveProjectAdminsInTargetProjectsForUpdate(
+				10L,
+				2L,
+				ProjectMemberRole.PROJECT_ADMIN,
+				ProjectMemberStatus.ACTIVE);
+		removeOrder.verify(projectRepository).findAllByIdInForUpdateOrderByIdAsc(List.of(20L));
+		removeOrder.verify(projectMemberRepository).removeActiveMembershipsByCompanyIdAndUserId(
+				10L,
+				2L,
+				ProjectMemberStatus.ACTIVE,
+				ProjectMemberStatus.REMOVED,
+				LocalDateTime.of(2026, 7, 7, 0, 0));
+		assertThat(member.getStatus()).isEqualTo(CompanyMemberStatus.LEFT);
+		assertThat(member.getDepartmentId()).isNull();
+		assertThat(member.getUpdatedAt()).isEqualTo(LocalDateTime.of(2026, 7, 7, 0, 0));
+		assertThat(data.removed()).isTrue();
+		assertThat(data.removedProjectMemberCount()).isEqualTo(3);
+	}
+
+	@Test
+	void removeThrowsConflictWhenRemovingSelf() {
+		AuthContext authContext = authContext();
+		User admin = user(1L, "admin@example.com");
+		Company company = company(10L, admin);
+		CompanyMember self = companyMember(100L, company, admin, null, CompanyMemberRole.COMPANY_ADMIN, CompanyMemberStatus.ACTIVE);
+		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
+		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
+		when(companyMemberRepository.findByIdAndCompanyIdForUpdate(100L, 10L)).thenReturn(Optional.of(self));
+
+		assertThatThrownBy(() -> companyMemberService.remove("admin-token", 10L, 100L))
+				.isInstanceOf(CompanyMemberConflictException.class)
+				.hasMessage("자기 자신은 회사에서 제거할 수 없습니다.");
+		verifyNoInteractions(projectMemberRepository);
+		verifyNoInteractions(projectRepository);
+	}
+
+	@Test
+	void removeThrowsConflictWhenCompanyMemberAlreadyLeft() {
+		AuthContext authContext = authContext();
+		User admin = user(1L, "admin@example.com");
+		Company company = company(10L, admin);
+		CompanyMember leftMember = companyMember(101L, company, user(2L, "member@example.com"), null, CompanyMemberRole.MEMBER, CompanyMemberStatus.LEFT);
+		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
+		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
+		when(companyMemberRepository.findByIdAndCompanyIdForUpdate(101L, 10L)).thenReturn(Optional.of(leftMember));
+
+		assertThatThrownBy(() -> companyMemberService.remove("admin-token", 10L, 101L))
+				.isInstanceOf(CompanyMemberConflictException.class)
+				.hasMessage("이미 탈퇴한 회사 구성원입니다.");
+		verifyNoInteractions(projectMemberRepository);
+		verifyNoInteractions(projectRepository);
+	}
+
+	@Test
+	void removeThrowsConflictWhenRemovingLastActiveCompanyAdmin() {
+		AuthContext authContext = new AuthContext(2L, "other-admin@example.com");
+		User requester = user(2L, "other-admin@example.com");
+		User target = user(1L, "admin@example.com");
+		Company company = company(10L, target);
+		CompanyMember companyAdmin = companyMember(100L, company, target, null, CompanyMemberRole.COMPANY_ADMIN, CompanyMemberStatus.ACTIVE);
+		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(requester);
+		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
+		when(companyMemberRepository.findByIdAndCompanyIdForUpdate(100L, 10L)).thenReturn(Optional.of(companyAdmin));
+		when(companyMemberRepository.countByCompany_IdAndRoleAndStatus(10L, CompanyMemberRole.COMPANY_ADMIN, CompanyMemberStatus.ACTIVE))
+				.thenReturn(1L);
+
+		assertThatThrownBy(() -> companyMemberService.remove("admin-token", 10L, 100L))
+				.isInstanceOf(CompanyMemberConflictException.class);
+		assertThat(companyAdmin.getStatus()).isEqualTo(CompanyMemberStatus.ACTIVE);
+		verifyNoInteractions(projectMemberRepository);
+	}
+
+	@Test
+	void removeThrowsConflictWhenTargetIsLastActiveProjectAdmin() {
+		AuthContext authContext = authContext();
+		User admin = user(1L, "admin@example.com");
+		User target = user(2L, "member@example.com");
+		Company company = company(10L, admin);
+		Project project = project(20L, company, admin);
+		CompanyMember member = companyMember(101L, company, target, null, CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE);
+		com.threadia.backend.project.domain.ProjectMember projectAdmin = projectMember(201L, project, target, ProjectMemberRole.PROJECT_ADMIN, ProjectMemberStatus.ACTIVE);
+		when(authContextService.fromAccessToken("admin-token")).thenReturn(authContext);
+		when(authContextService.requireActiveUser(authContext)).thenReturn(admin);
+		when(companyRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(company));
+		when(companyMemberRepository.findByIdAndCompanyIdForUpdate(101L, 10L)).thenReturn(Optional.of(member));
+		when(projectMemberRepository.findActiveTargetMembershipsAndActiveProjectAdminsInTargetProjectsForUpdate(
+				10L,
+				2L,
+				ProjectMemberRole.PROJECT_ADMIN,
+				ProjectMemberStatus.ACTIVE))
+				.thenReturn(List.of(projectAdmin));
+
+		assertThatThrownBy(() -> companyMemberService.remove("admin-token", 10L, 101L))
+				.isInstanceOf(ProjectMemberConflictException.class)
+				.hasMessage("마지막 활성 프로젝트 관리자는 변경할 수 없습니다.");
+		assertThat(member.getStatus()).isEqualTo(CompanyMemberStatus.ACTIVE);
+		InOrder removeOrder = inOrder(projectMemberRepository, projectRepository);
+		removeOrder.verify(projectMemberRepository).findActiveTargetMembershipsAndActiveProjectAdminsInTargetProjectsForUpdate(
+				10L,
+				2L,
+				ProjectMemberRole.PROJECT_ADMIN,
+				ProjectMemberStatus.ACTIVE);
+		verify(projectRepository, never()).findAllByIdInForUpdateOrderByIdAsc(org.mockito.ArgumentMatchers.any());
+		verify(projectMemberRepository, never()).removeActiveMembershipsByCompanyIdAndUserId(
+				org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.any());
+	}
+
 	private static AuthContext authContext() {
 		return new AuthContext(1L, "admin@example.com");
 	}
@@ -406,6 +590,38 @@ class CompanyMemberServiceTest {
 		Company company = new Company("Threadia Inc.", "Admin", "workspace", "IT", null, com.threadia.backend.company.domain.CompanyStatus.ACTIVE, createdBy, now, now);
 		setId(company, id);
 		return company;
+	}
+
+	private static Project project(Long id, Company company, User createdBy) {
+		LocalDateTime now = LocalDateTime.now(FIXED_CLOCK);
+		Project project = new Project(
+				company,
+				"Threadia MVP",
+				"THD",
+				"Threadia MVP 개발 프로젝트",
+				ProjectStatus.PLANNING,
+				LocalDate.parse("2026-06-17"),
+				LocalDate.parse("2026-07-31"),
+				createdBy,
+				null,
+				null,
+				null,
+				now,
+				now);
+		setId(project, id);
+		return project;
+	}
+
+	private static com.threadia.backend.project.domain.ProjectMember projectMember(
+			Long id,
+			Project project,
+			User user,
+			ProjectMemberRole role,
+			ProjectMemberStatus status) {
+		LocalDateTime now = LocalDateTime.now(FIXED_CLOCK).minusDays(1);
+		com.threadia.backend.project.domain.ProjectMember projectMember = new com.threadia.backend.project.domain.ProjectMember(project, user, role, status, now, now, now);
+		setId(projectMember, id);
+		return projectMember;
 	}
 
 	private static CompanyMember companyMember(

@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -66,6 +67,22 @@ class PlatformAdminAccessServiceTest {
 				platformAdminRepository);
 
 		assertThat(service.requireAdmin("platform-token").platformAdmin().getRole()).isEqualTo(role);
+	}
+
+	@Test
+	void deniesRevokedPlatformAdmin() {
+		AuthContext context = new AuthContext(10L, "revoked@example.com");
+		User actor = user(10L, context.email());
+		PlatformAdmin platformAdmin = new PlatformAdmin(actor, PlatformAdminRole.SUPER_ADMIN, LocalDateTime.of(2026, 7, 15, 0, 0));
+		platformAdmin.revoke(LocalDateTime.of(2026, 7, 15, 1, 0));
+		when(authContextService.fromAccessToken("revoked-token")).thenReturn(context);
+		when(authContextService.requireActiveUser(context)).thenReturn(actor);
+		when(platformAdminRepository.findByUser_Id(10L)).thenReturn(Optional.of(platformAdmin));
+		PlatformAdminAccessService service = new PlatformAdminAccessService(authContextService, platformAdminRepository);
+
+		assertThatThrownBy(() -> service.requireAdmin("revoked-token"))
+				.isInstanceOf(ForbiddenException.class)
+				.hasMessage("플랫폼 관리자 권한이 필요합니다.");
 	}
 
 	private static Stream<Arguments> nonPlatformActors() {

@@ -89,7 +89,7 @@ async function mockApi(page: Page, options: { canManage: boolean; issues: MockIs
       await json(
         apiResponse({
           projectMembers: [
-            { id: 1, projectId: 10, role: "MEMBER", status: "ACTIVE", joinedAt: null, createdAt: "", updatedAt: "", user: { id: 2, email: "b@test.dev", nickname: "담당자B", avatarUrl: null } },
+            { id: 1, projectId: 10, role: "MEMBER", companyRole: "MEMBER", status: "ACTIVE", joinedAt: null, createdAt: "", updatedAt: "", user: { id: 2, email: "b@test.dev", nickname: "담당자B", avatarUrl: null } },
           ],
         })
       );

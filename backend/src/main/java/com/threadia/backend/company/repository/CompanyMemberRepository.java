@@ -63,6 +63,17 @@ public interface CompanyMemberRepository extends JpaRepository<CompanyMember, Lo
 			@Param("companyMemberId") Long companyMemberId,
 			@Param("companyId") Long companyId);
 
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+			select companyMember
+			from CompanyMember companyMember
+			where companyMember.company.id = :companyId
+			  and companyMember.user.id = :userId
+			""")
+	Optional<CompanyMember> findByCompany_IdAndUser_IdForUpdate(
+			@Param("companyId") Long companyId,
+			@Param("userId") Long userId);
+
 	boolean existsByCompany_IdAndUser_IdAndRoleAndStatus(
 			Long companyId,
 			Long userId,
@@ -70,6 +81,11 @@ public interface CompanyMemberRepository extends JpaRepository<CompanyMember, Lo
 			CompanyMemberStatus status);
 
 	boolean existsByCompany_IdAndUser_IdAndStatus(Long companyId, Long userId, CompanyMemberStatus status);
+
+	List<CompanyMember> findByCompany_IdAndUser_IdInAndStatus(
+			Long companyId,
+			List<Long> userIds,
+			CompanyMemberStatus status);
 
 	long countByCompany_IdAndStatus(Long companyId, CompanyMemberStatus status);
 

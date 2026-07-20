@@ -30,6 +30,7 @@ import com.threadia.backend.auth.repository.UserRepository;
 import com.threadia.backend.common.exception.ForbiddenException;
 import com.threadia.backend.common.exception.UserNotFoundException;
 import com.threadia.backend.company.domain.Company;
+import com.threadia.backend.company.domain.CompanyMember;
 import com.threadia.backend.company.domain.CompanyMemberRole;
 import com.threadia.backend.company.domain.CompanyMemberStatus;
 import com.threadia.backend.company.repository.CompanyMemberRepository;
@@ -438,7 +439,7 @@ class ProjectInvitationServiceTest {
 		stubRequester(invitee);
 		when(invitationRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(invitation));
 		when(projectRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(project));
-		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE)).thenReturn(true);
+		when(companyMemberRepository.findByCompany_IdAndUser_IdForUpdate(1L, 2L)).thenReturn(Optional.of(companyMember(project.getCompany(), invitee, CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE)));
 		when(projectMemberRepository.findByProject_IdAndUser_IdForUpdate(10L, 2L)).thenReturn(Optional.empty());
 
 		var data = service.accept("token", 100L);
@@ -461,7 +462,7 @@ class ProjectInvitationServiceTest {
 		stubRequester(invitee);
 		when(invitationRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(invitation));
 		when(projectRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(project));
-		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE)).thenReturn(true);
+		when(companyMemberRepository.findByCompany_IdAndUser_IdForUpdate(1L, 2L)).thenReturn(Optional.of(companyMember(project.getCompany(), invitee, CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE)));
 		when(projectMemberRepository.findByProject_IdAndUser_IdForUpdate(10L, 2L)).thenReturn(Optional.of(removed));
 
 		var data = service.accept("token", 100L);
@@ -486,7 +487,7 @@ class ProjectInvitationServiceTest {
 		stubRequester(invitee);
 		when(invitationRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(invitation));
 		when(projectRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(project));
-		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE)).thenReturn(true);
+		when(companyMemberRepository.findByCompany_IdAndUser_IdForUpdate(1L, 2L)).thenReturn(Optional.of(companyMember(project.getCompany(), invitee, CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE)));
 		when(projectMemberRepository.findByProject_IdAndUser_IdForUpdate(10L, 2L)).thenReturn(Optional.of(active));
 
 		assertThatThrownBy(() -> service.accept("token", 100L)).isInstanceOf(InvitationConflictException.class);
@@ -596,8 +597,7 @@ class ProjectInvitationServiceTest {
 		Invitation invitation = projectInvitation(100L, project, inviter, invitee);
 		stubRequester(invitee);
 		when(invitationRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(invitation));
-		when(projectRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(project));
-		when(companyMemberRepository.existsByCompany_IdAndUser_IdAndStatus(1L, 2L, CompanyMemberStatus.ACTIVE)).thenReturn(false);
+		when(companyMemberRepository.findByCompany_IdAndUser_IdForUpdate(1L, 2L)).thenReturn(Optional.empty());
 
 		assertThatThrownBy(() -> service.accept("token", 100L))
 				.isInstanceOf(InvitationConflictException.class)
@@ -653,6 +653,10 @@ class ProjectInvitationServiceTest {
 		Project project = new Project(company, "Project", "PROJECT", null, ProjectStatus.PLANNING, null, null, creator, null, null, null, now(), now());
 		setId(project, 10L);
 		return project;
+	}
+
+	private static CompanyMember companyMember(Company company, User user, CompanyMemberRole role, CompanyMemberStatus status) {
+		return new CompanyMember(company, user, null, role, status, now(), now(), now());
 	}
 
 	private static Invitation projectInvitation(Long id, Project project, User inviter, User invitee) {

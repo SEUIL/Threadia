@@ -1,0 +1,66 @@
+/*
+ * 그래프 화면(문서/이슈 연결)의 카드 배치 상수와 유틸리티.
+ *
+ * WBS 4.6.2 — 이전에는 이 파일이 mockGraphData.ts로, 문서/채팅 목업 데이터도
+ * 함께 들고 있었다. 실 API(`GET /projects/{projectId}/documents/graph`)는
+ * DOCUMENT/ISSUE node만 반환하므로(API-명세서 §13.6) 채팅 노드 통합은 범위
+ * 밖이다 — 메시지→이슈 연결(LINK-03, WBS 4.5)이 별도로 구현된 뒤 그래프에도
+ * 반영해야 한다.
+ */
+
+export type NodeKind = "doc" | "issue";
+
+export const KIND_LABEL: Record<NodeKind, string> = {
+  doc: "문서",
+  issue: "이슈",
+};
+
+// 노드 배지/칩 색 — doc은 기존부터 primary(teal), issue는 기존부터
+// accent(violet)를 써왔다(이 화면의 기존 관례).
+export const KIND_CHIP_CLASS: Record<NodeKind, string> = {
+  doc: "bg-primary text-primary-foreground",
+  issue: "bg-accent text-accent-foreground",
+};
+// 선택된 카드 강조 링 색 — 배지 색과 동일 계열.
+export const KIND_RING_CLASS: Record<NodeKind, string> = {
+  doc: "ring-primary",
+  issue: "ring-accent",
+};
+export const ALL_KINDS: NodeKind[] = ["doc", "issue"];
+
+export type GraphNode = {
+  id: string;
+  kind: NodeKind;
+  label: string;
+  x: number;
+  y: number;
+  issueKey: string | null;
+  status: string | null;
+  refId: number;
+};
+
+// 카드형 노드 크기 — 원(circle) 대신 배지+제목이 있는 카드로 그린다(2026-07-06
+// 디자인 변경, 스크린샷 레퍼런스 반영). x/y는 카드의 좌상단 좌표다.
+export const CARD_WIDTH = 190;
+export const CARD_ANCHOR_Y = 34; // 연결선이 붙는 카드 세로 중심 지점(대략치)
+
+// 종류별 열 배치 — 문서/이슈를 각각 세로로 나열하되, 한 열에 카드가
+// ROWS_PER_SUBCOLUMN개를 넘으면 옆으로 서브열을 만들어 무한정 아래로만
+// 길어지지 않게 한다(카드 수가 늘어나도 캔버스 높이가 고정 유지됨).
+export const COLUMN_BASE_X: Record<NodeKind, number> = { doc: 40, issue: 380 };
+export const ROWS_PER_SUBCOLUMN = 6;
+export const ROW_HEIGHT = 100;
+export const SUBCOLUMN_GAP = CARD_WIDTH + 20;
+export const ROW_START_Y = 40;
+
+export function layoutColumn(kind: NodeKind, count: number): { x: number; y: number }[] {
+  const baseX = COLUMN_BASE_X[kind];
+  return Array.from({ length: count }, (_, i) => {
+    const row = i % ROWS_PER_SUBCOLUMN;
+    const col = Math.floor(i / ROWS_PER_SUBCOLUMN);
+    return { x: baseX + col * SUBCOLUMN_GAP, y: ROW_START_Y + row * ROW_HEIGHT };
+  });
+}
+
+export const GRAPH_CANVAS_WIDTH = COLUMN_BASE_X.issue + CARD_WIDTH + 40;
+export const GRAPH_CANVAS_HEIGHT = ROW_START_Y + ROWS_PER_SUBCOLUMN * ROW_HEIGHT;

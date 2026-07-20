@@ -146,7 +146,7 @@ class MysqlSchemaValidationTests {
 		applySchemaSql();
 
 		assertRequiredColumn("projects", "company_id", "bigint");
-		assertEnumColumn("companies", "status", "ACTIVE", "ACTIVE", "INACTIVE");
+		assertRequiredColumn("companies", "status", "varchar");
 		assertRequiredColumn("projects", "name", "varchar");
 		assertRequiredColumn("projects", "project_key", "varchar");
 		assertEnumColumn("projects", "status", "PLANNING", "PLANNING", "ACTIVE", "PAUSED", "COMPLETED", "ARCHIVED");
@@ -410,7 +410,13 @@ class MysqlSchemaValidationTests {
 
 		assertRequiredColumn("platform_admins", "user_id", "bigint");
 		assertEnumColumn("platform_admins", "role", null, "PLATFORM_ADMIN", "SUPER_ADMIN");
+		assertEnumColumn("platform_admins", "status", "ACTIVE", "ACTIVE", "REVOKED");
+		assertNullableColumn("platform_admins", "revoked_at", "datetime");
+		assertNullableColumn("platform_admins", "reactivated_at", "datetime");
+		assertRequiredColumn("platform_admins", "updated_at", "datetime");
 		assertUniqueConstraint("platform_admins", "uq_platform_admins_user");
+		assertIndex("platform_admins", "idx_platform_admins_status_role", "status", "role");
+		assertCheckConstraint("chk_platform_admins_revocation");
 		assertForeignKey("platform_admins", "fk_platform_admins_user", "user_id", "users", "id");
 
 		assertRequiredColumn("support_cases", "reporter_user_id", "bigint");
@@ -460,6 +466,7 @@ class MysqlSchemaValidationTests {
 		assertNullableColumn("admin_action_audits", "before_state", "longtext");
 		assertNullableColumn("admin_action_audits", "support_case_id", "bigint");
 		assertRequiredColumn("admin_action_audits", "after_state", "longtext");
+		assertIndex("admin_action_audits", "idx_aaa_created", "created_at", "id");
 		assertForeignKey("admin_action_audits", "fk_aaa_case", "support_case_id", "support_cases", "id");
 		assertForeignKey("admin_action_audits", "fk_aaa_actor", "actor_user_id", "users", "id");
 		assertForeignKey(
@@ -495,8 +502,8 @@ class MysqlSchemaValidationTests {
 				.containsExactlyInAnyOrder(
 						"SUPPORT_CASE_CATEGORIES", "REPORT_REASON_CATEGORIES", "ENFORCEMENT_REASON_PRESETS", "ENFORCEMENT_DURATION_PRESETS",
 						"REPLY_TEMPLATES", "ANNOUNCEMENT_BANNER", "SUPPORT_CENTER_STATUS", "RESULT_NOTIFICATION_POLICY");
-		assertEnumColumn("admin_action_audits", "action", null, "SYSTEM_SETTING_REPLACED");
-		assertEnumColumn("admin_action_audits", "target_type", null, "SYSTEM_SETTING");
+		assertEnumColumn("admin_action_audits", "action", null, "SYSTEM_SETTING_REPLACED", "PLATFORM_ADMIN_GRANTED", "PLATFORM_ADMIN_REVOKED", "PLATFORM_ADMIN_REACTIVATED", "PLATFORM_ADMIN_ROLE_CHANGED");
+		assertEnumColumn("admin_action_audits", "target_type", null, "SYSTEM_SETTING", "PLATFORM_ADMIN");
 	}
 
 	private void applySchemaSql() {

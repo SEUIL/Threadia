@@ -46,6 +46,7 @@ import { DebugDirections } from "@/components/hub/DebugDirections";
 import { HubOverlay } from "@/components/hub/HubOverlay";
 import { HubSceneErrorBoundary } from "@/components/hub/HubSceneErrorBoundary";
 import { isWebGLAvailable } from "@/components/hub/webglSupport";
+import { CreateCompanyForm } from "@/components/company/CreateCompanyForm";
 import { useAuth } from "@/contexts/AuthContext";
 
 // 건물 바깥 허공(Canvas scene background) — 은은한 뉴트럴 하늘톤. 아래 fog와 반드시
@@ -84,18 +85,23 @@ const SOUTH_ZONE_PLOTS: Plot[] = [
 
 function NoCompanyNotice() {
   return (
-    <div className="flex h-full w-full items-center justify-center bg-chrome px-6">
-      <div className="max-w-sm rounded-xl border border-chrome-foreground/10 bg-chrome-hover/50 p-8 text-center">
+    <div className="flex h-full w-full items-center justify-center overflow-y-auto bg-chrome px-6 py-10">
+      <div className="w-full max-w-sm rounded-xl border border-chrome-foreground/10 bg-chrome-hover/50 p-8 text-center">
         <h1 className="text-lg font-bold text-chrome-foreground">아직 소속된 회사가 없습니다</h1>
         <p className="mt-2 text-sm text-chrome-muted">
-          회사 관리자에게 초대를 요청하거나, 이미 받은 초대가 있다면 확인해주세요.
+          새 회사를 만들거나, 이미 받은 초대가 있다면 확인해주세요.
         </p>
-        <Link
-          href="/invitations"
-          className="mt-5 inline-block rounded-lg btn-gradient px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast"
-        >
-          받은 초대 확인하기
-        </Link>
+
+        <CreateCompanyForm />
+
+        <div className="mt-5 border-t border-chrome-foreground/10 pt-5">
+          <Link
+            href="/invitations"
+            className="inline-block rounded-lg btn-gradient px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors duration-fast"
+          >
+            받은 초대 확인하기
+          </Link>
+        </div>
       </div>
     </div>
   );

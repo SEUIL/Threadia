@@ -13,6 +13,14 @@ const errorResponse = (code: string, message: string) => ({
   meta: { requestId: "invite-smoke" },
 });
 
+type MockProjectMember = {
+  id: number;
+  email: string;
+  nickname: string;
+  role: string;
+  companyRole: string | null;
+};
+
 type MockInvitation = {
   id: number;
   status: string;
@@ -20,6 +28,26 @@ type MockInvitation = {
   inviteeNickname: string;
   role: string;
 };
+
+const projectMember = (over: Partial<MockProjectMember> & { id: number }): MockProjectMember => ({
+  email: `member${over.id}@example.com`,
+  nickname: `멤버${over.id}`,
+  role: "MEMBER",
+  companyRole: null,
+  ...over,
+});
+
+const projectMemberResponse = (member: MockProjectMember) => ({
+  id: member.id,
+  projectId: 10,
+  role: member.role,
+  companyRole: member.companyRole,
+  status: "ACTIVE",
+  joinedAt: "2026-07-01T00:00:00Z",
+  createdAt: "2026-07-01T00:00:00Z",
+  updatedAt: "2026-07-01T00:00:00Z",
+  user: { id: member.id, email: member.email, nickname: member.nickname, avatarUrl: null },
+});
 
 const invitation = (over: Partial<MockInvitation> & { id: number }): MockInvitation => ({
   status: "PENDING",
@@ -50,11 +78,16 @@ async function mockApi(
   options: {
     canManage: boolean;
     invitations?: MockInvitation[];
+    members?: MockProjectMember[];
     /** invitable-members 응답을 갈아끼운다. 기본은 후보 1명 반환. */
     lookup?: { status: number; body: unknown };
   }
 ) {
   const invitations = options.invitations ?? [];
+  const members = options.members ?? [
+    projectMember({ id: 201, email: "admin@example.com", nickname: "관리자", companyRole: "COMPANY_ADMIN" }),
+    projectMember({ id: 202, email: "member@example.com", nickname: "일반 멤버", companyRole: "MEMBER" }),
+  ];
   const calls: string[] = [];
 
   await page.route("**/api/v1/**", async (route) => {
@@ -116,7 +149,7 @@ async function mockApi(
     }
 
     if (request.method() === "GET" && url.pathname === "/api/v1/projects/10/project-members") {
-      await json(apiResponse({ projectMembers: [] }));
+      await json(apiResponse({ projectMembers: members.map(projectMemberResponse) }));
       return;
     }
 
@@ -159,6 +192,16 @@ async function mockApi(
 
   return { calls, invitations };
 }
+
+test("회사 관리자인 프로젝트 멤버에만 뱃지를 표시한다", async ({ page }) => {
+  await mockApi(page, { canManage: true });
+
+  await page.goto("/1/10/settings");
+
+  await expect(page.getByText("회사 관리자")).toHaveCount(1);
+  await expect(page.locator("li").filter({ hasText: "admin@example.com" }).getByText("회사 관리자")).toBeVisible();
+  await expect(page.locator("li").filter({ hasText: "member@example.com" }).getByText("회사 관리자")).toHaveCount(0);
+});
 
 test("이메일 조회 후 확인을 거쳐 초대를 생성한다", async ({ page }) => {
   const mock = await mockApi(page, { canManage: true });

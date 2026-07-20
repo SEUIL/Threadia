@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-27
-> **최종 수정**: 2026-07-16
-> **버전**: v1.4
+> **최종 수정**: 2026-07-18
+> **버전**: v1.7
 > **상태**: 확정
 > **태그**: decision, db, schema, changelog
 
@@ -34,6 +34,26 @@ DB schema가 바뀌면 아래 항목을 기록한다.
 
 ## 3. 변경 이력
 
+### 2026-07-18 WBS 4.10.4 audit read keyset index 추가
+
+| 항목 | 내용 |
+|---|---|
+| 변경 대상 | `admin_action_audits.idx_aaa_created (created_at, id)` |
+| 변경 내용 | platform audit read의 descending keyset pagination을 위한 created-at/id 복합 index를 clean-rebuild schema에 추가했다. |
+| 변경 이유 | offset 없이 안정적인 `(created_at DESC, id DESC)` audit page 조회를 지원하기 위해서다. |
+| 영향 범위 | local DB는 clean drop/recreate 후 `db/schema.sql`을 재적용한다. migration, legacy data sanitation, cleanup/purge/archive job은 추가하지 않는다. |
+| 관련 문서 | `docs/03-design/ERD.md`, `docs/04-api/API-명세서.md`, `docs/07-decisions/기획문서-변경이력.md` |
+
+### 2026-07-18 WBS 4.10.4 platform admin lifecycle schema 확장
+
+| 항목 | 내용 |
+|---|---|
+| 변경 대상 | `platform_admins`, `admin_action_audits.action`, `admin_action_audits.target_type` |
+| 변경 내용 | `platform_admins`에 `ACTIVE/REVOKED` 상태, revoke/reactivate/updated UTC 시각, status-role index와 상태-시각 CHECK를 추가했다. audit enum에 lifecycle action 4종과 `PLATFORM_ADMIN` target을 추가했다. |
+| 변경 이유 | soft revoke로 권한 이력을 보존하면서 ACTIVE-only authorization과 grant/revoke/reactivate/role-change의 immutable audit를 지원하기 위해서다. |
+| 영향 범위 | local DB는 clean drop/recreate 후 `db/schema.sql`을 재적용한다. migration tool, migration history, additive production DDL, retention/cleanup job은 추가하지 않는다. |
+| 관련 문서 | `docs/03-design/ERD.md`, `docs/04-api/API-명세서.md`, `docs/07-decisions/기획문서-변경이력.md` |
+
 ### 2026-07-16 WBS 4.10.3 system settings typed catalog schema 추가
 
 | 항목 | 내용 |
@@ -53,6 +73,16 @@ DB schema가 바뀌면 아래 항목을 기록한다.
 | 변경 이유 | 승인된 WBS `4.10.1` support case Backend vertical slice와 필수 platform authorization/audit foundation을 영속화하기 위해서다. |
 | 영향 범위 | 신규 JPA Entity/Repository, 동시성 안전한 최초 `SUPER_ADMIN` bootstrap, support case service/API, audit transaction, schema validation test에 영향을 준다. 기존 `users`, company/project membership role은 변경하지 않는다. |
 | 관련 문서 | `docs/02-requirements/S15-플랫폼-관리자-1차-범위-정의.md`, `docs/03-design/ERD.md`, `docs/04-api/API-명세서.md`, `docs/07-decisions/플랫폼-관리자-인가-모델-결정.md` |
+
+### 2026-07-18 Persistent SSM Platform foundation additive exception
+
+| 항목 | 내용 |
+|---|---|
+| 변경 대상 | `scripts/ssm-delivery/platform-foundation-additive.sql`, `companies.status`, Platform foundation 7개 table, bootstrap lock, 8개 system setting seed |
+| 변경 내용 | persistent SSM host의 확인된 schema drift 보정을 위해 MySQL 8 additive/idempotent operator artifact를 추가했다. existing `companies.status`는 변경하지 않고, missing table/seed만 추가한다. |
+| 변경 이유 | restricted SSM release의 Hibernate schema validation이 `admin_action_audits` 누락으로 실패했으며, persistent DB에는 destructive Fresh DB initializer를 사용할 수 없기 때문이다. |
+| 영향 범위 | 별도 승인된 DB operator의 one-time 실행에만 적용된다. SSM workflow/helper/CloudFormation은 DB migration을 자동 실행하지 않으며, `db/schema.sql`은 ECR Compose Fresh DB path에만 유지한다. |
+| 관련 문서 | `scripts/ssm-delivery/platform-foundation-additive.sql`, `docs/00-project/restricted-ssm-platform-foundation-db-migration-runbook.md`, `docs/00-project/restricted-ssm-release-runbook.md`, `docs/07-decisions/DB-schema-관리-정책.md` |
 
 ### 2026-07-02 ERD/schema drift 보정
 

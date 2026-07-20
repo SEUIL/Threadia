@@ -265,6 +265,7 @@ class IssueServiceTest {
 
 		IssueData data = issueService.create("token", 20L, new IssueCreateRequest("새 이슈"));
 
+		assertThat(data.issue().projectId()).isEqualTo(fixtures.project().getId());
 		assertThat(data.issue().reporterUserId()).isEqualTo(fixtures.user().getId());
 	}
 

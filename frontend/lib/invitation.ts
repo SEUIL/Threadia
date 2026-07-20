@@ -65,7 +65,7 @@ export function invitationRoleLabel(invitation: InvitationResponse): string {
 /** 수락 후 안내 — scope에 따라 무엇이 반영됐는지가 다르다. */
 export function invitationAcceptedMessage(invitation: InvitationResponse): string {
   if (invitation.scopeType === "COMPANY") {
-    return `${invitation.companyName} 소속이 반영됐습니다. 새 회사는 재로그인 후 확인할 수 있습니다.`;
+    return `${invitation.companyName} 소속이 반영됐습니다.`;
   }
   const project = invitation.projectName ?? "프로젝트";
   return `${project} 프로젝트에 참여했습니다.`;

@@ -5,6 +5,10 @@ on:
     paths:
       - "backend/**"
       - "db/**"
+      - "scripts/ssm-delivery/**"
+      - "infra/cloudformation/**"
+      - "docs/00-project/restricted-ssm-*.md"
+      - "docs/05-architecture/GitHub-OIDC-SSM-EC2-배포-설계.md"
       - "compose.mysql.yml"
       - ".github/workflows/backend-ci.yml"
   push:
@@ -14,6 +18,10 @@ on:
     paths:
       - "backend/**"
       - "db/**"
+      - "scripts/ssm-delivery/**"
+      - "infra/cloudformation/**"
+      - "docs/00-project/restricted-ssm-*.md"
+      - "docs/05-architecture/GitHub-OIDC-SSM-EC2-배포-설계.md"
       - "compose.mysql.yml"
       - ".github/workflows/backend-ci.yml"
 
@@ -33,6 +41,9 @@ jobs:
       THREADIA_DB_PASSWORD: threadia_ci_password
       THREADIA_DB_SCHEMA_VALIDATION: "true"
       THREADIA_JWT_SECRET: public-ci-test-jwt-secret-not-for-production-please-replace
+      THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET: public-ci-test-project-chat-cursor-hmac-secret-not-for-production
+      THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET: public-ci-test-notification-cursor-hmac-secret-not-for-production
+      THREADIA_AUDIT_CURSOR_HMAC_SECRET: public-ci-test-audit-cursor-hmac-secret-not-for-production
       THREADIA_COOKIE_SECURE: "false"
       THREADIA_CORS_ALLOWED_ORIGIN: http://localhost:3000
 
@@ -63,8 +74,18 @@ jobs:
           java-version: "17"
           cache: gradle
 
-      - name: Initialize MySQL schema
-        run: MYSQL_PWD="$THREADIA_DB_PASSWORD" mysql --host=127.0.0.1 --port=3306 --user="$THREADIA_DB_USERNAME" threadia_ci < ../db/schema.sql
+      - name: Validate additive Platform foundation migration
+        run: |
+          python3 ../infra/cloudformation/test-platform-foundation-additive-migration.py
+
+      - name: Validate packaged backend against additive Phase 1 schema
+        run: ./gradlew test --tests com.threadia.backend.JpaSchemaValidationTests
+
+      - name: Validate restricted SSM delivery source
+        run: |
+          bash -n ../scripts/ssm-delivery/apply-release
+          python3 ../infra/cloudformation/test-optional-mail-runtime-parser.py
+          python3 ../infra/cloudformation/validate-restricted-ssm-delivery-preflight.py
 
       - name: Run backend tests
         run: ./gradlew test

@@ -29,6 +29,7 @@ import com.threadia.backend.common.auth.AuthContextService;
 import com.threadia.backend.directmessage.dto.DirectMessageMarkReadRequest;
 import com.threadia.backend.directmessage.dto.DirectMessageRoomCreateRequest;
 import com.threadia.backend.directmessage.dto.DirectMessageRoomCreationResult;
+import com.threadia.backend.directmessage.dto.DirectMessageSendRequest;
 import com.threadia.backend.directmessage.repository.DirectMessageRepository;
 import com.threadia.backend.platform.bootstrap.PlatformAdminBootstrap;
 
@@ -93,6 +94,23 @@ class DirectMessageMysqlConcurrencyTests {
 		assertThat(attemptedRegression.lastReadDirectMessageId()).isEqualTo(laterMessageId);
 		assertThat(directMessageRepository.countUnreadByRoomIdAndUserId(roomId, firstUserId)).isZero();
 		assertThat(directMessageRepository.countUnreadByUserId(firstUserId)).isZero();
+	}
+	@Test void unreadCountIncludesInboundMessageWhenReadPointerIsNullOrStateIsAbsent() {
+		Long roomId = directMessageService.getOrCreateRoom("token", companyId, new DirectMessageRoomCreateRequest(secondUserId)).data().room().id();
+		AuthContext senderAuth = new AuthContext(secondUserId, "second@example.com");
+		when(authContextService.fromAccessToken("sender-token")).thenReturn(senderAuth);
+		when(authContextService.requireActiveUser(senderAuth)).thenAnswer(invocation -> userRepository.findById(secondUserId).orElseThrow());
+		directMessageService.send("sender-token", roomId, new DirectMessageSendRequest("unread message"));
+
+		assertThat(jdbcTemplate.queryForObject("select last_read_direct_message_id from dm_room_user_states where room_id = ? and user_id = ?", Long.class, roomId, firstUserId)).isNull();
+		assertThat(directMessageRepository.countUnreadByRoomIdAndUserId(roomId, firstUserId)).isEqualTo(1);
+		assertThat(directMessageRepository.countUnreadByUserId(firstUserId)).isEqualTo(1);
+		assertThat(directMessageService.listRooms("token", companyId).rooms().get(0).unreadCount()).isEqualTo(1);
+		assertThat(directMessageService.unreadCount("token").unreadCount()).isEqualTo(1);
+
+		jdbcTemplate.update("delete from dm_room_user_states where room_id = ? and user_id = ?", roomId, firstUserId);
+		assertThat(directMessageRepository.countUnreadByRoomIdAndUserId(roomId, firstUserId)).isEqualTo(1);
+		assertThat(directMessageRepository.countUnreadByUserId(firstUserId)).isEqualTo(1);
 	}
 	private DirectMessageRoomCreationResult createAfterBarrier(CountDownLatch ready, CountDownLatch start) {
 		ready.countDown(); try { if (!start.await(TIMEOUT.toSeconds(), TimeUnit.SECONDS)) throw new IllegalStateException("동시 생성 시작 대기 시간이 초과되었습니다."); } catch (InterruptedException exception) { Thread.currentThread().interrupt(); throw new IllegalStateException("동시 생성 대기가 중단되었습니다.", exception); }

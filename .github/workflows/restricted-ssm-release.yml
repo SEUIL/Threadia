@@ -19,7 +19,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     concurrency:
-      group: restricted-ssm-release
+      group: restricted-ssm-host-change
       cancel-in-progress: false
     timeout-minutes: 30
     environment: restricted-nonprod
@@ -54,7 +54,8 @@ jobs:
           stage="$(mktemp -d)"
           cp "$jar_path" "$stage/app.jar"
           test -x "$JAVA_HOME/bin/java"
-          cp -a "$JAVA_HOME" "$stage/runtime"
+          cp -aL "$JAVA_HOME" "$stage/runtime"
+          test ! -L "$stage/runtime"
           sha256sum "$stage/app.jar" | cut -d ' ' -f1 > "$stage/app.jar.sha256"
           python3 - "$stage/manifest.json" "$release_id" <<'PY'
           import json

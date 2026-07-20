@@ -8,12 +8,14 @@
  * 나뉘어 있다(PR #70 비고 참고).
  */
 import type { UserSummary } from "@/types/auth.types";
+import type { CompanyMemberRole } from "@/types/company.types";
 import type { ProjectMemberRole, ProjectMemberStatus } from "@/types/project.types";
 
 export interface ProjectMemberResponse {
   id: number;
   projectId: number;
   role: ProjectMemberRole;
+  companyRole: CompanyMemberRole | null;
   status: ProjectMemberStatus;
   joinedAt: string | null;
   createdAt: string;

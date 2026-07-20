@@ -3,7 +3,9 @@ package com.threadia.backend.project.service;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -19,6 +21,7 @@ import com.threadia.backend.project.domain.ProjectMember;
 import com.threadia.backend.project.domain.ProjectMemberRole;
 import com.threadia.backend.project.domain.ProjectMemberStatus;
 import com.threadia.backend.project.dto.ProjectMemberData;
+import com.threadia.backend.project.dto.ProjectMemberLockPreview;
 import com.threadia.backend.project.dto.ProjectMemberRemoveData;
 import com.threadia.backend.project.dto.ProjectMemberResponse;
 import com.threadia.backend.project.dto.ProjectMemberUpdateRequest;
@@ -70,40 +73,62 @@ public class ProjectMemberService {
 		AuthContext authContext = activeAuthContext(accessToken);
 		Project project = project(projectId);
 		requireProjectView(project, authContext);
-		return new ProjectMembersData(projectMemberRepository.findByProjectIdWithFiltersOrderByIdAsc(
-					projectId,
-					role,
-					status,
-					normalizeQ(q))
-				.stream()
-				.map(ProjectMemberResponse::from)
+		List<ProjectMember> projectMembers = projectMemberRepository.findByProjectIdWithFiltersOrderByIdAsc(
+				projectId,
+				role,
+				status,
+				normalizeQ(q));
+		Map<Long, CompanyMemberRole> companyRoles = companyRoles(project, projectMembers);
+		return new ProjectMembersData(projectMembers.stream()
+				.map(projectMember -> ProjectMemberResponse.from(
+						projectMember,
+						companyRoles.get(projectMember.getUser().getId())))
 				.toList());
 	}
 
 	@Transactional
 	public ProjectMemberData update(String accessToken, Long projectMemberId, ProjectMemberUpdateRequest request) {
 		AuthContext authContext = activeAuthContext(accessToken);
-		ProjectMember projectMember = projectMemberForUpdate(projectMemberId);
+		ProjectMemberLockPreview preview = projectMemberLockPreview(projectMemberId);
+		boolean targetActiveCompanyMember = lockTargetActiveCompanyMemberIfNeeded(preview, request.role(), request.status());
+		List<ProjectMember> lockedProjectMembers = projectMemberWithActiveAdminsForUpdate(preview.projectId(), projectMemberId);
+		ProjectMember projectMember = lockedProjectMember(lockedProjectMembers, projectMemberId);
 		projectForUpdate(projectMember.getProject().getId());
 		requireProjectManage(projectMember.getProject(), authContext);
-		validateLastActiveProjectAdmin(projectMember, request.role(), request.status());
-		validateTargetActiveCompanyMember(projectMember, request.role(), request.status());
+		validateLastActiveProjectAdmin(projectMember, request.role(), request.status(), lockedProjectMembers);
+		validateTargetActiveCompanyMember(request.role(), request.status(), targetActiveCompanyMember);
 		projectMember.setRole(request.role());
 		projectMember.setStatus(request.status());
 		projectMember.setUpdatedAt(now());
-		return new ProjectMemberData(ProjectMemberResponse.from(projectMember));
+		return new ProjectMemberData(ProjectMemberResponse.from(
+				projectMember,
+				companyRole(projectMember.getProject().getCompany().getId(), projectMember.getUser().getId())));
 	}
 
 	@Transactional
 	public ProjectMemberRemoveData remove(String accessToken, Long projectMemberId) {
 		AuthContext authContext = activeAuthContext(accessToken);
-		ProjectMember projectMember = projectMemberForUpdate(projectMemberId);
+		ProjectMemberLockPreview preview = projectMemberLockPreview(projectMemberId);
+		List<ProjectMember> lockedProjectMembers = projectMemberWithActiveAdminsForUpdate(preview.projectId(), projectMemberId);
+		ProjectMember projectMember = lockedProjectMember(lockedProjectMembers, projectMemberId);
 		projectForUpdate(projectMember.getProject().getId());
 		requireProjectManage(projectMember.getProject(), authContext);
-		validateLastActiveProjectAdmin(projectMember, ProjectMemberRole.MEMBER, ProjectMemberStatus.REMOVED);
+		validateLastActiveProjectAdmin(projectMember, ProjectMemberRole.MEMBER, ProjectMemberStatus.REMOVED, lockedProjectMembers);
 		projectMember.setStatus(ProjectMemberStatus.REMOVED);
 		projectMember.setUpdatedAt(now());
 		return new ProjectMemberRemoveData(true);
+	}
+
+	private Map<Long, CompanyMemberRole> companyRoles(Project project, List<ProjectMember> projectMembers) {
+		return companyMembershipService.findActiveRolesByCompanyIdAndUserIds(
+				project.getCompany().getId(),
+				projectMembers.stream()
+						.map(projectMember -> projectMember.getUser().getId())
+						.toList());
+	}
+
+	private CompanyMemberRole companyRole(Long companyId, Long userId) {
+		return companyMembershipService.findActiveRolesByCompanyIdAndUserIds(companyId, List.of(userId)).get(userId);
 	}
 
 	private static String normalizeQ(String q) {
@@ -143,31 +168,45 @@ public class ProjectMemberService {
 	private void validateLastActiveProjectAdmin(
 			ProjectMember projectMember,
 			ProjectMemberRole requestedRole,
-			ProjectMemberStatus requestedStatus) {
+			ProjectMemberStatus requestedStatus,
+			List<ProjectMember> lockedProjectMembers) {
 		if (!isActiveProjectAdmin(projectMember) || isActiveProjectAdmin(requestedRole, requestedStatus)) {
 			return;
 		}
-		long activeAdminCount = projectMemberRepository.countByProject_IdAndRoleAndStatus(
-				projectMember.getProject().getId(),
-				ProjectMemberRole.PROJECT_ADMIN,
-				ProjectMemberStatus.ACTIVE);
+		long activeAdminCount = lockedProjectMembers.stream()
+				.filter(ProjectMemberService::isActiveProjectAdmin)
+				.count();
 		if (activeAdminCount <= 1) {
 			throw ProjectMemberConflictException.lastActiveProjectAdmin();
 		}
 	}
 
 	private void validateTargetActiveCompanyMember(
-			ProjectMember projectMember,
 			ProjectMemberRole requestedRole,
-			ProjectMemberStatus requestedStatus) {
-		if (requestedStatus != ProjectMemberStatus.ACTIVE && requestedRole != ProjectMemberRole.PROJECT_ADMIN) {
+			ProjectMemberStatus requestedStatus,
+			boolean targetActiveCompanyMember) {
+		if (!requiresTargetActiveCompanyMember(requestedRole, requestedStatus)) {
 			return;
 		}
-		Long companyId = projectMember.getProject().getCompany().getId();
-		Long targetUserId = projectMember.getUser().getId();
-		if (!companyMembershipService.isActiveMember(companyId, targetUserId)) {
+		if (!targetActiveCompanyMember) {
 			throw ProjectMemberConflictException.targetUserNotActiveCompanyMember();
 		}
+	}
+
+	private boolean lockTargetActiveCompanyMemberIfNeeded(
+			ProjectMemberLockPreview preview,
+			ProjectMemberRole requestedRole,
+			ProjectMemberStatus requestedStatus) {
+		if (!requiresTargetActiveCompanyMember(requestedRole, requestedStatus)) {
+			return true;
+		}
+		return companyMembershipService.isActiveMemberForUpdate(preview.companyId(), preview.userId());
+	}
+
+	private static boolean requiresTargetActiveCompanyMember(
+			ProjectMemberRole requestedRole,
+			ProjectMemberStatus requestedStatus) {
+		return requestedStatus == ProjectMemberStatus.ACTIVE || requestedRole == ProjectMemberRole.PROJECT_ADMIN;
 	}
 
 	private static boolean isActiveProjectAdmin(ProjectMember projectMember) {
@@ -189,13 +228,28 @@ public class ProjectMemberService {
 				.orElseThrow(() -> new ProjectNotFoundException(projectId));
 	}
 
+	private ProjectMemberLockPreview projectMemberLockPreview(Long projectMemberId) {
+		return projectMemberRepository.findLockPreviewById(projectMemberId)
+				.orElseThrow(() -> new ProjectMemberNotFoundException(projectMemberId));
+	}
+
 	private void projectForUpdate(Long projectId) {
 		projectRepository.findByIdForUpdate(projectId)
 				.orElseThrow(() -> new ProjectNotFoundException(projectId));
 	}
 
-	private ProjectMember projectMemberForUpdate(Long projectMemberId) {
-		return projectMemberRepository.findByIdForUpdate(projectMemberId)
+	private List<ProjectMember> projectMemberWithActiveAdminsForUpdate(Long projectId, Long projectMemberId) {
+		return projectMemberRepository.findTargetAndActiveProjectAdminsByProjectIdForUpdate(
+				projectId,
+				projectMemberId,
+				ProjectMemberRole.PROJECT_ADMIN,
+				ProjectMemberStatus.ACTIVE);
+	}
+
+	private static ProjectMember lockedProjectMember(List<ProjectMember> projectMembers, Long projectMemberId) {
+		return projectMembers.stream()
+				.filter(projectMember -> projectMember.getId().equals(projectMemberId))
+				.findFirst()
 				.orElseThrow(() -> new ProjectMemberNotFoundException(projectMemberId));
 	}
 

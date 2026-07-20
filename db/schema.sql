@@ -55,12 +55,21 @@ CREATE TABLE platform_admin_bootstrap_locks (
 INSERT INTO platform_admin_bootstrap_locks (id) VALUES (1);
 
 CREATE TABLE platform_admins (
-    id         BIGINT   NOT NULL AUTO_INCREMENT,
-    user_id    BIGINT   NOT NULL,
-    role       ENUM('PLATFORM_ADMIN','SUPER_ADMIN') NOT NULL,
-    created_at DATETIME NOT NULL,
+    id             BIGINT   NOT NULL AUTO_INCREMENT,
+    user_id        BIGINT   NOT NULL,
+    role           ENUM('PLATFORM_ADMIN','SUPER_ADMIN') NOT NULL,
+    status         ENUM('ACTIVE','REVOKED') NOT NULL DEFAULT 'ACTIVE',
+    created_at     DATETIME NOT NULL,
+    revoked_at     DATETIME NULL,
+    reactivated_at DATETIME NULL,
+    updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_platform_admins_user (user_id),
+    KEY idx_platform_admins_status_role (status, role),
+    CONSTRAINT chk_platform_admins_revocation CHECK (
+        (status = 'ACTIVE' AND revoked_at IS NULL) OR
+        (status = 'REVOKED' AND revoked_at IS NOT NULL)
+    ),
     CONSTRAINT fk_platform_admins_user FOREIGN KEY (user_id) REFERENCES users (id)
         ON DELETE RESTRICT ON UPDATE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -148,8 +157,8 @@ CREATE TABLE admin_action_audits (
     actor_platform_admin_id     BIGINT       NULL,
     authority_source            ENUM('USER','PLATFORM_ADMIN') NOT NULL,
     authority_role              ENUM('PLATFORM_ADMIN','SUPER_ADMIN') NULL,
-    action                      ENUM('SUPPORT_CASE_CREATED','PUBLIC_REPLY_CREATED','INTERNAL_NOTE_CREATED','STATUS_CHANGED','COMPANY_STATUS_CHANGED','SYSTEM_SETTING_REPLACED') NOT NULL,
-    target_type                 ENUM('SUPPORT_CASE','PUBLIC_REPLY','INTERNAL_NOTE','COMPANY','SYSTEM_SETTING') NOT NULL,
+    action                      ENUM('SUPPORT_CASE_CREATED','PUBLIC_REPLY_CREATED','INTERNAL_NOTE_CREATED','STATUS_CHANGED','COMPANY_STATUS_CHANGED','SYSTEM_SETTING_REPLACED','PLATFORM_ADMIN_GRANTED','PLATFORM_ADMIN_REVOKED','PLATFORM_ADMIN_REACTIVATED','PLATFORM_ADMIN_ROLE_CHANGED') NOT NULL,
+    target_type                 ENUM('SUPPORT_CASE','PUBLIC_REPLY','INTERNAL_NOTE','COMPANY','SYSTEM_SETTING','PLATFORM_ADMIN') NOT NULL,
     target_id                   BIGINT       NOT NULL,
     reason                      VARCHAR(500) NOT NULL,
     before_state                LONGTEXT     NULL,
@@ -158,6 +167,7 @@ CREATE TABLE admin_action_audits (
     PRIMARY KEY (id),
     KEY idx_aaa_case_created (support_case_id, created_at, id),
     KEY idx_aaa_actor_created (actor_user_id, created_at, id),
+    KEY idx_aaa_created (created_at, id),
     KEY idx_aaa_platform_admin (actor_platform_admin_id),
     CONSTRAINT fk_aaa_case FOREIGN KEY (support_case_id) REFERENCES support_cases (id)
         ON DELETE RESTRICT ON UPDATE RESTRICT,
@@ -223,7 +233,7 @@ CREATE TABLE companies (
     description         TEXT         NULL,
     industry_category   VARCHAR(100) NULL,
     logo_url            VARCHAR(500) NULL,
-    status              ENUM('ACTIVE','INACTIVE') NOT NULL DEFAULT 'ACTIVE',
+    status              VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
     created_by_user_id  BIGINT       NOT NULL,
     created_at          DATETIME     NOT NULL,
     updated_at          DATETIME     NOT NULL,

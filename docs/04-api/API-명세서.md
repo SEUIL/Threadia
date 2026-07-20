@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-07-17
-> **버전**: v3.5 SEARCH-01 Level 4 Backend/Frontend 계층 정정
+> **최종 수정**: 2026-07-20
+> **버전**: v3.11 프로젝트 멤버 응답 companyRole 계약 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -13,7 +13,7 @@
 
 > **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows이며, DB는 ERD 기반 `db/schema.sql`과 문서 변경이력으로 관리한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
-> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, Sprint 3 decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15 WBS `4.10.1` support case, WBS `4.10.3` typed system settings, WBS `4.8.1` notification inbox/read-state, WBS `4.9.4.1` 프로젝트 범위 Search Backend 계약을 확정한다. `4.9.4`는 진행 중 50% parent이며 `4.9.4.2` Frontend 구현은 계획/0% 상태다. notification producer matrix, preferences, push/WebSocket, Frontend와 enforcement, admin lifecycle, dashboard는 후속 범위다. attachment, document optimistic locking, advanced DM, PROJECT notification preference scope, project restore, permanent delete는 선행 결정 전 full endpoint contract나 request/response body를 만들지 않는다.
+> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15 `4.10.1` support case, `4.10.3` typed system settings, `4.10.4` Backend lifecycle/audit-read, `4.8.1` notification inbox/read-state, `4.9.4.1` Search Backend 계약을 확정한다. `4.9.4.2` Frontend는 계획/0% 상태다. notification producer matrix, preferences, push/WebSocket, S15 Frontend, enforcement, dashboard, retention/cleanup은 후속 범위다.
 
 
 ## 1. 공통 규칙
@@ -249,11 +249,12 @@ POST /api/v1/auth/refresh
 | DELETE | `/api/v1/departments/{departmentId}` | C | 부서 삭제, 멤버 부서 NULL 처리 |
 | GET | `/api/v1/companies/{companyId}/company-members` | C | 구성원 목록 조회 |
 | POST | `/api/v1/companies/{companyId}/invitations` | C | Sprint 1.5 회사 초대 생성. 수락 전 membership 미생성 |
-| PATCH | `/api/v1/companies/{companyId}/company-members/{companyMemberId}` | C | 역할/부서/상태 변경 |
+| PATCH | `/api/v1/companies/{companyId}/company-members/{companyMemberId}` | C | 역할/부서/상태 변경. `status: "LEFT"`로의 전환은 거절하고 DELETE 사용을 강제 |
+| DELETE | `/api/v1/companies/{companyId}/company-members/{companyMemberId}` | C | 구성원 제거(soft — `status = LEFT`, `departmentId = null`). 해당 회사 내 active project membership도 함께 `REMOVED` 처리 |
 
 Sprint 1.5부터 구성원 추가는 등록 사용자 exact email lookup 후 `invitations`를 생성한다. 가입되지 않은 이메일 대상 invitation, 외부 email 발송, token link 초대는 Sprint 1.5 범위가 아니며 user-facing membership create API로 즉시 소속을 만들지 않는다.
 
-Sprint 1.5 invitation 검증을 위한 최초 회사와 `COMPANY_ADMIN`은 local/dev/demo seed로 준비한다. `POST /api/v1/companies`는 Sprint 1.5 구현 범위에 포함하지 않고 MVP/Sprint 2 reference로 유지하며, 운영 데이터에는 seed를 포함하지 않는다.
+Sprint 1.5 invitation 검증은 local/dev/demo seed 회사 1개와 `COMPANY_ADMIN` 1명으로 진행했다. **(2026-07-18 갱신, `기획문서-변경이력.md` 2026-07-18 항목)** `POST /api/v1/companies`의 seed-only 제한은 해제됐다 — 로그인 사용자는 프론트에서 직접 회사를 생성할 수 있고 생성자는 자동 `COMPANY_ADMIN`이 된다. seed 기반 dev/demo 데이터 구성 자체는 계속 유효하다.
 
 ---
 
@@ -674,15 +675,43 @@ JSON value의 top-level/object field는 key별 code-owned validator가 검증한
 }
 ```
 
-성공하면 `data`에 갱신된 setting을 반환한다. setting row를 transaction 내 pessimistic lock으로 읽어 stale `expectedVersion`은 `409 SYSTEM_SETTING_VERSION_CONFLICT`, 동일 JSON value는 `409 SYSTEM_SETTING_NO_CHANGE`으로 구분한다. 성공 replacement만 version을 정확히 한 번 증가시키며, setting key, schema version, replacement 전/후 persisted version과 value를 immutable `admin_action_audits`에 같은 transaction으로 기록한다. `REPLY_TEMPLATES`의 template `body`, `ANNOUNCEMENT_BANNER`와 `SUPPORT_CENTER_STATUS`의 non-null `message`는 audit value에서 항상 `[REDACTED]`로 치환한다. audit write 실패 시 replacement는 rollback한다. notification dispatch, enforcement execution, OAuth/runtime/feature-flag setting은 이 API 범위에 포함하지 않는다.
+성공하면 `data`에 갱신된 setting을 반환한다. setting row를 transaction 내 pessimistic lock으로 읽어 stale `expectedVersion`은 `409 SYSTEM_SETTING_VERSION_CONFLICT`, 동일 JSON value는 `409 SYSTEM_SETTING_NO_CHANGE`으로 구분한다. 성공 replacement만 version을 정확히 한 번 증가시키며, immutable `admin_action_audits`에는 setting key, schema version, replacement 전/후 persisted version만 같은 transaction으로 기록한다. setting value 전체는 audit snapshot에 저장하지 않는다. audit write 실패 시 replacement는 rollback한다. notification dispatch, enforcement execution, OAuth/runtime/feature-flag setting은 이 API 범위에 포함하지 않는다.
 
 ---
+
+## 10-C. WBS 4.10.4 Platform Admin Lifecycle
+
+| Method | Endpoint | 권한 | 설명 |
+|---|---|---|---|
+| GET | `/api/v1/platform/actor` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | 현재 platform actor identity 조회 |
+| GET | `/api/v1/platform/admins` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | 활성·revoke 이력을 포함한 관리자 목록 |
+| POST | `/api/v1/platform/admins` | `SUPER_ADMIN` | ACTIVE 사용자에게 platform role 부여 |
+| POST | `/api/v1/platform/admins/{platformAdminId}/revoke` | `SUPER_ADMIN` | 관리자 권한 soft revoke |
+| POST | `/api/v1/platform/admins/{platformAdminId}/reactivate` | `SUPER_ADMIN` | revoke 이력 재활성화 |
+| PATCH | `/api/v1/platform/admins/{platformAdminId}/role` | `SUPER_ADMIN` | ACTIVE 관리자 role 변경 |
+| GET | `/api/v1/platform/audits` | `PLATFORM_ADMIN`, `SUPER_ADMIN` | redacted platform audit keyset 조회 |
+
+- lifecycle write는 singleton lock row를 먼저 `PESSIMISTIC_WRITE`로 획득한 뒤 token actor와 ACTIVE `platform_admins` row를 새 DB query로 재인가한다. 캐시된 authority로 write하지 않는다.
+- revoke는 `status=REVOKED`, `revokedAt`을 기록하며 revoked row는 모든 platform API authority에서 제외된다. reactivate는 ACTIVE 사용자만 가능하며 `reactivatedAt`을 기록한다.
+- 마지막 ACTIVE `SUPER_ADMIN`은 revoke하거나 `PLATFORM_ADMIN`으로 demote할 수 없다. 모든 lifecycle mutation은 3~500자 reason과 같은 transaction의 immutable audit를 요구한다.
+- audit write와 read-side response는 action/target allowlist를 중앙에서 적용한다. support case snapshot에는 raw `title`/`body`를, system setting snapshot에는 `value` 전체를 저장하지 않는다.
+- lifecycle conflict는 `LAST_ACTIVE_SUPER_ADMIN`, `DUPLICATE_PLATFORM_ADMIN_HISTORY`, `PLATFORM_ADMIN_ALREADY_ACTIVE`, `PLATFORM_ADMIN_REVOKED`, `PLATFORM_ADMIN_ROLE_NO_CHANGE`의 명시적 `409` error code를 사용한다.
+
+### 10-C.1 Audit read
+
+`GET /api/v1/platform/audits`는 ACTIVE `PLATFORM_ADMIN` 또는 `SUPER_ADMIN`만 호출할 수 있으며 company/project membership을 authorization 근거로 사용하지 않는다. query filter는 선택적 `actorUserId`, `action`, `targetType`, `targetId`, `supportCaseId`, `createdFrom`, `createdTo`, `cursor`, `size`다. ID는 양수여야 하고 `targetId`에는 `targetType`이 필요하다. 시간은 UTC ISO-8601이고 범위는 `[createdFrom, createdTo)`이며 from은 to보다 늦을 수 없다. 기본 size는 20, 최대는 100이다.
+
+정렬은 `(createdAt DESC, id DESC)`의 keyset이며 cursor는 HMAC-SHA256 opaque 값으로 requester user ID와 정규화된 모든 filter 및 마지막 key를 묶는다. cursor 변조, 다른 사용자 또는 filter 재사용은 `400 VALIDATION_ERROR`다. payload에는 audit snapshot, reason, email/name 등 PII를 넣지 않는다.
+
+응답 `data`는 `audits`, `nextCursor`, `hasNext`, `size`를 포함한다. 각 audit은 `id`, `supportCaseId`, `actorUserId`, `actorPlatformAdminId`, `authoritySource`, `authorityRole`, `action`, `targetType`, `targetId`, `reason`, `beforeState`, `afterState`, `createdAt`만 반환한다. persisted state는 object JSON만 parse한 뒤 중앙 sanitizer를 다시 적용하고 scalar allowlist만 반환한다. null은 null, malformed/non-object state는 `{}`이며 raw snapshot text, email, name은 반환하지 않는다.
+
+audit record의 3년 보존 정책은 유지한다. cleanup/purge/archive job, legacy data sanitation/migration은 이 API 범위가 아니다.
 
 ## 11. MVP 보류/Stub 목록
 
 | 구분 | API/기능 | 처리 | 이유 |
 |---|---|---|---|
-| 후속 범위 | S15 platform enforcement/lifecycle | WBS `4.10.1`, `4.10.3` 외 full endpoint 미정 | 사용자/회사 enforcement, grant/revoke, dashboard, notification, Frontend는 이번 slice에서 제외 |
+| 후속 범위 | S15 Backend 이후 범위 | `4.10.4` Backend lifecycle/audit-read 구현 완료 | 사용자/회사 enforcement, dashboard/notification 확장, S15 Frontend, retention/cleanup은 이번 slice에서 제외 |
 | 이번 개발 기간 보류 | 다자간 DM 방 | full endpoint 미정 | 향후 재검토 전 endpoint, request/response contract, schema, frontend 구현을 추가하지 않음 |
 | 보류 | DM 메시지 삭제 | 미제공 | 전송/조회/unread 중심 |
 | 이번 개발 기간 보류 | DM 상대 read receipt | full endpoint 미정 | 향후 재검토 전 endpoint, request/response contract, schema, frontend 구현을 추가하지 않음 |
@@ -709,7 +738,7 @@ JSON value의 top-level/object field는 key별 code-owned validator가 검증한
 - 메시지 목록 실시간 업데이트 방식.
 - DM 방 unread count 처리 방식.
 - `activity_events`와 `notification_events`는 분리 운영한다. activity 이벤트가 notification 이벤트를 생성하는 조건은 구현 단계에서 이벤트별로 제한한다.
-- S15 WBS `4.10.1`, `4.10.3` 외 enforcement/admin lifecycle/dashboard/notification, attachment, document optimistic locking, advanced DM, PROJECT notification scope, project restore, permanent delete의 full API 계약.
+- S15 `4.10.1`, `4.10.3`, `4.10.4` Backend는 구현 완료 기준이다. enforcement, dashboard/notification 확장, S15 Frontend, retention/cleanup과 attachment, document optimistic locking, advanced DM, PROJECT notification scope, project restore, permanent delete의 full API 계약은 후속 범위다.
 
 ---
 
@@ -1040,6 +1069,29 @@ Request Body:
 }
 ```
 
+`status: "LEFT"`는 이 endpoint로 전환할 수 없다 — `409 CONFLICT`를 반환하고 DELETE endpoint 사용을 요구한다.
+
+#### DELETE `/api/v1/companies/{companyId}/company-members/{companyMemberId}`
+
+Response 200:
+
+```json
+{
+  "data": {
+    "removed": true,
+    "removedProjectMemberCount": 2
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+- 요청자는 대상 회사의 ACTIVE `COMPANY_ADMIN`이어야 한다.
+- 대상 company member는 `status = LEFT`, `departmentId = null`로 전환된다(soft remove, hard delete 아님).
+- 같은 트랜잭션에서 대상 사용자의 해당 회사 내 ACTIVE project membership을 모두 `REMOVED`로 전환한다.
+- 자기 자신 제거, 이미 `LEFT`인 멤버 재제거, 마지막 ACTIVE `COMPANY_ADMIN` 제거는 각각 `409 CONFLICT`를 반환한다.
+- 대상이 어느 프로젝트의 마지막 ACTIVE `PROJECT_ADMIN`이면 해당 프로젝트를 이유로 `409 CONFLICT`를 반환하고 아무것도 변경하지 않는다.
+- 회사 멤버 제거와 project member 변경/생성/초대 수락 경로의 lock 순서는 company → company member → project member(오름차순) → project(오름차순)로 고정해 교착을 막는다.
+
 ### 13.5 Project / Sprint / Project Member
 
 #### POST `/api/v1/companies/{companyId}/projects`
@@ -1144,6 +1196,38 @@ Response 200:
 }
 ```
 
+#### GET `/api/v1/projects/{projectId}/project-members`
+
+Response 200:
+
+```json
+{
+  "data": {
+    "projectMembers": [
+      {
+        "id": 200,
+        "projectId": 20,
+        "role": "MEMBER",
+        "companyRole": "COMPANY_ADMIN",
+        "status": "ACTIVE",
+        "joinedAt": "2026-07-07T00:00:00Z",
+        "createdAt": "2026-07-07T00:00:00Z",
+        "updatedAt": "2026-07-07T00:00:00Z",
+        "user": {
+          "id": 2,
+          "email": "member@example.com",
+          "nickname": "김민정",
+          "avatarUrl": null
+        }
+      }
+    ]
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+`role`은 프로젝트 membership 역할이고, `companyRole`은 같은 회사의 ACTIVE company membership 역할이다. `companyRole`은 `COMPANY_ADMIN`, `MEMBER`, `null` 중 하나이며, S12 멤버 목록은 이 값을 사용해 프로젝트 role이 `MEMBER`여도 회사 관리자임을 표시한다.
+
 #### Deprecated/Internal Note: POST `/api/v1/projects/{projectId}/project-members`
 
 > Sprint 1.5에서는 이 endpoint와 프로젝트 멤버 invitation 흐름을 user-facing API로 제공하지 않는다.
@@ -1158,6 +1242,32 @@ Request Body:
 {
   "role": "PROJECT_ADMIN",
   "status": "ACTIVE"
+}
+```
+
+Response 200:
+
+```json
+{
+  "data": {
+    "projectMember": {
+      "id": 200,
+      "projectId": 20,
+      "role": "PROJECT_ADMIN",
+      "companyRole": "COMPANY_ADMIN",
+      "status": "ACTIVE",
+      "joinedAt": "2026-07-07T00:00:00Z",
+      "createdAt": "2026-07-07T00:00:00Z",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "user": {
+        "id": 2,
+        "email": "member@example.com",
+        "nickname": "김민정",
+        "avatarUrl": null
+      }
+    }
+  },
+  "meta": { "requestId": "req_..." }
 }
 ```
 
@@ -2244,7 +2354,7 @@ Response 200:
 
 ### Phase C 추가 동기화 결정
 
-1. Sprint 1.5 invitation 검증은 local/dev/demo seed 회사 1개와 `COMPANY_ADMIN` 1명을 사용한다. `POST /api/v1/companies`는 Sprint 1.5 구현 범위에 포함하지 않고 MVP/Sprint 2 reference로 유지하며 운영 데이터에는 seed를 포함하지 않는다.
+1. Sprint 1.5 invitation 검증은 local/dev/demo seed 회사 1개와 `COMPANY_ADMIN` 1명을 사용했다. **(2026-07-18 갱신, `기획문서-변경이력.md` 2026-07-18 항목)** `POST /api/v1/companies`의 seed-only 제한은 해제됐다 — 로그인 사용자는 프론트에서 직접 회사를 생성할 수 있고 생성자는 자동 `COMPANY_ADMIN`이 된다. seed 기반 dev/demo 데이터 구성 자체는 계속 유효하다. 회사 생성 이후 추가 소속 확대는 계속 invitation 전용이다.
 2. `activity_events`는 활동 원장, `notification_events`는 알림 사건 원본으로 별도 운영한다. 두 저장소를 통합하지 않고, 필요 시 activity 이벤트에서 notification 이벤트를 생성하는 연계만 허용한다.
 3. 서버 생성 시각과 만료 시각은 UTC 기준으로 생성, 저장, 비교한다. ERD의 `DATETIME` 타입은 유지하고 API 응답은 ISO-8601 UTC `Z` 형식으로 반환한다.
 4. 로그인 이메일은 모든 진입점에서 `trim + lowercase`로 정규화한 값을 저장, 조회, 비교한다. 이 기준은 signup, login, password reset, OAuth 계정 연결, invitation lookup에 동일하게 적용한다.
