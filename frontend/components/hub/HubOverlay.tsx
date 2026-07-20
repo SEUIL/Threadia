@@ -23,8 +23,6 @@
  *    진입할지는 화면정의서에 명시가 없어, 우선 companyMemberships[0]
  *    (서버가 companyId asc로 정렬해서 줌)을 쓴다 — 회사 전환 UI는 범위 밖
  *    (설계문서 §8.3, §9 미결 1번).
- *
- * ⚠️ 알림/DM unread count는 아직 API가 없어 상수로 남겨뒀다.
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -32,12 +30,9 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePendingInvitationCount } from "@/hooks/usePendingInvitationCount";
 import { useUnreadNotificationCount } from "@/hooks/useUnreadNotificationCount";
+import { useDmUnreadCount } from "@/hooks/useDmUnreadCount";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 import { ProfileEditModal } from "@/components/profile/ProfileEditModal";
-
-// TODO: DM API가 unread count를 아직 안 줘서(WBS 4.7.3.2 unreadCount 버그, 이슈 #174)
-// DM 배지만 당분간 상수로 남긴다. 알림 배지는 WBS 4.8.2에서 실 API로 교체했다.
-const MOCK_DM_UNREAD_COUNT = 1;
 
 function BellIcon() {
   return (
@@ -135,6 +130,7 @@ function HubRail() {
   // 다중 회사 소속 시 회사 전환 UI는 범위 밖 — 첫 번째 회사로 진입한다.
   const primaryMembership = companyMemberships[0] ?? null;
   const unreadNotificationCount = useUnreadNotificationCount(primaryMembership?.companyId);
+  const dmUnreadCount = useDmUnreadCount();
 
   const handleLogout = async () => {
     await logout();
@@ -150,7 +146,7 @@ function HubRail() {
     const { companyId, role } = primaryMembership;
     items.unshift(
       { href: `/${companyId}/projects`, label: "프로젝트", icon: <FolderIcon /> },
-      { href: `/${companyId}/dm`, label: "채팅·DM", icon: <ChatIcon />, badge: MOCK_DM_UNREAD_COUNT }
+      { href: `/${companyId}/dm`, label: "채팅·DM", icon: <ChatIcon />, badge: dmUnreadCount }
     );
     items.push({ href: `/${companyId}/notifications`, label: "알림", icon: <BellIcon />, badge: unreadNotificationCount });
     // C(회사 관리자)만 회사 관리 메뉴가 보인다 (화면정의서 S03 메뉴 노출 규칙, RailShell과 동일)

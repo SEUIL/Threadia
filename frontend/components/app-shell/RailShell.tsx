@@ -31,13 +31,10 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePendingInvitationCount } from "@/hooks/usePendingInvitationCount";
 import { useUnreadNotificationCount } from "@/hooks/useUnreadNotificationCount";
+import { useDmUnreadCount } from "@/hooks/useDmUnreadCount";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 import { ProfileEditModal } from "@/components/profile/ProfileEditModal";
 import { PageTransition } from "./PageTransition";
-
-// TODO: DM API가 unread count를 아직 안 줘서(WBS 4.7.3.2 unreadCount 버그, 이슈 #174)
-// DM 배지만 당분간 상수로 남긴다. 알림 배지는 WBS 4.8.2에서 실 API로 교체했다.
-const MOCK_DM_UNREAD_COUNT = 1;
 
 function BellIcon() {
   return (
@@ -134,6 +131,7 @@ function Rail({ companyId }: { companyId: string }) {
   const nickname = user?.nickname ?? "";
   const pendingInvitationCount = usePendingInvitationCount();
   const unreadNotificationCount = useUnreadNotificationCount(companyId);
+  const dmUnreadCount = useDmUnreadCount();
   const membership = companyMemberships.find((m) => m.companyId === Number(companyId)) ?? null;
   const companyName = membership?.companyName ?? "소속 회사 없음";
 
@@ -144,7 +142,7 @@ function Rail({ companyId }: { companyId: string }) {
 
   const items: NavItem[] = [
     { href: `/${companyId}/projects`, label: "프로젝트", icon: <FolderIcon /> },
-    { href: `/${companyId}/dm`, label: "채팅·DM", icon: <ChatIcon />, badge: MOCK_DM_UNREAD_COUNT },
+    { href: `/${companyId}/dm`, label: "채팅·DM", icon: <ChatIcon />, badge: dmUnreadCount },
     // company-agnostic — 이미 소속된 회사 기준 레일에서도 다른 회사에서 온 초대를 받을 수 있다.
     { href: "/invitations", label: "받은 초대", icon: <MailIcon />, badge: pendingInvitationCount },
     { href: `/${companyId}/notifications`, label: "알림", icon: <BellIcon />, badge: unreadNotificationCount },
