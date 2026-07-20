@@ -58,8 +58,17 @@ export default function ProjectSearchPage() {
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
+  /*
+   * stale response 방어: query 변경뿐 아니라 project 이동(projectId가 바뀌면
+   * runSearch 참조도 바뀐다)까지 같은 세대(generation) 번호로 묶어서 막는다.
+   * runSearch(첫 검색)와 loadMore(더보기) 둘 다 호출 시점의 generation을
+   * 캡처해두고, 응답이 왔을 때 이미 최신 generation이 아니면 결과를 버린다
+   * (리뷰 반영, PR #191).
+   */
+  const searchGenerationRef = useRef(0);
+
   const runSearch = useCallback(
-    async (q: string, isStale: () => boolean) => {
+    async (q: string, generation: number) => {
       const trimmed = q.trim();
       if (trimmed === "") {
         setResults([]);
@@ -71,12 +80,12 @@ export default function ProjectSearchPage() {
       setLoadError(null);
       try {
         const { data } = await searchService.search(projectId, { q: trimmed });
-        if (isStale()) return;
+        if (searchGenerationRef.current !== generation) return;
         setResults(data.data.results);
         setNextCursor(data.data.nextCursor);
         setLoadState("ready");
       } catch (error) {
-        if (isStale()) return;
+        if (searchGenerationRef.current !== generation) return;
         setLoadError(invitationErrorMessage(error, "검색 결과를 불러오지 못했습니다."));
         setLoadState("error");
       }
@@ -85,29 +94,29 @@ export default function ProjectSearchPage() {
   );
 
   // query 입력마다 요청하면 서버 부하가 크므로 300ms debounce.
+  // runSearch가 projectId 변경으로 재생성될 때도 이 effect가 다시 돌아
+  // generation이 새로 발급된다 — project 이동 시에도 이전 응답이 막힌다.
   useEffect(() => {
-    let stale = false;
+    const generation = ++searchGenerationRef.current;
     const timer = setTimeout(() => {
-      (async () => {
-        await runSearch(query, () => stale);
-      })();
+      void runSearch(query, generation);
     }, 300);
-    return () => {
-      stale = true;
-      clearTimeout(timer);
-    };
+    return () => clearTimeout(timer);
   }, [query, runSearch]);
 
   const loadMore = async () => {
     const trimmed = query.trim();
     if (trimmed === "" || nextCursor === null || loadingMore) return;
+    const generation = searchGenerationRef.current;
     setLoadingMore(true);
     setLoadMoreError(null);
     try {
       const { data } = await searchService.search(projectId, { q: trimmed, cursor: nextCursor });
+      if (searchGenerationRef.current !== generation) return;
       setResults((prev) => [...prev, ...data.data.results]);
       setNextCursor(data.data.nextCursor);
     } catch (error) {
+      if (searchGenerationRef.current !== generation) return;
       setLoadMoreError(invitationErrorMessage(error, "다음 결과를 불러오지 못했습니다."));
     } finally {
       setLoadingMore(false);
