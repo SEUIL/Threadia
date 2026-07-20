@@ -6,8 +6,7 @@ import com.threadia.backend.auth.domain.User;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
+import jakarta.persistence.Convert;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.ForeignKey;
 import jakarta.persistence.GeneratedValue;
@@ -41,7 +40,7 @@ public class Company {
 	private String logoUrl;
 
 	@Column(nullable = false, length = 50)
-	@Enumerated(EnumType.STRING)
+	@Convert(converter = CompanyStatusConverter.class)
 	private CompanyStatus status = CompanyStatus.ACTIVE;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)

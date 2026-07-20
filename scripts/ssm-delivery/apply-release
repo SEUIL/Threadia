@@ -74,6 +74,8 @@ aws ssm get-parameters --region "$AWS_REGION" --with-decryption --names \
   /threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET \
   /threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE \
   /threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN \
+  /threadia/restricted-nonprod/runtime/THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET \
+  /threadia/restricted-nonprod/runtime/THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET \
   /threadia/restricted-nonprod/runtime/THREADIA_AUDIT_CURSOR_HMAC_SECRET \
   /threadia/restricted-nonprod/runtime/THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL \
   --output json > "$parameters_json"
@@ -93,6 +95,8 @@ required = {
     "/threadia/restricted-nonprod/runtime/THREADIA_JWT_SECRET": "THREADIA_JWT_SECRET",
     "/threadia/restricted-nonprod/runtime/THREADIA_COOKIE_SECURE": "THREADIA_COOKIE_SECURE",
     "/threadia/restricted-nonprod/runtime/THREADIA_CORS_ALLOWED_ORIGIN": "THREADIA_CORS_ALLOWED_ORIGIN",
+    "/threadia/restricted-nonprod/runtime/THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET": "THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET",
+    "/threadia/restricted-nonprod/runtime/THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET": "THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET",
     "/threadia/restricted-nonprod/runtime/THREADIA_AUDIT_CURSOR_HMAC_SECRET": "THREADIA_AUDIT_CURSOR_HMAC_SECRET",
 }
 bootstrap_parameter = "/threadia/restricted-nonprod/runtime/THREADIA_PLATFORM_ADMIN_BOOTSTRAP_EMAIL"
@@ -101,6 +105,7 @@ with open(sys.argv[1], encoding="utf-8") as source:
 parameter_items = response["Parameters"]
 returned_names = [item["Name"] for item in parameter_items]
 values = {item["Name"]: item["Value"] for item in parameter_items}
+types = {item["Name"]: item.get("Type") for item in parameter_items}
 returned = set(values)
 invalid = set(response.get("InvalidParameters", []))
 expected = set(required) | {bootstrap_parameter}
@@ -112,13 +117,21 @@ if bootstrap_parameter in returned and bootstrap_parameter in invalid:
     raise SystemExit("platform admin bootstrap parameter response is inconsistent")
 if bootstrap_parameter not in returned and invalid != {bootstrap_parameter}:
     raise SystemExit("platform admin bootstrap parameter response is inconsistent")
+cursor_secret_parameters = (
+    "/threadia/restricted-nonprod/runtime/THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET",
+    "/threadia/restricted-nonprod/runtime/THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET",
+    "/threadia/restricted-nonprod/runtime/THREADIA_AUDIT_CURSOR_HMAC_SECRET",
+)
+for parameter_name in cursor_secret_parameters:
+    if types.get(parameter_name) != "SecureString":
+        raise SystemExit("cursor runtime parameter must be SecureString: " + parameter_name)
 for parameter_name, value in values.items():
     if has_unsupported_control_character(value):
         raise SystemExit("runtime parameter contains an unsupported control character: " + parameter_name)
-audit_parameter = "/threadia/restricted-nonprod/runtime/THREADIA_AUDIT_CURSOR_HMAC_SECRET"
-audit_secret = values[audit_parameter].strip()
-if not audit_secret or len(audit_secret.encode("utf-8")) < 32:
-    raise SystemExit("audit cursor runtime secret is blank or shorter than 32 UTF-8 bytes")
+for parameter_name in cursor_secret_parameters:
+    secret = values[parameter_name].strip()
+    if not secret or len(secret.encode("utf-8")) < 32:
+        raise SystemExit("cursor runtime secret is blank or shorter than 32 UTF-8 bytes: " + parameter_name)
 bootstrap_email = None
 if bootstrap_parameter in returned:
     bootstrap_email = values[bootstrap_parameter].strip().lower()
