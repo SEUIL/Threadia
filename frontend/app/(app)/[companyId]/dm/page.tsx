@@ -23,9 +23,11 @@ export default function DmIndexPage() {
   const [state, setState] = useState<LoadState>("loading");
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         const { data } = await directMessageService.listRooms(companyId);
+        if (cancelled) return;
         const firstRoom = data.data.rooms[0];
         if (firstRoom) {
           router.replace(`/${companyId}/dm/${firstRoom.id}`);
@@ -33,9 +35,14 @@ export default function DmIndexPage() {
         }
         setState("empty");
       } catch {
-        setState("error");
+        // 재리뷰 반영(PR #173, pktewon): 사용자가 이미 다른 화면으로 이동한
+        // 뒤 뒤늦게 도착한 응답으로 stale redirect/setState가 실행되지 않게 한다.
+        if (!cancelled) setState("error");
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [companyId, router]);
 
   if (state === "loading") return null;

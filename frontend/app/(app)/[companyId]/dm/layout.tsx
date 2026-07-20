@@ -42,34 +42,56 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
    * loadRooms() 호출이 단 하나뿐인 환경에서 그 호출이 markRoomRead()보다 늦게
    * 끝나면 응답 전체가 버려져 rail이 텅 빈 채로 남는 회귀가 있었다(dev의 React
    * Strict Mode는 mount effect를 두 번 실행해 두 번째 호출이 첫 번째의 빈 결과를
-   * 덮어써 줬을 뿐 — 그 안전망이 없는 production에서는 재현됐다).
+   * 덮어써 줬을 뿐 — 그 안전망이 없는 production에서는 재현됐다). 그래서 한 번
+   * "room 단위 merge"(목록은 항상 반영, unreadCount만 보정)로 바꿨다.
    *
-   * 그래서 응답 자체는 항상 반영하되(room 목록 데이터는 신뢰), 그 요청이 시작된
-   * "이후"에 markRoomRead()로 로컬 읽음 처리된 room만 서버의 옛 unreadCount로
-   * 되돌아가지 않게 개별 보정한다 — 목록 전체 폐기가 아니라 room 단위 merge.
+   * 3차 재리뷰 반영(pktewon): 그 merge 방식도 완전하지 않았다 — 응답에 "있는"
+   * room의 unreadCount만 보정할 뿐, 응답 자체가 옛 목록이라 새로 생긴 room이
+   * 아예 빠져 있는 경우(예: startDm 직후 재조회 vs. 그보다 먼저 시작됐던 느린
+   * loadRooms())는 막지 못한다 — 더 완전한 최신 목록을 더 불완전한 옛 목록이
+   * 덮어쓸 수 있었다.
+   *
+   * 그래서 두 개의 별도 ref로 나눈다:
+   *   - sequenceRef: loadRooms()와 markRoomRead() 양쪽이 공유하는 논리 시계.
+   *   - latestLoadSequenceRef: loadRooms()만 증가시킨다. 응답을 받았을 때 이
+   *     값이 자신이 시작될 때 찍은 시퀀스와 다르면(=그 사이 더 최신 loadRooms()
+   *     호출이 있었으면) 응답 전체를 버린다 — 옛 목록이 새 목록을 덮어쓰는 걸
+   *     원천적으로 막는다.
+   *   - readGenerationsRef: roomId → 읽음 처리된 시점의 sequence. 위 stale
+   *     체크를 통과한(=최신) 응답이라도, 그 요청이 시작된 "이후"에 markRoomRead()
+   *     로 로컬 읽음 처리된 room만 서버의 옛 unreadCount로 되돌아가지 않게
+   *     개별 보정한다.
    */
-  const roomsGenerationRef = useRef(0);
-  // roomId → 그 room을 읽음 처리한 시점의 generation. loadRooms() 응답을 적용할
-  // 때, 이 값이 요청 시작 시점의 generation보다 크면(=응답이 시작된 뒤에 읽음
-  // 처리가 일어났으면) 응답의 unreadCount를 무시하고 0으로 강제한다.
+  const sequenceRef = useRef(0);
+  const latestLoadSequenceRef = useRef(0);
   const readGenerationsRef = useRef<Map<number, number>>(new Map());
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const loadRooms = useCallback(async () => {
-    const generation = ++roomsGenerationRef.current;
+    const mySequence = ++sequenceRef.current;
+    latestLoadSequenceRef.current = mySequence;
     try {
       const { data } = await directMessageService.listRooms(companyId);
+      // 언마운트됐거나 이 응답보다 더 최신 loadRooms() 호출이 이미 있었다면
+      // (=옛 목록이다) 그대로 버린다 — 더 완전한 최신 상태를 덮어쓰지 않는다.
+      if (!mountedRef.current || latestLoadSequenceRef.current !== mySequence) return;
       const merged = data.data.rooms.map((r) => {
         const readGeneration = readGenerationsRef.current.get(r.id);
-        return readGeneration !== undefined && readGeneration > generation
+        return readGeneration !== undefined && readGeneration > mySequence
           ? { ...r, unreadCount: 0 }
           : r;
       });
       setRooms(merged);
     } catch {
-      // 네트워크/서버 오류는 목록을 지울 근거가 없다 — 이미 더 최신 결과가
-      // 반영돼 있다면(generation 불일치) 그 상태를 그대로 둔다.
-      if (roomsGenerationRef.current !== generation) return;
-      setRooms([]);
+      // 네트워크/서버 오류는 목록을 지울 근거가 없다 — 이미 화면에 있는 마지막
+      // 정상 상태를 그대로 둔다(stale이든 최신이든 동일하게 적용).
     }
   }, [companyId]);
 
@@ -96,28 +118,38 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
   };
 
   // room 입장 시 markRead API 호출이 성공하면 이걸로 레일 배지를 즉시 지운다
-  // (재조회 없이 로컬 state만 갱신). 이 room을 이 generation에 읽었다고 기록해
+  // (재조회 없이 로컬 state만 갱신). 이 room을 이 sequence에 읽었다고 기록해
   // 두면, 이 시점 이전에 시작된 loadRooms() 응답이 나중에 도착해도 이 room의
-  // unreadCount만 0으로 보정되고 나머지 목록 데이터는 정상 반영된다.
-  const markRoomRead = useCallback((roomId: number) => {
-    const generation = ++roomsGenerationRef.current;
+  // unreadCount만 보정되고 나머지 목록 데이터는 정상 반영된다.
+  //
+  // unreadCount는 호출자가 markRead API 응답의 실제 값을 넘긴다(3차 재리뷰
+  // 반영, pktewon) — 방 입장과 동시에 새 메시지가 도착했다면 0이 아닐 수 있어
+  // 무조건 0으로 강제하면 실제로 안 읽은 메시지의 배지가 사라지는 문제가 있었다.
+  const markRoomRead = useCallback((roomId: number, unreadCount = 0) => {
+    const generation = ++sequenceRef.current;
     readGenerationsRef.current.set(roomId, generation);
-    setRooms((prev) => prev.map((r) => (r.id === roomId ? { ...r, unreadCount: 0 } : r)));
+    setRooms((prev) => prev.map((r) => (r.id === roomId ? { ...r, unreadCount } : r)));
   }, []);
 
+  // 새 대화 생성 도중(getOrCreateRoom/loadRooms 대기 중) 사용자가 이 회사의
+  // /dm 밖으로(다른 회사, Hub 등) 이미 navigate해서 DmLayout이 unmount됐다면,
+  // 뒤늦게 도착한 응답으로 사용자를 원치 않게 새 DM 방으로 강제 이동시키지
+  // 않는다(3차 재리뷰 반영, pktewon).
   const startDm = async (otherUserId: number) => {
     if (starting) return;
     setStarting(true);
     setPickerError(null);
     try {
       const { data } = await directMessageService.getOrCreateRoom(companyId, { otherUserId });
+      if (!mountedRef.current) return;
       setPickerOpen(false);
       await loadRooms();
+      if (!mountedRef.current) return;
       router.push(`/${companyId}/dm/${data.data.room.id}`);
     } catch {
-      setPickerError("대화를 시작하지 못했습니다.");
+      if (mountedRef.current) setPickerError("대화를 시작하지 못했습니다.");
     } finally {
-      setStarting(false);
+      if (mountedRef.current) setStarting(false);
     }
   };
 

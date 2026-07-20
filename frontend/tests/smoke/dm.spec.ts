@@ -8,6 +8,15 @@
  *  3. "+" 로 새 대화를 시작하면 새 room으로 이동한다.
  *  4. markRoomRead 이후 지연 도착한 loadRooms 응답이 배지를 되돌리지 않는다(재리뷰 반영).
  *  5. mark-read가 실패하면 배지가 그대로 남는다(재리뷰 반영).
+ *
+ * 3차 재리뷰(pktewon) 반영 — 프론트에서 고칠 수 있는 항목만 커버한다(이슈 #208
+ * 로 분리한 항목은 별도 — 일반 MEMBER의 DM 상대 후보 조회, 정지된 사용자 필터링):
+ *  6. mark-read 응답의 실제 unreadCount(0이 아닐 수 있음)가 배지에 그대로 반영된다.
+ *  7. 현재 회사의 room 목록에 없는 roomId로 접근하면 에러를 보여주고 메시지를
+ *     노출하지 않는다(다른 회사 room 뒤섞임 방지).
+ *  8. S14 구성원 관리의 DM 버튼은 user.id를 room.id로 오인하지 않고
+ *     get-or-create로 실제 room을 찾아 이동한다.
+ *  9. room 목록 재조회가 실패해도 기존 레일(아이콘)은 유지된다.
  */
 import { expect, test, type Page } from "@playwright/test";
 
@@ -28,12 +37,18 @@ async function mockApi(
     messages?: Record<number, unknown[]>;
     candidates?: { id: number; userId: number; nickname: string; email: string }[];
     markReadShouldFail?: boolean;
+    markReadUnreadCount?: number;
+    // true가 되면 그 시점 이후의 GET rooms 호출부터 실패시킨다. mount 시점의
+    // Strict Mode 이중 호출과 뒤섞이지 않도록, "몇 번째 호출인지" 대신 "새 room
+    // 생성(POST) 이후"라는 이벤트를 기준으로 실패를 트리거한다.
+    roomsFailAfterCreate?: boolean;
   }
 ) {
   const rooms = [...options.rooms];
   const messages: Record<number, unknown[]> = { ...(options.messages ?? {}) };
   const markReadCalls: number[] = [];
   const sentMessages: { roomId: number; content: string }[] = [];
+  let roomsShouldFail = false;
 
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
@@ -69,6 +84,10 @@ async function mockApi(
     }
 
     if (request.method() === "GET" && url.pathname === "/api/v1/companies/1/direct-messages/rooms") {
+      if (roomsShouldFail) {
+        await json({ error: { code: "INTERNAL_ERROR", message: "목록을 불러오지 못했습니다." } }, 500);
+        return;
+      }
       await json(apiResponse({ rooms }));
       return;
     }
@@ -84,6 +103,7 @@ async function mockApi(
       });
       rooms.push(newRoom);
       messages[999] = [];
+      if (options.roomsFailAfterCreate) roomsShouldFail = true;
       await json(apiResponse({ room: newRoom }));
       return;
     }
@@ -134,9 +154,10 @@ async function mockApi(
         await json({ error: { code: "INTERNAL_ERROR", message: "읽음 처리에 실패했습니다." } }, 500);
         return;
       }
+      const unreadCount = options.markReadUnreadCount ?? 0;
       const target = rooms.find((r) => r.id === roomId);
-      if (target) target.unreadCount = 0;
-      await json(apiResponse({ roomId, lastReadDirectMessageId: 9999, unreadCount: 0, readAt: "2026-07-20T00:00:00Z" }));
+      if (target) target.unreadCount = unreadCount;
+      await json(apiResponse({ roomId, lastReadDirectMessageId: 9999, unreadCount, readAt: "2026-07-20T00:00:00Z" }));
       return;
     }
 
@@ -340,4 +361,176 @@ test("markRoomRead 이후 지연 도착한 두 번째 초기 loadRooms 응답이
 
 test("markRoomRead 이후 지연 도착한 첫 번째 초기 loadRooms 응답이 room 링크를 유지한 채 배지만 제거한다", async ({ page }) => {
   await runStaleRoomsRaceScenario(page, 1);
+});
+
+/*
+ * 3차 재리뷰(pktewon) 반영 — blocker #6: markRoomRead가 unreadCount를 항상
+ * 0으로 강제했었다. mark-read 응답이 실제로 돌려주는 unreadCount(방 입장과
+ * 동시에 새 메시지가 온 경우 등)를 무시하지 않고 배지에 그대로 반영해야 한다.
+ */
+test("mark-read 응답의 실제 unreadCount가 0이 아니면 레일 배지가 그대로 남는다", async ({ page }) => {
+  await mockApi(page, {
+    rooms: [room({ id: 301, otherUserId: 2, nickname: "김민정", unreadCount: 3 })],
+    messages: {
+      301: [
+        { id: 1, roomId: 301, sender: { id: 2, email: "b@test.dev", nickname: "김민정", avatarUrl: null }, content: "안녕하세요", createdAt: "2026-07-19T00:00:00Z" },
+      ],
+    },
+    markReadUnreadCount: 1,
+  });
+
+  await page.goto("/1/dm/301");
+  await expect(page.getByRole("heading", { name: "김민정" })).toBeVisible();
+
+  // markRead 자체는 성공했지만 서버가 unreadCount: 1을 돌려줬으므로(동시 도착한
+  // 새 메시지 등) 배지를 0으로 강제해선 안 된다.
+  const railLink = page.locator('a[title="김민정"]');
+  await expect(railLink.locator("span.bg-destructive")).toBeVisible();
+});
+
+/*
+ * 3차 재리뷰(pktewon) 반영 — blocker #5: room 목록(companyId로 스코프된) API를
+ * roomId만으로 호출하는 messages/mark-read가 companyId를 검증하지 않아, 다른
+ * 회사 room이거나 존재하지 않는 room이어도 그대로 렌더링됐다. 지금은 room 목록에
+ * 없는 roomId면 에러로 처리하고 메시지를 노출하지 않아야 한다.
+ */
+test("현재 회사의 room 목록에 없는 roomId로 접근하면 에러를 보여주고 메시지를 노출하지 않는다", async ({ page }) => {
+  await mockApi(page, {
+    rooms: [room({ id: 301, otherUserId: 2, nickname: "김민정", unreadCount: 0 })],
+    messages: {
+      999: [
+        { id: 1, roomId: 999, sender: { id: 5, email: "x@test.dev", nickname: "다른회사사람", avatarUrl: null }, content: "이건 다른 회사 메시지", createdAt: "2026-07-19T00:00:00Z" },
+      ],
+    },
+  });
+
+  await page.goto("/1/dm/999");
+
+  await expect(page.getByText("존재하지 않거나 접근할 수 없는 대화방입니다.")).toBeVisible();
+  await expect(page.getByText("이건 다른 회사 메시지")).toHaveCount(0);
+});
+
+/*
+ * 3차 재리뷰(pktewon) 반영 — blocker #7: loadRooms()가 실패하면 무조건 rail을
+ * 비웠다(setRooms([])). 이미 정상 로드된 rail이 있는데 재조회(예: "+"로 새 대화
+ * 시작 후 목록 새로고침)가 실패했다고 기존 아이콘까지 사라지면 안 된다.
+ */
+test("room 목록 재조회가 실패해도 기존 레일 아이콘은 사라지지 않는다", async ({ page }) => {
+  await mockApi(page, {
+    rooms: [room({ id: 301, otherUserId: 2, nickname: "김민정", unreadCount: 0 })],
+    messages: { 301: [] },
+    candidates: [{ id: 50, userId: 4, nickname: "박서연", email: "c@test.dev" }],
+    roomsFailAfterCreate: true,
+  });
+
+  await page.goto("/1/dm/301");
+  const existingRailLink = page.locator('a[title="김민정"]');
+  await expect(existingRailLink).toHaveCount(1);
+
+  await page.getByTitle("새 대화 시작").click();
+  await page.getByRole("button", { name: "박서연" }).click();
+
+  // 재조회가 실패해도 기존 room 아이콘은 그대로 남아 있어야 한다.
+  await expect(existingRailLink).toHaveCount(1);
+});
+
+/*
+ * 3차 재리뷰(pktewon) 반영 — blocker #3: S14 구성원 관리의 DM 버튼이
+ * `/${companyId}/dm/${member.user.id}`로 바로 링크해서 user.id를 room.id로
+ * 오인했다(우연히 같은 숫자대일 때만 동작). 이제 get-or-create API로 실제
+ * room을 찾은 뒤 그 room.id로 이동해야 한다.
+ */
+test("구성원 관리 화면의 DM 버튼은 get-or-create로 실제 room을 찾아 이동한다", async ({ page }) => {
+  const corsHeaders = {
+    "access-control-allow-origin": "http://127.0.0.1:3001",
+    "access-control-allow-methods": "GET,POST,PATCH,DELETE,OPTIONS",
+    "access-control-allow-headers": "authorization,content-type",
+    "access-control-allow-credentials": "true",
+  };
+  const json = (route: Parameters<Parameters<Page["route"]>[1]>[0], body: unknown, status = 200) =>
+    route.fulfill({
+      status,
+      contentType: "application/json",
+      headers: { ...corsHeaders, "access-control-allow-origin": route.request().headers().origin ?? corsHeaders["access-control-allow-origin"] },
+      body: JSON.stringify(body),
+    });
+
+  await page.route("**/api/v1/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({ status: 204, headers: corsHeaders });
+      return;
+    }
+
+    if (request.method() === "POST" && url.pathname === "/api/v1/auth/refresh") {
+      await json(route, apiResponse({ accessToken: "test-token", user: { id: 1, email: "a@test.dev", nickname: "나", avatarUrl: null } }));
+      return;
+    }
+
+    if (url.pathname === "/api/v1/users/me/company-memberships") {
+      await json(route, apiResponse({ companyMemberships: [{ companyId: 1, companyName: "Threadia", role: "COMPANY_ADMIN" }] }));
+      return;
+    }
+
+    if (request.method() === "GET" && url.pathname === "/api/v1/companies/1/company-members") {
+      await json(
+        route,
+        apiResponse({
+          companyMembers: [
+            {
+              id: 10,
+              role: "MEMBER",
+              status: "ACTIVE",
+              departmentId: null,
+              user: { id: 4, email: "peer@test.dev", nickname: "박서연", avatarUrl: null },
+            },
+          ],
+        })
+      );
+      return;
+    }
+
+    if (request.method() === "GET" && url.pathname === "/api/v1/companies/1/departments") {
+      await json(route, apiResponse({ departments: [] }));
+      return;
+    }
+
+    if (request.method() === "GET" && url.pathname === "/api/v1/companies/1/invitations") {
+      await json(route, apiResponse({ invitations: [] }));
+      return;
+    }
+
+    if (request.method() === "POST" && url.pathname === "/api/v1/companies/1/direct-messages/rooms") {
+      const body = request.postDataJSON() as { otherUserId: number };
+      await json(
+        route,
+        apiResponse({
+          room: room({ id: 777, otherUserId: body.otherUserId, nickname: "박서연", unreadCount: 0 }),
+        })
+      );
+      return;
+    }
+
+    if (request.method() === "GET" && url.pathname === "/api/v1/companies/1/direct-messages/rooms") {
+      await json(route, apiResponse({ rooms: [] }));
+      return;
+    }
+
+    const messagesMatch = url.pathname.match(/^\/api\/v1\/direct-messages\/rooms\/(\d+)\/messages$/);
+    if (messagesMatch && request.method() === "GET") {
+      await json(route, apiResponse({ messages: [] }));
+      return;
+    }
+
+    await route.continue();
+  });
+
+  await page.goto("/1/members");
+  await expect(page.getByRole("button", { name: "DM" })).toBeVisible();
+
+  await page.getByRole("button", { name: "DM" }).click();
+
+  await expect(page).toHaveURL(/\/1\/dm\/777$/);
 });

@@ -47,39 +47,70 @@ export default function DmRoomPage() {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const [roomsResponse, messagesResponse] = await Promise.all([
-        directMessageService.listRooms(params.companyId),
-        directMessageService.listMessages(params.roomId),
-      ]);
-      setPageError(null);
-      const room = roomsResponse.data.data.rooms.find((r) => String(r.id) === params.roomId);
-      setPeerName(room?.otherUser.nickname ?? null);
-      const list = messagesResponse.data.data.messages;
-      setMessages(list);
-      setPageState("ready");
+  /*
+   * 재리뷰 반영(PR #173, pktewon):
+   *   - room 목록(`GET /companies/{companyId}/direct-messages/rooms`)에서 이
+   *     roomId를 찾지 못하면(다른 회사의 방이거나 참여자가 아닌 방) 상대 이름을
+   *     "알 수 없는 사용자"로 대충 보여주며 그대로 진행했다 — messages/markRead는
+   *     roomId만으로 호출되고 companyId를 검증하지 않아, URL을 바꿔치기하면 다른
+   *     회사 DM방의 메시지를 그대로 읽고 markRead까지 호출할 수 있었다. 이제
+   *     현재 companyId의 room 목록에 없는 roomId는 에러로 처리하고 메시지 조회
+   *     결과를 렌더링하지 않는다.
+   *   - 페이지를 벗어난 뒤(unmount) 뒤늦게 도착한 응답으로 markRead/setState가
+   *     실행되지 않도록 cancelled 가드를 추가한다.
+   */
+  const load = useCallback(
+    async (isCancelled: () => boolean) => {
+      try {
+        const [roomsResponse, messagesResponse] = await Promise.all([
+          directMessageService.listRooms(params.companyId),
+          directMessageService.listMessages(params.roomId),
+        ]);
+        if (isCancelled()) return;
 
-      const latest = list[list.length - 1];
-      if (latest) {
-        try {
-          await directMessageService.markRead(params.roomId, { lastReadDirectMessageId: latest.id });
-          markRoomRead(Number(params.roomId));
-        } catch {
-          // unread badge 갱신 실패는 대화 화면 기능에 영향 없다. 레일 배지도
-          // 실제로 안 읽힌 상태를 유지해야 하므로 markRoomRead를 호출하지 않는다.
+        const room = roomsResponse.data.data.rooms.find((r) => String(r.id) === params.roomId);
+        if (!room) {
+          setPageError("존재하지 않거나 접근할 수 없는 대화방입니다.");
+          setPageState("error");
+          return;
         }
+
+        setPageError(null);
+        setPeerName(room.otherUser.nickname);
+        const list = messagesResponse.data.data.messages;
+        setMessages(list);
+        setPageState("ready");
+
+        const latest = list[list.length - 1];
+        if (latest) {
+          try {
+            const { data } = await directMessageService.markRead(params.roomId, {
+              lastReadDirectMessageId: latest.id,
+            });
+            if (isCancelled()) return;
+            markRoomRead(Number(params.roomId), data.data.unreadCount);
+          } catch {
+            // unread badge 갱신 실패는 대화 화면 기능에 영향 없다. 레일 배지도
+            // 실제로 안 읽힌 상태를 유지해야 하므로 markRoomRead를 호출하지 않는다.
+          }
+        }
+      } catch (error) {
+        if (isCancelled()) return;
+        setPageError(invitationErrorMessage(error, "대화를 불러오지 못했습니다."));
+        setPageState("error");
       }
-    } catch (error) {
-      setPageError(invitationErrorMessage(error, "대화를 불러오지 못했습니다."));
-      setPageState("error");
-    }
-  }, [params.companyId, params.roomId, markRoomRead]);
+    },
+    [params.companyId, params.roomId, markRoomRead]
+  );
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      await load();
+      await load(() => cancelled);
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [load]);
 
   const send = async () => {
