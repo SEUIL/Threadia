@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDmRooms } from "@/contexts/DmRoomsContext";
 import { invitationErrorMessage } from "@/lib/invitation";
 import { directMessageService } from "@/services/direct-message.service";
 import type { DirectMessageResponse } from "@/types/direct-message.types";
@@ -35,6 +36,7 @@ function initials(name: string) {
 export default function DmRoomPage() {
   const params = useParams<{ companyId: string; roomId: string }>();
   const { user } = useAuth();
+  const { markRoomRead } = useDmRooms();
 
   const [pageState, setPageState] = useState<LoadState>("loading");
   const [pageError, setPageError] = useState<string | null>(null);
@@ -62,15 +64,17 @@ export default function DmRoomPage() {
       if (latest) {
         try {
           await directMessageService.markRead(params.roomId, { lastReadDirectMessageId: latest.id });
+          markRoomRead(Number(params.roomId));
         } catch {
-          // unread badge 갱신 실패는 대화 화면 기능에 영향 없다.
+          // unread badge 갱신 실패는 대화 화면 기능에 영향 없다. 레일 배지도
+          // 실제로 안 읽힌 상태를 유지해야 하므로 markRoomRead를 호출하지 않는다.
         }
       }
     } catch (error) {
       setPageError(invitationErrorMessage(error, "대화를 불러오지 못했습니다."));
       setPageState("error");
     }
-  }, [params.companyId, params.roomId]);
+  }, [params.companyId, params.roomId, markRoomRead]);
 
   useEffect(() => {
     (async () => {
@@ -131,7 +135,7 @@ export default function DmRoomPage() {
             return (
               <div
                 key={msg.id}
-                className={"flex gap-3 rounded-md px-2 py-0.5 hover:bg-border/20 " + (showHeader ? "mt-3" : "")}
+                className={"group flex gap-3 rounded-md px-2 py-0.5 hover:bg-border/20 " + (showHeader ? "mt-3" : "")}
               >
                 <div className="w-9 shrink-0 text-right">
                   {showHeader ? (

@@ -20,6 +20,7 @@ import { usePathname, useParams, useRouter } from "next/navigation";
 import { companyMemberService } from "@/services/company-member.service";
 import { directMessageService } from "@/services/direct-message.service";
 import { useAuth } from "@/contexts/AuthContext";
+import { DmRoomsProvider } from "@/contexts/DmRoomsContext";
 import type { CompanyMemberResponse } from "@/types/company.types";
 import type { DirectMessageRoomResponse } from "@/types/direct-message.types";
 
@@ -65,6 +66,12 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
       setPickerError("구성원 목록을 불러오지 못했습니다.");
     }
   };
+
+  // room 입장 시 markRead API 호출이 성공하면 이걸로 레일 배지를 즉시 지운다
+  // (재조회 없이 로컬 state만 갱신 — PR #173 리뷰 반영).
+  const markRoomRead = useCallback((roomId: number) => {
+    setRooms((prev) => prev.map((r) => (r.id === roomId ? { ...r, unreadCount: 0 } : r)));
+  }, []);
 
   const startDm = async (otherUserId: number) => {
     if (starting) return;
@@ -148,7 +155,9 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
           </div>
         )}
       </div>
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className="min-w-0 flex-1">
+        <DmRoomsProvider value={{ rooms, markRoomRead }}>{children}</DmRoomsProvider>
+      </div>
     </div>
   );
 }
