@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-07-19
-> **버전**: v3.10 회사 자율 생성 seed-only 제한 해제 반영 + WBS 4.10.4 Backend 완료 기준 + 회사 멤버 제거 API 통합
+> **최종 수정**: 2026-07-20
+> **버전**: v3.11 프로젝트 멤버 응답 companyRole 계약 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -1196,6 +1196,38 @@ Response 200:
 }
 ```
 
+#### GET `/api/v1/projects/{projectId}/project-members`
+
+Response 200:
+
+```json
+{
+  "data": {
+    "projectMembers": [
+      {
+        "id": 200,
+        "projectId": 20,
+        "role": "MEMBER",
+        "companyRole": "COMPANY_ADMIN",
+        "status": "ACTIVE",
+        "joinedAt": "2026-07-07T00:00:00Z",
+        "createdAt": "2026-07-07T00:00:00Z",
+        "updatedAt": "2026-07-07T00:00:00Z",
+        "user": {
+          "id": 2,
+          "email": "member@example.com",
+          "nickname": "김민정",
+          "avatarUrl": null
+        }
+      }
+    ]
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+`role`은 프로젝트 membership 역할이고, `companyRole`은 같은 회사의 ACTIVE company membership 역할이다. `companyRole`은 `COMPANY_ADMIN`, `MEMBER`, `null` 중 하나이며, S12 멤버 목록은 이 값을 사용해 프로젝트 role이 `MEMBER`여도 회사 관리자임을 표시한다.
+
 #### Deprecated/Internal Note: POST `/api/v1/projects/{projectId}/project-members`
 
 > Sprint 1.5에서는 이 endpoint와 프로젝트 멤버 invitation 흐름을 user-facing API로 제공하지 않는다.
@@ -1210,6 +1242,32 @@ Request Body:
 {
   "role": "PROJECT_ADMIN",
   "status": "ACTIVE"
+}
+```
+
+Response 200:
+
+```json
+{
+  "data": {
+    "projectMember": {
+      "id": 200,
+      "projectId": 20,
+      "role": "PROJECT_ADMIN",
+      "companyRole": "COMPANY_ADMIN",
+      "status": "ACTIVE",
+      "joinedAt": "2026-07-07T00:00:00Z",
+      "createdAt": "2026-07-07T00:00:00Z",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "user": {
+        "id": 2,
+        "email": "member@example.com",
+        "nickname": "김민정",
+        "avatarUrl": null
+      }
+    }
+  },
+  "meta": { "requestId": "req_..." }
 }
 ```
 
