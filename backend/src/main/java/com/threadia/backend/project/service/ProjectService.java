@@ -30,6 +30,7 @@ import com.threadia.backend.project.dto.ProjectCreateData;
 import com.threadia.backend.project.dto.ProjectCreateRequest;
 import com.threadia.backend.project.dto.ProjectData;
 import com.threadia.backend.project.dto.ProjectDetailData;
+import com.threadia.backend.project.dto.ProjectDashboardData;
 import com.threadia.backend.project.dto.ProjectMemberSummaryResponse;
 import com.threadia.backend.project.dto.ProjectResponse;
 import com.threadia.backend.project.dto.ProjectUpdateRequest;
@@ -39,6 +40,7 @@ import com.threadia.backend.project.exception.ProjectConflictException;
 import com.threadia.backend.project.exception.ProjectNotFoundException;
 import com.threadia.backend.project.exception.ProjectValidationException;
 import com.threadia.backend.project.repository.ProjectMemberRepository;
+import com.threadia.backend.project.repository.ProjectDashboardRepository;
 import com.threadia.backend.project.repository.ProjectRepository;
 
 @Service
@@ -49,6 +51,7 @@ public class ProjectService {
 	private final CompanyRepository companyRepository;
 	private final ProjectRepository projectRepository;
 	private final ProjectMemberRepository projectMemberRepository;
+	private final ProjectDashboardRepository projectDashboardRepository;
 	private final Clock clock;
 
 	@Autowired
@@ -57,8 +60,9 @@ public class ProjectService {
 			CompanyMembershipService companyMembershipService,
 			CompanyRepository companyRepository,
 			ProjectRepository projectRepository,
-			ProjectMemberRepository projectMemberRepository) {
-		this(authContextService, companyMembershipService, companyRepository, projectRepository, projectMemberRepository, Clock.systemUTC());
+			ProjectMemberRepository projectMemberRepository,
+			ProjectDashboardRepository projectDashboardRepository) {
+		this(authContextService, companyMembershipService, companyRepository, projectRepository, projectMemberRepository, projectDashboardRepository, Clock.systemUTC());
 	}
 
 	ProjectService(
@@ -67,12 +71,14 @@ public class ProjectService {
 			CompanyRepository companyRepository,
 			ProjectRepository projectRepository,
 			ProjectMemberRepository projectMemberRepository,
+			ProjectDashboardRepository projectDashboardRepository,
 			Clock clock) {
 		this.authContextService = authContextService;
 		this.companyMembershipService = companyMembershipService;
 		this.companyRepository = companyRepository;
 		this.projectRepository = projectRepository;
 		this.projectMemberRepository = projectMemberRepository;
+		this.projectDashboardRepository = projectDashboardRepository;
 		this.clock = clock;
 	}
 
@@ -135,6 +141,14 @@ public class ProjectService {
 		Project project = project(projectId);
 		ProjectViewerData viewer = projectViewer(project, authContext);
 		return new ProjectDetailData(ProjectResponse.from(project), viewer);
+	}
+
+	@Transactional(readOnly = true)
+	public ProjectDashboardData dashboard(String accessToken, Long projectId) {
+		AuthContext authContext = activeAuthContext(accessToken);
+		Project project = project(projectId);
+		projectViewer(project, authContext);
+		return projectDashboardRepository.load(projectId);
 	}
 
 	@Transactional

@@ -14,6 +14,8 @@ export type IssueSourceType = "MANUAL";
 
 export interface IssueResponse {
   id: number;
+  /** 이슈 단독 참조(알림, 검색 등)에서 프로젝트 route를 복원하기 위한 필드. */
+  projectId: number;
   issueKey: string;
   title: string;
   status: IssueStatus;

@@ -113,6 +113,7 @@ class IssueMysqlConcurrencyTests {
 	@AfterEach
 	void cleanUp() {
 		if (projectId != null) {
+			jdbcTemplate.update("delete from activity_events where project_id = ?", projectId);
 			jdbcTemplate.update("""
 					delete history
 					from issue_status_history history

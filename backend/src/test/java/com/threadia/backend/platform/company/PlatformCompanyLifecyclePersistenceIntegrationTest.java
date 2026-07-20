@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,5 +53,20 @@ class PlatformCompanyLifecyclePersistenceIntegrationTest {
 		assertThat(auditRepository.findAll()).singleElement().satisfies(audit -> {
 			assertThat(audit.getSupportCase()).isNull(); assertThat(audit.getAction()).isEqualTo(AdminAction.COMPANY_STATUS_CHANGED); assertThat(audit.getTargetType()).isEqualTo(AuditTargetType.COMPANY); assertThat(audit.getTargetId()).isEqualTo(company.getId()); assertThat(audit.getActor().getId()).isEqualTo(actor.getId()); assertThat(audit.getActorPlatformAdmin().getRole()).isEqualTo(PlatformAdminRole.SUPER_ADMIN); assertThat(audit.getReason()).isEqualTo("policy violation"); assertThat(audit.getBeforeState()).contains("ACTIVE"); assertThat(audit.getAfterState()).contains("INACTIVE");
 		});
+	}
+
+	@Test
+	void findsLiteralWildcardQueryForRequestedStatusWithDescendingIdCursorBoundary() {
+		LocalDateTime now = LocalDateTime.of(2026, 7, 16, 2, 0);
+		User creator = userRepository.save(new User("repository-admin@example.com", "hash", "admin", null, UserStatus.ACTIVE, now, now));
+		Company activeOlder = companyRepository.save(new Company("literal %_\\ older", "대표", null, "IT", null, CompanyStatus.ACTIVE, creator, now, now));
+		Company activeNewer = companyRepository.save(new Company("literal %_\\ newer", "대표", null, "IT", null, CompanyStatus.ACTIVE, creator, now, now));
+		companyRepository.save(new Company("literal %_\\ inactive", "대표", null, "IT", null, CompanyStatus.INACTIVE, creator, now, now));
+		companyRepository.save(new Company("literal wildcard only", "대표", null, "IT", null, CompanyStatus.ACTIVE, creator, now, now));
+
+		assertThat(companyRepository.findPlatformCompanyPage(CompanyStatus.ACTIVE, "\\%\\_\\\\", null, PageRequest.of(0, 10)))
+				.extracting(Company::getId).containsExactly(activeNewer.getId(), activeOlder.getId());
+		assertThat(companyRepository.findPlatformCompanyPage(CompanyStatus.ACTIVE, "\\%\\_\\\\", activeNewer.getId(), PageRequest.of(0, 10)))
+				.extracting(Company::getId).containsExactly(activeOlder.getId());
 	}
 }

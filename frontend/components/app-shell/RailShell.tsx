@@ -30,13 +30,11 @@ import { usePathname, useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePendingInvitationCount } from "@/hooks/usePendingInvitationCount";
+import { useUnreadNotificationCount } from "@/hooks/useUnreadNotificationCount";
+import { useDmUnreadCount } from "@/hooks/useDmUnreadCount";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 import { ProfileEditModal } from "@/components/profile/ProfileEditModal";
 import { PageTransition } from "./PageTransition";
-
-// TODO(Sprint 2): 알림/DM API 연동 후 실제 unread count로 교체
-const MOCK_NOTIFICATION_COUNT = 3;
-const MOCK_DM_UNREAD_COUNT = 1;
 
 function BellIcon() {
   return (
@@ -132,6 +130,8 @@ function Rail({ companyId }: { companyId: string }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const nickname = user?.nickname ?? "";
   const pendingInvitationCount = usePendingInvitationCount();
+  const unreadNotificationCount = useUnreadNotificationCount(companyId);
+  const dmUnreadCount = useDmUnreadCount();
   const membership = companyMemberships.find((m) => m.companyId === Number(companyId)) ?? null;
   const companyName = membership?.companyName ?? "소속 회사 없음";
 
@@ -142,10 +142,10 @@ function Rail({ companyId }: { companyId: string }) {
 
   const items: NavItem[] = [
     { href: `/${companyId}/projects`, label: "프로젝트", icon: <FolderIcon /> },
-    { href: `/${companyId}/dm`, label: "채팅·DM", icon: <ChatIcon />, badge: MOCK_DM_UNREAD_COUNT },
+    { href: `/${companyId}/dm`, label: "채팅·DM", icon: <ChatIcon />, badge: dmUnreadCount },
     // company-agnostic — 이미 소속된 회사 기준 레일에서도 다른 회사에서 온 초대를 받을 수 있다.
     { href: "/invitations", label: "받은 초대", icon: <MailIcon />, badge: pendingInvitationCount },
-    { href: `/${companyId}/notifications`, label: "알림", icon: <BellIcon />, badge: MOCK_NOTIFICATION_COUNT },
+    { href: `/${companyId}/notifications`, label: "알림", icon: <BellIcon />, badge: unreadNotificationCount },
   ];
   // C(회사 관리자)만 회사 관리 메뉴가 보인다 (화면정의서 S03 메뉴 노출 규칙, 이전 AppShell과 동일)
   if (membership?.role === "COMPANY_ADMIN") {

@@ -1,9 +1,9 @@
-# 기능-시나리오-API-ERD 추적표 v1.1
+# 기능-시나리오-API-ERD 추적표 v1.2
 
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-15  
-> **최종 수정**: 2026-07-17
-> **버전**: v1.7 SEARCH-01 Level 4 Backend/Frontend 계층 정정
+> **최종 수정**: 2026-07-19
+> **버전**: v1.8 WBS 4.9.1 Activity Feed Backend 범위 정정
 > **상태**: 확정
 > **태그**: requirements, traceability, api, erd
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
@@ -85,7 +85,7 @@
 
 | 기능 | 기능 ID | 연결 시나리오 | API | ERD/기술 원장 | Sprint 3 처리 | 보류/제외 경계 |
 |---|---|---|---|---|---|---|
-| 프로젝트 활동 피드 | FEED-01 | 조건부 확장 흐름 | `GET /api/v1/projects/{projectId}/activity-events` | `activity_events`, STOMP push, Redis cache | Sprint 3 후보 | NoSQL feed store 제외 |
+| 프로젝트 활동 피드 | FEED-01 | Issue create/status/trash/restore 활동 조회 | `GET /api/v1/projects/{projectId}/activity-events` | 기존 `activity_events` | WBS 4.9.1 Backend 구현, `createdAt DESC, id DESC` offset pagination | STOMP, Redis/cache, NoSQL, notification linkage, dashboard integration, summary table, cursor pagination, Frontend 보류 |
 | 통합 검색 | SEARCH-01 | 조건부 확장 흐름 | `GET /api/v1/search` | MySQL `LIKE` | `4.9.2`와 `4.9.4` 진행 중 50% parent, `4.9.2.1` 결정 완료, `4.9.4.1` Backend 구현 완료, `4.9.2.2`/`4.9.4.2` Frontend 계획 0% | FULLTEXT, 외부 검색 엔진, Redis, schema, type filter, source별 결과 필드, Frontend와 고급 검색은 보류 |
 | 프로젝트 홈/대시보드 | DASH-01~04 | 조건부 확장 흐름 | `GET /api/v1/projects/{projectId}/dashboard` | MySQL aggregate, `project_dashboard_summaries`, Redis cache | Sprint 3 후보 | 별도 OLAP/검색 엔진 제외 |
 | 파일/이미지 첨부 | ATTACH-01 | MVP 이후/보류 흐름 | `/api/v1/attachments` 미제공 | attachments 테이블/S3 presigned URL 정책 | Sprint 3 decision-needed | 회사 로고와 프로필 URL은 별도 처리 |
@@ -98,6 +98,7 @@
 |---|---|---|---|---|
 | 플랫폼 관리자 F/S15 | DEFER-01, S15 | Sprint 3 decision-needed, primary WBS `4.10` | 필수 시나리오 없음 | `3.7~3.7.5` planning gate와 Go/No-Go handoff 이후 상세 기능 ID, ERD/API/화면 영향도 결정 |
 | NoSQL 알림/활동 저장소 | DEFER-02 | Sprint 1 제외 | 필수 시나리오 없음 | ERD 미포함, MySQL 원장 사용 |
+| WBS 4.9.1 활동 피드 확장 | FEED-01 | 보류 | 필수 시나리오 없음 | STOMP, Redis/cache, NoSQL, notification linkage, dashboard integration, summary table, cursor pagination, Frontend는 현재 Backend slice에 포함하지 않음 |
 | Redis 원본 저장 | 없음 | 제외 | 필수 시나리오 없음 | ERD 미포함, cache/push 보조만 허용 |
 | 칸반 컬럼 커스터마이징 | DEFER-03 | Sprint 2 | 필수 시나리오 없음 | 5컬럼 enum만 API/ERD 반영 |
 | 동시 문서 편집 | DEFER-04 | Sprint 3 decision-needed, primary WBS `4.12` | 필수 시나리오 없음 | optimistic locking 우선안 결정 전 문서 수정 API 기준 유지. `DOC-02` primary WBS는 `4.6` |
@@ -139,7 +140,7 @@
 - [x] `소셜 로그인`, `비밀번호 찾기/재설정`, `프로필 사진`은 Sprint 1/MVP 범위로 추적된다.
 - [x] `FEED/DASH`는 Sprint 3 후보, `SEARCH-01`은 `4.9.2`와 `4.9.4` 진행 중 50% parent 아래 `4.9.2.1` 결정 및 `4.9.4.1` Backend 구현 완료, `4.9.2.2`/`4.9.4.2` Frontend 계획 0%로, `ATTACH`는 Sprint 3 decision-needed로 추적된다.
 - [x] 보류 기능은 필수 시나리오에서 제거되거나 제한 조건으로 명시된다.
-- [x] Redis, STOMP push, summary table은 원본 데이터가 아닌 조건부 확장 계층으로 추적된다.
+- [x] Redis, STOMP push, summary table은 원본 데이터가 아닌 조건부 확장 계층이며 WBS 4.9.1 활동 피드 Backend slice에는 포함하지 않는다.
 - [x] `activity_events`와 `notification_events` 운영상 분리 기준을 확정했다. 두 저장소는 통합하지 않고 필요 시 activity 이벤트에서 notification 이벤트를 생성하는 연계만 허용한다.
 - [x] S3 사용 범위는 확정했다. attachments 테이블과 presigned URL 상세 정책은 Sprint 3 decision-needed로 확정한다.
 

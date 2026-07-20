@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-07
-> **최종 수정**: 2026-07-18
-> **버전**: v0.14 WBS 4.10.5 Frontend 의존 계획
+> **최종 수정**: 2026-07-19
+> **버전**: v0.15 WBS 4.9.1 Activity Feed 실행 row 및 WBS 4.9.3 Dashboard Core Backend/Frontend 분리
 > **상태**: 검토 중
 > **태그**: sprint-3, backlog, wbs, platform-admin, extension
 
@@ -45,7 +45,7 @@
 | 4.6 | 2 | Documents / Graph | 문서·회의록, Markdown editor, 그래프 | 3.3, 4.1 | API+Frontend | Project foundation과 문서/그래프 canonical 반영 기준 확인 | S3-Docs | 계획 | P0 | Sprint 3 후보 |
 | 4.7 | 2 | Thread / Chat / DM | 쓰레드, 프로젝트 채팅, 1:1 DM | 3.1, 3.3, 4.1 | API+Frontend | project message와 1:1 DM 기준 확인 | S3-Communication | 계획 | P0 | Sprint 3 후보 |
 | 4.8 | 2 | Notification | 알림 core | 4.3, 4.4, 4.6, 4.7 | Backend+Frontend | 기존 알림 DDL을 사용하는 inbox/read-state core를 먼저 구현하고 producer 연계는 별도 정책 승인 후 진행 | S3-Events | 진행 중 | P0 | Sprint 3 후보 |
-| 4.9 | 2 | Conditional Extensions | activity feed, search, dashboard | 4.4, 4.6, 4.8 | Decision+API | `4.9.2.1` MySQL `LIKE` 검색 방식 결정 완료, `4.9.2.2` Frontend 결정 계획, `4.9.4.1` Search Backend 실행 완료, `4.9.4.2` Search Frontend 구현 계획, dashboard/feed source 확인 | S3-Extensions | 진행 중 | P1 | SEARCH-01 Backend 완료, Frontend 계획, feed/dashboard 후보 |
+| 4.9 | 2 | Conditional Extensions | activity feed, search, dashboard | 4.4, 4.6, 4.8 | Decision+API | `4.9.2.1` MySQL `LIKE` 검색 방식 결정 완료, `4.9.2.2` Frontend 결정 계획, `4.9.3.1` Dashboard Backend 진행, `4.9.3.2` Frontend 계획, `4.9.4.1` Search Backend 실행 완료, `4.9.4.2` Search Frontend 구현 계획 | S3-Extensions | 진행 중 | P1 | SEARCH-01 Backend 완료, Dashboard Backend 진행, Frontend 계획, activity feed 후보 |
 | 4.10 | 2 | S15 Platform Admin | S15 상세 확정과 구현 | 3.7.1~3.7.5, 3.1~3.4, 4.1 | Implementation+Decision | `3.7~3.7.5` planning gate와 Go/No-Go handoff 확인 | S3-Platform | 계획 | P1 | Sprint 3 primary row |
 | 4.11 | 2 | Attachment | S3 presigned attachment 정책 결정과 구현 | 4.4, 4.6, 4.7 | Decision+Implementation | 대상 범위, 권한, 크기, MIME, 만료 기준 결정 | S3-Attachment | 계획 | P1 | decision-needed |
 | 4.12 | 2 | Advanced Document Editing | optimistic locking 기반 문서 충돌 처리 | 4.6 | Decision+Implementation | document version/revision 정책 결정 | S3-Docs | 계획 | P1 | decision-needed |
@@ -66,11 +66,15 @@ Level 3 row는 전체 `4.x`를 기계적으로 쪼갠 것이 아니라, 실제 �
 | `4.7` | `4.7.4` | group DM/read receipt 이번 개발 기간 보류 기록 | 보류, 향후 재검토 |
 | `4.8` | `4.8.1` | Backend: 기존 `notification_events`, `notification_recipients` 기반 inbox 목록, unread count, 개별 read, 조건부 read-all 구현 | Backend-only, 진행 중, producer/preferences/push 미포함 |
 | `4.8` | `4.8.2` | Frontend: S11 알림 inbox UI와 WBS 4.8.1 API 연동 | Frontend-only, `4.8.1` 의존, planned only, 0%, Owner 정철진 |
-| `4.9` | `4.9.1` | activity feed 최소 구현 | Sprint 3 후보 |
+| `4.9` | `4.9.1` | activity feed 최소 구현 | conceptual parent, 미완료. Dashboard API는 activity feed 또는 `recentActivities`를 포함하지 않는다. |
+| `4.9.1` | `4.9.1.1` | Backend: 기존 `activity_events` 원장, Issue create/status/trash/restore producer, project authorization, `createdAt DESC, id DESC` offset page API | Backend-only, 진행 중. raw metadata 미노출, notification/STOMP/Redis/cache/dashboard 제외 |
+| `4.9.1` | `4.9.1.2` | Frontend: project activity feed API 연동과 browser QA | Frontend-only, `4.9.1.1` 의존, 계획/0%, Owner 정철진 |
 | `4.9` | `4.9.2` | search 방식 결정 | conceptual parent, 진행 중 50%. `4.9.2.1` Backend 결정과 `4.9.2.2` Frontend 결정으로 분리 |
 | `4.9.2` | `4.9.2.1` | Backend: MySQL `LIKE` 검색 방식 결정 | Backend-only, 완료 |
 | `4.9.2` | `4.9.2.2` | Frontend: 검색 화면 연동 방식 결정 | Frontend-only, 계획, 0%, Owner 정철진 |
-| `4.9` | `4.9.3` | dashboard aggregate 구현 | Sprint 3 후보 |
+| `4.9` | `4.9.3` | dashboard aggregate 구현 | conceptual parent, 미완료. `4.9.3.1` Backend 진행과 `4.9.3.2` Frontend 계획으로 분리 |
+| `4.9.3` | `4.9.3.1` | Backend: `GET /api/v1/projects/{projectId}/dashboard` MySQL live aggregate 구현 | Backend-only, 진행 중. ACTIVE user/company/project membership 및 COMPANY_ADMIN 조회 parity, trashed 제외, stable recent ordering, ACTIVE sprint nullable summary를 검증한다. `activity_events`, `recentActivities`, cache/summary table, Redis, STOMP은 제외한다. |
+| `4.9.3` | `4.9.3.2` | Frontend: Dashboard API 연동 및 browser QA | Frontend-only, `4.9.3.1` 의존, 계획/0%. Frontend source는 Backend 작업 범위 밖이다. |
 | `4.9` | `4.9.4` | 통합 검색 구현 | conceptual parent, 진행 중 50%. `4.9.4.1` Backend 구현과 `4.9.4.2` Frontend 구현으로 분리 |
 | `4.9.4` | `4.9.4.1` | Backend: `GET /api/v1/search` 프로젝트 범위 통합 검색 구현 | Backend-only, 완료 |
 | `4.9.4` | `4.9.4.2` | Frontend: 검색 입력·결과, `GET /api/v1/search` 연동, `nextCursor` pagination, type 기반 이동, loading/empty/error 상태 | Frontend-only, 계획, 0%, Owner 정철진. browser/lint/typecheck/build 검증 계획이며 type filtering과 source별 결과 필드는 현재 Backend API 범위에 없음 |
@@ -103,7 +107,7 @@ Level 3 row는 전체 `4.x`를 기계적으로 쪼갠 것이 아니라, 실제 �
 | 4.6 | `DOC-01~04`, `GRAPH-01~02`, `LINK-02` | documents, document_issue_links, graph, S07, S08 | 문서/회의록과 graph vertical slice | Owner 1명, 지원 1명 가능 | 문서 CRUD, 휴지통/복원, graph node/edge 조회 가능 | test, curl, 브라우저 확인 |
 | 4.7 | `THREAD-01~04`, `CHAT-01~03` | threads, messages, DM rooms, S09, S10 | thread/chat/1:1 DM communication vertical slice | Owner 1명 | thread, project chat, 1:1 DM, unread/read 위치 기준 확인. `4.7.4`는 완료가 아닌 이번 개발 기간 보류 기록으로 유지 | test, curl, 브라우저 확인 |
 | 4.8 | `NOTI-01` | notification events, recipients, S11 | notification inbox/read-state core와 후속 Frontend 연동 | `4.8.1` Backend Owner 1명, `4.8.2` Frontend Owner 정철진 | Backend 목록/unread/read/read-all 검증 후 Frontend 연동. producer matrix와 preferences는 별도 범위 | Backend test/build/curl, 후속 브라우저 확인 |
-| 4.9 | `FEED-01`, `SEARCH-01`, `DASH-01~04` | activity_events, `/search`, `/dashboard` | 조건부 확장, MySQL `LIKE` Search Backend 구현과 계획된 Frontend 연동 | `4.9.2.1`/`4.9.4.1` Backend Owner 1명, `4.9.2.2`/`4.9.4.2` Frontend Owner 정철진 | `4.9.2`와 `4.9.4`는 진행 중 50% parent로 유지한다. `4.9.2.1` 결정과 `4.9.4.1` Backend 구현은 완료이며, `4.9.2.2`와 `4.9.4.2`는 0% 계획 상태다 | decision record, test, curl, 계획된 browser/lint/typecheck/build |
+| 4.9 | `FEED-01`, `SEARCH-01`, `DASH-01~04` | activity_events, `/search`, `/dashboard` | 조건부 확장, Activity Feed Backend와 MySQL `LIKE` Search Backend 구현, 계획된 Frontend 연동 | `4.9.1.1`/`4.9.2.1`/`4.9.4.1` Backend Owner 1명, 각 Frontend Owner 정철진 | `4.9.1` parent는 미완료로 유지하며 `4.9.1.1` Backend는 진행 중, `4.9.1.2` Frontend는 0% 계획 상태다. `4.9.2`와 `4.9.4`는 진행 중 50% parent로 유지한다 | decision record, test, curl, 계획된 browser/lint/typecheck/build |
 | 4.10 | `DEFER-01` | S15, platform_admins, support_cases, audit log | S15 planning gate 이후 구현/결정 vertical slice | Owner 1명, 보안/감사 위험으로 지원 1명 가능 | `3.7~3.7.5` Go/No-Go handoff를 확인하고 `users.role` 없이 platform admin 분리와 audit 기준 확인 | 문서 review, test, curl, 보안 review |
 | 4.11 | `ATTACH-01` | attachments, S3 presigned URL, S05/S08/S09 | attachment 정책 결정과 구현 | Owner 1명, 인프라 연동 시 지원 1명 가능 | presigned upload/download, metadata, 권한 확인 | decision record, test, curl |
 | 4.12 | `DEFER-04` | documents.version, `DOCUMENT_VERSION_CONFLICT`, S08 | optimistic locking 기반 문서 충돌 처리 boundary | Owner 1명, 지원 공란 | stale version 저장 거절과 conflict UI 기준 확인 | test, curl, 브라우저 확인 |

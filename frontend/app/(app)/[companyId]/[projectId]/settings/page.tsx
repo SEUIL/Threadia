@@ -470,7 +470,14 @@ export default function ProjectSettingsPage() {
               {members.map((member) => (
                 <li key={member.id} className="flex flex-wrap items-center justify-between gap-2 px-1 py-2.5">
                   <div>
-                    <p className="text-sm font-medium text-foreground">{member.user.nickname}</p>
+                    <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-foreground">
+                      <span>{member.user.nickname}</span>
+                      {member.companyRole === "COMPANY_ADMIN" && (
+                        <span className="rounded-full bg-primary-subtle px-2 py-0.5 text-[10px] font-medium text-primary">
+                          회사 관리자
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-muted">{member.user.email}</p>
                   </div>
                   {canManage && (
