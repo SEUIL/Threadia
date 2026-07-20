@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-07
-> **최종 수정**: 2026-07-18
-> **버전**: v0.14 WBS 4.10.5 Frontend 의존 계획
+> **최종 수정**: 2026-07-19
+> **버전**: v0.15 WBS 4.9.3 Dashboard Core Backend/Frontend 분리
 > **상태**: 검토 중
 > **태그**: sprint-3, backlog, wbs, platform-admin, extension
 
@@ -45,7 +45,7 @@
 | 4.6 | 2 | Documents / Graph | 문서·회의록, Markdown editor, 그래프 | 3.3, 4.1 | API+Frontend | Project foundation과 문서/그래프 canonical 반영 기준 확인 | S3-Docs | 계획 | P0 | Sprint 3 후보 |
 | 4.7 | 2 | Thread / Chat / DM | 쓰레드, 프로젝트 채팅, 1:1 DM | 3.1, 3.3, 4.1 | API+Frontend | project message와 1:1 DM 기준 확인 | S3-Communication | 계획 | P0 | Sprint 3 후보 |
 | 4.8 | 2 | Notification | 알림 core | 4.3, 4.4, 4.6, 4.7 | Backend+Frontend | 기존 알림 DDL을 사용하는 inbox/read-state core를 먼저 구현하고 producer 연계는 별도 정책 승인 후 진행 | S3-Events | 진행 중 | P0 | Sprint 3 후보 |
-| 4.9 | 2 | Conditional Extensions | activity feed, search, dashboard | 4.4, 4.6, 4.8 | Decision+API | `4.9.2.1` MySQL `LIKE` 검색 방식 결정 완료, `4.9.2.2` Frontend 결정 계획, `4.9.4.1` Search Backend 실행 완료, `4.9.4.2` Search Frontend 구현 계획, dashboard/feed source 확인 | S3-Extensions | 진행 중 | P1 | SEARCH-01 Backend 완료, Frontend 계획, feed/dashboard 후보 |
+| 4.9 | 2 | Conditional Extensions | activity feed, search, dashboard | 4.4, 4.6, 4.8 | Decision+API | `4.9.2.1` MySQL `LIKE` 검색 방식 결정 완료, `4.9.2.2` Frontend 결정 계획, `4.9.3.1` Dashboard Backend 진행, `4.9.3.2` Frontend 계획, `4.9.4.1` Search Backend 실행 완료, `4.9.4.2` Search Frontend 구현 계획 | S3-Extensions | 진행 중 | P1 | SEARCH-01 Backend 완료, Dashboard Backend 진행, Frontend 계획, activity feed 후보 |
 | 4.10 | 2 | S15 Platform Admin | S15 상세 확정과 구현 | 3.7.1~3.7.5, 3.1~3.4, 4.1 | Implementation+Decision | `3.7~3.7.5` planning gate와 Go/No-Go handoff 확인 | S3-Platform | 계획 | P1 | Sprint 3 primary row |
 | 4.11 | 2 | Attachment | S3 presigned attachment 정책 결정과 구현 | 4.4, 4.6, 4.7 | Decision+Implementation | 대상 범위, 권한, 크기, MIME, 만료 기준 결정 | S3-Attachment | 계획 | P1 | decision-needed |
 | 4.12 | 2 | Advanced Document Editing | optimistic locking 기반 문서 충돌 처리 | 4.6 | Decision+Implementation | document version/revision 정책 결정 | S3-Docs | 계획 | P1 | decision-needed |
@@ -66,11 +66,13 @@ Level 3 row는 전체 `4.x`를 기계적으로 쪼갠 것이 아니라, 실제 �
 | `4.7` | `4.7.4` | group DM/read receipt 이번 개발 기간 보류 기록 | 보류, 향후 재검토 |
 | `4.8` | `4.8.1` | Backend: 기존 `notification_events`, `notification_recipients` 기반 inbox 목록, unread count, 개별 read, 조건부 read-all 구현 | Backend-only, 진행 중, producer/preferences/push 미포함 |
 | `4.8` | `4.8.2` | Frontend: S11 알림 inbox UI와 WBS 4.8.1 API 연동 | Frontend-only, `4.8.1` 의존, planned only, 0%, Owner 정철진 |
-| `4.9` | `4.9.1` | activity feed 최소 구현 | Sprint 3 후보 |
+| `4.9` | `4.9.1` | activity feed 최소 구현 | deferred. Dashboard API는 activity feed 또는 `recentActivities`를 포함하지 않는다. |
 | `4.9` | `4.9.2` | search 방식 결정 | conceptual parent, 진행 중 50%. `4.9.2.1` Backend 결정과 `4.9.2.2` Frontend 결정으로 분리 |
 | `4.9.2` | `4.9.2.1` | Backend: MySQL `LIKE` 검색 방식 결정 | Backend-only, 완료 |
 | `4.9.2` | `4.9.2.2` | Frontend: 검색 화면 연동 방식 결정 | Frontend-only, 계획, 0%, Owner 정철진 |
-| `4.9` | `4.9.3` | dashboard aggregate 구현 | Sprint 3 후보 |
+| `4.9` | `4.9.3` | dashboard aggregate 구현 | conceptual parent, 미완료. `4.9.3.1` Backend 진행과 `4.9.3.2` Frontend 계획으로 분리 |
+| `4.9.3` | `4.9.3.1` | Backend: `GET /api/v1/projects/{projectId}/dashboard` MySQL live aggregate 구현 | Backend-only, 진행 중. ACTIVE user/company/project membership 및 COMPANY_ADMIN 조회 parity, trashed 제외, stable recent ordering, ACTIVE sprint nullable summary를 검증한다. `activity_events`, `recentActivities`, cache/summary table, Redis, STOMP은 제외한다. |
+| `4.9.3` | `4.9.3.2` | Frontend: Dashboard API 연동 및 browser QA | Frontend-only, `4.9.3.1` 의존, 계획/0%. Frontend source는 Backend 작업 범위 밖이다. |
 | `4.9` | `4.9.4` | 통합 검색 구현 | conceptual parent, 진행 중 50%. `4.9.4.1` Backend 구현과 `4.9.4.2` Frontend 구현으로 분리 |
 | `4.9.4` | `4.9.4.1` | Backend: `GET /api/v1/search` 프로젝트 범위 통합 검색 구현 | Backend-only, 완료 |
 | `4.9.4` | `4.9.4.2` | Frontend: 검색 입력·결과, `GET /api/v1/search` 연동, `nextCursor` pagination, type 기반 이동, loading/empty/error 상태 | Frontend-only, 계획, 0%, Owner 정철진. browser/lint/typecheck/build 검증 계획이며 type filtering과 source별 결과 필드는 현재 Backend API 범위에 없음 |
