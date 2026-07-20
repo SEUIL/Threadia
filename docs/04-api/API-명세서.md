@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
 > **최종 수정**: 2026-07-20
-> **버전**: v3.13 Platform 회사 목록 API, 프로젝트 멤버 응답 companyRole, WBS 4.9.3 Dashboard Core 및 WBS 4.9.1 Activity Feed Backend 계약 반영
+> **버전**: v3.14 Issue #208 WBS 4.7.3.1 DM 후보 조회 Backend follow-up 계약 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -386,6 +386,7 @@ Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PL
 | GET | `/api/v1/messages/{messageId}` | A/P/C | 메시지 상세 |
 | POST | `/api/v1/projects/{projectId}/messages/mark-read` | A/P/C | 채팅방 읽음 위치 갱신 |
 | GET | `/api/v1/projects/{projectId}/messages/unread-count` | A/P/C | 채팅방 unread count |
+| GET | `/api/v1/companies/{companyId}/direct-messages/candidates` | A/P/C | Issue #208 DM 대화 상대 후보 조회 Backend follow-up |
 | GET | `/api/v1/companies/{companyId}/direct-messages/rooms` | A/P/C | DM 방 목록 |
 | POST | `/api/v1/companies/{companyId}/direct-messages/rooms` | A/P/C | DM 방 생성/get-or-create |
 | GET | `/api/v1/direct-messages/rooms/{roomId}/messages` | 참여자 | DM 메시지 목록 |
@@ -402,6 +403,41 @@ Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PL
 - 메시지 content는 trim 후 1~10,000자다. 메시지 목록은 생성 시각과 ID 오름차순으로 반환한다.
 - mark-read body는 `lastReadDirectMessageId`만 받는다. client `readAt`은 허용하지 않으며 server UTC로만 저장한다. 포인터는 같은 room 메시지여야 하고 뒤로 이동하지 않는다.
 - unread는 현재 사용자가 보낸 메시지를 제외하고 개인별 `dm_room_user_states.last_read_direct_message_id`로 계산한다. 상대방 read receipt는 제공하지 않는다.
+
+### 8.2 Issue #208 WBS 4.7.3.1 DM 후보 조회 Backend follow-up
+
+```http
+GET /api/v1/companies/{companyId}/direct-messages/candidates
+```
+
+응답은 표준 envelope의 `data.candidates`를 사용한다. candidate item은 `id`, `nickname`, `avatarUrl`만 포함하며 email, status, role은 노출하지 않는다.
+
+```json
+{
+  "data": {
+    "candidates": [
+      {
+        "id": 2,
+        "nickname": "김민정",
+        "avatarUrl": null
+      }
+    ]
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+- caller는 `users.status = ACTIVE`이며 path의 회사가 ACTIVE이고 그 회사의 ACTIVE member여야 한다.
+- candidate는 같은 회사의 ACTIVE company membership과 `users.status = ACTIVE`를 모두 만족해야 하며 caller 자신은 제외한다.
+- 기존 DM room 상대도 후보에 포함한다. 기존 room 상대 제외는 Frontend가 client-side에서 계속 처리하며 Backend는 room 존재 여부를 조회하거나 제외 조건으로 사용하지 않는다.
+- 정렬은 `nickname ASC, userId ASC`로 고정한다. pagination은 제공하지 않는다.
+- 후보가 없으면 `200 OK`와 `data.candidates: []`를 반환한다.
+
+| 상황 | HTTP | `error.code` |
+|---|---:|---|
+| 인증 header가 없거나 malformed이거나 caller가 SUSPENDED 등 ACTIVE 사용자가 아님 | 401 | `UNAUTHORIZED` |
+| 회사가 없거나 INACTIVE임 | 403 | `FORBIDDEN` |
+| caller의 회사 membership이 없거나 ACTIVE가 아님 | 403 | `FORBIDDEN` |
 
 1:1 DM core는 WBS 4.7.3.1 Backend 구현 범위다. 다자간 DM, DM room + participants 일반화, DM 상대 read receipt는 이번 개발 기간 보류다. 영구 제외하지 않으며 향후 재검토 전 endpoint, request/response contract, schema, frontend 구현을 추가하지 않는다. DM 메시지 삭제와 DM 메시지 이슈 전환도 full endpoint contract를 만들지 않는다.
 
