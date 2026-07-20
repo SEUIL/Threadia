@@ -10,9 +10,12 @@
  * RailShell(전역 chrome)은 회사 단위 내비게이션만 제공해서 이 공백을
  * 못 메운다 — 프로젝트 스코프 탭은 이 레이아웃에서 별도로 제공해야 한다.
  *
- * threads/[threadId](S10), 프로젝트 단위 notifications(S11)는 아직 내용이
- * 없는 스텁이라(실제 컨텐츠 없이 자리만 있음) 탭에는 넣지 않았다 — 실제
- * 화면이 채워지면 탭에 추가한다.
+ * threads/[threadId](S10)는 구현이 끝난 화면이지만 탭에 넣지 않는다 —
+ * 화면정의서(§S10) 기준 "연결 화면"이 S05/S08/S09/S11이라, 독립 탭이 아니라
+ * 이슈 카드·문서·DM 등에서 컨텍스트를 들고 진입하는 구조로 설계됐다(진입
+ * 경로: `threads/open` 리다이렉트, `IssueDetailModal` 등). 프로젝트 단위
+ * notifications(S11)는 실제로 아직 내용이 없는 스텁이라(실제 컨텐츠 없이
+ * 자리만 있음) 탭에 넣지 않았다 — 화면이 채워지면 탭에 추가한다.
  */
 import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
