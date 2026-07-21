@@ -1741,7 +1741,7 @@ Response 200:
 
 #### GET `/api/v1/projects/{projectId}/issues`
 
-목록의 각 이슈 객체는 full Issue contract를 따른다. `id`, `issueKey`, `title`, `status`, `description`, `priority`, `assigneeUserId`, `reporterUserId`, `sprintId`, `dueDate`, `sourceType`, `sourceMessageId`, `trashedAt`, `restoredAt`을 반환하며 시간 필드는 UTC `Z` 형식이다. 수동 생성 이슈의 `sourceMessageId`는 `null`이다.
+목록의 각 이슈 객체는 full Issue contract를 따른다. `id`, `projectId`, `issueKey`, `title`, `status`, `description`, `priority`, `assigneeUserId`, `reporterUserId`, `sprintId`, `dueDate`, `sourceType`, `sourceMessageId`, `trashedAt`, `restoredAt`을 반환하며 시간 필드는 UTC `Z` 형식이다. 수동 생성 이슈의 `sourceMessageId`는 `null`이다.
 
 `reporterUserId`는 표시용이 아니라 **권한 판정용**이다 — trash/restore가 P/C 또는 등록자에게 허용되므로, 클라이언트가 이 값과 현재 사용자를 비교해야 "내가 등록한 이슈" 경로를 판정할 수 있다.
 
@@ -1756,6 +1756,7 @@ Response 200:
     "issues": [
       {
         "id": 1000,
+        "projectId": 20,
         "issueKey": "THD-1",
         "title": "로그인 API 구현",
         "status": "BACKLOG",
@@ -1800,6 +1801,7 @@ Response 201:
   "data": {
     "issue": {
       "id": 1000,
+      "projectId": 20,
       "issueKey": "THD-1",
       "title": "로그인 API 구현",
       "status": "BACKLOG",
@@ -1848,6 +1850,7 @@ Response 201:
   "data": {
     "issue": {
       "id": 1001,
+      "projectId": 20,
       "issueKey": "THD-2",
       "title": "회의 결정 사항을 작업으로 전환",
       "status": "BACKLOG",
@@ -1908,6 +1911,7 @@ Response 200:
   "data": {
     "issue": {
       "id": 1000,
+      "projectId": 20,
       "issueKey": "THD-1",
       "title": "로그인 API 구현",
       "status": "IN_PROGRESS",
@@ -1940,6 +1944,7 @@ Response 200:
   "data": {
     "issue": {
       "id": 1000,
+      "projectId": 20,
       "issueKey": "THD-1",
       "title": "로그인 API 구현",
       "status": "BACKLOG",
