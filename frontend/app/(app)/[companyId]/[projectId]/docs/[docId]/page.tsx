@@ -33,6 +33,7 @@ import { invitationErrorMessage } from "@/lib/invitation";
 import { documentService } from "@/services/document.service";
 import { issueService } from "@/services/issue.service";
 import { projectService } from "@/services/project.service";
+import { AttachmentControls } from "@/components/attachments/AttachmentControls";
 import type { DocumentType } from "@/types/document.types";
 import type { IssueResponse } from "@/types/issue.types";
 
@@ -429,6 +430,13 @@ export default function DocEditorPage() {
           </div>
           {linkError && <p className="mt-2 text-xs text-destructive">{linkError}</p>}
         </section>
+      )}
+
+      {!isNew && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <AttachmentControls targetType="DOCUMENT" targetId={Number(docId)} canMutate={canTrash} label="문서 첨부" />
+          <AttachmentControls targetType="BINARY_DOCUMENT" targetId={Number(docId)} canMutate={canTrash} label="별도 파일" />
+        </div>
       )}
 
       {/* 하단 액션: 쓰레드 / 그래프 뷰 */}
