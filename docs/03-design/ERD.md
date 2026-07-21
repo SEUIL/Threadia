@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-15  
 > **최종 수정**: 2026-07-21
-> **버전**: v2.8 WBS 4.5.1.1 Message-to-Issue 및 WBS 4.11 private attachment lifecycle 계약 병합 반영
+> **버전**: v2.9 attachment ERD를 실제 schema/entity 계약과 정합화
 > **상태**: 확정
 > **태그**: erd, db, schema, auth, invitation
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
@@ -559,14 +559,15 @@ summary table은 원본이 아니라 read model이다. 원본은 `issues`, `docu
 | original_filename | VARCHAR(255) | NOT NULL | path/control 문자를 제거한 원본 파일명 |
 | content_type | VARCHAR(255) | NOT NULL | upload content type |
 | content_length | BIGINT | NOT NULL | 최대 104,857,600 bytes(100MB) |
-| checksum_sha256 | VARCHAR(64) | NOT NULL | object 검증 checksum |
+| checksum_sha256 | VARCHAR(88) | NOT NULL | Base64 encoded SHA-256 object checksum |
 | status | ENUM('UPLOADING','READY','DELETED') | NOT NULL | upload lifecycle 상태 |
 | completed_at | DATETIME | NULL | complete 검증 완료 시각 |
 | deleted_at | DATETIME | NULL | logical delete 시각 |
 | created_at | DATETIME | NOT NULL | 생성 시각 |
-| updated_at | DATETIME | NOT NULL | 수정 시각 |
 
 - INDEX (`target_type`, `target_id`, `status`, `created_at`), INDEX (`status`, `deleted_at`), INDEX (`company_id`), INDEX (`created_by_user_id`).
+- `status` lifecycle CHECK는 `UPLOADING`일 때 `completed_at`/`deleted_at`이 모두 NULL, `READY`일 때 `completed_at`은 NOT NULL이고 `deleted_at`은 NULL, `DELETED`일 때 `deleted_at`은 NOT NULL이어야 한다.
+- `content_length`는 CHECK (`content_length > 0`)를 적용하고, service/API 계약에서 최대 104,857,600 bytes(100MB)를 검증한다.
 - `DOCUMENT`는 Markdown 본문이 아니라 document resource 자체를 의미하고, `BINARY_DOCUMENT`는 같은 document resource에 연결된 별도 binary attachment target이다.
 - polymorphic `target_type`/`target_id`의 존재와 tenant/project/DM visibility, 작성자 또는 project/company admin mutation, avatar owner-only, company-logo company-admin 인가는 service policy로 검증한다.
 - `USER_AVATAR`, `COMPANY_LOGO`는 `image/*` content type만 허용한다.

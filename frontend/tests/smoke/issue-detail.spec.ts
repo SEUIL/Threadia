@@ -5,6 +5,7 @@
  * 권한 규칙은 backend IssueService 기준이다.
  */
 import { expect, test, type Page } from "@playwright/test";
+import type { IssuePriority, IssueResponse, IssueStatus } from "@/types/issue.types";
 
 const apiResponse = (data: unknown) => ({ data, meta: { requestId: "issue-detail-smoke" } });
 
@@ -12,11 +13,12 @@ const ME = { id: 1, email: "a@test.dev", nickname: "나", avatarUrl: null };
 
 type MockIssue = {
   id: number;
+  projectId: number;
   issueKey: string;
   title: string;
-  status: string;
+  status: IssueStatus;
   description: string | null;
-  priority: string;
+  priority: IssuePriority;
   assigneeUserId: number | null;
   reporterUserId: number | null;
   sprintId: number | null;
@@ -25,6 +27,7 @@ type MockIssue = {
 };
 
 const issue = (over: Partial<MockIssue> & { id: number; issueKey: string }): MockIssue => ({
+  projectId: 10,
   title: "이슈",
   status: "BACKLOG",
   description: null,
@@ -37,7 +40,7 @@ const issue = (over: Partial<MockIssue> & { id: number; issueKey: string }): Moc
   ...over,
 });
 
-const toResponse = (item: MockIssue) => ({ ...item, sourceType: "MANUAL", sourceMessageId: null, restoredAt: null });
+const toResponse = (item: MockIssue): IssueResponse => ({ ...item, sourceType: "MANUAL", sourceMessageId: null, restoredAt: null });
 
 async function mockApi(page: Page, options: { canManage: boolean; issues: MockIssue[] }) {
   const issues = options.issues;
