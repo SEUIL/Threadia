@@ -13,9 +13,9 @@
  * 헤더를 생략한다. Threadia는 아직 프로젝트당 채팅 채널이 1개뿐이라 좌측
  * 채널 목록은 "# 프로젝트 채팅" 단일 항목만 있는 고정 목록이다.
  *
-	 * 이번 slice에 반영하지 않은 것:
-	 *   - "메시지 → 이슈 생성"(design memo 액션) — Backend endpoint는 WBS 4.5.1.1에서
-	 *     추가됐고, Frontend 액션은 WBS 4.5.1.2에서 별도 연동한다.
+ * 이번 slice에 반영하지 않은 것:
+ *   - "메시지 → 이슈 생성"(design memo 액션) — Backend endpoint는 WBS 4.5.1.1에서
+ *     추가됐고, Frontend 액션은 WBS 4.5.1.2에서 별도 연동한다.
  *   - "쓰레드 보기" — Thread Frontend(WBS 4.7.1.2)가 별도 PR이라 이번 slice는
  *     메시지 작성 시 threadId를 항상 null로 보낸다.
  *   - 멤버 온라인/오프라인 — 실 presence API가 없어 ACTIVE 멤버를 하나의
@@ -36,8 +36,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { invitationErrorMessage } from "@/lib/invitation";
 import { messageService } from "@/services/message.service";
 import { projectMemberService } from "@/services/project-member.service";
+import { projectService } from "@/services/project.service";
+import { AttachmentControls } from "@/components/attachments/AttachmentControls";
+import { UserAvatar } from "@/components/profile/UserAvatar";
 import type { MessageResponse } from "@/types/message.types";
 import type { ProjectMemberResponse } from "@/types/project-member.types";
+import type { ProjectViewerData } from "@/types/project.types";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -54,6 +58,7 @@ export default function ProjectMessagesPage() {
   const [messages, setMessages] = useState<MessageResponse[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [members, setMembers] = useState<ProjectMemberResponse[]>([]);
+  const [viewer, setViewer] = useState<ProjectViewerData | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -71,9 +76,10 @@ export default function ProjectMessagesPage() {
 
   const load = useCallback(async () => {
     try {
-      const [messagesResponse, membersResponse] = await Promise.all([
+      const [messagesResponse, membersResponse, projectResponse] = await Promise.all([
         messageService.list(params.projectId),
         projectMemberService.list(params.projectId, { status: "ACTIVE" }),
+        projectService.detail(params.projectId),
       ]);
       setPageError(null);
       // 서버는 최신순(DESC)이라 화면 표시 순서(오래된 → 최신)로 뒤집는다.
@@ -81,6 +87,7 @@ export default function ProjectMessagesPage() {
       setMessages(ordered);
       setNextCursor(messagesResponse.data.data.nextCursor);
       setMembers(membersResponse.data.data.projectMembers);
+      setViewer(projectResponse.data.data.viewer);
       setPageState("ready");
 
       // 최신 메시지까지 읽음 처리 — 실패해도 채팅 자체는 계속 보여준다.
@@ -227,9 +234,7 @@ export default function ProjectMessagesPage() {
                 >
                   <div className="w-9 shrink-0 text-right">
                     {showHeader ? (
-                      <span className="flex h-9 w-9 items-center justify-center rounded-full avatar-ring text-xs font-semibold text-foreground">
-                        {initials(name)}
-                      </span>
+                      <UserAvatar nickname={name} userId={msg.authorUserId} className="h-9 w-9 text-xs text-foreground" />
                     ) : (
                       <span className="hidden text-[10px] text-placeholder group-hover:inline-block">
                         {time}
@@ -244,6 +249,12 @@ export default function ProjectMessagesPage() {
                       </div>
                     )}
                     <p className="whitespace-pre-wrap text-sm text-foreground">{msg.content}</p>
+                    <AttachmentControls
+                      targetType="MESSAGE"
+                      targetId={msg.id}
+                      canMutate={msg.authorUserId === user?.id || viewer?.companyRole === "COMPANY_ADMIN" || viewer?.projectRole === "PROJECT_ADMIN"}
+                      compact
+                    />
                   </div>
                 </div>
               );
@@ -288,9 +299,12 @@ export default function ProjectMessagesPage() {
               key={member.id}
               className="flex items-center gap-2 rounded-md px-1 py-1.5 hover:bg-border/20"
             >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full avatar-ring text-[11px] font-semibold text-foreground">
-                {initials(member.user.nickname)}
-              </span>
+              <UserAvatar
+                nickname={member.user.nickname}
+                avatarUrl={member.user.avatarUrl}
+                userId={member.user.id}
+                className="h-7 w-7 text-[11px] text-foreground"
+              />
               <span className="truncate text-sm text-foreground">
                 {member.user.nickname}
                 {member.user.id === user?.id && <span className="ml-1 text-xs text-muted">(나)</span>}

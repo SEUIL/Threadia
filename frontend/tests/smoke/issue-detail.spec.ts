@@ -42,6 +42,19 @@ const toResponse = (item: MockIssue) => ({ ...item, sourceType: "MANUAL", source
 async function mockApi(page: Page, options: { canManage: boolean; issues: MockIssue[] }) {
   const issues = options.issues;
   const calls: string[] = [];
+  const attachmentTargets: string[] = [];
+  const linkedDocument = {
+    id: 21,
+    projectId: 10,
+    authorUserId: ME.id,
+    title: "연결된 기획 문서",
+    type: "DOC" as const,
+    content: "",
+    trashedAt: null,
+    restoredAt: null,
+    createdAt: "2026-07-20T10:00:00Z",
+    updatedAt: "2026-07-20T10:00:00Z",
+  };
 
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
@@ -96,6 +109,27 @@ async function mockApi(page: Page, options: { canManage: boolean; issues: MockIs
       return;
     }
 
+    if (request.method() === "GET" && url.pathname === "/api/v1/issues/1/documents") {
+      await json(apiResponse({ documents: [linkedDocument] }));
+      return;
+    }
+
+    if (request.method() === "GET" && url.pathname === "/api/v1/projects/10/document-issue-links") {
+      await json(apiResponse({ links: [{ id: 31, projectId: 10, documentId: linkedDocument.id, issueId: 1, createdByUserId: ME.id }] }));
+      return;
+    }
+
+    if (request.method() === "GET" && url.pathname === "/api/v1/projects/10/documents") {
+      await json(apiResponse({ documents: [linkedDocument] }));
+      return;
+    }
+
+    if (request.method() === "GET" && url.pathname === "/api/v1/attachments") {
+      attachmentTargets.push(`${url.searchParams.get("targetType")}:${url.searchParams.get("targetId")}`);
+      await json(apiResponse([]));
+      return;
+    }
+
     if (request.method() === "GET" && url.pathname === "/api/v1/projects/10/issues") {
       // 서버 계약: includeTrashed=true면 active와 trashed를 함께, 기본(false)은 active만.
       const includeTrashed = url.searchParams.get("includeTrashed") === "true";
@@ -136,7 +170,7 @@ async function mockApi(page: Page, options: { canManage: boolean; issues: MockIs
     await route.abort();
   });
 
-  return { calls, issues };
+  return { attachmentTargets, calls, issues };
 }
 
 /**
@@ -198,6 +232,23 @@ test("A는 우선순위·담당자·마감일을 수정할 수 없다", async ({
   await expect(page.getByLabel("우선순위")).toBeDisabled();
   await expect(page.getByLabel("담당자")).toBeDisabled();
   await expect(page.getByLabel("마감일")).toBeDisabled();
+});
+
+test("이슈 상세에 연결 문서와 ISSUE 첨부 파일 controls가 함께 표시된다", async ({ page }) => {
+  const mock = await mockApi(page, {
+    canManage: true,
+    issues: [issue({ id: 1, issueKey: "THR-1", title: "연결 문서 이슈" })],
+  });
+
+  await page.goto("/1/10/board");
+  await openDetail(page, "연결 문서 이슈");
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("연결 문서", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("link", { name: "연결된 기획 문서" })).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "첨부 파일" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "파일 추가" })).toBeVisible();
+  await expect.poll(() => mock.attachmentTargets).toContain("ISSUE:1");
 });
 
 test("등록자가 아니고 관리자도 아니면 휴지통 버튼이 없다", async ({ page }) => {
