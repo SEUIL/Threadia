@@ -37,7 +37,7 @@ const issue = (over: Partial<MockIssue> & { id: number; issueKey: string }): Moc
   ...over,
 });
 
-const toResponse = (item: MockIssue) => ({ ...item, sourceType: "MANUAL", restoredAt: null });
+const toResponse = (item: MockIssue) => ({ ...item, sourceType: "MANUAL", sourceMessageId: null, restoredAt: null });
 
 async function mockApi(page: Page, options: { canManage: boolean; issues: MockIssue[] }) {
   const issues = options.issues;
