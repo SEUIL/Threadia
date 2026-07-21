@@ -32,6 +32,9 @@ public class User {
 	@Column(name = "avatar_url", length = 500)
 	private String avatarUrl;
 
+	@Column(name = "avatar_attachment_id")
+	private Long avatarAttachmentId;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
 	private UserStatus status = UserStatus.ACTIVE;
@@ -97,6 +100,9 @@ public class User {
 	public void setAvatarUrl(String avatarUrl) {
 		this.avatarUrl = avatarUrl;
 	}
+
+	public Long getAvatarAttachmentId() { return avatarAttachmentId; }
+	public void setAvatarAttachmentId(Long avatarAttachmentId) { this.avatarAttachmentId = avatarAttachmentId; }
 
 	public UserStatus getStatus() {
 		return status;
