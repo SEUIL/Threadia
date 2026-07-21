@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
 > **최종 수정**: 2026-07-21
-> **버전**: v3.14 WBS 4.5.1.1 Message-to-Issue Backend 계약 반영
+> **버전**: v3.16 WBS 4.5.1.1 Message-to-Issue 및 WBS 4.11 private attachment lifecycle 계약 병합 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -13,7 +13,7 @@
 
 > **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows이며, DB는 ERD 기반 `db/schema.sql`과 문서 변경이력으로 관리한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
-> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15 `4.10.1` support case, `4.10.3` typed system settings, `4.10.4` Backend lifecycle/audit-read, `4.8.1` notification inbox/read-state, `4.5.1.1` Message-to-Issue Backend, `4.9.1.1` Activity Feed Backend, `4.9.3.1` Dashboard Core Backend, `4.9.4.1` Search Backend 계약을 확정한다. `4.5.1.2`, `4.9.1.2`, `4.9.3.2`, `4.9.4.2` Frontend는 계획/0% 상태다. notification producer matrix, preferences, push/WebSocket, S15 Frontend, enforcement, dashboard cache/summary table, retention/cleanup은 후속 범위다.
+> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15 `4.10.1` support case, `4.10.3` typed system settings, `4.10.4` Backend lifecycle/audit-read, `4.8.1` notification inbox/read-state, `4.5.1.1` Message-to-Issue Backend, `4.9.1.1` Activity Feed Backend, `4.9.3.1` Dashboard Core Backend, `4.9.4.1` Search Backend와 `4.11` private attachment lifecycle 계약을 확정한다. `4.5.1.2`, `4.9.1.2`, `4.9.3.2`, `4.9.4.2` Frontend는 계획/0% 상태다. notification producer matrix, preferences, push/WebSocket, S15 Frontend, enforcement, dashboard cache/summary table, attachment retention/cleanup activation은 후속 범위다.
 
 
 ## 1. 공통 규칙
@@ -366,7 +366,7 @@ Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PL
 
 문서 optimistic locking은 Sprint 3 decision-needed다. `DOCUMENT_VERSION_CONFLICT`는 boundary error code로만 둔다. request body의 `version` 또는 `revision` 필드, conflict response body, UI 해소 방식은 아직 확정 계약이 아니다.
 
-파일/이미지 첨부는 Sprint 3 decision-needed다. `/api/v1/attachments` full endpoint, S3 presigned URL request/response, metadata schema, 권한, 크기, MIME 정책은 선행 결정 후 추가한다.
+파일/이미지 첨부는 WBS `4.11`의 private presigned lifecycle로 제공한다. 첨부 대상은 문서 Markdown 본문이 아닌 `DOCUMENT` resource이며, `BINARY_DOCUMENT`는 같은 문서 resource에 연결하는 별도 binary attachment target이다.
 
 ---
 
@@ -387,6 +387,7 @@ Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PL
 | GET | `/api/v1/messages/{messageId}` | A/P/C | 메시지 상세 |
 | POST | `/api/v1/projects/{projectId}/messages/mark-read` | A/P/C | 채팅방 읽음 위치 갱신 |
 | GET | `/api/v1/projects/{projectId}/messages/unread-count` | A/P/C | 채팅방 unread count |
+| GET | `/api/v1/companies/{companyId}/direct-messages/candidates` | A/P/C | Issue #208 DM 대화 상대 후보 조회 Backend follow-up |
 | GET | `/api/v1/companies/{companyId}/direct-messages/rooms` | A/P/C | DM 방 목록 |
 | POST | `/api/v1/companies/{companyId}/direct-messages/rooms` | A/P/C | DM 방 생성/get-or-create |
 | GET | `/api/v1/direct-messages/rooms/{roomId}/messages` | 참여자 | DM 메시지 목록 |
@@ -405,6 +406,33 @@ Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PL
 - unread는 현재 사용자가 보낸 메시지를 제외하고 개인별 `dm_room_user_states.last_read_direct_message_id`로 계산한다. 상대방 read receipt는 제공하지 않는다.
 
 1:1 DM core는 WBS 4.7.3.1 Backend 구현 범위다. 다자간 DM, DM room + participants 일반화, DM 상대 read receipt는 이번 개발 기간 보류다. 영구 제외하지 않으며 향후 재검토 전 endpoint, request/response contract, schema, frontend 구현을 추가하지 않는다. DM 메시지 삭제와 DM 메시지 이슈 전환도 full endpoint contract를 만들지 않는다.
+
+### 8.2 Issue #208 WBS 4.7.3.1 DM 후보 조회 Backend follow-up
+
+```http
+GET /api/v1/companies/{companyId}/direct-messages/candidates
+```
+
+- ACTIVE caller와 path 회사의 ACTIVE company membership이 필요하다.
+- 같은 회사의 ACTIVE membership + ACTIVE user 중 자기 자신을 제외해 `data.candidates`로 반환한다.
+- 기존 room 상대도 포함하며, 기존 room 상대 제외는 Frontend client-side 책임으로 유지한다.
+- 응답 field는 `id`, `nickname`, `avatarUrl`만 제공한다. email, role, membership ID, department는 노출하지 않는다.
+- 정렬은 `nickname ASC, userId ASC`이고 pagination은 제공하지 않는다. 후보가 없으면 200과 빈 배열을 반환한다.
+- JWT 없음, malformed auth, SUSPENDED/DELETED caller는 401이다. path 회사가 없거나 inactive거나 caller membership이 없거나 inactive면 403이다.
+- 이 follow-up은 CHAT-02 전체 완료를 의미하지 않으며, 기존 room/list/message/unread 계약을 변경하지 않는다.
+
+Response 200:
+
+```json
+{
+  "data": {
+    "candidates": [
+      { "id": 2, "nickname": "김민정", "avatarUrl": null }
+    ]
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
 
 ---
 
@@ -470,6 +498,11 @@ WBS `4.8.1`은 MySQL의 기존 `notification_events`, `notification_recipients`�
 | GET | `/api/v1/projects/{projectId}/activity-events` | A/P/C | 프로젝트 활동 피드 조회 | WBS `4.9.1.1` Backend 구현 |
 | GET | `/api/v1/search` | A/P/C | 프로젝트 내부 통합 검색 | WBS `4.9.4.1` Backend 구현 완료 |
 | GET | `/api/v1/projects/{projectId}/dashboard` | A/P/C | 프로젝트 홈/대시보드 live summary | WBS `4.9.3.1` Backend 구현 |
+| POST | `/api/v1/attachments/uploads` | 대상별 mutation 권한 | private presigned upload initiate | WBS `4.11` Backend 계약 |
+| POST | `/api/v1/attachments/{attachmentId}/complete` | 대상별 mutation 권한 | object metadata 검증 후 upload 완료 | WBS `4.11` Backend 계약 |
+| GET | `/api/v1/attachments?targetType={type}&targetId={id}` | 대상별 read 권한 | 완료된 대상 첨부 목록 | WBS `4.11` Backend 계약 |
+| GET | `/api/v1/attachments/{attachmentId}/download` | 대상별 read 권한 | private presigned download URL 발급 | WBS `4.11` Backend 계약 |
+| DELETE | `/api/v1/attachments/{attachmentId}` | 대상별 mutation 권한 | logical delete | WBS `4.11` Backend 계약 |
 
 ### 10.1 활동 피드
 
@@ -612,6 +645,46 @@ MySQL FULLTEXT, 외부 검색 엔진, Redis, DB schema/index 변경, Frontend, �
 #### 비범위
 
 `activity_events`, recent activity feed, `project_dashboard_summaries`, Redis, STOMP, pagination은 이 endpoint 범위에 포함하지 않는다.
+
+### 10.4 WBS 4.11 private attachment lifecycle
+
+#### Target catalog
+
+`targetType`은 `DOCUMENT`, `ISSUE`, `MESSAGE`, `THREAD_COMMENT`, `DIRECT_MESSAGE`, `USER_AVATAR`, `COMPANY_LOGO`, `BINARY_DOCUMENT`만 허용한다. `DOCUMENT`는 문서 Markdown 본문을 파일로 저장한다는 뜻이 아니라 document resource에 붙는 일반 첨부다. `BINARY_DOCUMENT`도 같은 document resource ID를 `targetId`로 사용한다.
+
+#### POST `/api/v1/attachments/uploads`
+
+```http
+POST /api/v1/attachments/uploads
+```
+
+```json
+{
+  "targetType": "DOCUMENT",
+  "targetId": 200,
+  "filename": "회의록.pdf",
+  "contentType": "application/pdf",
+  "contentLength": 1048576,
+  "checksumSha256": "base64-sha256"
+}
+```
+
+request는 `targetType`, `targetId`, `filename`, `contentType`, `contentLength`, `checksumSha256`만 받는다. `targetId`와 `contentLength`는 양수이며 `contentLength`의 최대값은 104,857,600 bytes(100MB)다. checksum은 Base64 SHA-256 형식이다. 파일명에는 경로와 제어 문자를 포함할 수 없다. `USER_AVATAR`, `COMPANY_LOGO`는 `image/*` Content-Type만 허용한다.
+
+성공 시 `201`이며 `data.attachment`와 `data.uploadUrl`을 반환한다. `attachment`은 `id`, `targetType`, `targetId`, `filename`, `contentType`, `contentLength`, `status`, `completedAt`, `createdAt`만 포함하고 initiate 직후 status는 `UPLOADING`이다.
+
+#### Lifecycle
+
+- `POST /attachments/{attachmentId}/complete`는 저장소 object의 content length, content type, checksum이 initiate request와 일치할 때 `READY`로 전환한다. `READY` 재호출은 현재 metadata를 반환한다.
+- `GET /attachments`는 `targetType`과 `targetId` query를 필수로 받고 해당 대상의 `READY` attachment만 생성 시각 오름차순으로 반환한다.
+- `GET /attachments/{attachmentId}/download`는 `data.downloadUrl`을 반환하며 `READY` attachment만 허용한다.
+- `DELETE /attachments/{attachmentId}`는 `204`를 반환하고 attachment를 `DELETED`로 logical delete한다. avatar/logo의 현재 managed reference를 삭제하면 해당 reference도 clear한다.
+
+#### Authorization and storage boundary
+
+target별 read/mutation 권한은 대상 resource 가시성과 작성자 또는 project/company admin 정책을 따른다. avatar는 본인만 mutation하고, company logo는 company admin만 mutation한다. DM attachment는 해당 room 참여자만 읽을 수 있으며 DM 메시지는 이슈 전환 원본이 될 수 없다.
+
+local development는 private MinIO presigned storage를 사용한다. production bucket, IAM, CORS, network, SSM, CI/CD wiring은 이 계약 또는 WBS `4.11` 구현 완료에 포함하지 않는다. retention/cleanup activation policy도 후속 결정으로 둔다.
 
 ---
 
@@ -843,7 +916,7 @@ audit record의 3년 보존 정책은 유지한다. cleanup/purge/archive job, l
 | Sprint 3 decision-needed | 프로젝트별 알림 설정 | `PROJECT_NOTIFICATION_SCOPE_DEFERRED` API boundary | PROJECT scope 지원 기준 필요. 요구사항추적표 primary WBS row로 backfill하지 않는다 |
 | 보류 | NoSQL 알림/활동 저장소 | 미제공 | MySQL 원장 사용, Sprint 1 제외 |
 | 제외 | Redis 원본 저장 | 미제공 | Redis는 cache/push 보조로만 사용 |
-| Sprint 3 decision-needed | 범용 파일 첨부 | `/api/v1/attachments` full contract 미정 | S3 presigned URL, metadata, 권한, 크기, MIME 정책 필요 |
+| WBS 4.11 Backend 계약 | private 파일 첨부 | initiate/complete/list/download/delete lifecycle | production wiring과 retention/cleanup activation은 후속 결정 |
 | 보류 | Typesense/Meilisearch | 미제공 | 검색 고도화 후보 |
 
 ---
@@ -857,7 +930,7 @@ audit record의 3년 보존 정책은 유지한다. cleanup/purge/archive job, l
 - 메시지 목록 실시간 업데이트 방식.
 - DM 방 unread count 처리 방식.
 - `activity_events`와 `notification_events`는 분리 운영한다. activity 이벤트가 notification 이벤트를 생성하는 조건은 구현 단계에서 이벤트별로 제한한다.
-- S15 `4.10.1`, `4.10.3`, `4.10.4` Backend는 구현 완료 기준이다. enforcement, dashboard/notification 확장, S15 Frontend, retention/cleanup과 attachment, document optimistic locking, advanced DM, PROJECT notification scope, project restore, permanent delete의 full API 계약은 후속 범위다.
+- S15 `4.10.1`, `4.10.3`, `4.10.4` Backend와 WBS `4.11` attachment lifecycle은 구현 계약 기준이다. enforcement, dashboard/notification 확장, S15 Frontend, attachment production wiring·retention/cleanup activation, document optimistic locking, advanced DM, PROJECT notification scope, project restore, permanent delete의 후속 범위는 유지한다.
 
 ---
 
@@ -868,7 +941,7 @@ audit record의 3년 보존 정책은 유지한다. cleanup/purge/archive job, l
 - `v1.4`의 예시는 형식 참고용으로만 사용한다.
 - 실제 계약 기준은 이 문서의 endpoint 표와 v2.6 정책이다.
 - `PATCH` 요청은 변경할 필드만 전달한다.
-- S3 파일 저장 API, Redis/NoSQL 알림 저장 API, 프로젝트별 알림 설정은 현재 full contract로 제공하지 않는다. Sprint 3 decision-needed 항목은 선행 결정 후 request/response 예시를 추가한다.
+- WBS `4.11` private attachment lifecycle은 full contract로 제공한다. production storage wiring과 retention/cleanup activation, Redis/NoSQL 알림 저장 API, 프로젝트별 알림 설정은 후속 범위다.
 
 ### 13.1 공통 Error Response
 
