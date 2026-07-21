@@ -1,0 +1,5 @@
+[
+  {"ParameterKey":"ExistingEc2RoleName","ParameterValue":"REPLACE_WITH_APPROVED_PUBLIC_COMPOSE_BACKEND_EC2_ROLE_NAME"},
+  {"ParameterKey":"AllowedCorsOrigin","ParameterValue":"https://REPLACE_WITH_APPROVED_FRONTEND_ORIGIN"},
+  {"ParameterKey":"AttachmentNoncurrentVersionRetentionDays","ParameterValue":"30"}
+]
