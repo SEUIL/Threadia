@@ -28,6 +28,13 @@
  * updateMember()가 역할·부서 select 어느 쪽이 바뀌든 항상 현재
  * role/status/departmentId 전체를 합쳐서 보낸다. status(정지/탈퇴) 변경
  * UI는 아직 없어 항상 현재 status를 그대로 유지해서 보낸다(설계문서 §9 미결).
+ *
+ * 구성원 제거: 백엔드 DELETE endpoint(PR #181)는 있었는데 이 화면에 액션이 없어서
+ * 못 쓰고 있었다 — 코드 vs WBS 감사 중 발견. soft remove(status=LEFT)라 서버가
+ * 자기 자신/마지막 ACTIVE COMPANY_ADMIN/어느 프로젝트의 마지막 ACTIVE
+ * PROJECT_ADMIN 제거를 409로 막아준다(API-명세서 §3.1.4) — 프론트는 그 에러
+ * 메시지만 그대로 보여주면 된다. 실수 클릭 방지로 인라인 2단계 확인을 둔다(이
+ * 코드베이스에 window.confirm 사용례가 없어 pendingInvitee와 같은 패턴을 따른다).
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -64,6 +71,9 @@ export default function MembersPage() {
   const [query, setQuery] = useState("");
   const [dmBusyId, setDmBusyId] = useState<number | null>(null);
   const [dmError, setDmError] = useState<string | null>(null);
+  const [removeConfirmId, setRemoveConfirmId] = useState<number | null>(null);
+  const [removeBusyId, setRemoveBusyId] = useState<number | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   const [invitations, setInvitations] = useState<InvitationResponse[]>([]);
   const [invitationsState, setInvitationsState] = useState<LoadState>("loading");
@@ -178,6 +188,20 @@ export default function MembersPage() {
       setDmError(invitationErrorMessage(error, "대화를 시작하지 못했습니다."));
     } finally {
       setDmBusyId(null);
+    }
+  };
+
+  const removeMember = async (member: CompanyMemberResponse) => {
+    setRemoveError(null);
+    setRemoveBusyId(member.id);
+    try {
+      await companyMemberService.remove(companyId, member.id);
+      setMembers((prev) => prev.filter((m) => m.id !== member.id));
+      setRemoveConfirmId(null);
+    } catch (error) {
+      setRemoveError(invitationErrorMessage(error, "구성원 제거에 실패했습니다."));
+    } finally {
+      setRemoveBusyId(null);
     }
   };
 
@@ -366,6 +390,7 @@ export default function MembersPage() {
         {membersState === "error" && <p className="mt-4 text-xs text-destructive">{membersError}</p>}
         {updateError && <p className="mt-4 text-xs text-destructive">{updateError}</p>}
         {dmError && <p className="mt-4 text-xs text-destructive">{dmError}</p>}
+        {removeError && <p className="mt-4 text-xs text-destructive">{removeError}</p>}
 
         {membersState === "ready" && (
           <ul className="mt-4 divide-y divide-border">
@@ -423,6 +448,37 @@ export default function MembersPage() {
                   >
                     DM
                   </button>
+
+                  {canManageMembers &&
+                    (removeConfirmId === member.id ? (
+                      <span className="flex items-center gap-1">
+                        <span className="text-xs text-muted">정말 제거?</span>
+                        <button
+                          type="button"
+                          onClick={() => void removeMember(member)}
+                          disabled={removeBusyId === member.id}
+                          className="rounded-md px-2 py-1 text-xs font-semibold text-destructive transition-colors duration-fast hover:bg-destructive-subtle disabled:opacity-50"
+                        >
+                          {removeBusyId === member.id ? "제거 중..." : "확인"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRemoveConfirmId(null)}
+                          disabled={removeBusyId === member.id}
+                          className="rounded-md px-2 py-1 text-xs font-medium text-muted transition-colors duration-fast hover:bg-primary-subtle disabled:opacity-50"
+                        >
+                          취소
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setRemoveConfirmId(member.id)}
+                        className="rounded-md px-2.5 py-1.5 text-xs font-medium text-destructive transition-colors duration-fast hover:bg-destructive-subtle"
+                      >
+                        제거
+                      </button>
+                    ))}
                 </div>
               </li>
             ))}

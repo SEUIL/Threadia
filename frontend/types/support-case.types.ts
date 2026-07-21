@@ -65,6 +65,21 @@ export interface SupportCaseStatusUpdateRequest {
   reason: string;
 }
 
+/**
+ * POST /api/v1/support-cases — 일반 사용자용 생성(§10-A.1). INQUIRY는
+ * targetType/targetId를 쓰지 않는다. REPORT는 targetType이 필수인데, 이걸
+ * 채울 "신고" 진입점(이슈/문서 등 콘텐츠에서 신고하기 액션)이 아직 어디에도
+ * 없어서 이번 슬라이스는 INQUIRY 생성만 다룬다 — REPORT는 범위 밖.
+ */
+export interface SupportCaseCreateRequest {
+  type: SupportCaseType;
+  title: string;
+  body: string;
+  targetType?: SupportCaseTargetType | null;
+  targetId?: string | null;
+  reason: string;
+}
+
 /** case별 허용 상태 전이 — backend SupportCaseStatus.canTransitionTo와 1:1. */
 export const SUPPORT_CASE_STATUS_TRANSITIONS: Record<SupportCaseStatus, SupportCaseStatus[]> = {
   OPEN: ["IN_PROGRESS", "REJECTED", "CLOSED"],
