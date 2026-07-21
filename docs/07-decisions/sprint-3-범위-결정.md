@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-07
-> **최종 수정**: 2026-07-18
-> **버전**: v0.7 WBS 4.10.4 Backend 완료 기준
+> **최종 수정**: 2026-07-21
+> **버전**: v0.8 WBS 4.11 attachment lifecycle 계약 반영
 > **상태**: 검토 중
 > **태그**: decision, sprint-3, scope, backlog, platform-admin
 
@@ -35,7 +35,7 @@ Sprint 3는 기존 `WBS 4.x Backlog Development`를 실행 가능한 Sprint 3 �
 | 고급 DM | 다자간 DM과 상대 read receipt는 이번 개발 기간에서 보류한다. 향후 재검토는 가능하나 API, schema, frontend 구현은 추가하지 않는다. |
 | 고급 문서 | 실시간 공동 편집 대신 optimistic locking 기반 충돌 감지를 우선한다. 변경 가능성을 명시한다. |
 | 고급 알림 | `NOTI-01` 알림 목록/읽음 처리를 Sprint 3 primary로 둔다. `NOTI-02/03`은 현재 계약/reference, `PROJECT_NOTIFICATION_SCOPE_DEFERRED`는 API boundary로 유지한다. |
-| 첨부 | S3 presigned URL 정책 결정을 선행하고 구현 범위를 확정한다. |
+| 첨부 | WBS 4.11 private presigned lifecycle 계약을 적용한다. production storage wiring과 retention/cleanup activation은 후속 범위다. |
 | 복원/영구 삭제 | project restore와 issue/document permanent delete를 포함하되, 참조 무결성과 audit 정책 결정을 선행한다. |
 
 ## 4. Blocker 처리 결정
@@ -48,7 +48,7 @@ Sprint 3는 기존 `WBS 4.x Backlog Development`를 실행 가능한 Sprint 3 �
 | 고급 DM 모델 | 이번 개발 기간에는 1:1 전용 모델을 유지한다. 다자간 DM과 상대 read receipt는 향후 재검토 항목이며 room + participants 일반화와 구현은 추가하지 않는다. |
 | 알림 scope | `GLOBAL` preference 계약을 유지한다. `PROJECT` scope는 `PROJECT_NOTIFICATION_SCOPE_DEFERRED` API boundary이며 요구사항추적표 primary row로 backfill하지 않는다. |
 | 검색 방식 | MySQL `LIKE/FULLTEXT` 우선과 검색 엔진 도입 여부를 WBS 결정 row로 둔다. 기본 권장안은 MySQL 우선이다. |
-| 첨부 방식 | S3 presigned upload/download, metadata table, 권한, 크기, MIME 정책을 WBS 결정 row로 둔다. |
+| 첨부 방식 | `attachments` metadata와 private presigned initiate/complete/download/delete lifecycle, checksum, 100MB, target별 인가를 적용한다. local MinIO만 구현 범위이며 production wiring은 보류한다. |
 | project restore / permanent delete | 포함한다. 다만 permanent delete는 참조 무결성, audit, soft delete 보존 기간 정책을 먼저 결정한다. |
 
 ## 5. Sprint 3 committed 후보
@@ -64,7 +64,7 @@ Sprint 3는 기존 `WBS 4.x Backlog Development`를 실행 가능한 Sprint 3 �
 | Notification | `NOTI-01` | 알림 목록, 읽음 처리 core. `NOTI-02/03`은 현재 계약/reference row로 유지 |
 | Conditional extensions | `FEED-01`, `SEARCH-01`, `DASH-01~04` | activity feed, 검색, 프로젝트 dashboard. 실행 row는 `4.9.1~4.9.3` |
 | S15 Platform Admin | `DEFER-01` 재분해 | 문의/신고, 사용자 정지, 회사 비활성화, 시스템 설정, audit/operation logs 및 platform admin lifecycle/grant/revoke. 실행 row는 `4.10.1~4.10.4` |
-| Attachment | `ATTACH-01` | S3 presigned URL 기반 첨부. 실행 row는 `4.11.1~4.11.3` |
+| Attachment | `ATTACH-01` | local MinIO의 private presigned URL 기반 첨부. 실행 row는 `4.11.1~4.11.3` |
 | Restore / permanent delete | 보류 API 코드 승격 | project restore, issue/document permanent delete 정책 및 구현. 실행 row는 `4.13.1~4.13.3` |
 
 ## 6. 선행 설계가 필요한 항목
@@ -76,7 +76,7 @@ Sprint 3는 기존 `WBS 4.x Backlog Development`를 실행 가능한 Sprint 3 �
 | 다자간 DM과 상대 read receipt | 현재 ERD는 1:1 unique 구조에 가까움 | 이번 개발 기간에는 보류한다. 향후 재검토 전 API, schema, frontend 구현을 추가하지 않는다. |
 | PROJECT 알림 설정 | 기존 API는 PROJECT scope를 deferred 처리 | API boundary code로 유지하고 요구사항추적표 primary WBS backfill 대상에서 제외 |
 | 검색 | 검색 엔진 도입 여부가 미정 | 결정 row 후 MySQL 우선 구현 |
-| 첨부 | S3, metadata, 권한, 파일 제한 정책 필요 | 정책 결정 row 후 구현 |
+| 첨부 | WBS 4.11 Backend 계약 완료 | production storage wiring과 retention/cleanup activation만 후속 결정 |
 | permanent delete | 참조 보존과 audit 위험이 큼 | 정책 결정 row 후 제한 구현 |
 
 ## 7. 문서 영향 범위
@@ -100,7 +100,7 @@ Sprint 3는 기존 `WBS 4.x Backlog Development`를 실행 가능한 Sprint 3 �
 3. `decision-needed` 항목은 구현 row와 분리한다.
 4. Level 3 row는 `4.7`, `4.9`, `4.10`, `4.11`, `4.12`, `4.13`처럼 정책/구현/검증 순서가 실제로 갈리는 parent에만 둔다.
 5. S15는 `3.7~3.7.5` Sprint 2 planning gate와 Go/No-Go handoff를 거쳐 `4.10` Sprint 3 primary 구현/결정 row와 `4.10.1~4.10.4` 실행 row로 진행한다.
-6. 검색, 첨부, permanent delete처럼 정책 결정이 필요한 항목은 decision row를 선행한다.
+6. 검색과 permanent delete처럼 정책 결정이 필요한 항목은 decision row를 선행한다. attachment는 확정된 WBS 4.11 contract를 따른다.
 7. 요구사항추적표 primary WBS ID는 Level 3 row가 추가돼도 parent row를 유지한다.
 8. Gate 1 요구사항추적표 scope/status/boundary, Gate 2 canonical 문서 반영, Gate 3 WBS rewrite, Gate 4 요구사항추적표 WBS ID backfill은 완료된 기준선으로 둔다.
 
@@ -132,6 +132,6 @@ Sprint 3는 기존 `WBS 4.x Backlog Development`를 실행 가능한 Sprint 3 �
 | capacity | 공란 유지 |
 | Owner / Reviewer / 지원 담당 | 공란 유지 |
 | 검색 엔진 도입 여부 | WBS decision row에서 결정 |
-| 첨부 상세 정책 | WBS decision row에서 결정 |
+| 첨부 상세 정책 | WBS 4.11 private lifecycle contract 적용. production storage wiring과 retention/cleanup activation은 후속 결정 |
 | permanent delete 상세 정책 | WBS decision row에서 결정 |
 | Level 3 row 담당자/일정 | 공란 유지, Sprint 3 착수 합의 후 입력 |
