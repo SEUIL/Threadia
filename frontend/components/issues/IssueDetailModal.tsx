@@ -32,6 +32,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/Button";
+import { AttachmentControls } from "@/components/attachments/AttachmentControls";
 import { invitationErrorMessage } from "@/lib/invitation";
 import { issueService } from "@/services/issue.service";
 import type { IssuePriority, IssueResponse, IssueUpdateRequest } from "@/types/issue.types";
@@ -303,6 +304,7 @@ function IssueDetailDialog({
             </p>
           )}
 
+          <AttachmentControls targetType="ISSUE" targetId={issue.id} canMutate={canManage || isReporter} label="첨부 파일" />
           <div className="flex items-center justify-between gap-2 pt-1">
             <div className="flex items-center gap-3">
               {/* 서버 규칙 그대로 P/C 또는 등록자에게만 노출 */}
