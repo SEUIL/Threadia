@@ -3,20 +3,19 @@
 /*
  * ProfileEditModal — components/profile/ProfileEditModal.tsx
  *
- * 본인 프로필(nickname/avatarUrl) 수정 모달. WBS 4.2.2.
+ * 본인 프로필 nickname 수정과 S3 avatar attachment 관리를 제공한다. WBS 4.2.2.
  *
  * 화면정의서에 프로필 편집 전용 화면(S번호)이 없어서 전용 라우트 대신 모달로 뒀다 —
  * 레일 아바타를 누르면 어느 화면에서든 바로 열린다(사용자 결정).
  *
  * 서버 계약(API-명세서 §13.3, PATCH /api/v1/users/me/profile):
- *   - nickname/avatarUrl 중 하나 이상 필요(빈 객체는 400).
- *   - 생략한 필드는 기존 값 보존, avatarUrl: null은 명시적 제거.
+ *   - nickname 변경만 이 form에서 보낸다.
  *   - 미지원 필드는 거부(@JsonAnySetter) — 보낼 필드만 담아야 한다.
  * 그래서 이 폼은 **실제로 바뀐 필드만** 골라 보낸다. 바뀐 게 없으면 아예 호출하지
  * 않고 닫는다(빈 body로 400을 맞지 않게).
  *
- * 아바타는 파일 업로드가 아니라 URL 문자열 입력이다(명세서 §4: "프로필 사진은 파일
- * 업로드 API가 아니라 avatarUrl 저장으로 시작한다").
+ * 아바타 변경은 attachment API로만 수행한다. legacy avatarUrl은 이전 데이터의 표시
+ * fallback으로만 유지하며 새 값으로 저장하지 않는다.
  *
  * 구조: 열림 판정을 바깥(ProfileEditModal)에서 하고 폼 본체(ProfileEditDialog)는
  * 열렸을 때만 마운트한다. 닫으면 언마운트되므로 다시 열 때 defaultValues로 자연히
@@ -25,26 +24,25 @@
  * 스타일 규칙: style={{}} 금지, @theme 시멘틱 토큰 클래스만 사용.
  */
 import { useEffect, useRef, useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { isAxiosError } from "axios";
 import { TextField } from "@/components/ui/TextField";
 import { Button } from "@/components/ui/Button";
 import { UserAvatar } from "@/components/profile/UserAvatar";
+import { AttachmentControls } from "@/components/attachments/AttachmentControls";
 import { authService } from "@/services/auth.service";
 import { useAuth } from "@/contexts/AuthContext";
 import type { ApiError, ProfileUpdateRequest, UserSummary } from "@/types/auth.types";
 
-// 서버 검증 기준과 맞춘다(nickname 2~100·공백 불가, avatarUrl 최대 500).
-// avatarUrl은 서버가 URL 형식 검증을 하지 않으므로 여기서도 형식은 강제하지 않는다.
+// 서버 검증 기준과 맞춘다(nickname 2~100·공백 불가).
 const profileSchema = z.object({
   nickname: z
     .string()
     .trim()
     .min(2, "닉네임은 2자 이상이어야 합니다")
     .max(100, "닉네임은 100자 이하여야 합니다"),
-  avatarUrl: z.string().trim().max(500, "이미지 주소는 500자 이하여야 합니다"),
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
@@ -56,17 +54,11 @@ function ProfileEditDialog({ user, onClose }: { user: UserSummary; onClose: () =
   const {
     register,
     handleSubmit,
-    control,
     formState: { errors, isSubmitting },
   } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
-    defaultValues: { nickname: user.nickname, avatarUrl: user.avatarUrl ?? "" },
+    defaultValues: { nickname: user.nickname },
   });
-
-  // 저장 전 미리보기용. watch() 대신 useWatch를 쓴다 — watch()가 돌려주는 함수는
-  // 안전하게 메모이즈할 수 없어 React Compiler가 이 컴포넌트 최적화를 건너뛴다.
-  const previewNickname = useWatch({ control, name: "nickname" });
-  const previewAvatarUrl = useWatch({ control, name: "avatarUrl" });
 
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -128,11 +120,6 @@ function ProfileEditDialog({ user, onClose }: { user: UserSummary; onClose: () =
     if (values.nickname !== user.nickname) {
       body.nickname = values.nickname;
     }
-    // 입력을 비우면 avatar 제거(null), 아니면 그 값. 기존과 같으면 안 보낸다.
-    const nextAvatarUrl = values.avatarUrl === "" ? null : values.avatarUrl;
-    if (nextAvatarUrl !== (user.avatarUrl ?? null)) {
-      body.avatarUrl = nextAvatarUrl;
-    }
     if (Object.keys(body).length === 0) {
       onClose();
       return;
@@ -176,13 +163,14 @@ function ProfileEditDialog({ user, onClose }: { user: UserSummary; onClose: () =
         {/* 현재 입력 기준 미리보기 — 저장 전에 어떻게 보일지 확인 */}
         <div className="mt-5 flex items-center gap-3">
           <UserAvatar
-            nickname={previewNickname || user.nickname}
-            avatarUrl={previewAvatarUrl || null}
+            nickname={user.nickname}
+            avatarUrl={user.avatarUrl}
+            userId={user.id}
             className="h-12 w-12 text-sm"
           />
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-foreground">
-              {previewNickname || user.nickname}
+              {user.nickname}
             </p>
             {/* email은 이 endpoint에서 수정할 수 없다(명세서 §13.3) — 참고용 표시만 */}
             <p className="truncate text-xs text-muted">{user.email}</p>
@@ -199,14 +187,7 @@ function ProfileEditDialog({ user, onClose }: { user: UserSummary; onClose: () =
             hint={errors.nickname?.message}
             {...register("nickname")}
           />
-          <TextField
-            id="profile-avatar-url"
-            label="프로필 사진 주소"
-            placeholder="https://.../profile.png"
-            hint={errors.avatarUrl?.message ?? "비워두면 프로필 사진을 사용하지 않습니다"}
-            {...register("avatarUrl")}
-          />
-
+          <AttachmentControls targetType="USER_AVATAR" targetId={user.id} canMutate label="프로필 사진 파일" />
           <div className="flex justify-end gap-2">
             <button
               type="button"
