@@ -28,6 +28,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { TextField } from "@/components/ui/TextField";
+import { AttachmentControls, AttachmentImage } from "@/components/attachments/AttachmentControls";
 import { companyService } from "@/services/company.service";
 import { departmentService } from "@/services/department.service";
 import { invitationErrorMessage } from "@/lib/invitation";
@@ -229,6 +230,14 @@ export default function CompanySettingsPage() {
               수정
             </button>
           )}
+        </div>
+
+        <div className="mt-4 flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-primary-subtle text-sm font-bold text-primary">
+            <AttachmentImage targetType="COMPANY_LOGO" targetId={company.id} fallbackUrl={company.logoUrl} alt={`${company.name} 로고`} className="h-full w-full object-cover" />
+            {!company.logoUrl && company.name.slice(0, 1)}
+          </span>
+          <AttachmentControls targetType="COMPANY_LOGO" targetId={company.id} canMutate compact label="회사 로고" />
         </div>
 
         {editError && <p className="mt-2 text-xs text-destructive">{editError}</p>}
