@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-15  
 > **최종 수정**: 2026-07-21
-> **버전**: v2.7 WBS 4.5.1.1 Thread 미자동생성 정책 반영
+> **버전**: v2.8 WBS 4.5.1.1 Message-to-Issue 및 WBS 4.11 private attachment lifecycle 계약 병합 반영
 > **상태**: 확정
 > **태그**: erd, db, schema, auth, invitation
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
@@ -13,7 +13,7 @@
 
 > **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows다. DB schema는 `docs/03-design/ERD.md`와 `db/schema.sql`을 기준으로 관리하고, Spring Boot/JPA는 schema 생성이 아니라 mapping 검증에 사용한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
-> **Sprint 3 기준선 메모**: 현재 ERD 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, decision-needed, 유지 보류 항목을 분리한다. S15 `4.10.1` support case, `4.10.3` typed system settings와 `4.10.4` Backend lifecycle/audit-read schema를 반영한다. `4.8.1` notification core는 기존 DDL을 사용한다. producer matrix, preferences, enforcement, dashboard, Frontend, retention/cleanup과 나머지 decision-needed 항목은 이 schema 범위 밖이다.
+> **Sprint 3 기준선 메모**: 현재 ERD 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, decision-needed, 유지 보류 항목을 분리한다. S15 `4.10.1` support case, `4.10.3` typed system settings, `4.10.4` Backend lifecycle/audit-read와 `4.11` attachment schema를 반영한다. `4.8.1` notification core는 기존 DDL을 사용한다. producer matrix, preferences, enforcement, dashboard, Frontend, attachment retention/cleanup activation과 나머지 decision-needed 항목은 이 schema 범위 밖이다.
 
 
 ## 0. DB schema 관리 기준
@@ -62,6 +62,7 @@ Spring Boot JPA Entity는 DB를 자동 생성하거나 수정하는 기준이 �
 | 이슈 | `issue_status_history` | 이슈 상태 변경 이력 | Sprint 3 후보 |
 | 문서 | `documents` | Markdown 문서 및 회의록. version/revision exact schema는 Sprint 3 decision-needed | Sprint 3 후보 |
 | 문서 | `document_issue_links` | 문서와 이슈 양방향 연결 | Sprint 3 후보 |
+| 첨부 | `attachments` | private object metadata와 upload lifecycle. `DOCUMENT`는 문서 본문이 아닌 문서 resource를 가리킴 | WBS 4.11 Backend 계약 |
 | 채팅 | `messages` | 프로젝트 채팅 메시지 | Sprint 3 후보 |
 | 채팅 | `project_chat_member_states` | 프로젝트 채팅 읽음 위치 | Sprint 3 후보 |
 | DM | `direct_message_rooms` | 1:1 DM 방. participants 일반화는 이번 개발 기간 보류이며 향후 재검토 | Sprint 3 후보 |
@@ -107,6 +108,10 @@ erDiagram
     projects ||--o{ threads : "보유"
     projects ||--o{ activity_events : "기록"
     projects ||--o| project_dashboard_summaries : "요약"
+    users ||--o{ attachments : "생성"
+    companies ||--o{ attachments : "범위"
+    attachments ||--o| users : "avatar 참조"
+    attachments ||--o| companies : "logo 참조"
 
     threads |o--o{ messages : "연결"
 
@@ -156,6 +161,7 @@ erDiagram
 | password_hash | VARCHAR(255) | NULL | 로컬 로그인 비밀번호 hash. 소셜 전용 계정은 NULL 가능 |
 | nickname | VARCHAR(100) | NOT NULL | 표시 이름 |
 | avatar_url | VARCHAR(500) | NULL | 프로필 사진 URL |
+| avatar_attachment_id | BIGINT | FK → attachments.id, NULL | 현재 managed avatar attachment |
 | status | ENUM('ACTIVE','SUSPENDED','DELETED') | NOT NULL | 계정 상태 |
 | created_at | DATETIME | NOT NULL | 생성 시각 |
 | updated_at | DATETIME | NOT NULL | 수정 시각 |
@@ -368,6 +374,7 @@ summary table은 원본이 아니라 read model이다. 원본은 `issues`, `docu
 | description | TEXT | NULL | 회사 설명 |
 | industry_category | VARCHAR(100) | NULL | 업종 |
 | logo_url | VARCHAR(500) | NULL | 회사 로고 URL |
+| logo_attachment_id | BIGINT | FK → attachments.id, NULL | 현재 managed logo attachment |
 | status | VARCHAR(50) | NOT NULL | 회사 사용 상태. enum 값은 `schema.sql` 작성 전 최종 확정 |
 | created_by_user_id | BIGINT | FK -> users.id, NOT NULL | 회사 생성자. 최초 `COMPANY_ADMIN` 기준 |
 | created_at | DATETIME | NOT NULL | 생성 시각 |
@@ -538,6 +545,32 @@ summary table은 원본이 아니라 read model이다. 원본은 `issues`, `docu
 - 문서 영구 삭제는 Sprint 3 decision-needed이며, 참조 무결성, audit, 보존 기간, 권한 기준 결정 전까지 schema 계약을 추가하지 않는다.
 - optimistic locking용 version/revision column과 document versioning table 여부는 Sprint 3 decision-needed다. `DOCUMENT_VERSION_CONFLICT`는 API boundary로만 관리하고, exact schema는 선행 결정 후 반영한다.
 - 문서 수정 event는 `notification_events`에서 판단한다.
+
+### 5.9-A attachments
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | BIGINT | PK | attachment ID |
+| company_id | BIGINT | FK → companies.id, NULL | company-scoped target의 회사 범위. avatar는 NULL 가능 |
+| created_by_user_id | BIGINT | FK → users.id, NOT NULL | initiate 사용자 |
+| target_type | ENUM | NOT NULL | `DOCUMENT`, `ISSUE`, `MESSAGE`, `THREAD_COMMENT`, `DIRECT_MESSAGE`, `USER_AVATAR`, `COMPANY_LOGO`, `BINARY_DOCUMENT` |
+| target_id | BIGINT | NOT NULL | target resource ID. `DOCUMENT`/`BINARY_DOCUMENT`는 document ID를 사용하며 document body를 저장하지 않음 |
+| object_key | VARCHAR(500) | UNIQUE, NOT NULL | private storage object key |
+| original_filename | VARCHAR(255) | NOT NULL | path/control 문자를 제거한 원본 파일명 |
+| content_type | VARCHAR(255) | NOT NULL | upload content type |
+| content_length | BIGINT | NOT NULL | 최대 104,857,600 bytes(100MB) |
+| checksum_sha256 | VARCHAR(64) | NOT NULL | object 검증 checksum |
+| status | ENUM('UPLOADING','READY','DELETED') | NOT NULL | upload lifecycle 상태 |
+| completed_at | DATETIME | NULL | complete 검증 완료 시각 |
+| deleted_at | DATETIME | NULL | logical delete 시각 |
+| created_at | DATETIME | NOT NULL | 생성 시각 |
+| updated_at | DATETIME | NOT NULL | 수정 시각 |
+
+- INDEX (`target_type`, `target_id`, `status`, `created_at`), INDEX (`status`, `deleted_at`), INDEX (`company_id`), INDEX (`created_by_user_id`).
+- `DOCUMENT`는 Markdown 본문이 아니라 document resource 자체를 의미하고, `BINARY_DOCUMENT`는 같은 document resource에 연결된 별도 binary attachment target이다.
+- polymorphic `target_type`/`target_id`의 존재와 tenant/project/DM visibility, 작성자 또는 project/company admin mutation, avatar owner-only, company-logo company-admin 인가는 service policy로 검증한다.
+- `USER_AVATAR`, `COMPANY_LOGO`는 `image/*` content type만 허용한다.
+- fresh local DB는 `db/schema.sql` clean drop/recreate로 `attachments`, avatar/logo reference column과 FK를 함께 적용한다. 기존 persistent DB에는 자동 migration을 추가하지 않는다. `scripts/ssm-delivery/attachment-storage-additive.sql`은 승인된 operator가 실행하는 one-time additive artifact이며 deployment automation이 호출하지 않는다. production bucket/IAM/CORS/network/SSM/CI/CD wiring은 이 schema 경로에 포함하지 않는다.
 
 ### 5.10 document_issue_links
 
@@ -737,6 +770,7 @@ DB FK와 CHECK만으로 표현하기 어려운 tenant/project/다형성 정합�
 | `dm_room_user_states.user_id`가 해당 DM room 참여자인지 | DM 읽음 위치는 room 참여자만 가질 수 있다. |
 | `last_read_message_id`가 같은 project/room의 메시지인지 | FK는 메시지 존재만 보장한다. |
 | `threads`, `activity_events`, `notification_events`의 `target_type/target_id`가 실제 대상과 같은 project를 가리키는지 | 다형성 target은 FK로 직접 강제할 수 없다. |
+| `attachments.target_type/target_id`가 실제 대상과 같은 tenant/project/DM visibility를 갖는지 | 다형성 target은 FK로 직접 강제할 수 없다. target별 read/mutation 권한은 service policy가 담당한다. |
 | `invitations`의 pending 중복 초대 방지와 project-company 소속 정합성 | 상태 조건부 unique와 cross-table 소속 검증은 service policy가 담당한다. |
 
 ---
@@ -748,7 +782,7 @@ DB FK와 CHECK만으로 표현하기 어려운 tenant/project/다형성 정합�
 | 항목 | 현재 경계 |
 |---|---|
 | S15 후속 범위 | WBS `4.10.4` Backend lifecycle/audit-read까지 위 schema에 반영했다. 사용자/회사 enforcement, dashboard, notification 확장, Frontend, retention/cleanup schema는 후속 결정 전 추가하지 않는다. |
-| Attachment | S3 presigned URL, metadata, 권한, 크기, MIME 정책 결정 전까지 `attachments` table 계약을 추가하지 않는다. |
+| Attachment | `attachments` metadata, private presigned lifecycle, target/인가, 100MB와 avatar/logo image-only 계약은 반영했다. production storage wiring과 retention/cleanup activation은 후속 결정 전 추가하지 않는다. |
 | Document versioning | optimistic locking 우선안은 decision-needed다. `documents.version` column 또는 별도 version table 여부는 미정이다. |
 | Advanced DM | 1:1 DM 현재 schema를 유지한다. participants table과 read receipt schema는 이번 개발 기간에 추가하지 않으며 향후 재검토한다. |
 | PROJECT notification scope | GLOBAL preference 계약을 유지한다. PROJECT scope column/FK/index는 `PROJECT_NOTIFICATION_SCOPE_DEFERRED` API boundary이며 요구사항추적표 primary WBS row로 backfill하지 않는다. |
@@ -772,7 +806,7 @@ DB FK와 CHECK만으로 표현하기 어려운 tenant/project/다형성 정합�
 - `issues` 정렬용 position 필드 관리 방식.
 - `threads`는 자동 생성하지 않는다. 대상별 대표 Thread는 명시적 get-or-create API로만 생성한다.
 - `activity_events`와 `notification_events`는 분리 운영한다. activity 이벤트가 notification 이벤트를 생성하는 조건은 구현 단계에서 이벤트별로 제한한다.
-- 범용 attachments 테이블과 S3 presigned URL 상세 정책은 Sprint 3 decision-needed로 확정.
+- WBS `4.11` attachment metadata와 private presigned lifecycle은 구현 계약으로 유지한다. production storage wiring과 retention/cleanup activation은 후속 결정으로 둔다.
 - S15 WBS `4.10.1`, `4.10.3`, `4.10.4` Backend는 구현 기준으로 유지한다. enforcement, dashboard/notification 확장, Frontend, retention/cleanup exact schema는 후속 결정으로 유지한다.
 - document optimistic locking용 exact schema는 Sprint 3 decision-needed로 확정.
 - DM participants/read receipt schema는 이번 개발 기간 보류로 두고 향후 재검토한다. PROJECT notification scope schema는 Sprint 3 decision-needed로 유지한다.
