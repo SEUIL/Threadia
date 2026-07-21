@@ -50,6 +50,20 @@ public interface CompanyMemberRepository extends JpaRepository<CompanyMember, Lo
 			@Param("departmentId") Long departmentId,
 			@Param("q") String q);
 
+	@Query("""
+			select companyMember
+			from CompanyMember companyMember
+			join fetch companyMember.user user
+			where companyMember.company.id = :companyId
+			  and companyMember.status = com.threadia.backend.company.domain.CompanyMemberStatus.ACTIVE
+			  and user.status = com.threadia.backend.auth.domain.UserStatus.ACTIVE
+			  and user.id <> :callerUserId
+			order by user.nickname asc, user.id asc
+			""")
+	List<CompanyMember> findDirectMessageCandidates(
+			@Param("companyId") Long companyId,
+			@Param("callerUserId") Long callerUserId);
+
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("""
 			select companyMember
