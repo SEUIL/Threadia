@@ -1,6 +1,7 @@
 import apiClient from "@/lib/axios";
 import type { ApiResponse } from "@/types/auth.types";
 import type {
+  DirectMessageCandidatesData,
   DirectMessageData,
   DirectMessageReadData,
   DirectMessageRoomData,
@@ -10,6 +11,12 @@ import type {
 } from "@/types/direct-message.types";
 
 export const directMessageService = {
+  /** 새 DM 시작 후보 목록 — 일반 ACTIVE MEMBER도 호출 가능(이슈 #208, PR #213). */
+  listCandidates: (companyId: string | number) =>
+    apiClient.get<ApiResponse<DirectMessageCandidatesData>>(
+      `/api/v1/companies/${companyId}/direct-messages/candidates`
+    ),
+
   listRooms: (companyId: string | number) =>
     apiClient.get<ApiResponse<DirectMessageRoomsData>>(
       `/api/v1/companies/${companyId}/direct-messages/rooms`

@@ -10,13 +10,19 @@
  *  5. mark-read가 실패하면 배지가 그대로 남는다(재리뷰 반영).
  *
  * 3차 재리뷰(pktewon) 반영 — 프론트에서 고칠 수 있는 항목만 커버한다(이슈 #208
- * 로 분리한 항목은 별도 — 일반 MEMBER의 DM 상대 후보 조회, 정지된 사용자 필터링):
+ * 로 분리했던 항목은 별도 — 일반 MEMBER의 DM 상대 후보 조회, 정지된 사용자 필터링):
  *  6. mark-read 응답의 실제 unreadCount(0이 아닐 수 있음)가 배지에 그대로 반영된다.
  *  7. 현재 회사의 room 목록에 없는 roomId로 접근하면 에러를 보여주고 메시지를
  *     노출하지 않는다(다른 회사 room 뒤섞임 방지).
  *  8. S14 구성원 관리의 DM 버튼은 user.id를 room.id로 오인하지 않고
  *     get-or-create로 실제 room을 찾아 이동한다.
  *  9. room 목록 재조회가 실패해도 기존 레일(아이콘)은 유지된다.
+ *
+ * 이슈 #208 후속(PR #213, PR #173 이어서): openPicker()가 이제
+ * `GET .../direct-messages/candidates`를 쓴다 — 이 테스트 파일의 mockApi()는
+ * 이미 `role: "MEMBER"`로 로그인시키므로, "+ 버튼으로 새 대화를 시작하면" 테스트가
+ * 일반 MEMBER도 후보 조회가 되는 것까지 같이 검증한다(COMPANY_ADMIN 전용
+ * company-members endpoint를 더 이상 쓰지 않음).
  */
 import { expect, test, type Page } from "@playwright/test";
 
@@ -108,15 +114,13 @@ async function mockApi(
       return;
     }
 
-    if (request.method() === "GET" && url.pathname === "/api/v1/companies/1/company-members") {
+    if (request.method() === "GET" && url.pathname === "/api/v1/companies/1/direct-messages/candidates") {
       await json(
         apiResponse({
-          companyMembers: (options.candidates ?? []).map((c) => ({
-            id: c.id,
-            role: "MEMBER",
-            status: "ACTIVE",
-            departmentId: null,
-            user: { id: c.userId, email: c.email, nickname: c.nickname, avatarUrl: null },
+          candidates: (options.candidates ?? []).map((c) => ({
+            id: c.userId,
+            nickname: c.nickname,
+            avatarUrl: null,
           })),
         })
       );

@@ -51,3 +51,19 @@ export interface DirectMessageReadData {
 export interface DirectMessageUnreadCountData {
   unreadCount: number;
 }
+
+/**
+ * GET /api/v1/companies/{companyId}/direct-messages/candidates — 새 DM 시작 후보
+ * (이슈 #208, PR #213). ACTIVE 회사 구성원 + ACTIVE user만, self 제외, nickname
+ * ASC 정렬로 서버가 이미 필터링해서 준다. 기존 DM room 상대는 포함돼서 오므로
+ * 프론트에서 room 상대만 별도로 걸러낸다.
+ */
+export interface DirectMessageCandidateResponse {
+  id: number;
+  nickname: string;
+  avatarUrl: string | null;
+}
+
+export interface DirectMessageCandidatesData {
+  candidates: DirectMessageCandidateResponse[];
+}

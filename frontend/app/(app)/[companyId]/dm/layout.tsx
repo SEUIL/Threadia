@@ -13,26 +13,32 @@
  *     제외, 아직 방이 없는 사람만)를 골라 get-or-create로 방을 연다.
  *   - unread가 있는 방은 아바타에 점 배지를 보여준다(설계 메모: unread count만
  *     다룬다, read receipt는 제외).
+ *
+ * 이슈 #208 후속(PR #213): openPicker()가 원래 쓰던 `companyMemberService.list()`
+ * 는 COMPANY_ADMIN 전용이라 일반 MEMBER는 "+" 눌러도 구성원 목록을 못 받아왔고,
+ * 응답에 UserStatus가 없어 정지된 사용자도 후보에 섞여 나올 수 있었다. 전용
+ * `GET .../direct-messages/candidates`로 교체한다 — 서버가 이미 ACTIVE membership
+ * + ACTIVE user + self 제외까지 다 걸러서 준다. 기존 DM room 상대는 응답에
+ * 포함되므로(계약), room 상대 제외만 프론트에서 유지한다.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useParams, useRouter } from "next/navigation";
-import { companyMemberService } from "@/services/company-member.service";
 import { directMessageService } from "@/services/direct-message.service";
-import { useAuth } from "@/contexts/AuthContext";
 import { DmRoomsProvider } from "@/contexts/DmRoomsContext";
-import type { CompanyMemberResponse } from "@/types/company.types";
-import type { DirectMessageRoomResponse } from "@/types/direct-message.types";
+import type {
+  DirectMessageCandidateResponse,
+  DirectMessageRoomResponse,
+} from "@/types/direct-message.types";
 
 export default function DmLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { companyId } = useParams<{ companyId: string }>();
-  const { user } = useAuth();
 
   const [rooms, setRooms] = useState<DirectMessageRoomResponse[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [candidates, setCandidates] = useState<CompanyMemberResponse[]>([]);
+  const [candidates, setCandidates] = useState<DirectMessageCandidateResponse[]>([]);
   const [pickerError, setPickerError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
 
@@ -105,13 +111,9 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
     setPickerError(null);
     setPickerOpen((open) => !open);
     try {
-      const { data } = await companyMemberService.list(companyId, { status: "ACTIVE" });
+      const { data } = await directMessageService.listCandidates(companyId);
       const roomPeerIds = new Set(rooms.map((r) => r.otherUser.id));
-      setCandidates(
-        data.data.companyMembers.filter(
-          (member) => member.user.id !== user?.id && !roomPeerIds.has(member.user.id)
-        )
-      );
+      setCandidates(data.data.candidates.filter((candidate) => !roomPeerIds.has(candidate.id)));
     } catch {
       setPickerError("구성원 목록을 불러오지 못했습니다.");
     }
@@ -197,18 +199,18 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
             </p>
             {pickerError && <p className="px-2 py-1 text-xs text-destructive">{pickerError}</p>}
             <ul className="max-h-64 overflow-y-auto">
-              {candidates.map((member) => (
-                <li key={member.id}>
+              {candidates.map((candidate) => (
+                <li key={candidate.id}>
                   <button
                     type="button"
-                    onClick={() => void startDm(member.user.id)}
+                    onClick={() => void startDm(candidate.id)}
                     disabled={starting}
                     className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground transition-colors duration-fast hover:bg-primary-subtle disabled:opacity-50"
                   >
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full avatar-ring text-[11px] font-semibold">
-                      {member.user.nickname.slice(0, 1)}
+                      {candidate.nickname.slice(0, 1)}
                     </span>
-                    {member.user.nickname}
+                    {candidate.nickname}
                   </button>
                 </li>
               ))}
