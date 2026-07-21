@@ -1,0 +1,115 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Dedicated private attachment storage for the Threadia public dual-image Compose backend.
+
+Parameters:
+  ExistingEc2RoleName:
+    Type: String
+    Description: Existing public dual-image Compose backend EC2 role name.
+    AllowedPattern: '^[A-Za-z0-9+=,.@_-]{1,64}$'
+  AllowedCorsOrigin:
+    Type: String
+    Description: Approved HTTPS browser origin for direct presigned attachment transfers.
+    AllowedPattern: '^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$'
+  AttachmentNoncurrentVersionRetentionDays:
+    Type: Number
+    Default: 30
+    MinValue: 7
+    MaxValue: 365
+
+Resources:
+  AttachmentBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub threadia-attachments-${AWS::AccountId}-${AWS::Region}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods: [GET, PUT]
+            AllowedOrigins: [!Ref AllowedCorsOrigin]
+            AllowedHeaders:
+              - content-type
+              - x-amz-checksum-sha256
+              - x-amz-content-sha256
+              - x-amz-date
+              - x-amz-security-token
+            ExposedHeaders: [ETag, x-amz-checksum-sha256]
+            MaxAge: 300
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireNoncurrentAttachmentVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: !Ref AttachmentNoncurrentVersionRetentionDays
+          - Id: RemoveExpiredDeleteMarkers
+            Status: Enabled
+            ExpiredObjectDeleteMarker: true
+          - Id: AbortIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: ManagedBy
+          Value: CloudFormation
+        - Key: Purpose
+          Value: private-attachments
+  ExistingEc2AttachmentStoragePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub ${AWS::StackName}-attachment-object-storage
+      Roles: [!Ref ExistingEc2RoleName]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AccessOnlyDedicatedAttachmentObjects
+            Effect: Allow
+            Action: [s3:GetObject, s3:PutObject, s3:DeleteObject]
+            Resource: !Sub ${AttachmentBucket.Arn}/*
+  AttachmentBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref AttachmentBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !GetAtt AttachmentBucket.Arn
+              - !Sub ${AttachmentBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+          - Sid: AllowExactBackendRoleAttachmentObjects
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ExistingEc2RoleName}
+            Action: [s3:GetObject, s3:PutObject, s3:DeleteObject]
+            Resource: !Sub ${AttachmentBucket.Arn}/*
+
+Outputs:
+  AttachmentBucketName:
+    Value: !Ref AttachmentBucket
+  AttachmentBucketArn:
+    Value: !GetAtt AttachmentBucket.Arn
+  AttachmentRuntimeParameterNames:
+    Description: Root-only non-secret public Compose runtime configuration names.
+    Value: THREADIA_STORAGE_S3_REGION,THREADIA_STORAGE_S3_BUCKET,THREADIA_STORAGE_S3_PATH_STYLE,THREADIA_STORAGE_S3_PRESIGN_TTL,THREADIA_STORAGE_ORPHAN_CLEANUP_ENABLED,THREADIA_STORAGE_ORPHAN_CLEANUP_DELAY,THREADIA_STORAGE_UPLOAD_CLEANUP_DELAY
