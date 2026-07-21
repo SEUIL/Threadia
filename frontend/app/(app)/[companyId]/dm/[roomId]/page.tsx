@@ -23,18 +23,24 @@
  * target)과 UserAvatar(attachment 기반 프로필 이미지)를 붙였다. 첨부 삭제는
  * 작성자 본인 또는 COMPANY_ADMIN만(canMutate) — 메시지 자체 삭제는 여전히
  * 지원하지 않는다(위 설계 메모).
+ *
+ * React Query 마이그레이션(이슈 #217, PR #173 4차 재리뷰 사후):
+ *   - room 목록은 dm/layout.tsx와 같은 useDmRoomsQuery(같은 queryKey)를 써서
+ *     캐시를 공유한다 — 이전엔 DmRoomsContext로 layout이 가진 rooms를
+ *     내려받았는데, 이제 이 화면이 직접 같은 쿼리를 구독하면 된다.
+ *   - blocker 1(room.companyId 검증 전 messages를 먼저 받아오면 안 됨)은
+ *     useDmMessagesQuery의 enabled를 "room 검증 통과 여부"로 걸어서 해결한다
+ *     — Promise.all 병렬 호출을 순차 호출로 바꿨던 예전 방식보다 선언적이다.
+ *   - mark-read는 useMarkDmRoomReadMutation을 직접 호출한다. 성공하면 그
+ *     mutation이 dm-rooms 캐시를 patch해서 rail 배지가 그냥 갱신된다 —
+ *     markRoomRead()를 Context로 끌어올려 부르던 방식이 필요 없어졌다.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { AttachmentControls } from "@/components/attachments/AttachmentControls";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 import { useAuth } from "@/contexts/AuthContext";
-import { useDmRooms } from "@/contexts/DmRoomsContext";
-import { invitationErrorMessage } from "@/lib/invitation";
-import { directMessageService } from "@/services/direct-message.service";
-import type { DirectMessageResponse, DirectMessageRoomResponse } from "@/types/direct-message.types";
-
-type LoadState = "loading" | "ready" | "error";
+import { useDmRoomsQuery, useDmMessagesQuery, useMarkDmRoomReadMutation, useSendDmMessageMutation } from "@/hooks/useDmQueries";
 
 function formatTime(createdAt: string) {
   return new Date(createdAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
@@ -43,124 +49,80 @@ function formatTime(createdAt: string) {
 export default function DmRoomPage() {
   const params = useParams<{ companyId: string; roomId: string }>();
   const { user, companyMemberships } = useAuth();
-  const { markRoomRead } = useDmRooms();
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  const [pageState, setPageState] = useState<LoadState>("loading");
-  const [pageError, setPageError] = useState<string | null>(null);
-  const [room, setRoom] = useState<DirectMessageRoomResponse | null>(null);
-  const [messages, setMessages] = useState<DirectMessageResponse[]>([]);
+  const roomId = Number(params.roomId);
+  const isValidRoomId = Number.isInteger(roomId) && roomId > 0;
+
+  const roomsQuery = useDmRoomsQuery(params.companyId);
+  const room = useMemo(
+    () => roomsQuery.data?.find((r) => r.id === roomId) ?? null,
+    [roomsQuery.data, roomId]
+  );
+  // 4차 재리뷰 blocker 1: room이 목록에 "있어도" companyId가 다르면(백엔드
+  // 스코핑을 우회하는 응답이 와도 대비) 접근 불가로 처리한다. 이 판정이
+  // 끝나기 전에는 messages 쿼리를 아예 안 보낸다(enabled).
+  const roomValid = Boolean(room && room.companyId === Number(params.companyId));
+
+  const messagesQuery = useDmMessagesQuery(roomId, isValidRoomId && roomsQuery.isSuccess && roomValid);
+  const messages = messagesQuery.data ?? [];
+
+  const markReadMutation = useMarkDmRoomReadMutation(params.companyId);
+  const sendMutation = useSendDmMessageMutation(roomId);
 
   const [draft, setDraft] = useState("");
-  const [sending, setSending] = useState(false);
-  const [sendError, setSendError] = useState<string | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   const isCompanyAdmin =
     companyMemberships.find((membership) => membership.companyId === Number(params.companyId))?.role ===
     "COMPANY_ADMIN";
 
-  /*
-   * 재리뷰 반영(PR #173, pktewon):
-   *   - room 목록(`GET /companies/{companyId}/direct-messages/rooms`)에서 이
-   *     roomId를 찾지 못하면(다른 회사의 방이거나 참여자가 아닌 방) 상대 이름을
-   *     "알 수 없는 사용자"로 대충 보여주며 그대로 진행했다 — messages/markRead는
-   *     roomId만으로 호출되고 companyId를 검증하지 않아, URL을 바꿔치기하면 다른
-   *     회사 DM방의 메시지를 그대로 읽고 markRead까지 호출할 수 있었다. 이제
-   *     현재 companyId의 room 목록에 없는 roomId는 에러로 처리하고 메시지 조회
-   *     결과를 렌더링하지 않는다.
-   *   - 페이지를 벗어난 뒤(unmount) 뒤늦게 도착한 응답으로 markRead/setState가
-   *     실행되지 않도록 cancelled 가드를 추가한다.
-   *
-   * 4차 재리뷰 반영(pktewon, blocker 1): "room 목록에 있는지"만으로는 부족했다
-   * — room.companyId를 직접 비교하는 invariant가 없으면, listRooms가 어떤
-   * 이유로든(백엔드 스코핑 우회, 캐시 등) 다른 회사 room을 섞어 돌려주는
-   * 경우까지는 못 막는다. room.companyId === routeCompanyId를 직접 검증하고,
-   * 그 검증이 끝난 뒤에만 messages API를 호출한다(Promise.all 병렬 호출 금지
-   * — 검증 전에 이미 다른 회사 메시지를 받아와 버리면 검증 자체가 무의미하다).
-   */
-  const load = useCallback(
-    async (isCancelled: () => boolean) => {
-      try {
-        const roomsResponse = await directMessageService.listRooms(params.companyId);
-        if (isCancelled()) return;
-
-        const loadedRoom = roomsResponse.data.data.rooms.find((r) => String(r.id) === params.roomId);
-        if (!loadedRoom || loadedRoom.companyId !== Number(params.companyId)) {
-          setPageError("존재하지 않거나 접근할 수 없는 대화방입니다.");
-          setPageState("error");
-          return;
-        }
-
-        const messagesResponse = await directMessageService.listMessages(params.roomId);
-        if (isCancelled()) return;
-
-        setPageError(null);
-        setRoom(loadedRoom);
-        const list = messagesResponse.data.data.messages;
-        setMessages(list);
-        setPageState("ready");
-
-        const latest = list[list.length - 1];
-        if (latest) {
-          try {
-            const { data } = await directMessageService.markRead(params.roomId, {
-              lastReadDirectMessageId: latest.id,
-            });
-            if (isCancelled()) return;
-            markRoomRead(Number(params.roomId), data.data.unreadCount);
-          } catch {
-            // unread badge 갱신 실패는 대화 화면 기능에 영향 없다. 레일 배지도
-            // 실제로 안 읽힌 상태를 유지해야 하므로 markRoomRead를 호출하지 않는다.
-          }
-        }
-      } catch (error) {
-        if (isCancelled()) return;
-        setPageError(invitationErrorMessage(error, "대화를 불러오지 못했습니다."));
-        setPageState("error");
-      }
-    },
-    [params.companyId, params.roomId, markRoomRead]
-  );
+  // 이 room의 이 메시지까지는 이미 mark-read를 보냈다 — 같은 메시지로
+  // 중복 호출하지 않는다(messagesQuery가 refetch될 때마다 다시 부르면 안 됨).
+  const lastMarkedMessageIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    lastMarkedMessageIdRef.current = null;
+  }, [roomId]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      await load(() => cancelled);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [load]);
+    if (!messagesQuery.isSuccess) return;
+    const latest = messages.at(-1);
+    if (!latest || lastMarkedMessageIdRef.current === latest.id) return;
+    lastMarkedMessageIdRef.current = latest.id;
+    markReadMutation.mutate({ roomId, lastReadDirectMessageId: latest.id });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- markReadMutation은 매 렌더 새 객체라 deps에 넣으면 무한 재실행된다.
+  }, [messagesQuery.isSuccess, messages, roomId]);
 
   useEffect(() => {
-    if (pageState === "ready") scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages.length, pageState]);
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }, [messages.length]);
 
-  const send = async () => {
+  const send = useCallback(async () => {
     const content = draft.trim();
-    if (!content || sending) return;
-    setSendError(null);
-    setSending(true);
+    if (!content || sendMutation.isPending) return;
     try {
-      const { data } = await directMessageService.send(params.roomId, { content });
-      setMessages((prev) => [...prev, data.data.message]);
+      await sendMutation.mutateAsync(content);
       setDraft("");
-    } catch (error) {
-      setSendError(invitationErrorMessage(error, "메시지 전송에 실패했습니다."));
-    } finally {
-      setSending(false);
+    } catch {
+      // 에러는 sendMutation.error로 아래에서 그대로 보여준다.
     }
-  };
+  }, [draft, sendMutation]);
 
-  if (pageState === "loading") {
+  if (!isValidRoomId) {
+    return <div className="px-6 py-8 text-sm text-destructive">유효하지 않은 대화방입니다.</div>;
+  }
+
+  if (roomsQuery.isLoading || (roomValid && messagesQuery.isLoading)) {
     return <div className="px-6 py-8 text-sm text-muted">대화를 불러오는 중...</div>;
   }
 
-  if (pageState === "error") {
+  if (roomsQuery.isError || !roomValid || messagesQuery.isError) {
+    const message = roomsQuery.isError || messagesQuery.isError
+      ? "대화를 불러오지 못했습니다."
+      : "존재하지 않거나 접근할 수 없는 대화방입니다.";
     return (
       <div className="px-6 py-8">
         <div className="rounded-lg border border-destructive/30 bg-destructive-subtle px-4 py-6 text-center text-sm text-destructive">
-          {pageError}
+          {message}
         </div>
       </div>
     );
@@ -221,23 +183,23 @@ export default function DmRoomPage() {
       </div>
 
       <div className="px-5 pb-5">
-        {sendError && <p className="mb-2 text-xs text-destructive">{sendError}</p>}
+        {sendMutation.isError && <p className="mb-2 text-xs text-destructive">메시지 전송에 실패했습니다.</p>}
         <div className="flex items-center gap-2 rounded-xl bg-surface px-3 py-2 shadow-sm">
           <input
             aria-label="메시지 입력"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && void send()}
-            disabled={sending}
+            disabled={sendMutation.isPending}
             placeholder={`${peer.nickname}에게 메시지 보내기`}
             className="flex-1 bg-transparent text-sm text-foreground placeholder:text-placeholder focus:outline-none disabled:opacity-50"
           />
           <button
             onClick={() => void send()}
-            disabled={sending || !draft.trim()}
+            disabled={sendMutation.isPending || !draft.trim()}
             className="shrink-0 rounded-lg btn-gradient px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors duration-fast disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {sending ? "전송 중..." : "전송"}
+            {sendMutation.isPending ? "전송 중..." : "전송"}
           </button>
         </div>
       </div>
