@@ -9,6 +9,7 @@ import apiClient from "@/lib/axios";
 import type { ApiResponse } from "@/types/auth.types";
 import type {
   CompanyMemberData,
+  CompanyMemberRemoveData,
   CompanyMemberRole,
   CompanyMemberStatus,
   CompanyMembersData,
@@ -33,5 +34,15 @@ export const companyMemberService = {
     apiClient.patch<ApiResponse<CompanyMemberData>>(
       `/api/v1/companies/${companyId}/company-members/${companyMemberId}`,
       body
+    ),
+
+  /**
+   * soft remove(status=LEFT, departmentId=null) — 같은 회사 내 ACTIVE project
+   * membership도 REMOVED로 같이 전환된다. 자기 자신/마지막 ACTIVE COMPANY_ADMIN/
+   * 어느 프로젝트의 마지막 ACTIVE PROJECT_ADMIN 제거는 서버가 409로 막는다.
+   */
+  remove: (companyId: string | number, companyMemberId: number) =>
+    apiClient.delete<ApiResponse<CompanyMemberRemoveData>>(
+      `/api/v1/companies/${companyId}/company-members/${companyMemberId}`
     ),
 };

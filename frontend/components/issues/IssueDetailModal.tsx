@@ -19,6 +19,15 @@
  *     필요해서 이번에 응답에 추가했다.
  *   - trashed 이슈의 상태/내용 변경은 409라 복원 전에는 폼을 잠근다.
  *
+ * 연결 문서(화면정의서 §S05 "주요 데이터: 연결 문서" / "주요 액션: 관련 문서
+ * 연결/조회"): 문서 쪽 화면(`docs/[docId]/page.tsx`)엔 문서→이슈 연결/해제가
+ * 이미 있었지만 반대 방향(이슈 상세에서 연결 문서 조회)이 빠져 있었다 — 코드
+ * vs 화면정의서 감사 중 발견. 백엔드(`GET /issues/{issueId}/documents`)와
+ * 프론트 서비스 메서드(`documentService.documentsOfIssue`)는 이미 있었는데
+ * 호출하는 곳이 없었다. docs 페이지와 같은 패턴(연결 해제는 linkId가 필요해서
+ * 프로젝트 전체 링크 목록에서 documentId→linkId 매핑을 만들어 둔다)으로
+ * 이 모달에도 추가한다.
+ *
  * 구조: 열림 판정을 바깥에서 하고 폼 본체는 열렸을 때만 마운트한다 —
  * 닫으면 언마운트되므로 다시 열 때 defaultValues로 자연히 초기화된다
  * (effect로 reset하지 않아도 된다). ProfileEditModal과 같은 패턴이다.
@@ -33,7 +42,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/Button";
 import { invitationErrorMessage } from "@/lib/invitation";
+import { documentService } from "@/services/document.service";
 import { issueService } from "@/services/issue.service";
+import type { DocumentResponse } from "@/types/document.types";
 import type { IssuePriority, IssueResponse, IssueUpdateRequest } from "@/types/issue.types";
 import type { ProjectMemberResponse } from "@/types/project-member.types";
 
@@ -77,6 +88,13 @@ function IssueDetailDialog({
   const trashed = issue.trashedAt !== null;
   // 서버 규칙 그대로 — P/C 또는 등록자.
   const canTrash = canManage || isReporter;
+
+  const [linkedDocuments, setLinkedDocuments] = useState<DocumentResponse[]>([]);
+  const [linkIdByDocumentId, setLinkIdByDocumentId] = useState<Record<number, number>>({});
+  const [projectDocuments, setProjectDocuments] = useState<DocumentResponse[]>([]);
+  const [pickedDocumentId, setPickedDocumentId] = useState("");
+  const [docLinkError, setDocLinkError] = useState<string | null>(null);
+  const [docLinkBusy, setDocLinkBusy] = useState(false);
 
   const {
     register,
@@ -137,6 +155,79 @@ function IssueDetailDialog({
       trigger?.focus?.();
     };
   }, [onClose]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [documentsOfIssueRes, linksRes, projectDocumentsRes] = await Promise.all([
+          documentService.documentsOfIssue(issue.id),
+          documentService.listLinks(projectId),
+          documentService.list(projectId),
+        ]);
+        if (cancelled) return;
+        setLinkedDocuments(documentsOfIssueRes.data.data.documents);
+        const map: Record<number, number> = {};
+        for (const link of linksRes.data.data.links) {
+          if (link.issueId === issue.id) map[link.documentId] = link.id;
+        }
+        setLinkIdByDocumentId(map);
+        setProjectDocuments(projectDocumentsRes.data.data.documents);
+      } catch {
+        if (!cancelled) setDocLinkError("연결 문서를 불러오지 못했습니다.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [issue.id, projectId]);
+
+  const unlinkedProjectDocuments = projectDocuments.filter(
+    (doc) => doc.trashedAt === null && !linkedDocuments.some((linked) => linked.id === doc.id)
+  );
+
+  const linkDocument = async () => {
+    const documentId = Number(pickedDocumentId);
+    if (!documentId || docLinkBusy) return;
+    setDocLinkError(null);
+    setDocLinkBusy(true);
+    try {
+      await documentService.createLink(projectId, { documentId, issueId: issue.id });
+      const doc = projectDocuments.find((item) => item.id === documentId);
+      if (doc) setLinkedDocuments((prev) => [...prev, doc]);
+      const linksResponse = await documentService.listLinks(projectId);
+      const map: Record<number, number> = {};
+      for (const link of linksResponse.data.data.links) {
+        if (link.issueId === issue.id) map[link.documentId] = link.id;
+      }
+      setLinkIdByDocumentId(map);
+      setPickedDocumentId("");
+    } catch (err) {
+      setDocLinkError(invitationErrorMessage(err, "문서 연결에 실패했습니다."));
+    } finally {
+      setDocLinkBusy(false);
+    }
+  };
+
+  const unlinkDocument = async (documentId: number) => {
+    const linkId = linkIdByDocumentId[documentId];
+    if (!linkId || docLinkBusy) return;
+    setDocLinkError(null);
+    setDocLinkBusy(true);
+    try {
+      await documentService.deleteLink(linkId);
+      setLinkedDocuments((prev) => prev.filter((doc) => doc.id !== documentId));
+      setLinkIdByDocumentId((prev) => {
+        const next = { ...prev };
+        delete next[documentId];
+        return next;
+      });
+    } catch (err) {
+      setDocLinkError(invitationErrorMessage(err, "문서 연결 해제에 실패했습니다."));
+    } finally {
+      setDocLinkBusy(false);
+    }
+  };
 
   const onSubmit = async (values: IssueFormValues) => {
     setError(null);
@@ -302,6 +393,64 @@ function IssueDetailDialog({
               우선순위·담당자·마감일은 프로젝트 관리자만 변경할 수 있습니다.
             </p>
           )}
+
+          <div className="flex flex-col gap-2 border-t border-border pt-3">
+            <p className="text-xs font-medium text-muted">연결 문서</p>
+            {docLinkError && <p className="text-xs text-destructive">{docLinkError}</p>}
+            {linkedDocuments.length > 0 && (
+              <ul className="flex flex-col gap-1">
+                {linkedDocuments.map((doc) => (
+                  <li key={doc.id} className="flex items-center justify-between gap-2">
+                    <Link
+                      href={`/${companyId}/${projectId}/docs/${doc.id}`}
+                      className="min-w-0 truncate text-sm text-primary hover:underline"
+                    >
+                      {doc.title}
+                    </Link>
+                    {!trashed && (
+                      <button
+                        type="button"
+                        onClick={() => void unlinkDocument(doc.id)}
+                        disabled={docLinkBusy}
+                        className="shrink-0 text-xs text-muted transition-colors duration-fast hover:text-destructive disabled:opacity-50"
+                      >
+                        연결 해제
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {linkedDocuments.length === 0 && (
+              <p className="text-xs text-placeholder">연결된 문서가 없습니다.</p>
+            )}
+            {!trashed && (
+              <div className="flex gap-2">
+                <select
+                  aria-label="연결할 문서"
+                  value={pickedDocumentId}
+                  onChange={(e) => setPickedDocumentId(e.target.value)}
+                  disabled={docLinkBusy}
+                  className="min-w-0 flex-1 rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-foreground focus:border-ring focus:outline-none disabled:opacity-60"
+                >
+                  <option value="">문서 선택</option>
+                  {unlinkedProjectDocuments.map((doc) => (
+                    <option key={doc.id} value={doc.id}>
+                      {doc.title}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => void linkDocument()}
+                  disabled={docLinkBusy || !pickedDocumentId}
+                  className="shrink-0 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors duration-fast hover:bg-primary-subtle disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  연결
+                </button>
+              </div>
+            )}
+          </div>
 
           <div className="flex items-center justify-between gap-2 pt-1">
             <div className="flex items-center gap-3">
