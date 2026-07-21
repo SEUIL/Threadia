@@ -88,7 +88,7 @@ test("platform admin이면 레일에 '플랫폼 관리자' 진입점이 보이�
   await expect(platformNavLink(page)).toBeVisible();
   await platformNavLink(page).click();
 
-  await expect(page).toHaveURL(/\/platform$/);
+  await expect(page).toHaveURL(/\/platform\/support-cases$/);
   await expect(page.getByText("플랫폼 관리자 콘솔")).toBeVisible();
 });
 
