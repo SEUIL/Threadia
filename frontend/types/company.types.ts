@@ -96,3 +96,9 @@ export interface CompanyMembersData {
 export interface CompanyMemberData {
   companyMember: CompanyMemberResponse;
 }
+
+/** DELETE /companies/{companyId}/company-members/{companyMemberId} — soft remove(status=LEFT). */
+export interface CompanyMemberRemoveData {
+  removed: boolean;
+  removedProjectMemberCount: number;
+}

@@ -102,6 +102,22 @@ function BuildingIcon() {
   );
 }
 
+function HelpIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+      <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.6" />
+      <path
+        d="M9.8 9.5a2.2 2.2 0 1 1 3.3 1.9c-.7.4-1.1.9-1.1 1.6v.3"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="16.3" r="0.9" fill="currentColor" />
+    </svg>
+  );
+}
+
 function ShieldIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
@@ -162,6 +178,8 @@ function Rail({ companyId }: { companyId: string }) {
     // company-agnostic — 이미 소속된 회사 기준 레일에서도 다른 회사에서 온 초대를 받을 수 있다.
     { href: "/invitations", label: "받은 초대", icon: <MailIcon />, badge: pendingInvitationCount },
     { href: `/${companyId}/notifications`, label: "알림", icon: <BellIcon />, badge: unreadNotificationCount },
+    // company-agnostic — 문의는 회사 소속과 무관하게 로그인 사용자 본인 것만 다룬다.
+    { href: "/support", label: "문의하기", icon: <HelpIcon /> },
   ];
   // C(회사 관리자)만 회사 관리 메뉴가 보인다 (화면정의서 S03 메뉴 노출 규칙, 이전 AppShell과 동일)
   if (membership?.role === "COMPANY_ADMIN") {

@@ -100,6 +100,22 @@ function BuildingIcon() {
   );
 }
 
+function HelpIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+      <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.6" />
+      <path
+        d="M9.8 9.5a2.2 2.2 0 1 1 3.3 1.9c-.7.4-1.1.9-1.1 1.6v.3"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="16.3" r="0.9" fill="currentColor" />
+    </svg>
+  );
+}
+
 function ShieldIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
@@ -153,10 +169,11 @@ function HubRail() {
     router.push("/login");
   };
 
-  // company-agnostic한 "받은 초대"는 소속 회사가 없어도 항상 보인다 — 신규
-  // 유저가 첫 초대를 확인할 유일한 통로다.
+  // company-agnostic한 "받은 초대"/"문의하기"는 소속 회사가 없어도 항상 보인다
+  // — 신규 유저가 첫 초대를 확인하거나 문의를 남길 유일한 통로다.
   const items: NavItem[] = [
     { href: "/invitations", label: "받은 초대", icon: <MailIcon />, badge: pendingInvitationCount },
+    { href: "/support", label: "문의하기", icon: <HelpIcon /> },
   ];
   if (primaryMembership) {
     const { companyId, role } = primaryMembership;
