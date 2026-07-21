@@ -45,6 +45,7 @@ import com.threadia.backend.issue.domain.IssueStatus;
 import com.threadia.backend.issue.domain.IssueStatusHistory;
 import com.threadia.backend.issue.dto.IssueCreateRequest;
 import com.threadia.backend.issue.dto.IssueData;
+import com.threadia.backend.issue.dto.IssueFromMessageRequest;
 import com.threadia.backend.issue.dto.IssueStatusUpdateRequest;
 import com.threadia.backend.issue.dto.IssueUpdateRequest;
 import com.threadia.backend.issue.dto.IssuesData;
@@ -60,6 +61,9 @@ import com.threadia.backend.project.exception.ProjectNotFoundException;
 import com.threadia.backend.project.exception.ProjectValidationException;
 import com.threadia.backend.project.repository.ProjectMemberRepository;
 import com.threadia.backend.project.repository.ProjectRepository;
+import com.threadia.backend.projectchat.domain.Message;
+import com.threadia.backend.projectchat.exception.MessageNotFoundException;
+import com.threadia.backend.projectchat.repository.MessageRepository;
 import com.threadia.backend.sprint.domain.Sprint;
 import com.threadia.backend.sprint.domain.SprintStatus;
 import com.threadia.backend.sprint.repository.SprintRepository;
@@ -84,6 +88,8 @@ class IssueServiceTest {
 	@Mock
 	private SprintRepository sprintRepository;
 	@Mock
+	private MessageRepository messageRepository;
+	@Mock
 	private ActivityEventService activityEvents;
 
 	private IssueService issueService;
@@ -99,6 +105,7 @@ class IssueServiceTest {
 				historyRepository,
 				null,
 				sprintRepository,
+				messageRepository,
 				activityEvents,
 				FIXED_CLOCK);
 	}
@@ -341,6 +348,109 @@ class IssueServiceTest {
 	}
 
 	@Test
+	void createFromMessageStoresMessageSourceAndInitialHistory() {
+		Fixtures fixtures = fixtures();
+		Message message = message(300L, fixtures.project(), fixtures.user());
+		stubAuth(fixtures);
+		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(fixtures.project()));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+		when(messageRepository.findByIdAndProject_Id(300L, 20L)).thenReturn(Optional.of(message));
+		when(issueRepository.findByProjectIdForSequenceUpdate(20L)).thenReturn(List.of());
+		when(issueRepository.save(any())).thenAnswer(invocation -> {
+			Issue issue = invocation.getArgument(0);
+			setId(issue, 100L);
+			return issue;
+		});
+
+		IssueData data = issueService.createFromMessage("token", 20L, new IssueFromMessageRequest(300L, "  메시지 이슈  ", "원본 메시지에서 생성", null, null, null, null));
+
+		ArgumentCaptor<Issue> issueCaptor = ArgumentCaptor.forClass(Issue.class);
+		verify(issueRepository).save(issueCaptor.capture());
+		assertThat(issueCaptor.getValue().getSourceType()).isEqualTo(com.threadia.backend.issue.domain.IssueSourceType.MESSAGE);
+		assertThat(issueCaptor.getValue().getSourceMessage()).isSameAs(message);
+		assertThat(data.issue().sourceType()).isEqualTo("MESSAGE");
+		assertThat(data.issue().sourceMessageId()).isEqualTo(300L);
+		verify(historyRepository).save(any(IssueStatusHistory.class));
+		verify(activityEvents).recordIssueCreated(issueCaptor.getValue(), fixtures.user());
+	}
+
+	@Test
+	void createFromMessageRejectsMessageFromAnotherProject() {
+		Fixtures fixtures = fixtures();
+		stubAuth(fixtures);
+		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(fixtures.project()));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+		when(messageRepository.findByIdAndProject_Id(300L, 20L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> issueService.createFromMessage("token", 20L, new IssueFromMessageRequest(300L, "메시지 이슈", null, null, null, null, null)))
+				.isInstanceOf(MessageNotFoundException.class);
+		verify(issueRepository, never()).findByProjectIdForSequenceUpdate(any());
+		verify(historyRepository, never()).save(any());
+	}
+
+	@Test
+	void createFromMessageRejectsMissingMessageBeforeSequenceLookup() {
+		Fixtures fixtures = fixtures();
+		stubAuth(fixtures);
+		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(fixtures.project()));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+		when(messageRepository.findByIdAndProject_Id(404L, 20L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> issueService.createFromMessage("token", 20L, new IssueFromMessageRequest(404L, "메시지 이슈", null, null, null, null, null)))
+				.isInstanceOf(MessageNotFoundException.class);
+		verify(issueRepository, never()).findByProjectIdForSequenceUpdate(any());
+	}
+
+	@Test
+	void createFromMessageAllowsDuplicateConversionBecauseSchemaHasNoUniqueConstraint() {
+		Fixtures fixtures = fixtures();
+		Message message = message(300L, fixtures.project(), fixtures.user());
+		Issue existing = issue(100L, fixtures.project(), fixtures.user(), "THD-1", "기존 메시지 이슈", IssueStatus.BACKLOG);
+		existing.setSourceMessage(message);
+		stubAuth(fixtures);
+		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(fixtures.project()));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true);
+		when(messageRepository.findByIdAndProject_Id(300L, 20L)).thenReturn(Optional.of(message));
+		when(issueRepository.findByProjectIdForSequenceUpdate(20L)).thenReturn(List.of(existing));
+		when(issueRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+		IssueData data = issueService.createFromMessage("token", 20L, new IssueFromMessageRequest(300L, "두 번째 메시지 이슈", null, null, null, null, null));
+
+		assertThat(data.issue().issueKey()).isEqualTo("THD-2");
+		assertThat(data.issue().sourceMessageId()).isEqualTo(300L);
+	}
+
+	@Test
+	void createFromMessageRejectsManagerOnlyFieldsForRegularMember() {
+		Fixtures fixtures = fixtures();
+		stubAuth(fixtures);
+		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(fixtures.project()));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false);
+		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L))
+				.thenReturn(Optional.of(projectMember(fixtures, ProjectMemberRole.MEMBER, ProjectMemberStatus.ACTIVE)));
+
+		assertThatThrownBy(() -> issueService.createFromMessage("token", 20L, new IssueFromMessageRequest(300L, "메시지 이슈", null, IssuePriority.HIGH, null, null, null)))
+				.isInstanceOf(ForbiddenException.class);
+		verifyNoInteractions(messageRepository);
+		verify(issueRepository, never()).findByProjectIdForSequenceUpdate(any());
+	}
+
+	@Test
+	void createFromMessageRejectsRegularMemberWithMinimalPayload() {
+		Fixtures fixtures = fixtures();
+		stubAuth(fixtures);
+		when(projectRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(fixtures.project()));
+		when(companyMembershipService.hasActiveRole(10L, fixtures.authContext(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false);
+		when(projectMemberRepository.findByProject_IdAndUser_Id(20L, 1L))
+				.thenReturn(Optional.of(projectMember(fixtures, ProjectMemberRole.MEMBER, ProjectMemberStatus.ACTIVE)));
+
+		assertThatThrownBy(() -> issueService.createFromMessage("token", 20L, new IssueFromMessageRequest(300L, "메시지 이슈", null, null, null, null, null)))
+				.isInstanceOf(ForbiddenException.class);
+		verifyNoInteractions(messageRepository);
+		verify(issueRepository, never()).findByProjectIdForSequenceUpdate(any());
+	}
+
+	@Test
 	void updateRejectsTitleLongerThanTwoHundredCharacters() {
 		Fixtures fixtures = fixtures();
 		Issue issue = issue(100L, fixtures.project(), fixtures.user(), "THD-1", "첫 이슈", IssueStatus.BACKLOG);
@@ -576,6 +686,32 @@ class IssueServiceTest {
 	private static ProjectMember projectMember(Fixtures fixtures, ProjectMemberRole role, ProjectMemberStatus status) {
 		LocalDateTime now = LocalDateTime.now(FIXED_CLOCK);
 		return new ProjectMember(fixtures.project(), fixtures.user(), role, status, now, now, now);
+	}
+
+	private static Project otherProject(Fixtures fixtures) {
+		LocalDateTime now = LocalDateTime.now(FIXED_CLOCK);
+		Project project = new Project(
+				fixtures.project().getCompany(),
+				"Other Project",
+				"OTH",
+				null,
+				ProjectStatus.ACTIVE,
+				LocalDate.parse("2026-06-17"),
+				LocalDate.parse("2026-07-31"),
+				fixtures.user(),
+				null,
+				null,
+				null,
+				now,
+				now);
+		setId(project, 21L);
+		return project;
+	}
+
+	private static Message message(Long id, Project project, User author) {
+		Message message = new Message(project, author, "원본 메시지", LocalDateTime.now(FIXED_CLOCK));
+		setId(message, id);
+		return message;
 	}
 
 	private static Issue issue(
