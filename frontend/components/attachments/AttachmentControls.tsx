@@ -219,6 +219,11 @@ export function AttachmentControls({
   };
 
   if (!isPersisted) return null;
+  // 읽기 전용(추가 불가)인데 첨부도 없으면 섹션을 통째로 숨긴다 — 안 그러면
+  // 채팅 메시지/댓글마다 첨부가 없어도 "첨부 파일" 헤더가 깔려 목록이 지저분해진다.
+  // (canMutate면 "파일 추가" 버튼을 보여줘야 하니 빈 상태여도 렌더한다.)
+  // 조회 자체가 실패한 경우(error)는 읽기 전용이라도 알려주려고 남긴다.
+  if (attachments.length === 0 && !canMutate && !error) return null;
   return (
     <section className={compact ? "mt-2" : "mt-5 rounded-xl border border-border bg-surface p-4"}>
       <div className="flex items-center justify-between gap-2">
