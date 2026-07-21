@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-07
-> **최종 수정**: 2026-07-19
-> **버전**: v0.15 WBS 4.9.1 Activity Feed 실행 row 및 WBS 4.9.3 Dashboard Core Backend/Frontend 분리
+> **최종 수정**: 2026-07-21
+> **버전**: v0.16 WBS 4.11 attachment lifecycle 구현 계약 반영
 > **상태**: 검토 중
 > **태그**: sprint-3, backlog, wbs, platform-admin, extension
 
@@ -27,7 +27,7 @@
 10. 동시 문서 편집은 optimistic locking을 기본 권장안으로 두되, 후속 변경 가능성을 명시한다.
 11. 다자간 DM과 상대 read receipt는 이번 개발 기간에 보류하고, 향후 재검토 전까지 1:1 DM 범위만 유지한다.
 12. 알림 primary WBS 매핑은 `NOTI-01`을 `4.8`에 둔다. `NOTI-02/03`은 현재 계약/reference row로 유지하고, `PROJECT_NOTIFICATION_SCOPE_DEFERRED`는 API boundary code로 관리한다.
-13. 검색과 첨부는 기술 정책 결정 row를 선행한다.
+13. 검색은 기술 정책 결정 row를 선행한다. 첨부는 확정된 WBS 4.11 lifecycle 계약을 따른다.
 14. project restore와 issue/document permanent delete는 포함하되, 정책 결정 row를 선행한다.
 
 ## 3. WBS 4.x parent 재구성 요약
@@ -47,7 +47,7 @@
 | 4.8 | 2 | Notification | 알림 core | 4.3, 4.4, 4.6, 4.7 | Backend+Frontend | 기존 알림 DDL을 사용하는 inbox/read-state core를 먼저 구현하고 producer 연계는 별도 정책 승인 후 진행 | S3-Events | 진행 중 | P0 | Sprint 3 후보 |
 | 4.9 | 2 | Conditional Extensions | activity feed, search, dashboard | 4.4, 4.6, 4.8 | Decision+API | `4.9.2.1` MySQL `LIKE` 검색 방식 결정 완료, `4.9.2.2` Frontend 결정 계획, `4.9.3.1` Dashboard Backend 진행, `4.9.3.2` Frontend 계획, `4.9.4.1` Search Backend 실행 완료, `4.9.4.2` Search Frontend 구현 계획 | S3-Extensions | 진행 중 | P1 | SEARCH-01 Backend 완료, Dashboard Backend 진행, Frontend 계획, activity feed 후보 |
 | 4.10 | 2 | S15 Platform Admin | S15 상세 확정과 구현 | 3.7.1~3.7.5, 3.1~3.4, 4.1 | Implementation+Decision | `3.7~3.7.5` planning gate와 Go/No-Go handoff 확인 | S3-Platform | 계획 | P1 | Sprint 3 primary row |
-| 4.11 | 2 | Attachment | S3 presigned attachment 정책 결정과 구현 | 4.4, 4.6, 4.7 | Decision+Implementation | 대상 범위, 권한, 크기, MIME, 만료 기준 결정 | S3-Attachment | 계획 | P1 | decision-needed |
+| 4.11 | 2 | Attachment | private presigned attachment lifecycle 구현 | 4.4, 4.6, 4.7 | Backend+Validation | target, target별 인가, checksum, 100MB, avatar/logo image-only 계약 확인 | S3-Attachment | 진행 중 | P1 | WBS 4.11 Backend 계약 |
 | 4.12 | 2 | Advanced Document Editing | optimistic locking 기반 문서 충돌 처리 | 4.6 | Decision+Implementation | document version/revision 정책 결정 | S3-Docs | 계획 | P1 | decision-needed |
 | 4.13 | 2 | Restore / Permanent Delete | project restore와 issue/document permanent delete | 4.4, 4.6, 4.10 | Policy+Implementation | restore/delete 권한, 보존 기간, 참조 처리, audit 기준 결정 | S3-Retention | 계획 | P2 | decision-needed |
 | 4.14 | 2 | Integration QA | Sprint 3 통합 QA와 문서 정합성 gate | 4.2~4.13 | QA Gate | feature evidence와 문서/WBS/추적표 변경 반영 완료 | S3-QA | 계획 | P0 | QA gate |
@@ -83,9 +83,9 @@ Level 3 row는 전체 `4.x`를 기계적으로 쪼갠 것이 아니라, 실제 �
 | `4.10` | `4.10.3` | system settings 구현 범위 확정 | 정책 결정 확정, 구현 미착수 |
 | `4.10` | `4.10.4` | Backend: audit read와 platform admin lifecycle/grant/revoke 구현 | Backend 완료. S15 Frontend, enforcement, retention/cleanup, migration은 후속 범위 |
 | `4.10` | `4.10.5` | Frontend: platform actor, admin lifecycle, audit-read API 연동 | Frontend-only, 계획, 0%. `4.10.1`, `4.10.3`, `4.10.4` 의존. platform actor 표시, admin lifecycle API 소비, audit-read 결과/cursor 상태 연동을 완료 기준으로 둔다. |
-| `4.11` | `4.11.1` | attachment policy/contract 결정 | decision-needed |
-| `4.11` | `4.11.2` | presigned upload/download 구현 | Sprint 3 후보 |
-| `4.11` | `4.11.3` | metadata/validation 검증 | Sprint 3 후보 |
+| `4.11` | `4.11.1` | attachment policy/contract | 완료. 대상, 권한, checksum, 100MB, avatar/logo image-only 및 private lifecycle 확정 |
+| `4.11` | `4.11.2` | private presigned initiate/complete/download/delete 구현 | Backend 구현 계약. local MinIO 사용, production wiring은 후속 범위 |
+| `4.11` | `4.11.3` | metadata/validation 검증 | Backend 검증 범위. complete metadata 대조와 target별 인가, persistent DB additive path를 확인 |
 | `4.12` | `4.12.1` | version/revision 정책 결정 | decision-needed |
 | `4.12` | `4.12.2` | conflict API/backend 구현 | Sprint 3 후보 |
 | `4.12` | `4.12.3` | conflict UI와 검증 | Sprint 3 후보 |
@@ -109,7 +109,7 @@ Level 3 row는 전체 `4.x`를 기계적으로 쪼갠 것이 아니라, 실제 �
 | 4.8 | `NOTI-01` | notification events, recipients, S11 | notification inbox/read-state core와 후속 Frontend 연동 | `4.8.1` Backend Owner 1명, `4.8.2` Frontend Owner 정철진 | Backend 목록/unread/read/read-all 검증 후 Frontend 연동. producer matrix와 preferences는 별도 범위 | Backend test/build/curl, 후속 브라우저 확인 |
 | 4.9 | `FEED-01`, `SEARCH-01`, `DASH-01~04` | activity_events, `/search`, `/dashboard` | 조건부 확장, Activity Feed Backend와 MySQL `LIKE` Search Backend 구현, 계획된 Frontend 연동 | `4.9.1.1`/`4.9.2.1`/`4.9.4.1` Backend Owner 1명, 각 Frontend Owner 정철진 | `4.9.1` parent는 미완료로 유지하며 `4.9.1.1` Backend는 진행 중, `4.9.1.2` Frontend는 0% 계획 상태다. `4.9.2`와 `4.9.4`는 진행 중 50% parent로 유지한다 | decision record, test, curl, 계획된 browser/lint/typecheck/build |
 | 4.10 | `DEFER-01` | S15, platform_admins, support_cases, audit log | S15 planning gate 이후 구현/결정 vertical slice | Owner 1명, 보안/감사 위험으로 지원 1명 가능 | `3.7~3.7.5` Go/No-Go handoff를 확인하고 `users.role` 없이 platform admin 분리와 audit 기준 확인 | 문서 review, test, curl, 보안 review |
-| 4.11 | `ATTACH-01` | attachments, S3 presigned URL, S05/S08/S09 | attachment 정책 결정과 구현 | Owner 1명, 인프라 연동 시 지원 1명 가능 | presigned upload/download, metadata, 권한 확인 | decision record, test, curl |
+| 4.11 | `ATTACH-01` | `attachments`, private presigned lifecycle, S05/S08/S09 | attachment Backend 계약과 검증 | Owner 1명, 인프라 연동 시 지원 1명 가능 | `DOCUMENT` resource(본문 제외), `BINARY_DOCUMENT`, ISSUE, MESSAGE, THREAD_COMMENT, DIRECT_MESSAGE, USER_AVATAR, COMPANY_LOGO의 target/인가, checksum, 100MB, avatar/logo image-only 확인 | test, curl, schema 확인 |
 | 4.12 | `DEFER-04` | documents.version, `DOCUMENT_VERSION_CONFLICT`, S08 | optimistic locking 기반 문서 충돌 처리 boundary | Owner 1명, 지원 공란 | stale version 저장 거절과 conflict UI 기준 확인 | test, curl, 브라우저 확인 |
 | 4.13 | `PROJECT_RESTORE_DEFERRED`, `PERMANENT_DELETE_DEFERRED` | project restore, issue/document permanent delete, audit | restore/delete 정책 결정과 제한 구현 | Owner 1명, 정책/감사 위험으로 지원 1명 가능 | restore와 permanent delete 권한, 참조, audit 기준 충족 | decision record, test, curl, DB 확인 |
 | 4.14 | 공통/QA | backend, frontend, canonical docs, WBS, 요구사항추적표 | Sprint 3 통합 QA와 release gate | Owner 1명, 각 domain evidence owner 협조 | 완료/미완료/이월, 문서/WBS/추적표 충돌 여부 분리 | test/build/browser, diff, grep |
@@ -146,6 +146,6 @@ Level 3 row는 전체 `4.x`를 기계적으로 쪼갠 것이 아니라, 실제 �
 
 1. 이 문서는 Gate 3 Google Sheets WBS rewrite와 Gate 4 요구사항추적표 WBS ID backfill 완료 결과를 반영한 Sprint 3 backlog 기준이다.
 2. S15는 `3.7~3.7.5` Sprint 2 planning gate와 Go/No-Go handoff를 전제로 `4.10`에서 상세 확정과 구현을 추적한다.
-3. optimistic locking, DM room model, S3 presigned URL은 현재 권장안이며 구현 중 변경될 수 있다. 검색은 `4.9.2.1` 결정과 `4.9.4.1` Backend 구현으로 MySQL `LIKE` baseline을 적용한다. `4.9.2`와 `4.9.4`는 진행 중 50% parent다. `4.9.2.2`와 `4.9.4.2`는 Frontend-only 계획이며 type filtering과 source별 결과 필드는 현재 Backend API 범위에 없다.
+3. optimistic locking과 DM room model은 현재 권장안이며 구현 중 변경될 수 있다. WBS `4.11`은 private presigned attachment lifecycle을 적용하며 local MinIO만 구현 범위다. production bucket/IAM/CORS/network/SSM/CI/CD wiring과 retention/cleanup activation은 후속 범위다. 검색은 `4.9.2.1` 결정과 `4.9.4.1` Backend 구현으로 MySQL `LIKE` baseline을 적용한다. `4.9.2`와 `4.9.4`는 진행 중 50% parent다. `4.9.2.2`와 `4.9.4.2`는 Frontend-only 계획이며 type filtering과 source별 결과 필드는 현재 Backend API 범위에 없다.
 4. permanent delete는 참조 무결성과 audit 정책이 확정되지 않으면 구현 row로 넘어가면 안 된다.
 5. 요구사항추적표 primary WBS ID는 기능 ID별 단일 값을 원칙으로 한다. Level 3 row를 추가해도 Profile/Hub 관련 primary는 `4.2`, `LINK-02`와 `DOC-02` primary는 `4.6`, `DEFER-04` primary는 `4.12`, `NOTI-01` primary는 `4.8`이다. `4.2.1`/`4.2.2`와 `4.8.1`/`4.8.2`는 각 parent의 실행 분리 row이며 parent 완료를 의미하지 않는다.
