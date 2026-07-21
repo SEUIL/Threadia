@@ -56,6 +56,14 @@ public class CompanyMembershipService {
 		return isActiveMember(companyId, authContext.userId());
 	}
 
+	public boolean sharesActiveCompany(Long requesterUserId, Long ownerUserId) {
+		return companyMemberRepository.existsSharedCompanyWithMembershipAndCompanyStatus(
+				requesterUserId,
+				ownerUserId,
+				CompanyMemberStatus.ACTIVE,
+				CompanyStatus.ACTIVE);
+	}
+
 	public Map<Long, CompanyMemberRole> findActiveRolesByCompanyIdAndUserIds(Long companyId, List<Long> userIds) {
 		if (userIds.isEmpty() || !isCompanyActive(companyId)) {
 			return Map.of();

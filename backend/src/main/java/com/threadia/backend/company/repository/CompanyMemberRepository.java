@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 import com.threadia.backend.company.domain.CompanyMember;
 import com.threadia.backend.company.domain.CompanyMemberRole;
 import com.threadia.backend.company.domain.CompanyMemberStatus;
+import com.threadia.backend.company.domain.CompanyStatus;
 
 import jakarta.persistence.LockModeType;
 
@@ -81,6 +82,22 @@ public interface CompanyMemberRepository extends JpaRepository<CompanyMember, Lo
 			CompanyMemberStatus status);
 
 	boolean existsByCompany_IdAndUser_IdAndStatus(Long companyId, Long userId, CompanyMemberStatus status);
+
+	@Query("""
+			select count(requester) > 0
+			from CompanyMember requester
+			join CompanyMember owner on owner.company.id = requester.company.id
+			where requester.user.id = :requesterUserId
+			  and owner.user.id = :ownerUserId
+			  and requester.status = :membershipStatus
+			  and owner.status = :membershipStatus
+			  and requester.company.status = :companyStatus
+			""")
+	boolean existsSharedCompanyWithMembershipAndCompanyStatus(
+			@Param("requesterUserId") Long requesterUserId,
+			@Param("ownerUserId") Long ownerUserId,
+			@Param("membershipStatus") CompanyMemberStatus membershipStatus,
+			@Param("companyStatus") CompanyStatus companyStatus);
 
 	List<CompanyMember> findByCompany_IdAndUser_IdInAndStatus(
 			Long companyId,

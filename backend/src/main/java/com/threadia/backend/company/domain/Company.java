@@ -39,6 +39,9 @@ public class Company {
 	@Column(name = "logo_url", length = 500)
 	private String logoUrl;
 
+	@Column(name = "logo_attachment_id")
+	private Long logoAttachmentId;
+
 	@Column(nullable = false, length = 50)
 	@Convert(converter = CompanyStatusConverter.class)
 	private CompanyStatus status = CompanyStatus.ACTIVE;
@@ -142,6 +145,9 @@ public class Company {
 	public void setLogoUrl(String logoUrl) {
 		this.logoUrl = logoUrl;
 	}
+
+	public Long getLogoAttachmentId() { return logoAttachmentId; }
+	public void setLogoAttachmentId(Long logoAttachmentId) { this.logoAttachmentId = logoAttachmentId; }
 
 	public CompanyStatus getStatus() {
 		return status;
