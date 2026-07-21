@@ -65,6 +65,32 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
+// 파일 목록 스캔성을 높이는 앞머리 아이콘 — 이미지 첨부(image/*)와 그 외 문서를
+// 한눈에 구분한다(uploadcare/uinkits 파일 리스트 UX 권장). 파일명 색(primary)과
+// 경쟁하지 않게 muted 톤으로, 타입 표시(액션이 아님) 성격을 유지한다.
+function FileTypeIcon({ contentType }: { contentType: string }) {
+  if (contentType.startsWith("image/")) {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden="true">
+        <rect x="3.5" y="5" width="17" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" />
+        <circle cx="8.5" cy="10" r="1.4" stroke="currentColor" strokeWidth="1.4" />
+        <path d="m5 17 4.5-4 3 2.5L16 12l3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden="true">
+      <path
+        d="M6 3.5h7.5L18.5 8.5V19A1.5 1.5 0 0 1 17 20.5H6A1.5 1.5 0 0 1 4.5 19V5A1.5 1.5 0 0 1 6 3.5Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path d="M13 3.5V9h5" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function AttachmentImage({
   targetType,
   targetId,
@@ -256,9 +282,11 @@ export function AttachmentControls({
               <button
                 type="button"
                 onClick={() => void download(attachment.id)}
-                className="min-w-0 flex-1 truncate text-left text-primary hover:opacity-70"
+                title={`${attachment.filename} 다운로드`}
+                className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-primary hover:opacity-70"
               >
-                {attachment.filename}
+                <FileTypeIcon contentType={attachment.contentType} />
+                <span className="truncate">{attachment.filename}</span>
               </button>
               <span className="shrink-0 text-muted">{formatFileSize(attachment.contentLength)}</span>
               {canMutate &&
