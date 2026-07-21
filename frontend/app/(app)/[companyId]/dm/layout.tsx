@@ -21,7 +21,7 @@
  * + ACTIVE user + self 제외까지 다 걸러서 준다. 기존 DM room 상대는 응답에
  * 포함되므로(계약), room 상대 제외만 프론트에서 유지한다.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useParams, useRouter } from "next/navigation";
 import { directMessageService } from "@/services/direct-message.service";
@@ -38,6 +38,9 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
 
   const [rooms, setRooms] = useState<DirectMessageRoomResponse[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // candidates는 서버가 준 원본 그대로 저장한다(필터링 안 함) — "기존 room 상대
+  // 제외"는 아래 visibleCandidates(useMemo)에서 매 렌더 최신 rooms 기준으로
+  // 계산한다(4차 재리뷰 반영, pktewon: blocker 3, 아래 openPicker 주석 참고).
   const [candidates, setCandidates] = useState<DirectMessageCandidateResponse[]>([]);
   const [pickerError, setPickerError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -63,15 +66,27 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
    *     값이 자신이 시작될 때 찍은 시퀀스와 다르면(=그 사이 더 최신 loadRooms()
    *     호출이 있었으면) 응답 전체를 버린다 — 옛 목록이 새 목록을 덮어쓰는 걸
    *     원천적으로 막는다.
-   *   - readGenerationsRef: roomId → 읽음 처리된 시점의 sequence. 위 stale
+   *   - readGenerationsRef: roomId → { generation, unreadCount }. 위 stale
    *     체크를 통과한(=최신) 응답이라도, 그 요청이 시작된 "이후"에 markRoomRead()
-   *     로 로컬 읽음 처리된 room만 서버의 옛 unreadCount로 되돌아가지 않게
-   *     개별 보정한다.
+   *     로 로컬 읽음 처리된 room만 그 markRead 응답의 실제 unreadCount로 보정한다
+   *     (무조건 0이 아니다 — 4차 재리뷰 반영, pktewon: blocker 2. 이전엔
+   *     generation만 저장하고 여기서 무조건 0으로 되돌려서, mark-read가
+   *     unreadCount=1을 돌려준 경우에도 지연 도착한 loadRooms 응답이 그 값을
+   *     0으로 다시 덮어썼다).
    */
   const sequenceRef = useRef(0);
   const latestLoadSequenceRef = useRef(0);
-  const readGenerationsRef = useRef<Map<number, number>>(new Map());
+  const readGenerationsRef = useRef<Map<number, { generation: number; unreadCount: number }>>(new Map());
   const mountedRef = useRef(true);
+  // startDm 응답이 늦게 도착했을 때 "그 요청을 시작한 시점과 같은 화면인지"를
+  // 판단하는 데 쓴다(blocker 4). pathname은 리렌더 시점의 클로저 값이라 응답
+  // 콜백 안에서 "지금" 값을 읽으려면 ref로 항상 최신화해둬야 한다.
+  const pathnameRef = useRef(pathname);
+  const startDmSequenceRef = useRef(0);
+
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -89,10 +104,8 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
       // (=옛 목록이다) 그대로 버린다 — 더 완전한 최신 상태를 덮어쓰지 않는다.
       if (!mountedRef.current || latestLoadSequenceRef.current !== mySequence) return;
       const merged = data.data.rooms.map((r) => {
-        const readGeneration = readGenerationsRef.current.get(r.id);
-        return readGeneration !== undefined && readGeneration > mySequence
-          ? { ...r, unreadCount: 0 }
-          : r;
+        const read = readGenerationsRef.current.get(r.id);
+        return read !== undefined && read.generation > mySequence ? { ...r, unreadCount: read.unreadCount } : r;
       });
       setRooms(merged);
     } catch {
@@ -107,17 +120,38 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
     })();
   }, [loadRooms]);
 
+  /*
+   * blocker 3(4차 재리뷰, pktewon): candidates를 필터링해서 저장했더니, 응답을
+   * 기다리는 동안(await) room 목록이 바뀌면(예: 다른 탭/폴링으로 새 room 생김)
+   * 그 시점 이후의 최신 rooms가 아니라 "요청을 시작했을 때의" rooms로 필터링된
+   * 결과가 저장돼버렸다 — await 너머의 클로저는 그 시점 값을 그대로 들고 있기
+   * 때문이다. candidates는 항상 서버 원본 그대로 저장하고, "기존 room 상대
+   * 제외"는 렌더 시점마다 최신 rooms로 다시 계산되는 useMemo(visibleCandidates)
+   * 에서 한다 — 그러면 응답이 언제 오든 필터링 결과가 항상 최신 rooms를 반영한다.
+   */
+  const pickerRequestSequenceRef = useRef(0);
   const openPicker = async () => {
     setPickerError(null);
     setPickerOpen((open) => !open);
+    const mySequence = ++pickerRequestSequenceRef.current;
     try {
       const { data } = await directMessageService.listCandidates(companyId);
-      const roomPeerIds = new Set(rooms.map((r) => r.otherUser.id));
-      setCandidates(data.data.candidates.filter((candidate) => !roomPeerIds.has(candidate.id)));
+      if (!mountedRef.current || pickerRequestSequenceRef.current !== mySequence) return;
+      setCandidates(data.data.candidates);
     } catch {
+      if (!mountedRef.current || pickerRequestSequenceRef.current !== mySequence) return;
+      // 재요청이 실패하면 화면에 이전 후보가 그대로 남아 "필터링 안 된 옛 목록"
+      // 처럼 보일 수 있으니 비운다(4차 재리뷰 반영, pktewon).
+      setCandidates([]);
       setPickerError("구성원 목록을 불러오지 못했습니다.");
     }
   };
+
+  const roomPeerIds = useMemo(() => new Set(rooms.map((r) => r.otherUser.id)), [rooms]);
+  const visibleCandidates = useMemo(
+    () => candidates.filter((candidate) => !roomPeerIds.has(candidate.id)),
+    [candidates, roomPeerIds]
+  );
 
   // room 입장 시 markRead API 호출이 성공하면 이걸로 레일 배지를 즉시 지운다
   // (재조회 없이 로컬 state만 갱신). 이 room을 이 sequence에 읽었다고 기록해
@@ -129,24 +163,38 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
   // 무조건 0으로 강제하면 실제로 안 읽은 메시지의 배지가 사라지는 문제가 있었다.
   const markRoomRead = useCallback((roomId: number, unreadCount = 0) => {
     const generation = ++sequenceRef.current;
-    readGenerationsRef.current.set(roomId, generation);
+    readGenerationsRef.current.set(roomId, { generation, unreadCount });
     setRooms((prev) => prev.map((r) => (r.id === roomId ? { ...r, unreadCount } : r)));
   }, []);
 
-  // 새 대화 생성 도중(getOrCreateRoom/loadRooms 대기 중) 사용자가 이 회사의
-  // /dm 밖으로(다른 회사, Hub 등) 이미 navigate해서 DmLayout이 unmount됐다면,
-  // 뒤늦게 도착한 응답으로 사용자를 원치 않게 새 DM 방으로 강제 이동시키지
-  // 않는다(3차 재리뷰 반영, pktewon).
+  /*
+   * 새 대화 생성 도중(getOrCreateRoom/loadRooms 대기 중) 사용자가 이 회사의
+   * /dm 밖으로(다른 회사, Hub 등) 이미 navigate해서 DmLayout이 unmount됐다면,
+   * 뒤늦게 도착한 응답으로 사용자를 원치 않게 새 DM 방으로 강제 이동시키지
+   * 않는다(3차 재리뷰 반영, pktewon).
+   *
+   * 4차 재리뷰 반영(pktewon, blocker 4): 기존 room 링크(/dm/301 → /dm/302)로
+   * 이동하는 경우도 같은 문제라 pathname(startPathname)도 같이 저장해 응답
+   * 시점에 비교한다 — 실측해보니 이 앱에서는 room 사이 이동에도 DmLayout이
+   * 그때그때 재마운트돼(mountedRef만으로도 이미 이 특정 케이스는 걸러진다)
+   * pathname 체크가 지금은 중복 방어처럼 보이지만, 라우팅 동작이 바뀌어
+   * DmLayout이 진짜 persistent해지는 경우까지 대비해 명시적으로 남겨둔다
+   * (리뷰에서 정확히 이 방식을 요청하기도 했다).
+   */
   const startDm = async (otherUserId: number) => {
     if (starting) return;
     setStarting(true);
     setPickerError(null);
+    const mySequence = ++startDmSequenceRef.current;
+    const startPathname = pathname;
     try {
       const { data } = await directMessageService.getOrCreateRoom(companyId, { otherUserId });
       if (!mountedRef.current) return;
+      if (startDmSequenceRef.current !== mySequence) return;
       setPickerOpen(false);
       await loadRooms();
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || startDmSequenceRef.current !== mySequence) return;
+      if (pathnameRef.current !== startPathname) return;
       router.push(`/${companyId}/dm/${data.data.room.id}`);
     } catch {
       if (mountedRef.current) setPickerError("대화를 시작하지 못했습니다.");
@@ -199,7 +247,7 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
             </p>
             {pickerError && <p className="px-2 py-1 text-xs text-destructive">{pickerError}</p>}
             <ul className="max-h-64 overflow-y-auto">
-              {candidates.map((candidate) => (
+              {visibleCandidates.map((candidate) => (
                 <li key={candidate.id}>
                   <button
                     type="button"
@@ -214,7 +262,7 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
                   </button>
                 </li>
               ))}
-              {candidates.length === 0 && !pickerError && (
+              {visibleCandidates.length === 0 && !pickerError && (
                 <li className="px-2 py-1.5 text-xs text-muted">대화를 시작할 구성원이 없습니다.</li>
               )}
             </ul>

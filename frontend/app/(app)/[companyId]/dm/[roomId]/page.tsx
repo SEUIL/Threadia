@@ -58,22 +58,29 @@ export default function DmRoomPage() {
    *     결과를 렌더링하지 않는다.
    *   - 페이지를 벗어난 뒤(unmount) 뒤늦게 도착한 응답으로 markRead/setState가
    *     실행되지 않도록 cancelled 가드를 추가한다.
+   *
+   * 4차 재리뷰 반영(pktewon, blocker 1): "room 목록에 있는지"만으로는 부족했다
+   * — room.companyId를 직접 비교하는 invariant가 없으면, listRooms가 어떤
+   * 이유로든(백엔드 스코핑 우회, 캐시 등) 다른 회사 room을 섞어 돌려주는
+   * 경우까지는 못 막는다. room.companyId === routeCompanyId를 직접 검증하고,
+   * 그 검증이 끝난 뒤에만 messages API를 호출한다(Promise.all 병렬 호출 금지
+   * — 검증 전에 이미 다른 회사 메시지를 받아와 버리면 검증 자체가 무의미하다).
    */
   const load = useCallback(
     async (isCancelled: () => boolean) => {
       try {
-        const [roomsResponse, messagesResponse] = await Promise.all([
-          directMessageService.listRooms(params.companyId),
-          directMessageService.listMessages(params.roomId),
-        ]);
+        const roomsResponse = await directMessageService.listRooms(params.companyId);
         if (isCancelled()) return;
 
         const room = roomsResponse.data.data.rooms.find((r) => String(r.id) === params.roomId);
-        if (!room) {
+        if (!room || room.companyId !== Number(params.companyId)) {
           setPageError("존재하지 않거나 접근할 수 없는 대화방입니다.");
           setPageState("error");
           return;
         }
+
+        const messagesResponse = await directMessageService.listMessages(params.roomId);
+        if (isCancelled()) return;
 
         setPageError(null);
         setPeerName(room.otherUser.nickname);
