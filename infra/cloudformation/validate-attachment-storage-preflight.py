@@ -65,12 +65,31 @@ for forbidden in (
 ):
     assert "forbidden_runtime_key " + forbidden in helper
 
+for forbidden in (
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_SESSION_TOKEN",
+    "AWS_SECURITY_TOKEN",
+    "AWS_PROFILE",
+    "AWS_DEFAULT_PROFILE",
+    "AWS_SHARED_CREDENTIALS_FILE",
+    "AWS_CONFIG_FILE",
+    "AWS_WEB_IDENTITY_TOKEN_FILE",
+    "AWS_ROLE_ARN",
+    "AWS_SDK_LOAD_CONFIG",
+    "AWS_EC2_METADATA_DISABLED",
+    "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
+    "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+):
+    assert forbidden in helper
+
 assert "attachment storage must use the dedicated account-and-region-derived bucket" in helper
 assert '[[ "$ttl" =~ ^PT([1-9]|10)M$ ]]' in helper
 assert "attachment presign TTL must be between PT1M and PT10M" in helper
 assert '[[ "$region" == ap-northeast-2 ]]' in helper
 assert 'THREADIA_STORAGE_S3_REGION=ap-northeast-2' in runtime_example
 assert 'THREADIA_STORAGE_S3_PATH_STYLE=false' in runtime_example
+assert "Before any production Change Set execution or host release, a real staging browser presigned upload/download/CORS/authorization smoke PASS evidence record must exist; absent staging evidence is No-Go." in runbook
 assert "PRODUCTION_REGION = \"ap-northeast-2\"" in storage_config
 assert "PRODUCTION_BUCKET_PATTERN" in storage_config
 assert "MAX_PRODUCTION_PRESIGN_TTL = Duration.ofMinutes(10)" in storage_config

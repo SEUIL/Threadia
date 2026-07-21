@@ -98,6 +98,8 @@ aws cloudformation execute-change-set \
 
 ## 8. Release 및 smoke gate
 
+Before any production Change Set execution or host release, a real staging browser presigned upload/download/CORS/authorization smoke PASS evidence record must exist; absent staging evidence is No-Go.
+
 1. approved runtime env와 backend EC2 role access가 준비된 뒤 immutable dual-image release를 수행한다. release helper는 DB SQL, bucket creation, IAM change를 수행하지 않는다.
 2. normal health success 뒤 authorized actor로 presigned upload를 요청한다. browser PUT은 signed `Content-Type`와 `x-amz-checksum-sha256`를 보낸다.
 3. checksum HEAD verification과 complete 성공 뒤 authorized download만 확인한다.
