@@ -18,14 +18,17 @@
 "use client";
 
 import { useState } from "react";
+import { AttachmentImage } from "@/components/attachments/AttachmentControls";
 
 export function UserAvatar({
   nickname,
   avatarUrl,
+  userId,
   className = "h-8 w-8",
 }: {
   nickname: string;
   avatarUrl?: string | null;
+  userId?: number | null;
   /** 크기 등 배치용 클래스. 호출부가 기존에 쓰던 h-8 w-8 등을 그대로 넘긴다. */
   className?: string;
 }) {
@@ -39,7 +42,7 @@ export function UserAvatar({
   return (
     <span
       className={
-        "flex shrink-0 items-center justify-center overflow-hidden rounded-full " +
+        "relative flex shrink-0 items-center justify-center overflow-hidden rounded-full " +
         "avatar-ring text-xs font-semibold text-chrome-foreground " +
         className
       }
@@ -54,6 +57,15 @@ export function UserAvatar({
         />
       ) : (
         initial
+      )}
+      {userId && (
+        <AttachmentImage
+          targetType="USER_AVATAR"
+          targetId={userId}
+          fallbackUrl={null}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+        />
       )}
     </span>
   );

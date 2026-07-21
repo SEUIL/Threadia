@@ -238,7 +238,7 @@ function Rail({ companyId }: { companyId: string }) {
           aria-label={`${nickname} — 프로필 수정`}
           className="rounded-full transition-opacity duration-fast hover:opacity-80"
         >
-          <UserAvatar nickname={nickname} avatarUrl={user?.avatarUrl} />
+          <UserAvatar nickname={nickname} avatarUrl={user?.avatarUrl} userId={user?.id} />
         </button>
         <button
           type="button"
@@ -295,7 +295,7 @@ function Rail({ companyId }: { companyId: string }) {
             aria-label={`${nickname} — 프로필 수정`}
             className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left transition-colors duration-fast hover:bg-chrome-hover"
           >
-            <UserAvatar nickname={nickname} avatarUrl={user?.avatarUrl} />
+            <UserAvatar nickname={nickname} avatarUrl={user?.avatarUrl} userId={user?.id} />
             <span className="min-w-0 flex-1 truncate text-sm font-medium text-chrome-foreground">
               {nickname}
             </span>
