@@ -41,6 +41,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/Button";
+import { AttachmentControls } from "@/components/attachments/AttachmentControls";
 import { invitationErrorMessage } from "@/lib/invitation";
 import { documentService } from "@/services/document.service";
 import { issueService } from "@/services/issue.service";
@@ -451,6 +452,7 @@ function IssueDetailDialog({
               </div>
             )}
           </div>
+          <AttachmentControls targetType="ISSUE" targetId={issue.id} canMutate={canManage || isReporter} label="첨부 파일" />
 
           <div className="flex items-center justify-between gap-2 pt-1">
             <div className="flex items-center gap-3">

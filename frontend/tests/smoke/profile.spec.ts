@@ -5,6 +5,7 @@
  * 레일(RailShell)이 붙는 회사 route로 진입해야 아바타 trigger가 있으므로 board를 쓴다.
  */
 import { expect, test, type Page } from "@playwright/test";
+import type { AttachmentResponse, InitiateAttachmentRequest } from "../../types/attachment.types";
 
 const apiResponse = (data: unknown) => ({ data, meta: { requestId: "profile-smoke" } });
 
@@ -14,7 +15,6 @@ const USER = { id: 1, email: "a@test.dev", nickname: "A 사용자", avatarUrl: n
 const VALID_IMAGE =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
 // 연결이 거부되는 주소 — onError를 확실히 태운다.
-const BROKEN_IMAGE = "http://127.0.0.1:9/nope.png";
 
 /** PATCH /users/me/profile의 request body를 기록한다. handler를 넘기면 응답을 갈아끼운다. */
 async function mockApi(
@@ -22,7 +22,15 @@ async function mockApi(
   onPatch?: (route: Parameters<Parameters<Page["route"]>[1]>[0], headers: Record<string, string>) => Promise<void>,
 ) {
   const patchBodies: unknown[] = [];
+  const attachmentCalls: string[] = [];
+  const attachments: AttachmentResponse[] = [];
   const user = { ...USER };
+
+  await page.route("**/attachment-upload/**", async (route) => {
+    const headers = route.request().headers();
+    attachmentCalls.push(`PUT:${headers.authorization ?? "none"}:${headers["content-type"]}:${headers["x-amz-checksum-sha256"] ? "checksum" : "missing"}`);
+    await route.fulfill({ status: 200 });
+  });
 
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
@@ -76,6 +84,55 @@ async function mockApi(
       return;
     }
 
+    if (request.method() === "GET" && url.pathname === "/api/v1/attachments") {
+      await route.fulfill({ status: 200, contentType: "application/json", headers: corsHeaders, body: JSON.stringify(apiResponse(attachments)) });
+      return;
+    }
+
+    if (request.method() === "POST" && url.pathname === "/api/v1/attachments/uploads") {
+      const body = request.postDataJSON() as InitiateAttachmentRequest;
+      const attachment: AttachmentResponse = {
+        id: 100 + attachments.length,
+        targetType: body.targetType,
+        targetId: body.targetId,
+        filename: body.filename,
+        contentType: body.contentType,
+        contentLength: body.contentLength,
+        status: "UPLOADING",
+        completedAt: null,
+        createdAt: "2026-07-20T00:00:00",
+      };
+      attachments.push(attachment);
+      attachmentCalls.push(`initiate:${attachment.status}`);
+      await route.fulfill({ status: 201, contentType: "application/json", headers: corsHeaders, body: JSON.stringify(apiResponse({ attachment, uploadUrl: `http://127.0.0.1:3001/attachment-upload/${attachment.id}` })) });
+      return;
+    }
+
+    const completeMatch = url.pathname.match(/^\/api\/v1\/attachments\/(\d+)\/complete$/);
+    if (request.method() === "POST" && completeMatch) {
+      const attachment = attachments.find((item) => item.id === Number(completeMatch[1]));
+      if (!attachment) throw new Error("attachment missing");
+      attachment.status = "READY";
+      attachment.completedAt = "2026-07-20T00:00:01";
+      attachmentCalls.push(`complete:${attachment.status}`);
+      await route.fulfill({ status: 200, contentType: "application/json", headers: corsHeaders, body: JSON.stringify(apiResponse(attachment)) });
+      return;
+    }
+
+    const deleteMatch = url.pathname.match(/^\/api\/v1\/attachments\/(\d+)$/);
+    if (request.method() === "DELETE" && deleteMatch) {
+      attachmentCalls.push(`delete:${deleteMatch[1]}`);
+      await route.fulfill({ status: 204, headers: corsHeaders });
+      return;
+    }
+
+    const downloadMatch = url.pathname.match(/^\/api\/v1\/attachments\/(\d+)\/download$/);
+    if (request.method() === "GET" && downloadMatch) {
+      attachmentCalls.push(`download:${downloadMatch[1]}`);
+      await route.fulfill({ status: 200, contentType: "application/json", headers: corsHeaders, body: JSON.stringify(apiResponse({ downloadUrl: VALID_IMAGE })) });
+      return;
+    }
+
     if (request.method() === "GET" && url.pathname === "/api/v1/projects/10") {
       await route.fulfill({
         status: 200,
@@ -99,7 +156,7 @@ async function mockApi(
     await route.abort();
   });
 
-  return { patchBodies };
+  return { patchBodies, attachmentCalls };
 }
 
 const profileTrigger = (page: Page) => page.getByRole("button", { name: /프로필 수정/ }).first();
@@ -149,20 +206,12 @@ test("focus가 배경에 있어도 Tab이 모달 안으로 끌어온다", async 
   expect(await page.evaluate(() => !!document.activeElement?.closest("[role=dialog]"))).toBe(true);
 });
 
-test("깨진 avatar URL 뒤에 유효한 URL을 넣으면 이미지가 다시 렌더된다", async ({ page }) => {
+test("profile은 legacy avatar URL 입력 없이 attachment 파일만 제공한다", async ({ page }) => {
   await mockApi(page);
   await openModal(page);
 
-  const dialog = page.getByRole("dialog");
-  const avatarField = page.locator("#profile-avatar-url");
-
-  await avatarField.fill(BROKEN_IMAGE);
-  // 로드 실패 → 이니셜 폴백.
-  await expect(dialog.locator("img")).toHaveCount(0);
-
-  await avatarField.fill(VALID_IMAGE);
-  // 실패 상태가 이전 URL에만 묶여 있으므로 새 URL은 정상 렌더된다.
-  await expect(dialog.locator("img")).toHaveCount(1);
+  await expect(page.locator("#profile-avatar-url")).toHaveCount(0);
+  await expect(page.getByRole("dialog").locator("input[type=file]")).toHaveAttribute("accept", "image/*");
 });
 
 test("바뀐 필드만 PATCH body에 담기고, 변경이 없으면 요청하지 않는다", async ({ page }) => {
@@ -199,4 +248,39 @@ test("error envelope이 아닌 5xx 응답에서도 기본 오류 메시지를 �
 
   await expect(page.getByText("프로필 수정에 실패했습니다. 잠시 후 다시 시도해주세요.")).toBeVisible();
   await expect(page.getByRole("dialog")).toBeVisible();
+});
+
+test("avatar 파일은 initiate, Authorization 없는 presigned PUT, complete 순서로 업로드한다", async ({ page }) => {
+  const mock = await mockApi(page);
+  await openModal(page);
+
+  await page.getByRole("dialog").locator("input[type=file]").setInputFiles({
+    name: "avatar.png",
+    mimeType: "image/png",
+    buffer: Buffer.from([137, 80, 78, 71]),
+  });
+
+  await expect.poll(() => mock.attachmentCalls.slice(0, 3)).toEqual([
+    "initiate:UPLOADING",
+    "PUT:none:image/png:checksum",
+    "complete:READY",
+  ]);
+  await expect.poll(() => mock.attachmentCalls).toContain("download:100");
+  await expect(page.getByRole("dialog").locator("img")).toHaveCount(1);
+});
+
+test("presigned PUT 실패 후 initiated attachment를 삭제한다", async ({ page }) => {
+  const mock = await mockApi(page);
+  await page.route("**/attachment-upload/**", async (route) => {
+    await route.fulfill({ status: 500 });
+  });
+  await openModal(page);
+
+  await page.getByRole("dialog").locator("input[type=file]").setInputFiles({
+    name: "avatar.png",
+    mimeType: "image/png",
+    buffer: Buffer.from([137, 80, 78, 71]),
+  });
+
+  await expect.poll(() => mock.attachmentCalls).toContain("delete:100");
 });

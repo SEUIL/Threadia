@@ -1,135 +1,138 @@
 "use client";
 
-/*
- * S09 — 1:1 DM (채팅방)
- *
- * 접근 사용자: A/P/C. 화면정의서(docs/03-design/화면정의서.md §S09) 기준
- * 회사 구성원과의 1:1 DM 채팅. 설계 메모 반영:
- *   - DM 메시지는 이슈 생성 불가(`DM_MESSAGE_CANNOT_CREATE_ISSUE`) — 프로젝트
- *     채팅(`[projectId]/messages`)과 달리 "이슈로 만들기" 액션이 없다.
- *   - 메시지는 삭제 불가.
- *   - 다자간 DM, read receipt는 MVP 제외 — unread count만 다룬다(방 진입 시 0으로 갱신).
- *
- * ⚠️ 메시지 목록 스타일을 프로젝트 채팅(`[projectId]/messages`)과 같은 디스코드
- * 참조 기준으로 맞췄다(2026-07-06) — 말풍선 대신 아바타+이름+시각 헤더 뒤에
- * 본문이 이어지고, 연속된 같은 작성자 메시지는 헤더를 생략한다. DM은 1:1이라
- * 채널 목록/멤버 목록은 두지 않는다 — 대신 좌측 아이콘 레일(`dm/layout.tsx`)
- * 로 대화 상대를 전환한다("← 목록" 뒤로가기 링크는 그 레일이 대체해서 없앴다).
- *
- * ⚠️ MOCK: DM 메시지 API(`GET/POST /direct-messages/rooms/{roomId}/messages`,
- * mark-read)가 아직 없어서 로컬 state로 흉내낸다. 상대방 이름은 dm/mockRooms.ts
- * (아이콘 레일과 공유하는 목업 방 목록)에서 찾는다.
- */
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { MOCK_ROOMS } from "../mockRooms";
+import { AttachmentControls } from "@/components/attachments/AttachmentControls";
+import { UserAvatar } from "@/components/profile/UserAvatar";
+import { useAuth } from "@/contexts/AuthContext";
+import { invitationErrorMessage } from "@/lib/invitation";
+import { directMessageService } from "@/services/direct-message.service";
+import type { DirectMessageResponse, DirectMessageRoomResponse } from "@/types/direct-message.types";
 
-type Message = {
-  id: string;
-  authorName: string;
-  text: string;
-  createdAt: string;
-  isMine: boolean;
-};
+type LoadState = "loading" | "ready" | "error";
 
-const MOCK_CURRENT_USER = "정철진";
-
-const MOCK_MESSAGES: Message[] = [
-  { id: "m1", authorName: "김민정", text: "안녕하세요, THR-101 반응형 이슈 확인 부탁드려요", createdAt: "10:02", isMine: false },
-  { id: "m2", authorName: "김민정", text: "급한 건 아니고 시간 되실 때 봐주세요", createdAt: "10:02", isMine: false },
-  { id: "m3", authorName: "정철진", text: "네 지금 바로 볼게요", createdAt: "10:03", isMine: true },
-  { id: "m4", authorName: "김민정", text: "감사합니다!", createdAt: "10:03", isMine: false },
-];
-
-function initials(name: string) {
-  return name.slice(0, 1);
+function formatTime(createdAt: string) {
+  return new Date(createdAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
 }
 
 export default function DmRoomPage() {
   const params = useParams<{ companyId: string; roomId: string }>();
-  const peerName = MOCK_ROOMS.find((r) => r.roomId === params.roomId)?.name ?? params.roomId;
-
-  const [messages, setMessages] = useState<Message[]>(MOCK_MESSAGES);
+  const { user, companyMemberships } = useAuth();
+  const [pageState, setPageState] = useState<LoadState>("loading");
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [room, setRoom] = useState<DirectMessageRoomResponse | null>(null);
+  const [messages, setMessages] = useState<DirectMessageResponse[]>([]);
   const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const roomId = Number(params.roomId);
+  const isValidRoomId = Number.isInteger(roomId) && roomId > 0;
+  const isCompanyAdmin = companyMemberships.find((membership) => membership.companyId === Number(params.companyId))?.role === "COMPANY_ADMIN";
 
-  const send = () => {
-    const text = draft.trim();
-    if (!text) return;
-    // TODO: POST /api/v1/direct-messages/rooms/{roomId}/messages
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        authorName: MOCK_CURRENT_USER,
-        text,
-        createdAt: new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
-        isMine: true,
-      },
-    ]);
-    setDraft("");
+  const load = useCallback(async () => {
+    try {
+      const [roomsResponse, messagesResponse] = await Promise.all([
+        directMessageService.listRooms(params.companyId),
+        directMessageService.listMessages(roomId),
+      ]);
+      const loadedRoom = roomsResponse.data.data.rooms.find((item) => item.id === roomId) ?? null;
+      if (!loadedRoom) {
+        setPageError("대화방을 찾을 수 없습니다.");
+        setPageState("error");
+        return;
+      }
+      setRoom(loadedRoom);
+      setMessages(messagesResponse.data.data.messages);
+      setPageError(null);
+      setPageState("ready");
+
+      const latestMessage = messagesResponse.data.data.messages.at(-1);
+      if (latestMessage) {
+        try {
+          await directMessageService.markRead(roomId, { lastReadDirectMessageId: latestMessage.id });
+        } catch {
+          // 읽음 상태 갱신 실패는 대화 조회/전송을 막지 않는다.
+        }
+      }
+    } catch (loadError) {
+      setPageError(invitationErrorMessage(loadError, "대화를 불러오지 못했습니다."));
+      setPageState("error");
+    }
+  }, [params.companyId, roomId]);
+
+  useEffect(() => {
+    if (!isValidRoomId) return;
+    void (async () => {
+      await load();
+    })();
+  }, [isValidRoomId, load]);
+
+  useEffect(() => {
+    if (pageState === "ready") scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }, [messages.length, pageState]);
+
+  const send = async () => {
+    const content = draft.trim();
+    if (!content || sending || !isValidRoomId) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      const { data } = await directMessageService.createMessage(roomId, { content });
+      setMessages((current) => [...current, data.data.message]);
+      setDraft("");
+    } catch (sendRequestError) {
+      setSendError(invitationErrorMessage(sendRequestError, "메시지 전송에 실패했습니다."));
+    } finally {
+      setSending(false);
+    }
   };
+
+  if (!isValidRoomId) return <div className="px-6 py-8 text-sm text-destructive">유효하지 않은 대화방입니다.</div>;
+  if (pageState === "loading") return <div className="px-6 py-8 text-sm text-muted">대화를 불러오는 중...</div>;
+  if (pageState === "error") {
+    return <div className="px-6 py-8"><div className="rounded-lg border border-destructive/30 bg-destructive-subtle px-4 py-6 text-center text-sm text-destructive">{pageError}</div></div>;
+  }
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-5">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full avatar-ring text-xs font-semibold text-foreground">
-          {initials(peerName)}
-        </span>
-        <h1 className="text-sm font-bold text-foreground">{peerName}</h1>
+        <UserAvatar nickname={room!.otherUser.nickname} avatarUrl={room!.otherUser.avatarUrl} userId={room!.otherUser.id} className="h-7 w-7 text-xs text-foreground" />
+        <h1 className="text-sm font-bold text-foreground">{room!.otherUser.nickname}</h1>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4">
         <div className="flex flex-col">
-          {messages.map((msg, i) => {
-            const prev = messages[i - 1];
-            const showHeader = !prev || prev.authorName !== msg.authorName;
+          {messages.map((message, index) => {
+            const previous = messages[index - 1];
+            const showHeader = !previous || previous.sender.id !== message.sender.id;
+            const canMutate = message.sender.id === user?.id || isCompanyAdmin;
             return (
-              <div
-                key={msg.id}
-                className={"group flex gap-3 rounded-md px-2 py-0.5 hover:bg-border/20 " + (showHeader ? "mt-3" : "")}
-              >
+              <div key={message.id} className={"group flex gap-3 rounded-md px-2 py-0.5 hover:bg-border/20 " + (showHeader ? "mt-3" : "")}>
                 <div className="w-9 shrink-0 text-right">
                   {showHeader ? (
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full avatar-ring text-xs font-semibold text-foreground">
-                      {initials(msg.authorName)}
-                    </span>
+                    <UserAvatar nickname={message.sender.nickname} avatarUrl={message.sender.avatarUrl} userId={message.sender.id} className="h-9 w-9 text-xs text-foreground" />
                   ) : (
-                    <span className="hidden text-[10px] text-placeholder group-hover:inline-block">
-                      {msg.createdAt}
-                    </span>
+                    <span className="hidden text-[10px] text-placeholder group-hover:inline-block">{formatTime(message.createdAt)}</span>
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  {showHeader && (
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-sm font-semibold text-foreground">{msg.authorName}</span>
-                      <span className="text-[10px] text-placeholder">{msg.createdAt}</span>
-                    </div>
-                  )}
-                  <p className="text-sm text-foreground">{msg.text}</p>
+                  {showHeader && <div className="flex items-baseline gap-2"><span className="text-sm font-semibold text-foreground">{message.sender.nickname}</span><span className="text-[10px] text-placeholder">{formatTime(message.createdAt)}</span></div>}
+                  <p className="whitespace-pre-wrap text-sm text-foreground">{message.content}</p>
+                  <AttachmentControls targetType="DIRECT_MESSAGE" targetId={message.id} canMutate={canMutate} compact />
                 </div>
               </div>
             );
           })}
+          {messages.length === 0 && <p className="py-10 text-center text-sm text-muted">아직 메시지가 없습니다.</p>}
         </div>
       </div>
 
       <div className="px-5 pb-5">
+        {sendError && <p className="mb-2 text-xs text-destructive">{sendError}</p>}
         <div className="flex items-center gap-2 rounded-xl bg-surface px-3 py-2 shadow-sm">
-          <input
-            aria-label="메시지 입력"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && send()}
-            placeholder={`${peerName}에게 메시지 보내기`}
-            className="flex-1 bg-transparent text-sm text-foreground placeholder:text-placeholder focus:outline-none"
-          />
-          <button
-            onClick={send}
-            className="shrink-0 rounded-lg btn-gradient px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors duration-fast"
-          >
-            전송
-          </button>
+          <input aria-label="메시지 입력" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => event.key === "Enter" && void send()} disabled={sending} placeholder={`${room!.otherUser.nickname}에게 메시지 보내기`} className="flex-1 bg-transparent text-sm text-foreground placeholder:text-placeholder focus:outline-none disabled:opacity-50" />
+          <button onClick={() => void send()} disabled={sending || !draft.trim()} className="shrink-0 rounded-lg btn-gradient px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors duration-fast disabled:cursor-not-allowed disabled:opacity-50">{sending ? "전송 중..." : "전송"}</button>
         </div>
       </div>
     </div>
