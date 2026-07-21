@@ -32,6 +32,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePendingInvitationCount } from "@/hooks/usePendingInvitationCount";
 import { useUnreadNotificationCount } from "@/hooks/useUnreadNotificationCount";
 import { useDmUnreadCount } from "@/hooks/useDmUnreadCount";
+import { useIsPlatformAdmin } from "@/hooks/useIsPlatformAdmin";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 import { ProfileEditModal } from "@/components/profile/ProfileEditModal";
 import { PageTransition } from "./PageTransition";
@@ -101,6 +102,36 @@ function BuildingIcon() {
   );
 }
 
+function HelpIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+      <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.6" />
+      <path
+        d="M9.8 9.5a2.2 2.2 0 1 1 3.3 1.9c-.7.4-1.1.9-1.1 1.6v.3"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="16.3" r="0.9" fill="currentColor" />
+    </svg>
+  );
+}
+
+function ShieldIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+      <path
+        d="M12 3.5 5 6v5.5c0 4.4 3 8.1 7 9 4-.9 7-4.6 7-9V6l-7-2.5Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path d="m9 12 2 2 4-4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function LogoutIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
@@ -132,6 +163,7 @@ function Rail({ companyId }: { companyId: string }) {
   const pendingInvitationCount = usePendingInvitationCount();
   const unreadNotificationCount = useUnreadNotificationCount(companyId);
   const dmUnreadCount = useDmUnreadCount();
+  const isPlatformAdmin = useIsPlatformAdmin();
   const membership = companyMemberships.find((m) => m.companyId === Number(companyId)) ?? null;
   const companyName = membership?.companyName ?? "소속 회사 없음";
 
@@ -146,10 +178,16 @@ function Rail({ companyId }: { companyId: string }) {
     // company-agnostic — 이미 소속된 회사 기준 레일에서도 다른 회사에서 온 초대를 받을 수 있다.
     { href: "/invitations", label: "받은 초대", icon: <MailIcon />, badge: pendingInvitationCount },
     { href: `/${companyId}/notifications`, label: "알림", icon: <BellIcon />, badge: unreadNotificationCount },
+    // company-agnostic — 문의는 회사 소속과 무관하게 로그인 사용자 본인 것만 다룬다.
+    { href: "/support", label: "문의하기", icon: <HelpIcon /> },
   ];
   // C(회사 관리자)만 회사 관리 메뉴가 보인다 (화면정의서 S03 메뉴 노출 규칙, 이전 AppShell과 동일)
   if (membership?.role === "COMPANY_ADMIN") {
     items.push({ href: `/${companyId}/settings`, label: "회사 관리", icon: <BuildingIcon /> });
+  }
+  // platform admin(회사 membership과 무관한 별도 authority)만 S15 콘솔 진입점이 보인다.
+  if (isPlatformAdmin) {
+    items.push({ href: "/platform", label: "플랫폼 관리자", icon: <ShieldIcon /> });
   }
 
   return (
@@ -200,7 +238,7 @@ function Rail({ companyId }: { companyId: string }) {
           aria-label={`${nickname} — 프로필 수정`}
           className="rounded-full transition-opacity duration-fast hover:opacity-80"
         >
-          <UserAvatar nickname={nickname} avatarUrl={user?.avatarUrl} />
+          <UserAvatar nickname={nickname} avatarUrl={user?.avatarUrl} userId={user?.id} />
         </button>
         <button
           type="button"
@@ -257,7 +295,7 @@ function Rail({ companyId }: { companyId: string }) {
             aria-label={`${nickname} — 프로필 수정`}
             className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left transition-colors duration-fast hover:bg-chrome-hover"
           >
-            <UserAvatar nickname={nickname} avatarUrl={user?.avatarUrl} />
+            <UserAvatar nickname={nickname} avatarUrl={user?.avatarUrl} userId={user?.id} />
             <span className="min-w-0 flex-1 truncate text-sm font-medium text-chrome-foreground">
               {nickname}
             </span>

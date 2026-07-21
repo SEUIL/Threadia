@@ -3,11 +3,47 @@ set -euo pipefail
 readonly ROOT=/opt/threadia-compose PROJECT=threadia-compose-dual COMPOSE=/opt/threadia-compose/compose.dual-image.production.yml RUNTIME=/etc/threadia-compose/runtime.env STATE=/var/lib/threadia-compose-dual/current-release.env LEGACY_STATE=/var/lib/threadia-compose/current-image LOCK=/run/lock/threadia-compose-dual.lock
 fail(){ printf '%s\n' "public dual release failed: $*" >&2; exit 1; }
 valid(){ [[ "$1" =~ ^[0-9]{12}\.dkr\.ecr\.[a-z]{2}(-[a-z0-9]+)+-[0-9]+\.amazonaws\.com/[a-z0-9]+([._/-][a-z0-9]+)*@sha256:[a-f0-9]{64}$ ]]; }
+runtime_value(){ local key=$1; local matches; matches=$(grep -E "^${key}=" "$RUNTIME" || true); [[ $(printf '%s\n' "$matches" | grep -c .) == 1 ]] || fail "missing or duplicated runtime key: $key"; printf '%s' "${matches#*=}"; }
+forbidden_runtime_key(){ ! grep -qE "^$1=" "$RUNTIME" || fail "forbidden AWS static storage runtime key: $1"; }
+forbidden_aws_runtime_keys(){
+  local key
+  for key in \
+    AWS_ACCESS_KEY_ID \
+    AWS_SECRET_ACCESS_KEY \
+    AWS_SESSION_TOKEN \
+    AWS_SECURITY_TOKEN \
+    AWS_PROFILE \
+    AWS_DEFAULT_PROFILE \
+    AWS_SHARED_CREDENTIALS_FILE \
+    AWS_CONFIG_FILE \
+    AWS_WEB_IDENTITY_TOKEN_FILE \
+    AWS_ROLE_ARN \
+    AWS_SDK_LOAD_CONFIG \
+    AWS_EC2_METADATA_DISABLED \
+    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI \
+    AWS_CONTAINER_CREDENTIALS_FULL_URI; do
+    forbidden_runtime_key "$key"
+  done
+}
+validate_attachment_runtime(){
+  local region bucket path_style ttl cleanup_enabled cleanup_delay upload_delay
+  region=$(runtime_value THREADIA_STORAGE_S3_REGION); bucket=$(runtime_value THREADIA_STORAGE_S3_BUCKET)
+  path_style=$(runtime_value THREADIA_STORAGE_S3_PATH_STYLE); ttl=$(runtime_value THREADIA_STORAGE_S3_PRESIGN_TTL)
+  cleanup_enabled=$(runtime_value THREADIA_STORAGE_ORPHAN_CLEANUP_ENABLED); cleanup_delay=$(runtime_value THREADIA_STORAGE_ORPHAN_CLEANUP_DELAY); upload_delay=$(runtime_value THREADIA_STORAGE_UPLOAD_CLEANUP_DELAY)
+  [[ "$region" == ap-northeast-2 ]] || fail "attachment storage must use ap-northeast-2"
+  [[ "$bucket" =~ ^threadia-attachments-[0-9]{12}-ap-northeast-2$ ]] || fail "attachment storage must use the dedicated account-and-region-derived bucket"
+  [[ "$path_style" == false && "$cleanup_enabled" == true ]] || fail "attachment storage must use AWS virtual-hosted addressing and enabled cleanup"
+  [[ "$ttl" =~ ^PT([1-9]|10)M$ ]] || fail "attachment presign TTL must be between PT1M and PT10M"
+  [[ "$cleanup_delay" =~ ^PT[1-9][0-9]*[SMH]$ && "$upload_delay" =~ ^PT[1-9][0-9]*[SMH]$ ]] || fail "invalid attachment storage cleanup ISO-8601 duration"
+  forbidden_runtime_key THREADIA_STORAGE_S3_ENDPOINT; forbidden_runtime_key THREADIA_STORAGE_S3_ACCESS_KEY; forbidden_runtime_key THREADIA_STORAGE_S3_SECRET_KEY
+  forbidden_aws_runtime_keys
+}
 [[ "$(id -u)" == 0 && $# == 3 ]] || fail "expected ReleaseId FrontendImageRef BackendImageRef as root"
 release_id=$1; frontend=$2; backend=$3
 [[ "$release_id" =~ ^[0-9a-f]{40}-[1-9][0-9]*-[1-9][0-9]*$ ]] && valid "$frontend" && valid "$backend" || fail "invalid release identity"
 for x in "$0" "$COMPOSE" "$RUNTIME"; do [[ -f "$x" ]] || fail "missing $x"; [[ "$(stat -c '%U:%G:%a' "$x")" =~ ^root:root: ]]; done
 [[ "$(stat -c '%a' "$RUNTIME")" == 600 && "$(uname -m)" == x86_64 ]] || fail "invalid host runtime contract"
+validate_attachment_runtime
 [[ -z "$(docker ps --filter label=com.docker.compose.project=threadia-compose --filter label=com.docker.compose.service=app --quiet)" && ! -f "$LEGACY_STATE" ]] || fail "legacy public backend-only Compose must be manually migrated first"
 install -d -o root -g root -m 0700 "${STATE%/*}" /run/lock
 exec 9>"$LOCK"; flock -n 9 || fail "another dual release is active"

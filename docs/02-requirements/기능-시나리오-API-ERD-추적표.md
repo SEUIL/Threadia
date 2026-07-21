@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-15  
-> **최종 수정**: 2026-07-19
-> **버전**: v1.8 WBS 4.9.1 Activity Feed Backend 범위 정정
+> **최종 수정**: 2026-07-21
+> **버전**: v1.10 Issue #208 DM 후보 조회 follow-up 및 WBS 4.11 private attachment lifecycle 추적 반영
 > **상태**: 확정
 > **태그**: requirements, traceability, api, erd
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
@@ -50,7 +50,7 @@
 | SC-C-01 회사 관리자 초기 세팅 | C | COMPANY-01, COMPANY-02, DEPT-01~04, MEMBER-01~04, RBAC-01 | `POST /api/v1/companies`, `GET/PATCH /api/v1/companies/{companyId}`, `POST /api/v1/companies/{companyId}/logo`, `GET/POST /api/v1/companies/{companyId}/departments`, `PATCH/DELETE /api/v1/departments/{departmentId}`, `GET /api/v1/companies/{companyId}/company-members`, `GET /api/v1/users/lookup`, `POST/GET /api/v1/companies/{companyId}/invitations`, `POST /api/v1/invitations/{invitationId}/accept`, `POST /api/v1/invitations/{invitationId}/decline`, `POST /api/v1/invitations/{invitationId}/cancel`, `PATCH /api/v1/companies/{companyId}/company-members/{companyMemberId}` | `companies`, `departments`, `company_members`, `invitations`, `users` | S13, S14, S04, S12 | 연결 완료 |
 | SC-C-02 회사 관리자 모니터링과 의사결정 | C | PROJECT-01, ISSUE-01, THREAD-01, NOTI-01, COMPANY-04 | `GET /api/v1/companies/{companyId}/projects`, `GET /api/v1/projects/{projectId}/issues`, `GET /api/v1/projects/{projectId}/threads`, `POST /api/v1/threads/{threadId}/comments`, `GET /api/v1/notifications`, `GET /api/v1/companies/{companyId}/stats` | `projects`, `issues`, `threads`, `thread_comments`, `notification_events`, `notification_recipients`, `companies` | S04, S05, S10, S11, S13 | 연결 완료 |
 | SC-P-01 프로젝트 관리자 프로젝트 운영 | P | PROJECT-02, PROJECT-03, PROJECT-04, PROJECT-MEMBER-01, PROJECT-MEMBER-02, SPRINT-01, SPRINT-02, ISSUE-01, ISSUE-02, ISSUE-03, KANBAN-01, KANBAN-02, DOC-01, DOC-02, GRAPH-01, GRAPH-02, NOTI-01 | `POST /api/v1/companies/{companyId}/projects`, `GET/PATCH /api/v1/projects/{projectId}`, `POST /api/v1/projects/{projectId}/archive`, `GET /api/v1/projects/{projectId}/project-members`, `POST/GET /api/v1/projects/{projectId}/invitations`, `PATCH/DELETE /api/v1/project-members/{projectMemberId}`, `GET/POST /api/v1/projects/{projectId}/sprints`, `POST /api/v1/sprints/{sprintId}/start`, `POST /api/v1/sprints/{sprintId}/complete`, `GET/POST /api/v1/projects/{projectId}/issues`, `PATCH /api/v1/issues/{issueId}/status`, `GET/POST /api/v1/projects/{projectId}/documents`, `GET /api/v1/projects/{projectId}/documents/graph` | `projects`, `project_members`, `invitations`, `sprints`, `issues`, `issue_status_history`, `documents`, `document_issue_links`, `notification_events` | S04, S05, S06, S07, S08, S10, S11, S12 | Foundation reference + Sprint 3 후보 |
-| SC-A-01 일반 사용자 업무 수행 | A | KANBAN-01, KANBAN-02, ISSUE-01, ISSUE-02, THREAD-01, CHAT-01, CHAT-02, CHAT-03, DOC-01, DOC-02, LINK-01, LINK-02, GRAPH-01, NOTI-01 | `GET /api/v1/notifications`, `GET /api/v1/projects/{projectId}/issues`, `PATCH /api/v1/issues/{issueId}/status`, `GET/POST /api/v1/projects/{projectId}/threads`, `POST /api/v1/threads/{threadId}/comments`, `GET/POST /api/v1/projects/{projectId}/messages`, `GET/POST /api/v1/companies/{companyId}/direct-messages/rooms`, `GET/POST /api/v1/direct-messages/rooms/{roomId}/messages`, `GET/POST /api/v1/projects/{projectId}/documents`, `POST /api/v1/projects/{projectId}/document-issue-links` | `notification_events`, `notification_recipients`, `issues`, `threads`, `thread_comments`, `messages`, `direct_message_rooms`, `direct_messages`, `documents`, `document_issue_links` | S04, S05, S06, S07, S08, S09, S10, S11 | Sprint 3 후보 |
+| SC-A-01 일반 사용자 업무 수행 | A | KANBAN-01, KANBAN-02, ISSUE-01, ISSUE-02, THREAD-01, CHAT-01, CHAT-02, CHAT-03, DOC-01, DOC-02, LINK-01, LINK-02, GRAPH-01, NOTI-01 | `GET /api/v1/notifications`, `GET /api/v1/projects/{projectId}/issues`, `PATCH /api/v1/issues/{issueId}/status`, `GET/POST /api/v1/projects/{projectId}/threads`, `POST /api/v1/threads/{threadId}/comments`, `GET/POST /api/v1/projects/{projectId}/messages`, `GET /api/v1/companies/{companyId}/direct-messages/candidates`, `GET/POST /api/v1/companies/{companyId}/direct-messages/rooms`, `GET/POST /api/v1/direct-messages/rooms/{roomId}/messages`, `GET/POST /api/v1/projects/{projectId}/documents`, `POST /api/v1/projects/{projectId}/document-issue-links` | `notification_events`, `notification_recipients`, `issues`, `threads`, `thread_comments`, `messages`, `direct_message_rooms`, `direct_messages`, `documents`, `document_issue_links` | S04, S05, S06, S07, S08, S09, S10, S11 | Sprint 3 후보 |
 | SC-LINK-01 문서-이슈-메시지 연결 | A/P/C | LINK-01, LINK-02, LINK-03, THREAD-01, THREAD-02, DOC-01, CHAT-01, GRAPH-01, GRAPH-02, NOTI-01 | `POST /api/v1/projects/{projectId}/issues/from-message`, `GET /api/v1/messages/{messageId}`, `GET /api/v1/issues/{issueId}/documents`, `GET /api/v1/documents/{documentId}/issues`, `POST /api/v1/projects/{projectId}/document-issue-links`, `DELETE /api/v1/document-issue-links/{linkId}`, `GET /api/v1/projects/{projectId}/documents/graph`, `POST /api/v1/projects/{projectId}/threads`, `POST /api/v1/threads/{threadId}/comments` | `messages`, `issues`, `documents`, `document_issue_links`, `threads`, `thread_comments`, `notification_events` | S05, S07, S08, S09, S10, S11 | Sprint 3 후보 |
 
 ---
@@ -74,7 +74,7 @@
 | 문서/회의록 | DOC-01~04 | Sprint 3 후보 | SC-P-01, SC-A-01, SC-LINK-01 | 문서 목록/생성/상세/수정/휴지통/복원 | `documents` | `.md` 저장 기준, 영구 삭제 decision-needed |
 | 문서-이슈 연결/그래프 | LINK-02, GRAPH-01, GRAPH-02 | Sprint 3 후보 | SC-P-01, SC-A-01, SC-LINK-01 | 문서-이슈 연결 생성/해제/조회, 그래프 조회 | `document_issue_links`, `documents`, `issues` | S07/S08 그래프 뷰에 edge 반영 |
 | 프로젝트 채팅 | CHAT-01, CHAT-03, LINK-01 | Sprint 3 후보 | SC-A-01, SC-LINK-01 | 프로젝트 메시지 목록/작성/상세/읽음/unread/from-message | `messages`, `project_chat_member_states`, `issues` | 프로젝트 메시지만 이슈 전환 가능 |
-| 1:1 DM | CHAT-02, CHAT-03 | Sprint 3 후보 | SC-A-01 | DM 방 목록/생성, DM 메시지 조회/전송/읽음/unread | `direct_message_rooms`, `direct_messages`, `dm_room_user_states` | 다자간 DM과 상대 read receipt는 이번 개발 기간 보류다. 향후 재검토 전 API, schema, frontend 구현은 추가하지 않는다. |
+| 1:1 DM | CHAT-02, CHAT-03 | Sprint 3 후보, Issue #208 Backend follow-up | SC-A-01 | DM 후보 조회, 방 목록/생성, DM 메시지 조회/전송/읽음/unread | `direct_message_rooms`, `direct_messages`, `dm_room_user_states`, `company_members`, `users` | `GET /api/v1/companies/{companyId}/direct-messages/candidates`는 ACTIVE caller와 ACTIVE 회사 membership을 요구하고, 같은 회사의 ACTIVE membership + ACTIVE user 중 self를 제외해 `data.candidates`의 `id`, `nickname`, `avatarUrl`만 반환한다. 기존 room 상대는 포함하며 Frontend client-side 제외를 유지한다. `nickname ASC, userId ASC`, pagination 없음, 빈 결과 200 `[]`, no/malformed auth 또는 SUSPENDED caller는 401, missing/inactive 회사 또는 caller membership은 403이다. CHAT-02 전체 완료를 의미하지 않는다. |
 | 쓰레드 | THREAD-01~03 | WBS 4.7.1.1 Backend 구현 | SC-C-02, SC-P-01, SC-A-01, SC-LINK-01 | 명시적 대상별 get-or-create/조회, 상세, author/P/C topic 수정, append-only 댓글 작성 | `threads`, `thread_comments` | 대상 1개당 대표 쓰레드 1개, 자동 생성·project-wide list 제외 |
 | 쓰레드 멘션 알림 | THREAD-04 | 범위 밖 | SC-C-02, SC-P-01, SC-A-01, SC-LINK-01 | 미제공 | `notification_events` 미사용 | 멘션 파싱·저장·event emission 미구현 |
 | 알림 | NOTI-01 | Sprint 3 후보, primary WBS `4.8` | 전체 시나리오 | 알림 목록/unread/read/read-all | `notification_events`, `notification_recipients` | NOTI-02/03은 현재 계약/reference row로 유지하고 PROJECT scope preference는 API boundary code로 관리 |
@@ -88,7 +88,7 @@
 | 프로젝트 활동 피드 | FEED-01 | Issue create/status/trash/restore 활동 조회 | `GET /api/v1/projects/{projectId}/activity-events` | 기존 `activity_events` | WBS 4.9.1 Backend 구현, `createdAt DESC, id DESC` offset pagination | STOMP, Redis/cache, NoSQL, notification linkage, dashboard integration, summary table, cursor pagination, Frontend 보류 |
 | 통합 검색 | SEARCH-01 | 조건부 확장 흐름 | `GET /api/v1/search` | MySQL `LIKE` | `4.9.2`와 `4.9.4` 진행 중 50% parent, `4.9.2.1` 결정 완료, `4.9.4.1` Backend 구현 완료, `4.9.2.2`/`4.9.4.2` Frontend 계획 0% | FULLTEXT, 외부 검색 엔진, Redis, schema, type filter, source별 결과 필드, Frontend와 고급 검색은 보류 |
 | 프로젝트 홈/대시보드 | DASH-01~04 | 조건부 확장 흐름 | `GET /api/v1/projects/{projectId}/dashboard` | MySQL aggregate, `project_dashboard_summaries`, Redis cache | Sprint 3 후보 | 별도 OLAP/검색 엔진 제외 |
-| 파일/이미지 첨부 | ATTACH-01 | MVP 이후/보류 흐름 | `/api/v1/attachments` 미제공 | attachments 테이블/S3 presigned URL 정책 | Sprint 3 decision-needed | 회사 로고와 프로필 URL은 별도 처리 |
+| 파일/이미지 첨부 | ATTACH-01 | 대상 resource의 private attachment lifecycle | `POST /api/v1/attachments/uploads`, complete, list, download, delete | `attachments`, users/company managed reference | WBS 4.11 Backend 계약 | `DOCUMENT`는 body가 아닌 resource이며 `BINARY_DOCUMENT`는 같은 document resource에 연결한다. 100MB, checksum, avatar/logo image-only; production wiring과 retention/cleanup activation은 보류 |
 
 ---
 
@@ -138,11 +138,11 @@
 - [x] 모든 주요 사용자 시나리오가 API 명세서의 endpoint 또는 명시적 비API 정책과 연결된다.
 - [x] API에서 생성·수정·조회하는 주요 데이터가 ERD 테이블과 연결된다.
 - [x] `소셜 로그인`, `비밀번호 찾기/재설정`, `프로필 사진`은 Sprint 1/MVP 범위로 추적된다.
-- [x] `FEED/DASH`는 Sprint 3 후보, `SEARCH-01`은 `4.9.2`와 `4.9.4` 진행 중 50% parent 아래 `4.9.2.1` 결정 및 `4.9.4.1` Backend 구현 완료, `4.9.2.2`/`4.9.4.2` Frontend 계획 0%로, `ATTACH`는 Sprint 3 decision-needed로 추적된다.
+- [x] `FEED/DASH`는 Sprint 3 후보, `SEARCH-01`은 `4.9.2`와 `4.9.4` 진행 중 50% parent 아래 `4.9.2.1` 결정 및 `4.9.4.1` Backend 구현 완료, `4.9.2.2`/`4.9.4.2` Frontend 계획 0%이며, `ATTACH`는 WBS 4.11 Backend 계약으로 추적된다.
 - [x] 보류 기능은 필수 시나리오에서 제거되거나 제한 조건으로 명시된다.
 - [x] Redis, STOMP push, summary table은 원본 데이터가 아닌 조건부 확장 계층이며 WBS 4.9.1 활동 피드 Backend slice에는 포함하지 않는다.
 - [x] `activity_events`와 `notification_events` 운영상 분리 기준을 확정했다. 두 저장소는 통합하지 않고 필요 시 activity 이벤트에서 notification 이벤트를 생성하는 연계만 허용한다.
-- [x] S3 사용 범위는 확정했다. attachments 테이블과 presigned URL 상세 정책은 Sprint 3 decision-needed로 확정한다.
+- [x] attachment metadata, private presigned lifecycle, checksum, 100MB와 target별 인가를 WBS 4.11 구현 계약으로 추적한다. production storage wiring과 retention/cleanup activation은 후속 결정으로 둔다.
 
 ---
 

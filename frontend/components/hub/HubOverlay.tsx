@@ -31,6 +31,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePendingInvitationCount } from "@/hooks/usePendingInvitationCount";
 import { useUnreadNotificationCount } from "@/hooks/useUnreadNotificationCount";
 import { useDmUnreadCount } from "@/hooks/useDmUnreadCount";
+import { useIsPlatformAdmin } from "@/hooks/useIsPlatformAdmin";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 import { ProfileEditModal } from "@/components/profile/ProfileEditModal";
 
@@ -99,6 +100,36 @@ function BuildingIcon() {
   );
 }
 
+function HelpIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+      <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.6" />
+      <path
+        d="M9.8 9.5a2.2 2.2 0 1 1 3.3 1.9c-.7.4-1.1.9-1.1 1.6v.3"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="16.3" r="0.9" fill="currentColor" />
+    </svg>
+  );
+}
+
+function ShieldIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
+      <path
+        d="M12 3.5 5 6v5.5c0 4.4 3 8.1 7 9 4-.9 7-4.6 7-9V6l-7-2.5Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path d="m9 12 2 2 4-4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function LogoutIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5">
@@ -131,16 +162,18 @@ function HubRail() {
   const primaryMembership = companyMemberships[0] ?? null;
   const unreadNotificationCount = useUnreadNotificationCount(primaryMembership?.companyId);
   const dmUnreadCount = useDmUnreadCount();
+  const isPlatformAdmin = useIsPlatformAdmin();
 
   const handleLogout = async () => {
     await logout();
     router.push("/login");
   };
 
-  // company-agnostic한 "받은 초대"는 소속 회사가 없어도 항상 보인다 — 신규
-  // 유저가 첫 초대를 확인할 유일한 통로다.
+  // company-agnostic한 "받은 초대"/"문의하기"는 소속 회사가 없어도 항상 보인다
+  // — 신규 유저가 첫 초대를 확인하거나 문의를 남길 유일한 통로다.
   const items: NavItem[] = [
     { href: "/invitations", label: "받은 초대", icon: <MailIcon />, badge: pendingInvitationCount },
+    { href: "/support", label: "문의하기", icon: <HelpIcon /> },
   ];
   if (primaryMembership) {
     const { companyId, role } = primaryMembership;
@@ -153,6 +186,11 @@ function HubRail() {
     if (role === "COMPANY_ADMIN") {
       items.push({ href: `/${companyId}/settings`, label: "회사 관리", icon: <BuildingIcon /> });
     }
+  }
+  // platform admin(회사 membership과 무관한 별도 authority)만 S15 콘솔 진입점이 보인다.
+  // company-agnostic이라 primaryMembership 유무와 무관하게 노출한다(RailShell과 동일 원칙).
+  if (isPlatformAdmin) {
+    items.push({ href: "/platform", label: "플랫폼 관리자", icon: <ShieldIcon /> });
   }
 
   return (
@@ -194,7 +232,7 @@ function HubRail() {
           aria-label={`${nickname} — 프로필 수정`}
           className="rounded-full transition-opacity duration-fast hover:opacity-80"
         >
-          <UserAvatar nickname={nickname} avatarUrl={user?.avatarUrl} />
+          <UserAvatar nickname={nickname} avatarUrl={user?.avatarUrl} userId={user?.id} />
         </button>
         <button
           type="button"
@@ -244,7 +282,7 @@ function HubRail() {
             aria-label={`${nickname} — 프로필 수정`}
             className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left transition-colors duration-fast hover:bg-chrome-hover"
           >
-            <UserAvatar nickname={nickname} avatarUrl={user?.avatarUrl} />
+            <UserAvatar nickname={nickname} avatarUrl={user?.avatarUrl} userId={user?.id} />
             <span className="min-w-0 flex-1 truncate text-sm font-medium text-chrome-foreground">
               {nickname}
             </span>

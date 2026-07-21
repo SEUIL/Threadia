@@ -94,6 +94,17 @@ class MysqlSchemaValidationTests {
 	}
 
 	@Test
+	void reappliesSchemaSqlWithManagedAttachmentForeignKeys() {
+		applySchemaSql();
+		applySchemaSql();
+
+		assertForeignKey("users", "fk_users_avatar_attachment", "avatar_attachment_id", "attachments", "id");
+		assertForeignKey("companies", "fk_companies_logo_attachment", "logo_attachment_id", "attachments", "id");
+		assertForeignKey("attachments", "fk_attachments_created_by", "created_by_user_id", "users", "id");
+		assertForeignKey("attachments", "fk_attachments_company", "company_id", "companies", "id");
+	}
+
+	@Test
 	void appliesSchemaSqlAndCreatesInvitationReferenceConstraints() {
 		applySchemaSql();
 

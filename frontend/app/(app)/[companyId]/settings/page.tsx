@@ -17,11 +17,18 @@
  * MEMBER가 직접 들어오면 회사 정보(GET)는 보이고 통계/부서(admin 전용)는
  * 403으로 실패해 에러 화면으로 처리된다. 실제 데이터 유출은 없다(서버가
  * 최종 방어).
+ *
+ * 로고: `POST /{companyId}/logo`(API-명세서 §5)는 파일 업로드가 아니라
+ * "로고 URL 저장" 전용 endpoint다(백엔드에 별도 파일 스토리지가 없음,
+ * `CompanyLogoRequest`가 `@URL` 문자열만 받는다) — 코드-WBS 감사 중 이 endpoint가
+ * 프론트에서 전혀 안 쓰이고 있는 걸 발견해 여기 연결한다. `update()`(전체
+ * PATCH)와 별개 액션이라 이름/설명 저장 폼과 분리된 자체 입력·저장을 둔다.
  */
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { TextField } from "@/components/ui/TextField";
+import { AttachmentControls, AttachmentImage } from "@/components/attachments/AttachmentControls";
 import { companyService } from "@/services/company.service";
 import { departmentService } from "@/services/department.service";
 import { invitationErrorMessage } from "@/lib/invitation";
@@ -77,6 +84,11 @@ export default function CompanySettingsPage() {
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
+  const [logoUrlDraft, setLogoUrlDraft] = useState("");
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const [brokenLogoUrl, setBrokenLogoUrl] = useState<string | null>(null);
+
   const [stats, setStats] = useState<CompanyStatsData | null>(null);
 
   const [departments, setDepartments] = useState<DepartmentResponse[]>([]);
@@ -94,6 +106,7 @@ export default function CompanySettingsPage() {
         departmentService.list(companyId),
       ]);
       setCompany(companyRes.data.data.company);
+      setLogoUrlDraft(companyRes.data.data.company.logoUrl ?? "");
       setStats(statsRes.data.data);
       setDepartments(departmentsRes.data.data.departments);
       setPageState("ready");
@@ -133,6 +146,22 @@ export default function CompanySettingsPage() {
       setEditError(invitationErrorMessage(error, "회사 정보 수정에 실패했습니다."));
     } finally {
       setEditBusy(false);
+    }
+  };
+
+  const saveLogo = async () => {
+    const logoUrl = logoUrlDraft.trim();
+    if (!logoUrl) return;
+    setLogoBusy(true);
+    setLogoError(null);
+    try {
+      const { data } = await companyService.updateLogo(companyId, { logoUrl });
+      setCompany(data.data.company);
+      setBrokenLogoUrl(null);
+    } catch (error) {
+      setLogoError(invitationErrorMessage(error, "로고 저장에 실패했습니다."));
+    } finally {
+      setLogoBusy(false);
     }
   };
 
@@ -203,7 +232,49 @@ export default function CompanySettingsPage() {
           )}
         </div>
 
+        <div className="mt-4 flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-primary-subtle text-sm font-bold text-primary">
+            <AttachmentImage targetType="COMPANY_LOGO" targetId={company.id} fallbackUrl={company.logoUrl} alt={`${company.name} 로고`} className="h-full w-full object-cover" />
+            {!company.logoUrl && company.name.slice(0, 1)}
+          </span>
+          <AttachmentControls targetType="COMPANY_LOGO" targetId={company.id} canMutate compact label="회사 로고" />
+        </div>
+
         {editError && <p className="mt-2 text-xs text-destructive">{editError}</p>}
+
+        {/* 로고 — 이름/설명 저장 폼과 별개 endpoint(POST /{companyId}/logo)라 저장 버튼도 분리한다. */}
+        <div className="mt-4 flex items-center gap-3">
+          {logoUrlDraft && logoUrlDraft !== brokenLogoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- 임의 외부 호스트를 그대로 허용해야 해서 next/image remotePatterns 설정 범위 밖(UserAvatar와 동일 판단)
+            <img
+              src={logoUrlDraft}
+              alt="회사 로고"
+              onError={() => setBrokenLogoUrl(logoUrlDraft)}
+              className="h-12 w-12 shrink-0 rounded-lg border border-border object-cover"
+            />
+          ) : (
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted">
+              로고
+            </div>
+          )}
+          <div className="flex flex-1 items-center gap-2">
+            <input
+              aria-label="회사 로고 URL"
+              value={logoUrlDraft}
+              onChange={(e) => setLogoUrlDraft(e.target.value)}
+              placeholder="https://example.com/logo.png"
+              className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-placeholder focus:border-ring focus:outline-none"
+            />
+            <button
+              onClick={saveLogo}
+              disabled={logoBusy || !logoUrlDraft.trim()}
+              className="shrink-0 rounded-lg btn-gradient px-3 py-2 text-xs font-semibold text-primary-foreground transition-colors duration-fast disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {logoBusy ? "저장 중..." : "로고 저장"}
+            </button>
+          </div>
+        </div>
+        {logoError && <p className="mt-2 text-xs text-destructive">{logoError}</p>}
 
         {editing && draft ? (
           <div className="mt-4 flex flex-col gap-4">

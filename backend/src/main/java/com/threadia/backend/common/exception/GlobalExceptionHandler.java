@@ -29,6 +29,8 @@ import com.threadia.backend.company.exception.DepartmentConflictException;
 import com.threadia.backend.company.exception.DepartmentNotFoundException;
 import com.threadia.backend.config.jwt.JwtAuthenticationException;
 import com.threadia.backend.document.exception.DocumentConflictException;
+import com.threadia.backend.attachment.exception.AttachmentNotFoundException;
+import com.threadia.backend.attachment.exception.AttachmentValidationException;
 import com.threadia.backend.document.exception.DocumentLinkNotFoundException;
 import com.threadia.backend.document.exception.DocumentNotFoundException;
 import com.threadia.backend.directmessage.exception.DirectMessageRoomNotFoundException;
@@ -123,6 +125,11 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(body));
 	}
 
+	@ExceptionHandler(AttachmentValidationException.class)
+	public ResponseEntity<ErrorResponse> handleAttachmentValidation(AttachmentValidationException ex) {
+		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(ErrorBody.of("VALIDATION_ERROR", ex.getMessage())));
+	}
+
 	@ExceptionHandler(ProjectChatValidationException.class)
 	public ResponseEntity<ErrorResponse> handleProjectChatValidation(ProjectChatValidationException ex) {
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse.of(ErrorBody.of("VALIDATION_ERROR", ex.getMessage())));
@@ -157,6 +164,7 @@ public class GlobalExceptionHandler {
 			SprintNotFoundException.class,
 			DocumentNotFoundException.class,
 			DocumentLinkNotFoundException.class,
+			AttachmentNotFoundException.class,
 			SupportCaseNotFoundException.class,
 			SystemSettingNotFoundException.class,
 			ThreadNotFoundException.class,

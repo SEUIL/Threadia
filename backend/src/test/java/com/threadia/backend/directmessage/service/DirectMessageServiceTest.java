@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Field;
@@ -27,9 +29,15 @@ import com.threadia.backend.auth.repository.UserRepository;
 import com.threadia.backend.common.auth.AuthContext;
 import com.threadia.backend.common.auth.AuthContextService;
 import com.threadia.backend.company.domain.Company;
+import com.threadia.backend.company.domain.CompanyMember;
+import com.threadia.backend.company.domain.CompanyMemberRole;
+import com.threadia.backend.company.domain.CompanyMemberStatus;
 import com.threadia.backend.company.domain.CompanyStatus;
+import com.threadia.backend.company.repository.CompanyMemberRepository;
 import com.threadia.backend.company.repository.CompanyRepository;
 import com.threadia.backend.company.service.CompanyMembershipService;
+import com.threadia.backend.common.exception.ForbiddenException;
+import com.threadia.backend.config.jwt.JwtAuthenticationException;
 import com.threadia.backend.directmessage.domain.DirectMessage;
 import com.threadia.backend.directmessage.domain.DirectMessageRoom;
 import com.threadia.backend.directmessage.domain.DirectMessageRoomUserState;
@@ -44,12 +52,12 @@ import com.threadia.backend.directmessage.repository.DirectMessageRoomUserStateR
 @ExtendWith(MockitoExtension.class)
 class DirectMessageServiceTest {
 	@Mock AuthContextService authContextService; @Mock CompanyMembershipService membershipService; @Mock UserRepository userRepository;
-	@Mock CompanyRepository companyRepository;
+	@Mock CompanyRepository companyRepository; @Mock CompanyMemberRepository companyMemberRepository;
 	@Mock DirectMessageRoomRepository roomRepository; @Mock DirectMessageRepository messageRepository; @Mock DirectMessageRoomUserStateRepository stateRepository;
 	private DirectMessageService service;
 	private final AuthContext auth = new AuthContext(1L, "me@example.com");
 	@BeforeEach void setUp() {
-		service = new DirectMessageService(authContextService, membershipService, companyRepository, userRepository, roomRepository, messageRepository, stateRepository, Clock.fixed(Instant.parse("2026-07-15T00:00:00Z"), ZoneOffset.UTC));
+		service = new DirectMessageService(authContextService, membershipService, companyMemberRepository, companyRepository, userRepository, roomRepository, messageRepository, stateRepository, Clock.fixed(Instant.parse("2026-07-15T00:00:00Z"), ZoneOffset.UTC));
 		lenient().when(authContextService.fromAccessToken("token")).thenReturn(auth); lenient().when(authContextService.requireActiveUser(auth)).thenReturn(user(1L));
 	}
 	@Test void rejectsSelfDirectMessageBeforeRoomLookup() {
@@ -122,7 +130,45 @@ class DirectMessageServiceTest {
 		assertThat(service.unreadCount("token").unreadCount()).isEqualTo(2L);
 		verify(messageRepository, never()).countUnreadByRoomIdAndUserId(31L, 1L);
 	}
+	@Test void listsCandidatesAfterActiveAuthAndActiveMembershipWithoutRoomLookup() {
+		Company company = company(10L, 1L);
+		CompanyMember candidate = membership(company, user(2L), CompanyMemberRole.MEMBER, CompanyMemberStatus.ACTIVE);
+		when(companyMemberRepository.findDirectMessageCandidates(10L, 1L)).thenReturn(List.of(candidate));
+
+		var result = service.listCandidates("token", 10L);
+
+		assertThat(result.candidates()).containsExactly(new com.threadia.backend.directmessage.dto.DirectMessageCandidateResponse(2L, "user", null));
+		org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(authContextService, membershipService, companyMemberRepository);
+		inOrder.verify(authContextService).fromAccessToken("token");
+		inOrder.verify(authContextService).requireActiveUser(auth);
+		inOrder.verify(membershipService).requireActiveMember(10L, auth);
+		inOrder.verify(companyMemberRepository).findDirectMessageCandidates(10L, 1L);
+		verifyNoInteractions(roomRepository);
+	}
+	@Test void returnsEmptyCandidateListForCompanyAdmin() {
+		AuthContext adminAuth = new AuthContext(9L, "admin@example.com");
+		when(authContextService.fromAccessToken("admin-token")).thenReturn(adminAuth);
+		when(authContextService.requireActiveUser(adminAuth)).thenReturn(user(9L));
+		when(companyMemberRepository.findDirectMessageCandidates(10L, 9L)).thenReturn(List.of());
+
+		assertThat(service.listCandidates("admin-token", 10L).candidates()).isEmpty();
+		verify(membershipService).requireActiveMember(10L, adminAuth);
+	}
+	@Test void rejectsSuspendedCallerBeforeCandidateMembershipAndQuery() {
+		when(authContextService.requireActiveUser(auth)).thenThrow(new JwtAuthenticationException("활성 사용자만 접근할 수 있습니다."));
+		assertThatThrownBy(() -> service.listCandidates("token", 10L)).isInstanceOf(JwtAuthenticationException.class);
+		verifyNoInteractions(membershipService, companyMemberRepository, roomRepository);
+	}
+	@Test void rejectsMissingOrInactiveCompanyAndCallerMembershipAsForbidden() {
+		for (String state : List.of("missing-company", "inactive-company", "missing-membership", "inactive-membership")) {
+			doThrow(new ForbiddenException(state)).when(membershipService).requireActiveMember(10L, auth);
+			assertThatThrownBy(() -> service.listCandidates("token", 10L)).isInstanceOf(ForbiddenException.class).hasMessage(state);
+		}
+		verifyNoInteractions(companyMemberRepository, roomRepository);
+	}
 	private static User user(Long id) { User user = new User("user" + id + "@example.com", "hash", "user", null, UserStatus.ACTIVE, java.time.LocalDateTime.now(), java.time.LocalDateTime.now()); setId(user, id); return user; }
-	private static DirectMessageRoom room(Long id, Long companyId, Long firstUserId, Long secondUserId) { User first = user(firstUserId); Company company = new Company("company", null, null, null, null, CompanyStatus.ACTIVE, first, java.time.LocalDateTime.now(), java.time.LocalDateTime.now()); setId(company, companyId); DirectMessageRoom room = new DirectMessageRoom(company, first, user(secondUserId), java.time.LocalDateTime.now()); setId(room, id); return room; }
+	private static Company company(Long id, Long creatorId) { Company company = new Company("company", null, null, null, null, CompanyStatus.ACTIVE, user(creatorId), java.time.LocalDateTime.now(), java.time.LocalDateTime.now()); setId(company, id); return company; }
+	private static CompanyMember membership(Company company, User user, CompanyMemberRole role, CompanyMemberStatus status) { return new CompanyMember(company, user, null, role, status, java.time.LocalDateTime.now(), java.time.LocalDateTime.now(), java.time.LocalDateTime.now()); }
+	private static DirectMessageRoom room(Long id, Long companyId, Long firstUserId, Long secondUserId) { User first = user(firstUserId); Company company = company(companyId, firstUserId); DirectMessageRoom room = new DirectMessageRoom(company, first, user(secondUserId), java.time.LocalDateTime.now()); setId(room, id); return room; }
 	private static void setId(Object target, Long id) { try { Field field = target.getClass().getDeclaredField("id"); field.setAccessible(true); field.set(target, id); } catch (ReflectiveOperationException exception) { throw new AssertionError(exception); } }
 }

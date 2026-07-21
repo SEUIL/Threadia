@@ -2,12 +2,6 @@ name: restricted-ssm-release
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - backend/**
-      - '!backend/Dockerfile'
-      - .github/workflows/restricted-ssm-release.yml
 
 permissions:
   contents: read

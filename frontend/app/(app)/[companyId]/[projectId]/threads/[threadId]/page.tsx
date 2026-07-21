@@ -36,6 +36,7 @@ import { threadService } from "@/services/thread.service";
 import { issueService } from "@/services/issue.service";
 import { messageService } from "@/services/message.service";
 import { projectService } from "@/services/project.service";
+import { AttachmentControls } from "@/components/attachments/AttachmentControls";
 import type { ApiResponse } from "@/types/auth.types";
 import type { ThreadCommentResponse, ThreadResponse } from "@/types/thread.types";
 
@@ -283,6 +284,12 @@ export default function ThreadPage() {
               </span>
             </div>
             <p className="mt-1.5 whitespace-pre-wrap text-sm text-foreground">{comment.content}</p>
+            <AttachmentControls
+              targetType="THREAD_COMMENT"
+              targetId={comment.id}
+              canMutate={comment.authorUserId === user?.id || role === "P" || role === "C"}
+              compact
+            />
           </li>
         ))}
         {comments.length === 0 && (
