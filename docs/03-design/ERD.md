@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-15  
-> **최종 수정**: 2026-07-18
-> **버전**: v2.6 WBS 4.10.4 Backend audit read
+> **최종 수정**: 2026-07-21
+> **버전**: v2.7 WBS 4.5.1.1 Thread 미자동생성 정책 반영
 > **상태**: 확정
 > **태그**: erd, db, schema, auth, invitation
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
@@ -770,7 +770,7 @@ DB FK와 CHECK만으로 표현하기 어려운 tenant/project/다형성 정합�
 ## 7. 6일차 이월 검토 사항
 
 - `issues` 정렬용 position 필드 관리 방식.
-- `threads` 자동 생성 vs 수동 생성 정책.
+- `threads`는 자동 생성하지 않는다. 대상별 대표 Thread는 명시적 get-or-create API로만 생성한다.
 - `activity_events`와 `notification_events`는 분리 운영한다. activity 이벤트가 notification 이벤트를 생성하는 조건은 구현 단계에서 이벤트별로 제한한다.
 - 범용 attachments 테이블과 S3 presigned URL 상세 정책은 Sprint 3 decision-needed로 확정.
 - S15 WBS `4.10.1`, `4.10.3`, `4.10.4` Backend는 구현 기준으로 유지한다. enforcement, dashboard/notification 확장, Frontend, retention/cleanup exact schema는 후속 결정으로 유지한다.
