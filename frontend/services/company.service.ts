@@ -42,4 +42,8 @@ export const companyService = {
 
   stats: (companyId: string | number) =>
     apiClient.get<ApiResponse<CompanyStatsData>>(`/api/v1/companies/${companyId}/stats`),
+
+  /** 전용 로고 URL 저장(API-명세서 §5) — update()의 full-replace PATCH와 별개 endpoint다. */
+  updateLogo: (companyId: string | number, body: { logoUrl: string }) =>
+    apiClient.post<ApiResponse<CompanyData>>(`/api/v1/companies/${companyId}/logo`, body),
 };

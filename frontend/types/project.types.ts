@@ -61,3 +61,46 @@ export interface ProjectArchiveData {
   projectId: number;
   status: ProjectStatus;
 }
+
+/*
+ * GET /projects/{projectId}/dashboard — WBS 4.9.3.1 계약(docs/04-api/API-명세서.md §10.3).
+ * live-read 집계라 정확히 이 4개 field만 온다. recentActivities는 4.9.1 deferred 범위라 없음.
+ */
+export interface ProjectDashboardProgress {
+  totalIssueCount: number;
+  doneIssueCount: number;
+  percentage: number;
+}
+
+export interface ProjectDashboardRecentIssue {
+  id: number;
+  issueKey: string;
+  title: string;
+  status: string;
+  updatedAt: string;
+}
+
+export interface ProjectDashboardRecentDocument {
+  id: number;
+  title: string;
+  type: string;
+  updatedAt: string;
+}
+
+/** ACTIVE Sprint가 없으면 null. */
+export interface ProjectDashboardSprintSummary {
+  id: number;
+  name: string;
+  goal: string | null;
+  startDate: string;
+  endDate: string;
+  issueCount: number;
+  doneIssueCount: number;
+}
+
+export interface ProjectDashboardData {
+  progress: ProjectDashboardProgress;
+  recentIssues: ProjectDashboardRecentIssue[];
+  recentDocuments: ProjectDashboardRecentDocument[];
+  sprintSummary: ProjectDashboardSprintSummary | null;
+}

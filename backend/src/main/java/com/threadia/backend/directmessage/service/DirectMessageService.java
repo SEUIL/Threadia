@@ -15,12 +15,15 @@ import com.threadia.backend.auth.repository.UserRepository;
 import com.threadia.backend.common.auth.AuthContext;
 import com.threadia.backend.common.auth.AuthContextService;
 import com.threadia.backend.company.exception.CompanyNotFoundException;
+import com.threadia.backend.company.repository.CompanyMemberRepository;
 import com.threadia.backend.company.repository.CompanyRepository;
 import com.threadia.backend.company.service.CompanyMembershipService;
 import com.threadia.backend.directmessage.domain.DirectMessage;
 import com.threadia.backend.directmessage.domain.DirectMessageRoom;
 import com.threadia.backend.directmessage.domain.DirectMessageRoomUserState;
 import com.threadia.backend.directmessage.dto.DirectMessageData;
+import com.threadia.backend.directmessage.dto.DirectMessageCandidateResponse;
+import com.threadia.backend.directmessage.dto.DirectMessageCandidatesData;
 import com.threadia.backend.directmessage.dto.DirectMessageMarkReadRequest;
 import com.threadia.backend.directmessage.dto.DirectMessageReadData;
 import com.threadia.backend.directmessage.dto.DirectMessageResponse;
@@ -42,6 +45,7 @@ import com.threadia.backend.directmessage.repository.DirectMessageRoomUserStateR
 public class DirectMessageService {
 	private final AuthContextService authContextService;
 	private final CompanyMembershipService companyMembershipService;
+	private final CompanyMemberRepository companyMemberRepository;
 	private final CompanyRepository companyRepository;
 	private final UserRepository userRepository;
 	private final DirectMessageRoomRepository roomRepository;
@@ -50,13 +54,23 @@ public class DirectMessageService {
 	private final Clock clock;
 
 	@Autowired
-	public DirectMessageService(AuthContextService authContextService, CompanyMembershipService companyMembershipService, CompanyRepository companyRepository, UserRepository userRepository, DirectMessageRoomRepository roomRepository, DirectMessageRepository messageRepository, DirectMessageRoomUserStateRepository stateRepository) {
-		this(authContextService, companyMembershipService, companyRepository, userRepository, roomRepository, messageRepository, stateRepository, Clock.systemUTC());
+	public DirectMessageService(AuthContextService authContextService, CompanyMembershipService companyMembershipService, CompanyMemberRepository companyMemberRepository, CompanyRepository companyRepository, UserRepository userRepository, DirectMessageRoomRepository roomRepository, DirectMessageRepository messageRepository, DirectMessageRoomUserStateRepository stateRepository) {
+		this(authContextService, companyMembershipService, companyMemberRepository, companyRepository, userRepository, roomRepository, messageRepository, stateRepository, Clock.systemUTC());
 	}
 
-	DirectMessageService(AuthContextService authContextService, CompanyMembershipService companyMembershipService, CompanyRepository companyRepository, UserRepository userRepository, DirectMessageRoomRepository roomRepository, DirectMessageRepository messageRepository, DirectMessageRoomUserStateRepository stateRepository, Clock clock) {
-		this.authContextService = authContextService; this.companyMembershipService = companyMembershipService; this.companyRepository = companyRepository; this.userRepository = userRepository;
+	DirectMessageService(AuthContextService authContextService, CompanyMembershipService companyMembershipService, CompanyMemberRepository companyMemberRepository, CompanyRepository companyRepository, UserRepository userRepository, DirectMessageRoomRepository roomRepository, DirectMessageRepository messageRepository, DirectMessageRoomUserStateRepository stateRepository, Clock clock) {
+		this.authContextService = authContextService; this.companyMembershipService = companyMembershipService; this.companyMemberRepository = companyMemberRepository; this.companyRepository = companyRepository; this.userRepository = userRepository;
 		this.roomRepository = roomRepository; this.messageRepository = messageRepository; this.stateRepository = stateRepository; this.clock = clock;
+	}
+
+	@Transactional(readOnly = true)
+	public DirectMessageCandidatesData listCandidates(String accessToken, Long companyId) {
+		AuthContext auth = activeAuth(accessToken);
+		companyMembershipService.requireActiveMember(companyId, auth);
+		List<DirectMessageCandidateResponse> candidates = companyMemberRepository.findDirectMessageCandidates(companyId, auth.userId()).stream()
+				.map(companyMember -> DirectMessageCandidateResponse.from(companyMember.getUser()))
+				.toList();
+		return new DirectMessageCandidatesData(candidates);
 	}
 
 	@Transactional(readOnly = true)
