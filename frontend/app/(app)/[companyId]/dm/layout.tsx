@@ -11,8 +11,8 @@
  *   - 방 목록(`GET /companies/{companyId}/direct-messages/rooms`)은 이미 대화가
  *     있는 상대만 준다. "+" 버튼으로 새 대화 상대(같은 회사 ACTIVE 구성원, 나
  *     제외, 아직 방이 없는 사람만)를 골라 get-or-create로 방을 연다.
- *   - unread가 있는 방은 아바타에 점 배지를 보여준다(설계 메모: unread count만
- *     다룬다, read receipt는 제외).
+ *   - unread가 있는 방은 아바타에 배지로 실제 개수를 보여준다(9개 초과는 "9+",
+ *     WBS 4.11 PR #215 반영 — read receipt는 여전히 범위 밖, unread count만 다룬다).
  *
  * 이슈 #208 후속(PR #213): openPicker()가 원래 쓰던 `companyMemberService.list()`
  * 는 COMPANY_ADMIN 전용이라 일반 MEMBER는 "+" 눌러도 구성원 목록을 못 받아왔고,
@@ -20,10 +20,15 @@
  * `GET .../direct-messages/candidates`로 교체한다 — 서버가 이미 ACTIVE membership
  * + ACTIVE user + self 제외까지 다 걸러서 준다. 기존 DM room 상대는 응답에
  * 포함되므로(계약), room 상대 제외만 프론트에서 유지한다.
+ *
+ * WBS 4.11(PR #215) 반영: room 아이콘을 이니셜 원 대신 UserAvatar(첨부 attachment
+ * 기반 프로필 이미지 지원)로 바꿨다 — 아바타 표시 로직을 한 곳(UserAvatar)에
+ * 모아두는 기존 원칙과 동일하게 맞춘다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useParams, useRouter } from "next/navigation";
+import { UserAvatar } from "@/components/profile/UserAvatar";
 import { directMessageService } from "@/services/direct-message.service";
 import { DmRoomsProvider } from "@/contexts/DmRoomsContext";
 import type {
@@ -216,16 +221,19 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
               title={room.otherUser.nickname}
               className="relative flex h-11 w-11 shrink-0 items-center justify-center"
             >
-              <span
+              <UserAvatar
+                nickname={room.otherUser.nickname}
+                avatarUrl={room.otherUser.avatarUrl}
+                userId={room.otherUser.id}
                 className={
-                  "flex h-11 w-11 items-center justify-center rounded-full avatar-ring text-sm font-semibold text-foreground transition-opacity duration-fast " +
+                  "h-11 w-11 text-sm text-foreground transition-opacity duration-fast " +
                   (active ? "ring-2 ring-primary" : "opacity-60 hover:opacity-100")
                 }
-              >
-                {room.otherUser.nickname.slice(0, 1)}
-              </span>
+              />
               {room.unreadCount > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-surface bg-destructive" />
+                <span className="absolute -right-0.5 -top-0.5 rounded-full border-2 border-surface bg-destructive px-1.5 py-0.5 text-[10px] font-semibold leading-none text-on-primary">
+                  {room.unreadCount > 9 ? "9+" : room.unreadCount}
+                </span>
               )}
             </Link>
           );
@@ -255,9 +263,12 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
                     disabled={starting}
                     className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground transition-colors duration-fast hover:bg-primary-subtle disabled:opacity-50"
                   >
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full avatar-ring text-[11px] font-semibold">
-                      {candidate.nickname.slice(0, 1)}
-                    </span>
+                    <UserAvatar
+                      nickname={candidate.nickname}
+                      avatarUrl={candidate.avatarUrl}
+                      userId={candidate.id}
+                      className="h-6 w-6 text-[11px]"
+                    />
                     {candidate.nickname}
                   </button>
                 </li>

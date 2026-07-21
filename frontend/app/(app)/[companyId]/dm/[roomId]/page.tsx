@@ -15,37 +15,49 @@
  *     마지막 메시지까지 읽음 처리).
  *
  * DM 메시지 목록(`GET /direct-messages/rooms/{roomId}/messages`)은 페이지네이션이
- * 없다(§8.1) — 생성 시각/ID 오름차순 전체를 한 번에 받는다. 상대 이름은 방
+ * 없다(§8.1) — 생성 시각/ID 오름차순 전체를 한 번에 받는다. 상대 정보는 방
  * 목록(`GET /companies/{companyId}/direct-messages/rooms`)에서 찾는다 — 단건
  * 조회 endpoint가 없다.
+ *
+ * WBS 4.11(PR #215) 반영: 메시지별 첨부 파일(AttachmentControls, DIRECT_MESSAGE
+ * target)과 UserAvatar(attachment 기반 프로필 이미지)를 붙였다. 첨부 삭제는
+ * 작성자 본인 또는 COMPANY_ADMIN만(canMutate) — 메시지 자체 삭제는 여전히
+ * 지원하지 않는다(위 설계 메모).
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { AttachmentControls } from "@/components/attachments/AttachmentControls";
+import { UserAvatar } from "@/components/profile/UserAvatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDmRooms } from "@/contexts/DmRoomsContext";
 import { invitationErrorMessage } from "@/lib/invitation";
 import { directMessageService } from "@/services/direct-message.service";
-import type { DirectMessageResponse } from "@/types/direct-message.types";
+import type { DirectMessageResponse, DirectMessageRoomResponse } from "@/types/direct-message.types";
 
 type LoadState = "loading" | "ready" | "error";
 
-function initials(name: string) {
-  return name.slice(0, 1);
+function formatTime(createdAt: string) {
+  return new Date(createdAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
 }
 
 export default function DmRoomPage() {
   const params = useParams<{ companyId: string; roomId: string }>();
-  const { user } = useAuth();
+  const { user, companyMemberships } = useAuth();
   const { markRoomRead } = useDmRooms();
 
   const [pageState, setPageState] = useState<LoadState>("loading");
   const [pageError, setPageError] = useState<string | null>(null);
-  const [peerName, setPeerName] = useState<string | null>(null);
+  const [room, setRoom] = useState<DirectMessageRoomResponse | null>(null);
   const [messages, setMessages] = useState<DirectMessageResponse[]>([]);
 
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const isCompanyAdmin =
+    companyMemberships.find((membership) => membership.companyId === Number(params.companyId))?.role ===
+    "COMPANY_ADMIN";
 
   /*
    * 재리뷰 반영(PR #173, pktewon):
@@ -72,8 +84,8 @@ export default function DmRoomPage() {
         const roomsResponse = await directMessageService.listRooms(params.companyId);
         if (isCancelled()) return;
 
-        const room = roomsResponse.data.data.rooms.find((r) => String(r.id) === params.roomId);
-        if (!room || room.companyId !== Number(params.companyId)) {
+        const loadedRoom = roomsResponse.data.data.rooms.find((r) => String(r.id) === params.roomId);
+        if (!loadedRoom || loadedRoom.companyId !== Number(params.companyId)) {
           setPageError("존재하지 않거나 접근할 수 없는 대화방입니다.");
           setPageState("error");
           return;
@@ -83,7 +95,7 @@ export default function DmRoomPage() {
         if (isCancelled()) return;
 
         setPageError(null);
-        setPeerName(room.otherUser.nickname);
+        setRoom(loadedRoom);
         const list = messagesResponse.data.data.messages;
         setMessages(list);
         setPageState("ready");
@@ -120,6 +132,10 @@ export default function DmRoomPage() {
     };
   }, [load]);
 
+  useEffect(() => {
+    if (pageState === "ready") scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }, [messages.length, pageState]);
+
   const send = async () => {
     const content = draft.trim();
     if (!content || sending) return;
@@ -150,52 +166,50 @@ export default function DmRoomPage() {
     );
   }
 
-  const displayName = peerName ?? "알 수 없는 사용자";
+  const peer = room!.otherUser;
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-5">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full avatar-ring text-xs font-semibold text-foreground">
-          {initials(displayName)}
-        </span>
-        <h1 className="text-sm font-bold text-foreground">{displayName}</h1>
+        <UserAvatar nickname={peer.nickname} avatarUrl={peer.avatarUrl} userId={peer.id} className="h-7 w-7 text-xs text-foreground" />
+        <h1 className="text-sm font-bold text-foreground">{peer.nickname}</h1>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4">
         <div className="flex flex-col">
-          {messages.map((msg, i) => {
-            const prev = messages[i - 1];
-            const showHeader = !prev || prev.sender.id !== msg.sender.id;
-            const time = new Date(msg.createdAt).toLocaleTimeString("ko-KR", {
-              hour: "2-digit",
-              minute: "2-digit",
-            });
+          {messages.map((message, index) => {
+            const previous = messages[index - 1];
+            const showHeader = !previous || previous.sender.id !== message.sender.id;
+            const canMutate = message.sender.id === user?.id || isCompanyAdmin;
+            const time = formatTime(message.createdAt);
             return (
               <div
-                key={msg.id}
+                key={message.id}
                 className={"group flex gap-3 rounded-md px-2 py-0.5 hover:bg-border/20 " + (showHeader ? "mt-3" : "")}
               >
                 <div className="w-9 shrink-0 text-right">
                   {showHeader ? (
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full avatar-ring text-xs font-semibold text-foreground">
-                      {initials(msg.sender.nickname)}
-                    </span>
+                    <UserAvatar
+                      nickname={message.sender.nickname}
+                      avatarUrl={message.sender.avatarUrl}
+                      userId={message.sender.id}
+                      className="h-9 w-9 text-xs text-foreground"
+                    />
                   ) : (
-                    <span className="hidden text-[10px] text-placeholder group-hover:inline-block">
-                      {time}
-                    </span>
+                    <span className="hidden text-[10px] text-placeholder group-hover:inline-block">{time}</span>
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
                   {showHeader && (
                     <div className="flex items-baseline gap-2">
                       <span className="text-sm font-semibold text-foreground">
-                        {msg.sender.id === user?.id ? "나" : msg.sender.nickname}
+                        {message.sender.id === user?.id ? "나" : message.sender.nickname}
                       </span>
                       <span className="text-[10px] text-placeholder">{time}</span>
                     </div>
                   )}
-                  <p className="whitespace-pre-wrap text-sm text-foreground">{msg.content}</p>
+                  <p className="whitespace-pre-wrap text-sm text-foreground">{message.content}</p>
+                  <AttachmentControls targetType="DIRECT_MESSAGE" targetId={message.id} canMutate={canMutate} compact />
                 </div>
               </div>
             );
@@ -215,7 +229,7 @@ export default function DmRoomPage() {
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && void send()}
             disabled={sending}
-            placeholder={`${displayName}에게 메시지 보내기`}
+            placeholder={`${peer.nickname}에게 메시지 보내기`}
             className="flex-1 bg-transparent text-sm text-foreground placeholder:text-placeholder focus:outline-none disabled:opacity-50"
           />
           <button

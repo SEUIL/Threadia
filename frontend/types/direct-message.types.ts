@@ -40,9 +40,12 @@ export interface DirectMessageData {
   message: DirectMessageResponse;
 }
 
+// 백엔드 record 이름은 DirectMessageReadData다(DirectMessageReadData.java) —
+// 프론트 타입 이름도 그대로 맞춘다. lastReadDirectMessageId는 읽을 메시지가
+// 없는 방(빈 방)에서 null일 수 있다(백엔드 Long, not @NotNull).
 export interface DirectMessageReadData {
   roomId: number;
-  lastReadDirectMessageId: number;
+  lastReadDirectMessageId: number | null;
   unreadCount: number;
   readAt: string;
 }

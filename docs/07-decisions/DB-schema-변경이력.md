@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-27
-> **최종 수정**: 2026-07-18
-> **버전**: v1.7
+> **최종 수정**: 2026-07-21
+> **버전**: v1.8
 > **상태**: 확정
 > **태그**: decision, db, schema, changelog
 
@@ -33,6 +33,16 @@ DB schema가 바뀌면 아래 항목을 기록한다.
 ---
 
 ## 3. 변경 이력
+
+### 2026-07-21 WBS 4.11 attachment schema와 적용 경로 추가
+
+| 항목 | 내용 |
+|---|---|
+| 변경 대상 | `attachments`, `users.avatar_attachment_id`, `companies.logo_attachment_id`와 관련 FK/index |
+| 변경 내용 | private object metadata, `DOCUMENT`/`BINARY_DOCUMENT`/ISSUE/MESSAGE/THREAD_COMMENT/DIRECT_MESSAGE/USER_AVATAR/COMPANY_LOGO target enum, Base64 SHA-256 checksum, `UPLOADING→READY→DELETED` lifecycle, target/status 조회 index를 추가했다. avatar/logo current reference는 attachment FK로 유지한다. |
+| 변경 이유 | WBS `4.11` private presigned initiate/complete/download/delete lifecycle과 target별 인가를 영속화하기 위해서다. `DOCUMENT`는 Markdown 본문이 아닌 문서 resource를 가리킨다. |
+| 영향 범위 | fresh local DB는 `db/schema.sql` clean drop/recreate로 적용한다. persistent DB는 자동 migration하지 않고 승인된 operator가 `scripts/ssm-delivery/attachment-storage-additive.sql`을 one-time additive로 실행하는 경로만 둔다. production bucket/IAM/CORS/network/SSM/CI/CD wiring과 retention/cleanup activation은 포함하지 않는다. |
+| 관련 문서 | `docs/03-design/ERD.md`, `docs/04-api/API-명세서.md`, `docs/02-requirements/기능-시나리오-API-ERD-추적표.md`, `docs/07-decisions/기획문서-변경이력.md` |
 
 ### 2026-07-18 WBS 4.10.4 audit read keyset index 추가
 
