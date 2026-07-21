@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-06-15  
-> **최종 수정**: 2026-07-20
-> **버전**: v1.9 Issue #208 WBS 4.7.3.1 DM 후보 조회 Backend follow-up 추적
+> **최종 수정**: 2026-07-21
+> **버전**: v1.10 Issue #208 DM 후보 조회 follow-up 및 WBS 4.11 private attachment lifecycle 추적 반영
 > **상태**: 확정
 > **태그**: requirements, traceability, api, erd
 > **수정 근거**: Threadia-기획문서-검수리포트.md, DB-schema-관리-정책.md
@@ -88,7 +88,7 @@
 | 프로젝트 활동 피드 | FEED-01 | Issue create/status/trash/restore 활동 조회 | `GET /api/v1/projects/{projectId}/activity-events` | 기존 `activity_events` | WBS 4.9.1 Backend 구현, `createdAt DESC, id DESC` offset pagination | STOMP, Redis/cache, NoSQL, notification linkage, dashboard integration, summary table, cursor pagination, Frontend 보류 |
 | 통합 검색 | SEARCH-01 | 조건부 확장 흐름 | `GET /api/v1/search` | MySQL `LIKE` | `4.9.2`와 `4.9.4` 진행 중 50% parent, `4.9.2.1` 결정 완료, `4.9.4.1` Backend 구현 완료, `4.9.2.2`/`4.9.4.2` Frontend 계획 0% | FULLTEXT, 외부 검색 엔진, Redis, schema, type filter, source별 결과 필드, Frontend와 고급 검색은 보류 |
 | 프로젝트 홈/대시보드 | DASH-01~04 | 조건부 확장 흐름 | `GET /api/v1/projects/{projectId}/dashboard` | MySQL aggregate, `project_dashboard_summaries`, Redis cache | Sprint 3 후보 | 별도 OLAP/검색 엔진 제외 |
-| 파일/이미지 첨부 | ATTACH-01 | MVP 이후/보류 흐름 | `/api/v1/attachments` 미제공 | attachments 테이블/S3 presigned URL 정책 | Sprint 3 decision-needed | 회사 로고와 프로필 URL은 별도 처리 |
+| 파일/이미지 첨부 | ATTACH-01 | 대상 resource의 private attachment lifecycle | `POST /api/v1/attachments/uploads`, complete, list, download, delete | `attachments`, users/company managed reference | WBS 4.11 Backend 계약 | `DOCUMENT`는 body가 아닌 resource이며 `BINARY_DOCUMENT`는 같은 document resource에 연결한다. 100MB, checksum, avatar/logo image-only; production wiring과 retention/cleanup activation은 보류 |
 
 ---
 
@@ -138,11 +138,11 @@
 - [x] 모든 주요 사용자 시나리오가 API 명세서의 endpoint 또는 명시적 비API 정책과 연결된다.
 - [x] API에서 생성·수정·조회하는 주요 데이터가 ERD 테이블과 연결된다.
 - [x] `소셜 로그인`, `비밀번호 찾기/재설정`, `프로필 사진`은 Sprint 1/MVP 범위로 추적된다.
-- [x] `FEED/DASH`는 Sprint 3 후보, `SEARCH-01`은 `4.9.2`와 `4.9.4` 진행 중 50% parent 아래 `4.9.2.1` 결정 및 `4.9.4.1` Backend 구현 완료, `4.9.2.2`/`4.9.4.2` Frontend 계획 0%로, `ATTACH`는 Sprint 3 decision-needed로 추적된다.
+- [x] `FEED/DASH`는 Sprint 3 후보, `SEARCH-01`은 `4.9.2`와 `4.9.4` 진행 중 50% parent 아래 `4.9.2.1` 결정 및 `4.9.4.1` Backend 구현 완료, `4.9.2.2`/`4.9.4.2` Frontend 계획 0%이며, `ATTACH`는 WBS 4.11 Backend 계약으로 추적된다.
 - [x] 보류 기능은 필수 시나리오에서 제거되거나 제한 조건으로 명시된다.
 - [x] Redis, STOMP push, summary table은 원본 데이터가 아닌 조건부 확장 계층이며 WBS 4.9.1 활동 피드 Backend slice에는 포함하지 않는다.
 - [x] `activity_events`와 `notification_events` 운영상 분리 기준을 확정했다. 두 저장소는 통합하지 않고 필요 시 activity 이벤트에서 notification 이벤트를 생성하는 연계만 허용한다.
-- [x] S3 사용 범위는 확정했다. attachments 테이블과 presigned URL 상세 정책은 Sprint 3 decision-needed로 확정한다.
+- [x] attachment metadata, private presigned lifecycle, checksum, 100MB와 target별 인가를 WBS 4.11 구현 계약으로 추적한다. production storage wiring과 retention/cleanup activation은 후속 결정으로 둔다.
 
 ---
 
