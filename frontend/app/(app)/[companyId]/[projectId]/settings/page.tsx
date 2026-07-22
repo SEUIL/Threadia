@@ -70,14 +70,23 @@ type LoadState = "loading" | "ready" | "error";
 type ProjectDraft = {
   name: string;
   description: string;
+  status: Exclude<ProjectStatus, "ARCHIVED">;
   startDate: string | null;
   endDate: string | null;
 };
+
+// ARCHIVED는 이 폼으로 못 바꾼다(서버가 ProjectUpdateRequest.isUpdatableStatus로 거절,
+// project.service.ts의 update() 타입도 이미 Exclude<ProjectStatus, "ARCHIVED">) —
+// 별도 "아카이빙" 버튼/엔드포인트 전용이다(위 설계 메모, 복원 미지원이라 되돌릴 UI도 없음).
+const EDITABLE_STATUSES: Exclude<ProjectStatus, "ARCHIVED">[] = ["PLANNING", "ACTIVE", "PAUSED", "COMPLETED"];
 
 function toDraft(project: ProjectResponse): ProjectDraft {
   return {
     name: project.name,
     description: project.description ?? "",
+    // "수정" 버튼 자체가 !isArchived일 때만 보이므로(아래 JSX) toDraft는 항상
+    // 비-ARCHIVED 프로젝트에서만 호출된다 — 그 불변식에 기대는 캐스트다.
+    status: project.status === "ARCHIVED" ? "PLANNING" : project.status,
     startDate: project.startDate,
     endDate: project.endDate,
   };
@@ -199,7 +208,7 @@ export default function ProjectSettingsPage() {
       const { data } = await projectService.update(params.projectId, {
         name: draft.name,
         description: draft.description || null,
-        status: project.status,
+        status: draft.status,
         startDate: draft.startDate,
         endDate: draft.endDate,
       });
@@ -394,6 +403,22 @@ export default function ProjectSettingsPage() {
               disabled={editBusy}
               className="resize-none rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none disabled:opacity-50"
             />
+            <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+              상태
+              <select
+                aria-label="프로젝트 상태"
+                value={draft.status}
+                onChange={(e) => setDraft({ ...draft, status: e.target.value as Exclude<ProjectStatus, "ARCHIVED"> })}
+                disabled={editBusy}
+                className="w-fit rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-ring focus:outline-none disabled:opacity-50"
+              >
+                {EDITABLE_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {STATUS_LABEL[status]}
+                  </option>
+                ))}
+              </select>
+            </label>
             <div className="flex gap-2">
               <input
                 aria-label="시작일"
