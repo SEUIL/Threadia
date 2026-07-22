@@ -1,7 +1,7 @@
 > **작성자**: 황스일
 > **작성일**: 2026-07-20
-> **최종 수정**: 2026-07-20
-> **버전**: v0.1
+> **최종 수정**: 2026-07-22
+> **버전**: v0.2
 > **상태**: 검토 중
 > **태그**: sprint-3, wbs-4.5, link-01, link-03, backend, handoff
 
@@ -39,8 +39,8 @@ WBS planning assignment상 Owner는 **여도현**, Reviewer는 **황스일**이�
 | 영역 | 확인한 구현 | `4.5` 관점의 미구현 경계 |
 |---|---|---|
 | 프로젝트 채팅 | [`ProjectChatService`](../../../backend/src/main/java/com/threadia/backend/projectchat/service/ProjectChatService.java)는 active user와 프로젝트 접근을 확인한 뒤 메시지를 저장·목록·상세 조회하고 read pointer를 관리한다. | `issues`를 생성하지 않으며 `sourceType= MESSAGE` 또는 `sourceMessageId`를 기록하는 경로가 없다. |
-| 문서 | [`DocumentService`](../../../backend/src/main/java/com/threadia/backend/document/service/DocumentService.java)는 문서 CRUD, trash/restore, `document_issue_links`, graph를 처리한다. | create/update에 notification event 또는 recipient를 저장하는 producer가 없다. `document_issue_links`는 `LINK-02`이므로 `4.5`에서 확장하지 않는다. |
-| 알림 | [`NotificationService`](../../../backend/src/main/java/com/threadia/backend/notification/service/NotificationService.java)는 이미 존재하는 `notification_recipients`를 본인 범위에서 목록·unread·read·read-all 처리한다. | event publisher, event/recipient 생성, preference, Push/WebSocket은 구현하지 않는다. |
+| 문서 | [`DocumentService`](../../../backend/src/main/java/com/threadia/backend/document/service/DocumentService.java)는 문서 CRUD, trash/restore, `document_issue_links`, graph를 처리한다. PR #229에서 update의 `DOCUMENT_UPDATED` producer 연결을 추가한다. | create, trash/restore, thread comment producer는 포함하지 않는다. `document_issue_links` 자체는 `LINK-02`이므로 `4.5`에서 확장하지 않는다. |
+| 알림 | [`NotificationService`](../../../backend/src/main/java/com/threadia/backend/notification/service/NotificationService.java)는 이미 존재하는 `notification_recipients`를 본인 범위에서 목록·unread·read·read-all 처리한다. PR #229에서 `DOCUMENT_UPDATED` event/recipient 저장 producer를 별도 추가한다. | event-recipient matrix 전면 구현, preference, Push/WebSocket은 구현하지 않는다. |
 
 현재 서비스 test는 각 서비스의 접근 제어와 현재 기능을 다룬다. 예를 들어 프로젝트 채팅 test는 메시지 생성과 project membership을, 문서 test는 문서 권한과 `LINK-02` 정합성을, 알림 test는 recipient 소유권과 scope filter를 검증한다. 이 test들은 LINK-01 source linkage나 LINK-03 notification producer의 구현 evidence가 아니다.
 
@@ -57,11 +57,13 @@ WBS planning assignment상 Owner는 **여도현**, Reviewer는 **황스일**이�
 
 ### 4.2 `4.5.2.1` LINK-03 Backend
 
-1. 문서 create/update 중 어떤 변경이 `DOCUMENT_UPDATED` 후보인지, 문서 thread event를 이 WBS에 넣을지부터 확정한다. 현재 문서 수정과 thread comment는 각각 저장만 하며 producer가 없다.
+1. PR #229에서는 문서 update만 `DOCUMENT_UPDATED` 후보로 확정한다. 문서 create, trash/restore, thread comment event는 이 row의 producer 범위에 포함하지 않는다.
 2. event를 생성하기로 승인되면 문서 변경 transaction과 `notification_events`, `notification_recipients`의 원자성, 실패 시 rollback 규칙을 설계한다. `activity_events`와 `notification_events`는 통합하지 않는다.
 3. event에는 canonical catalog의 `DOCUMENT_UPDATED` 또는 승인된 type, `DOCUMENT` target, project/company/actor 범위를 사용한다. title/body와 metadata는 민감한 문서 원문을 복제하지 않는 최소 정보로 정한다.
-4. 수신자 선정은 현재 미구현인 event-recipient matrix다. 문서 작성자 제외 여부, active project member 대상 여부, thread comment와 멘션의 관계를 정책 승인 없이 임의 구현하지 않는다.
+4. PR #229의 수신자는 연결된 issue의 reporter/assignee 중 actor를 제외한 active user, active company member, active project member로 한정한다. event-recipient matrix 전면 구현, thread comment, mention, preference 정책은 후속 결정 전까지 확장하지 않는다.
 5. `NotificationService`의 기존 inbox/read-state API는 consumer로만 재사용한다. preference, Push/WebSocket, Redis, producer 범용화는 이 row의 완료 조건으로 넣지 않는다.
+
+PR #229의 `DOCUMENT_UPDATED` producer는 문서 수정과 notification 원장 저장의 strong consistency 정책을 따른다. `DocumentService.update()`와 `DocumentNotificationProducerService.documentUpdated()`는 같은 transaction에서 실행하며 producer는 `Propagation.MANDATORY`를 유지한다. notification event/recipient persistence 또는 eligible recipient lookup 실패는 문서 수정 rollback 조건이다. 단, eligible recipient count가 0인 상태는 실패가 아니므로 문서 수정과 notification event 저장은 commit하고 recipient row는 생성하지 않는다. 이번 PR 범위에는 best-effort 알림, outbox, async retry, Push/WebSocket, Redis, notification preference를 포함하지 않는다.
 
 ## 5. Frontend contract gates
 
@@ -88,7 +90,7 @@ WBS planning assignment상 Owner는 **여도현**, Reviewer는 **황스일**이�
 |---|---|---|
 | `4.5`가 LINK-01/LINK-03만 포함하고 LINK-02, DM conversion, auto-create, push/preferences를 제외하는지 | 황스일, WBS Reviewer | 범위를 넓히지 않고 계획 상태를 유지한다. |
 | LINK-01 from-message request 필드, Issue 기본값, 중복 변환 정책, 오류 코드 | 여도현, Backend Owner가 초안을 작성하고 황스일이 review | API 구현과 Frontend gate를 열지 않는다. |
-| LINK-03의 정확한 event source, event type, recipient matrix, self-notification, 문서 thread 포함 여부 | 요구사항 또는 제품 결정 담당자가 정책을 확정하고 황스일이 WBS 경계를 review | producer 구현을 시작하지 않는다. |
+| LINK-03 후속 event source, thread, mention, preference, 전체 recipient matrix 확장 여부 | 요구사항 또는 제품 결정 담당자가 정책을 확정하고 황스일이 WBS 경계를 review | PR #229의 `DOCUMENT_UPDATED` producer 범위를 넘겨 구현하지 않는다. |
 | `4.5.1.2`, `4.5.2.2`의 화면 action, 오류 표현, target 이동 | 해당 WBS Frontend 담당자가 Backend Owner와 계약을 확인 | Frontend는 mock 의존 또는 완료 선언을 하지 않는다. |
 | schema 변경 필요성, migration 방식, ERD/API canonical 변경 | 여도현이 영향도를 제시하고 황스일과 문서 책임자가 확인 | 기존 schema 계약 밖의 column/table을 추가하지 않는다. |
 

@@ -13,6 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 import com.threadia.backend.document.domain.Document;
 import com.threadia.backend.document.domain.DocumentIssueLink;
 import com.threadia.backend.document.domain.DocumentType;
+import com.threadia.backend.auth.domain.User;
 import com.threadia.backend.platform.bootstrap.PlatformAdminBootstrap;
 
 import jakarta.persistence.EntityManager;
@@ -62,6 +63,10 @@ class DocumentRepositoryJpaQueryCompilationTests {
 					.isNotNull();
 			assertThat(entityManager.createQuery(query(DocumentIssueLinkRepository.class, "findVisibleByDocumentId"), DocumentIssueLink.class)
 					.setParameter("documentId", 1L))
+					.isNotNull();
+			assertThat(entityManager.createQuery(query(DocumentIssueLinkRepository.class, "findActiveNotificationRecipientsByDocumentIdExcludingUserId"), User.class)
+					.setParameter("documentId", 1L)
+					.setParameter("excludedUserId", 2L))
 					.isNotNull();
 			assertThat(entityManager.createQuery(query(DocumentIssueLinkRepository.class, "findByIdWithProject"), DocumentIssueLink.class)
 					.setParameter("linkId", 10L))
