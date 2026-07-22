@@ -35,6 +35,7 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import Link from "next/link";
 import { OfficeFloor } from "@/components/hub/OfficeFloor";
+import { HubAvatars } from "@/components/hub/HubAvatars";
 import { CityBlocks } from "@/components/hub/CityBlocks";
 import {
   HubBuildings,
@@ -179,6 +180,7 @@ export default function HubPage() {
             <directionalLight position={[-5, 6, -4]} intensity={0.6} />
             <Suspense fallback={null}>
               <OfficeFloor />
+              <HubAvatars />
               <CityBlocks />
               <HubBuildings plots={NORTH_ZONE_PLOTS} seed={1} />
               <HubBuildings plots={EAST_ZONE_PLOTS} seed={2} />
