@@ -33,6 +33,7 @@ import {
   useState,
 } from "react";
 import axios from "axios";
+import { useQueryClient } from "@tanstack/react-query";
 import { setAccessToken } from "@/lib/axios";
 import { authService } from "@/services/auth.service";
 import { companyService } from "@/services/company.service";
@@ -88,6 +89,7 @@ async function fetchCompanyMemberships(): Promise<CompanyMembership[]> {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<UserSummary | null>(null);
   const [companyMemberships, setCompanyMemberships] = useState<CompanyMembership[]>([]);
   const [status, setStatus] = useState<AuthStatus>("loading");
@@ -154,8 +156,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setCompanyMemberships([]);
       setStatus("unauthenticated");
+      // 이슈 #217 코멘트(dhy257): dm-rooms/dm-unread-count/pending-invitation-count
+      // 등 React Query key에 user id가 없어서, 같은 브라우저에서 로그아웃 후 다른
+      // 사용자로 로그인하면 이전 사용자의 캐시가 잠깐 재사용될 수 있었다.
+      // logout 시점에 QueryClient를 통째로 비워서 다음 로그인은 항상 빈 캐시에서
+      // 시작하게 한다.
+      queryClient.clear();
     }
-  }, []);
+  }, [queryClient]);
 
   return (
     <AuthContext.Provider
