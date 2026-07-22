@@ -13,11 +13,9 @@
  *   - "댓글 작성자 프로필에서 S09 1:1 DM으로 이동" — DM Frontend(WBS 4.7.3.2)가
  *     아직 없어서 이번 slice에서는 제외한다.
  *
- * 컨텍스트 배너는 대상 타입별로 다른 API를 부른다. 문서 상세 조회는 WBS 4.6.2
- * (documents.service.ts, 별도 PR)가 아직 dev에 없어 이 파일 안에서 apiClient로
- * 직접 부른다 — 그 PR이 머지되면 document.service.ts의 detail()로 옮긴다.
- * 하나가 실패해도 쓰레드 자체는 보이게 컨텍스트 로드는 별도 상태로 분리했다
- * (board.tsx의 members 분리와 동일 패턴).
+ * 컨텍스트 배너는 대상 타입별로 다른 API를 부른다. 하나가 실패해도 쓰레드
+ * 자체는 보이게 컨텍스트 로드는 별도 상태로 분리했다(board.tsx의 members
+ * 분리와 동일 패턴).
  *
  * ⚠️ project 경계 검증(PR #170 리뷰 반영): threadId는 어느 프로젝트의 쓰레드인지
  * URL만으로는 보장되지 않는다 — 사용자가 접근 가능한 다른 프로젝트의 threadId를
@@ -30,14 +28,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import apiClient from "@/lib/axios";
 import { invitationErrorMessage } from "@/lib/invitation";
+import { documentService } from "@/services/document.service";
 import { threadService } from "@/services/thread.service";
 import { issueService } from "@/services/issue.service";
 import { messageService } from "@/services/message.service";
 import { projectService } from "@/services/project.service";
 import { AttachmentControls } from "@/components/attachments/AttachmentControls";
-import type { ApiResponse } from "@/types/auth.types";
 import type { ThreadCommentResponse, ThreadResponse } from "@/types/thread.types";
 
 type Role = "A" | "P" | "C";
@@ -85,9 +82,7 @@ export default function ThreadPage() {
     async (loadedThread: ThreadResponse, onResult: (context: TargetContext) => void) => {
       try {
         if (loadedThread.targetType === "DOCUMENT") {
-          const { data } = await apiClient.get<ApiResponse<{ document: { title: string } }>>(
-            `/api/v1/documents/${loadedThread.targetId}`
-          );
+          const { data } = await documentService.detail(loadedThread.targetId);
           onResult({
             label: `문서 · ${data.data.document.title}`,
             href: `/${companyId}/${loadedThread.projectId}/docs/${loadedThread.targetId}`,
