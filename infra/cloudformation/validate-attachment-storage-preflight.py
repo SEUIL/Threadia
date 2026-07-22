@@ -96,6 +96,10 @@ assert "MAX_PRODUCTION_PRESIGN_TTL = Duration.ofMinutes(10)" in storage_config
 assert "presign TTL은 10분을 초과할 수 없습니다." in storage_config
 assert "DefaultCredentialsProvider.builder().build()" in storage_config
 assert "CREATE TABLE IF NOT EXISTS attachments" in storage_sql
+assert "ALTER TABLE users ADD COLUMN IF NOT EXISTS" not in storage_sql
+assert "ALTER TABLE companies ADD COLUMN IF NOT EXISTS" not in storage_sql
+assert "@has_users_avatar_column" in storage_sql
+assert "@has_companies_logo_column" in storage_sql
 assert "fk_users_avatar_attachment" in storage_sql
 assert "fk_companies_logo_attachment" in storage_sql
 assert "CloudFormation operator는 Change Set 생성·조회만 하고 Execute하지 않는다" in runbook
