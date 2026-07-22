@@ -72,6 +72,21 @@ export interface IssueCreateRequest {
 }
 
 /**
+ * 프로젝트 메시지에서 이슈 생성(WBS 4.5.1.1/4.5.1.2, `POST /projects/{projectId}/issues/from-message`).
+ * 이 endpoint 자체가 P/C(PROJECT_ADMIN/COMPANY_ADMIN) 전용이라 — canManage 여부와
+ * 무관하게 IssueCreateRequest의 관리 전용 필드가 전부 항상 허용된다.
+ */
+export interface IssueFromMessageRequest {
+  messageId: number;
+  title: string;
+  description?: string | null;
+  priority?: IssuePriority;
+  assigneeUserId?: number | null;
+  dueDate?: string | null;
+  sprintId?: number | null;
+}
+
+/**
  * 이슈 수정. **보낸 필드만 반영된다** — 서버가 request body의 key 집합으로 판정하므로
  * 생략한 필드는 유지되고, 명시적 null은 description/assigneeUserId/dueDate/sprintId를 clear한다.
  * 허용되지 않은 필드를 담으면 400이라 바꿀 필드만 보내야 한다.

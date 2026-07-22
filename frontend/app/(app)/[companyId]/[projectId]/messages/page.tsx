@@ -13,9 +13,28 @@
  * 헤더를 생략한다. Threadia는 아직 프로젝트당 채팅 채널이 1개뿐이라 좌측
  * 채널 목록은 "# 프로젝트 채팅" 단일 항목만 있는 고정 목록이다.
  *
+ * "메시지 → 이슈 생성"(WBS 4.5.1.2, design memo 액션): Backend(WBS 4.5.1.1, PR #214)
+ * `POST /projects/{projectId}/issues/from-message`는 P/C(PROJECT_ADMIN/COMPANY_ADMIN)
+ * 전용이라(일반 멤버가 부르면 403) `viewer.canManageProject`인 경우에만 액션을
+ * 노출한다. 이미 이슈로 변환된 메시지는 이슈 목록(`sourceMessageId`)과 대조해
+ * "→ {issueKey}"로 표시하고 버튼을 다시 띄우지 않는다(중복 변환 자체는 서버가
+ * 막지 않지만, 화면에서 실수로 같은 메시지를 두 번 변환하는 걸 막아준다).
+ * 이슈 단건 상세 조회 route가 없어(§10.2와 동일한 계약 밖) 보드 목록으로만 이동한다.
+ *
+ * PR #232 리뷰 반영(dhy257): 이슈 목록 조회(`issueService.list`)는 messages/
+ * members/project detail과 같은 Promise.all에 묶으면 안 된다 — 이슈 전환은
+ * 채팅의 부가 기능이고 일반 멤버에게는 액션 자체가 안 보이는데, 그 조회 하나
+ * 실패한다고 채팅 본기능(메시지 읽기/전송)까지 통째로 error 화면으로 빠지면
+ * 안 된다. `loadIssues()`를 별도 non-blocking 호출로 분리했다.
+ *
+ * PR #232 재리뷰 반영(dhy257, optional): `issuesState`를 boolean(실패 여부)이
+ * 아니라 `loading`/`ready`/`error` 3단계로 둔다 — boolean만 쓰면 "아직 응답
+ * 안 옴"과 "이미 성공함"을 구분 못 해서, `/issues`가 느리게 응답하는 동안
+ * issues가 빈 배열인 걸 "정말 빈 목록"으로 착각해 이미 변환된 메시지에도
+ * "이슈로 만들기" 버튼이 잠깐 깜빡였다가(중복 클릭 유발 가능) 사라지는 창이
+ * 있었다. 이슈 액션/링크는 `issuesState === "ready"`일 때만 보여준다.
+ *
  * 이번 slice에 반영하지 않은 것:
- *   - "메시지 → 이슈 생성"(design memo 액션) — Backend endpoint는 WBS 4.5.1.1에서
- *     추가됐고, Frontend 액션은 WBS 4.5.1.2에서 별도 연동한다.
  *   - "쓰레드 보기" — Thread Frontend(WBS 4.7.1.2)가 별도 PR이라 이번 slice는
  *     메시지 작성 시 threadId를 항상 null로 보낸다.
  *   - 멤버 온라인/오프라인 — 실 presence API가 없어 ACTIVE 멤버를 하나의
@@ -30,15 +49,19 @@
  * (loadMoreError)로 분리해서 보여준다 — 초기 목록은 이미 성공했는데 pagination
  * 실패를 pageError에 합치면 pageState==="ready" 렌더 분기에서는 안 보인다.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { invitationErrorMessage } from "@/lib/invitation";
+import { issueService } from "@/services/issue.service";
 import { messageService } from "@/services/message.service";
 import { projectMemberService } from "@/services/project-member.service";
 import { projectService } from "@/services/project.service";
 import { AttachmentControls } from "@/components/attachments/AttachmentControls";
+import { IssueFromMessageModal } from "@/components/issues/IssueFromMessageModal";
 import { UserAvatar } from "@/components/profile/UserAvatar";
+import type { IssueResponse } from "@/types/issue.types";
 import type { MessageResponse } from "@/types/message.types";
 import type { ProjectMemberResponse } from "@/types/project-member.types";
 import type { ProjectViewerData } from "@/types/project.types";
@@ -63,16 +86,45 @@ export default function ProjectMessagesPage() {
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
+  // WBS 4.5.1.2 — 메시지→이슈 생성. 이미 변환된 메시지를 판별하려고 프로젝트
+  // 이슈 목록도 함께 받는다(sourceMessageId 대조용, 아래 issueByMessageId).
+  // 채팅 본기능과 분리된 non-blocking 로드다(PR #232 리뷰 반영, 위 주석 참고).
+  const [issues, setIssues] = useState<IssueResponse[]>([]);
+  const [issuesState, setIssuesState] = useState<LoadState>("loading");
+  const [issueModalMessage, setIssueModalMessage] = useState<MessageResponse | null>(null);
+
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const issueByMessageId = useMemo(() => {
+    const map = new Map<number, IssueResponse>();
+    for (const issue of issues) {
+      if (issue.sourceMessageId !== null) map.set(issue.sourceMessageId, issue);
+    }
+    return map;
+  }, [issues]);
+
   const nicknameOf = (authorUserId: number) => {
     if (authorUserId === user?.id) return user.nickname;
     return members.find((m) => m.user.id === authorUserId)?.user.nickname ?? `사용자 #${authorUserId}`;
   };
+
+  // 채팅 본기능과 분리된 non-blocking 로드 — 실패해도 채팅 자체엔 영향 없고,
+  // "이슈로 만들기"/"→ {issueKey}" 표시만 degrade한다(위 파일 주석 참고).
+  const loadIssues = useCallback(async () => {
+    setIssuesState("loading");
+    try {
+      const { data } = await issueService.list(params.projectId);
+      setIssues(data.data.issues);
+      setIssuesState("ready");
+    } catch {
+      setIssues([]);
+      setIssuesState("error");
+    }
+  }, [params.projectId]);
 
   const load = useCallback(async () => {
     try {
@@ -114,6 +166,12 @@ export default function ProjectMessagesPage() {
       await load();
     })();
   }, [load]);
+
+  useEffect(() => {
+    (async () => {
+      await loadIssues();
+    })();
+  }, [loadIssues]);
 
   // 최초 로드/전송 후 맨 아래로 스크롤.
   useEffect(() => {
@@ -249,12 +307,33 @@ export default function ProjectMessagesPage() {
                       </div>
                     )}
                     <p className="whitespace-pre-wrap text-sm text-foreground">{msg.content}</p>
-                    <AttachmentControls
-                      targetType="MESSAGE"
-                      targetId={msg.id}
-                      canMutate={msg.authorUserId === user?.id || viewer?.companyRole === "COMPANY_ADMIN" || viewer?.projectRole === "PROJECT_ADMIN"}
-                      compact
-                    />
+                    <div className="flex items-center gap-2">
+                      <AttachmentControls
+                        targetType="MESSAGE"
+                        targetId={msg.id}
+                        canMutate={msg.authorUserId === user?.id || viewer?.companyRole === "COMPANY_ADMIN" || viewer?.projectRole === "PROJECT_ADMIN"}
+                        compact
+                      />
+                      {issuesState === "ready" &&
+                        (issueByMessageId.has(msg.id) ? (
+                          <Link
+                            href={`/${params.companyId}/${params.projectId}/board`}
+                            className="text-xs font-medium text-primary hover:underline"
+                          >
+                            → {issueByMessageId.get(msg.id)!.issueKey}
+                          </Link>
+                        ) : (
+                          viewer?.canManageProject && (
+                            <button
+                              type="button"
+                              onClick={() => setIssueModalMessage(msg)}
+                              className="text-xs font-medium text-muted transition-colors duration-fast hover:text-primary"
+                            >
+                              이슈로 만들기
+                            </button>
+                          )
+                        ))}
+                    </div>
                   </div>
                 </div>
               );
@@ -314,6 +393,13 @@ export default function ProjectMessagesPage() {
           {members.length === 0 && <p className="px-1 text-xs text-muted">구성원이 없습니다.</p>}
         </div>
       </aside>
+
+      <IssueFromMessageModal
+        message={issueModalMessage}
+        members={members}
+        onClose={() => setIssueModalMessage(null)}
+        onCreated={(issue) => setIssues((prev) => [...prev, issue])}
+      />
     </div>
   );
 }
