@@ -40,6 +40,7 @@ import com.threadia.backend.issue.dto.IssueResponse;
 import com.threadia.backend.issue.dto.IssuesData;
 import com.threadia.backend.issue.exception.IssueNotFoundException;
 import com.threadia.backend.issue.repository.IssueRepository;
+import com.threadia.backend.notification.service.DocumentNotificationProducerService;
 import com.threadia.backend.project.domain.Project;
 import com.threadia.backend.project.domain.ProjectMember;
 import com.threadia.backend.project.domain.ProjectMemberRole;
@@ -57,15 +58,16 @@ public class DocumentService {
 	private final DocumentRepository documentRepository;
 	private final IssueRepository issueRepository;
 	private final DocumentIssueLinkRepository linkRepository;
+	private final DocumentNotificationProducerService notificationProducer;
 	private final Clock clock;
 
 	@Autowired
-	public DocumentService(AuthContextService authContextService, CompanyMembershipService companyMembershipService, ProjectRepository projectRepository, ProjectMemberRepository projectMemberRepository, DocumentRepository documentRepository, IssueRepository issueRepository, DocumentIssueLinkRepository linkRepository) {
-		this(authContextService, companyMembershipService, projectRepository, projectMemberRepository, documentRepository, issueRepository, linkRepository, Clock.systemUTC());
+	public DocumentService(AuthContextService authContextService, CompanyMembershipService companyMembershipService, ProjectRepository projectRepository, ProjectMemberRepository projectMemberRepository, DocumentRepository documentRepository, IssueRepository issueRepository, DocumentIssueLinkRepository linkRepository, DocumentNotificationProducerService notificationProducer) {
+		this(authContextService, companyMembershipService, projectRepository, projectMemberRepository, documentRepository, issueRepository, linkRepository, notificationProducer, Clock.systemUTC());
 	}
 
-	DocumentService(AuthContextService authContextService, CompanyMembershipService companyMembershipService, ProjectRepository projectRepository, ProjectMemberRepository projectMemberRepository, DocumentRepository documentRepository, IssueRepository issueRepository, DocumentIssueLinkRepository linkRepository, Clock clock) {
-		this.authContextService = authContextService; this.companyMembershipService = companyMembershipService; this.projectRepository = projectRepository; this.projectMemberRepository = projectMemberRepository; this.documentRepository = documentRepository; this.issueRepository = issueRepository; this.linkRepository = linkRepository; this.clock = clock;
+	DocumentService(AuthContextService authContextService, CompanyMembershipService companyMembershipService, ProjectRepository projectRepository, ProjectMemberRepository projectMemberRepository, DocumentRepository documentRepository, IssueRepository issueRepository, DocumentIssueLinkRepository linkRepository, DocumentNotificationProducerService notificationProducer, Clock clock) {
+		this.authContextService = authContextService; this.companyMembershipService = companyMembershipService; this.projectRepository = projectRepository; this.projectMemberRepository = projectMemberRepository; this.documentRepository = documentRepository; this.issueRepository = issueRepository; this.linkRepository = linkRepository; this.notificationProducer = notificationProducer; this.clock = clock;
 	}
 
 	@Transactional(readOnly = true)
@@ -86,8 +88,8 @@ public class DocumentService {
 	}
 	@Transactional
 	public DocumentData update(String token, Long documentId, DocumentUpdateRequest request) {
-		AuthContext context = activeAuthContext(token); Document document = documentForUpdate(documentId); requireProjectAccess(document.getProject(), context); requireAuthorOrManage(document, context);
-		document.update(request.title().trim(), request.type(), request.content(), now()); return new DocumentData(DocumentResponse.from(document));
+		AuthContext context = authContextService.fromAccessToken(token); User actor = authContextService.requireActiveUser(context); Document document = documentForUpdate(documentId); requireProjectAccess(document.getProject(), context); requireAuthorOrManage(document, context);
+		LocalDateTime updatedAt = now(); document.update(request.title().trim(), request.type(), request.content(), updatedAt); notificationProducer.documentUpdated(document, actor, updatedAt); return new DocumentData(DocumentResponse.from(document));
 	}
 	@Transactional
 	public DocumentData trash(String token, Long documentId) {
