@@ -25,9 +25,14 @@
  * members/project detail과 같은 Promise.all에 묶으면 안 된다 — 이슈 전환은
  * 채팅의 부가 기능이고 일반 멤버에게는 액션 자체가 안 보이는데, 그 조회 하나
  * 실패한다고 채팅 본기능(메시지 읽기/전송)까지 통째로 error 화면으로 빠지면
- * 안 된다. `loadIssues()`를 별도 non-blocking 호출로 분리했다 — 실패하면
- * `issuesLoadFailed`로 표시하고 "이슈로 만들기"/"→ {issueKey}" 둘 다 숨긴다
- * (이미 변환됐는지 모르는 상태에서 액션을 보여주면 중복 변환을 유도할 수 있다).
+ * 안 된다. `loadIssues()`를 별도 non-blocking 호출로 분리했다.
+ *
+ * PR #232 재리뷰 반영(dhy257, optional): `issuesState`를 boolean(실패 여부)이
+ * 아니라 `loading`/`ready`/`error` 3단계로 둔다 — boolean만 쓰면 "아직 응답
+ * 안 옴"과 "이미 성공함"을 구분 못 해서, `/issues`가 느리게 응답하는 동안
+ * issues가 빈 배열인 걸 "정말 빈 목록"으로 착각해 이미 변환된 메시지에도
+ * "이슈로 만들기" 버튼이 잠깐 깜빡였다가(중복 클릭 유발 가능) 사라지는 창이
+ * 있었다. 이슈 액션/링크는 `issuesState === "ready"`일 때만 보여준다.
  *
  * 이번 slice에 반영하지 않은 것:
  *   - "쓰레드 보기" — Thread Frontend(WBS 4.7.1.2)가 별도 PR이라 이번 slice는
@@ -85,7 +90,7 @@ export default function ProjectMessagesPage() {
   // 이슈 목록도 함께 받는다(sourceMessageId 대조용, 아래 issueByMessageId).
   // 채팅 본기능과 분리된 non-blocking 로드다(PR #232 리뷰 반영, 위 주석 참고).
   const [issues, setIssues] = useState<IssueResponse[]>([]);
-  const [issuesLoadFailed, setIssuesLoadFailed] = useState(false);
+  const [issuesState, setIssuesState] = useState<LoadState>("loading");
   const [issueModalMessage, setIssueModalMessage] = useState<MessageResponse | null>(null);
 
   const [draft, setDraft] = useState("");
@@ -110,13 +115,14 @@ export default function ProjectMessagesPage() {
   // 채팅 본기능과 분리된 non-blocking 로드 — 실패해도 채팅 자체엔 영향 없고,
   // "이슈로 만들기"/"→ {issueKey}" 표시만 degrade한다(위 파일 주석 참고).
   const loadIssues = useCallback(async () => {
+    setIssuesState("loading");
     try {
       const { data } = await issueService.list(params.projectId);
       setIssues(data.data.issues);
-      setIssuesLoadFailed(false);
+      setIssuesState("ready");
     } catch {
       setIssues([]);
-      setIssuesLoadFailed(true);
+      setIssuesState("error");
     }
   }, [params.projectId]);
 
@@ -308,7 +314,7 @@ export default function ProjectMessagesPage() {
                         canMutate={msg.authorUserId === user?.id || viewer?.companyRole === "COMPANY_ADMIN" || viewer?.projectRole === "PROJECT_ADMIN"}
                         compact
                       />
-                      {!issuesLoadFailed &&
+                      {issuesState === "ready" &&
                         (issueByMessageId.has(msg.id) ? (
                           <Link
                             href={`/${params.companyId}/${params.projectId}/board`}

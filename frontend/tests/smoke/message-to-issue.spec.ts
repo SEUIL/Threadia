@@ -38,6 +38,15 @@ const issue = (over: {
   restoredAt: null,
 });
 
+/** GET .../issues 응답을 붙잡아두는 게이트 — 재리뷰(dhy257) flicker 재현용. */
+function createHold() {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { gate, release };
+}
+
 async function mockApi(
   page: Page,
   options: {
@@ -45,6 +54,8 @@ async function mockApi(
     issues?: ReturnType<typeof issue>[];
     /** PR #232 리뷰(dhy257) 재현용 — GET .../issues만 500으로 실패시킨다. */
     issuesFail?: boolean;
+    /** PR #232 재리뷰(dhy257) 재현용 — GET .../issues 응답을 hold.release()까지 붙잡는다. */
+    issuesHold?: ReturnType<typeof createHold>;
   }
 ) {
   const createdIssues: unknown[] = [];
@@ -96,6 +107,7 @@ async function mockApi(
       return json({ projectId: 10, lastReadMessageId: 31, unreadCount: 0 });
     }
     if (request.method() === "GET" && url.pathname === "/api/v1/projects/10/issues") {
+      if (options.issuesHold) await options.issuesHold.gate;
       if (options.issuesFail) {
         return route.fulfill({
           status: 500,
@@ -168,4 +180,30 @@ test("이슈 목록 조회가 실패해도 채팅 본기능(메시지 읽기)은
   await expect(page.getByText("로그인 버튼이 모바일에서 안 눌립니다")).toBeVisible();
   await expect(page.getByRole("button", { name: "이슈로 만들기" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /^→ / })).toHaveCount(0);
+});
+
+test("이슈 목록 조회가 느린 동안엔 이미 변환된 메시지에도 '이슈로 만들기' 버튼이 잠깐 뜨지 않는다", async ({ page }) => {
+  // PR #232 재리뷰(dhy257, optional 제안) 재현: issuesState를 boolean(실패 여부)
+  // 이 아니라 loading/ready/error 3단계로 둬야, 응답이 아직 안 온 "issues=[]"
+  // 상태를 "정말 빈 목록"으로 오인해서 이미 변환된 메시지에 액션이 깜빡이는
+  // 걸 막을 수 있다.
+  const hold = createHold();
+  await mockApi(page, {
+    viewer: { companyRole: "COMPANY_ADMIN", projectRole: "MEMBER" },
+    issues: [issue({ id: 50, issueKey: "THR-50", title: "기존 이슈", sourceType: "MESSAGE", sourceMessageId: 31 })],
+    issuesHold: hold,
+  });
+
+  try {
+    await page.goto("/1/10/messages");
+    // 메시지는 이미 보이지만(messages/members/project detail은 안 붙잡혔다),
+    // issues 응답이 아직 안 왔으니 액션도 링크도 뜨면 안 된다.
+    await expect(page.getByText("로그인 버튼이 모바일에서 안 눌립니다")).toBeVisible();
+    await expect(page.getByRole("button", { name: "이슈로 만들기" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "→ THR-50" })).toHaveCount(0);
+  } finally {
+    hold.release();
+  }
+
+  await expect(page.getByRole("link", { name: "→ THR-50" })).toBeVisible();
 });
