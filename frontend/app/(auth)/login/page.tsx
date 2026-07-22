@@ -87,7 +87,11 @@ export default function LoginPage() {
           {...register("password")}
         />
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
 
         {/* 로그인 버튼 */}
         <Button type="submit" loading={isSubmitting}>로그인</Button>

@@ -29,6 +29,10 @@ const signupSchema = z.object({
     .max(72)
     .regex(/[A-Za-z]/, "영문을 포함해야 합니다")
     .regex(/[0-9]/, "숫자를 포함해야 합니다"),
+  passwordConfirm: z.string().min(1, "비밀번호를 다시 입력하세요"),
+}).refine((values) => values.password === values.passwordConfirm, {
+  message: "비밀번호가 일치하지 않습니다",
+  path: ["passwordConfirm"],
 });
 
 type SignupFormValues = z.infer<typeof signupSchema>;
@@ -45,7 +49,12 @@ export default function SignupPage() {
   const onSubmit = async (values: SignupFormValues) => {
     setError(null);
     try {
-      await authService.signup({ ...values, avatarUrl: null });
+      await authService.signup({
+        email: values.email,
+        nickname: values.nickname,
+        password: values.password,
+        avatarUrl: null,
+      });
       router.push("/login");
     } catch (err) {
       if (isAxiosError<ApiError>(err) && err.response) {
@@ -101,7 +110,20 @@ export default function SignupPage() {
           {...register("password")}
         />
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        <PasswordField
+          id="passwordConfirm"
+          label="비밀번호 확인"
+          autoComplete="new-password"
+          placeholder="비밀번호를 다시 입력하세요"
+          hint={errors.passwordConfirm?.message}
+          {...register("passwordConfirm")}
+        />
+
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
 
         {/* 가입 버튼 */}
         <Button type="submit" loading={isSubmitting}>계정 만들기</Button>
