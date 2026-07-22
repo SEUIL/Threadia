@@ -21,20 +21,20 @@
  * 있는데 DTO에 안 실려 있다). 이 페이지는 company-scoped라 companyId는 route
  * param으로 알 수 있고, DIRECT_MESSAGE_ROOM/PROJECT는 target.id만으로 경로를
  * 만들 수 있다. DOCUMENT/THREAD/MESSAGE/SPRINT/ISSUE는 클릭 시 해당 리소스를
- * 한 번 더 조회해 projectId를 얻는다(document/thread service가 아직 dev에
- * 없어 apiClient로 직접 부른다). ISSUE는 이슈 #176/PR #177로 `IssueResponse`에
+ * 한 번 더 조회해 projectId를 얻는다. ISSUE는 이슈 #176/PR #177로 `IssueResponse`에
  * `projectId`가 추가되면서 이제 가능해졌다 — 처음 이 PR을 낼 때는 그 필드가
  * 없어서 이동 불가였다.
  */
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import apiClient from "@/lib/axios";
 import { invitationErrorMessage } from "@/lib/invitation";
+import { documentService } from "@/services/document.service";
 import { issueService } from "@/services/issue.service";
+import { messageService } from "@/services/message.service";
 import { notificationService } from "@/services/notification.service";
 import { sprintService } from "@/services/sprint.service";
-import type { ApiResponse } from "@/types/auth.types";
+import { threadService } from "@/services/thread.service";
 import type { NotificationItem, NotificationTarget, NotificationType } from "@/types/notification.types";
 
 type LoadState = "loading" | "ready" | "error";
@@ -137,8 +137,7 @@ export default function NotificationsPage() {
     }
   };
 
-  // DOCUMENT/THREAD/MESSAGE는 해당 리소스를 조회해야 projectId를 알 수 있다
-  // (document/thread service가 아직 dev에 없어 apiClient로 직접 부른다).
+  // DOCUMENT/THREAD/MESSAGE는 해당 리소스를 조회해야 projectId를 알 수 있다.
   const resolveHref = async (target: NotificationTarget): Promise<string | null> => {
     const companyId = params.companyId;
     switch (target.type) {
@@ -151,21 +150,15 @@ export default function NotificationsPage() {
         return `/${companyId}/${data.data.sprint.projectId}/backlog`;
       }
       case "DOCUMENT": {
-        const { data } = await apiClient.get<ApiResponse<{ document: { projectId: number } }>>(
-          `/api/v1/documents/${target.id}`
-        );
+        const { data } = await documentService.detail(target.id);
         return `/${companyId}/${data.data.document.projectId}/docs/${target.id}`;
       }
       case "THREAD": {
-        const { data } = await apiClient.get<ApiResponse<{ thread: { projectId: number } }>>(
-          `/api/v1/threads/${target.id}`
-        );
+        const { data } = await threadService.detail(target.id);
         return `/${companyId}/${data.data.thread.projectId}/threads/${target.id}`;
       }
       case "MESSAGE": {
-        const { data } = await apiClient.get<ApiResponse<{ message: { projectId: number } }>>(
-          `/api/v1/messages/${target.id}`
-        );
+        const { data } = await messageService.detail(target.id);
         return `/${companyId}/${data.data.message.projectId}/messages`;
       }
       case "ISSUE": {
