@@ -13,6 +13,16 @@
  * next/image 대신 <img>를 쓴다 — 임의 외부 호스트를 허용하려면 next.config의
  * images.remotePatterns를 열어야 하는데, 그건 이 작업 범위 밖이다.
  *
+ * 표시 우선순위(WBS 4.11 PR #215 첨부 도입 후): S3 첨부 아바타 > legacy
+ * avatarUrl > 닉네임 이니셜. 3층을 겹쳐 그려서 구현한다 —
+ *   1) 바탕층: legacy avatarUrl 있으면 그 <img>, 없으면 이니셜.
+ *   2) 그 위(absolute inset-0): userId가 있으면 AttachmentImage(USER_AVATAR).
+ * AttachmentImage는 첨부가 있을 때만 실제 <img>를 그리고 없으면 null을
+ * 반환하므로(fallbackUrl=null), 첨부가 있으면 바탕층을 덮고 없으면 바탕층이
+ * 그대로 비쳐 보인다. userId를 안 넘기는 호출부(상대 정보를 모르는 자리)는
+ * 2층이 아예 없이 legacy/이니셜만 나온다. 이렇게 두면 첨부 유무를 호출부가
+ * 미리 알 필요 없이 한 컴포넌트로 세 경우를 다 처리한다.
+ *
  * 스타일 규칙: style={{}} 금지, @theme 시멘틱 토큰 클래스만 사용.
  */
 "use client";

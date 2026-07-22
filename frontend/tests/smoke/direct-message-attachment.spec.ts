@@ -111,8 +111,29 @@ test("persisted direct message uses the DIRECT_MESSAGE attachment target for lis
 
   await message.getByRole("button", { name: "message.txt" }).click();
   await expect.poll(() => mock.attachmentCalls).toContain("download:101");
+  // 삭제는 인라인 2단계 확인이다 — "삭제" 클릭만으로는 delete API가 안 나가고
+  // "확인"을 눌러야 실제로 삭제된다(실수 클릭 방지).
   await message.getByRole("button", { name: "삭제" }).click();
+  await expect(mock.attachmentCalls).not.toContain("delete:101");
+  await message.getByRole("button", { name: "확인" }).click();
   await expect.poll(() => mock.attachmentCalls).toContain("delete:101");
+});
+
+test("첨부 삭제 확인에서 취소를 누르면 삭제되지 않고 목록에 그대로 남는다", async ({ page }) => {
+  const mock = await mockApi(page);
+  await page.goto("/1/dm/8");
+  await expect(page.getByText("이미 저장된 DM")).toBeVisible();
+
+  const message = page.getByText("이미 저장된 DM").locator("..");
+  await message.locator("input[type=file]").setInputFiles({ name: "keep.txt", mimeType: "text/plain", buffer: Buffer.from("keep me") });
+  await expect(message.getByRole("button", { name: "keep.txt" })).toBeVisible();
+
+  await message.getByRole("button", { name: "삭제" }).click();
+  await message.getByRole("button", { name: "취소" }).click();
+
+  // 취소했으니 delete API는 안 나가고 파일도 그대로 있어야 한다.
+  await expect(mock.attachmentCalls).not.toContain("delete:101");
+  await expect(message.getByRole("button", { name: "keep.txt" })).toBeVisible();
 });
 
 test("new direct message receives a persisted numeric ID before its attachment control is rendered", async ({ page }) => {
