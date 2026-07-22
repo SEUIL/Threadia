@@ -21,6 +21,14 @@
  * 막지 않지만, 화면에서 실수로 같은 메시지를 두 번 변환하는 걸 막아준다).
  * 이슈 단건 상세 조회 route가 없어(§10.2와 동일한 계약 밖) 보드 목록으로만 이동한다.
  *
+ * PR #232 리뷰 반영(dhy257): 이슈 목록 조회(`issueService.list`)는 messages/
+ * members/project detail과 같은 Promise.all에 묶으면 안 된다 — 이슈 전환은
+ * 채팅의 부가 기능이고 일반 멤버에게는 액션 자체가 안 보이는데, 그 조회 하나
+ * 실패한다고 채팅 본기능(메시지 읽기/전송)까지 통째로 error 화면으로 빠지면
+ * 안 된다. `loadIssues()`를 별도 non-blocking 호출로 분리했다 — 실패하면
+ * `issuesLoadFailed`로 표시하고 "이슈로 만들기"/"→ {issueKey}" 둘 다 숨긴다
+ * (이미 변환됐는지 모르는 상태에서 액션을 보여주면 중복 변환을 유도할 수 있다).
+ *
  * 이번 slice에 반영하지 않은 것:
  *   - "쓰레드 보기" — Thread Frontend(WBS 4.7.1.2)가 별도 PR이라 이번 slice는
  *     메시지 작성 시 threadId를 항상 null로 보낸다.
@@ -75,7 +83,9 @@ export default function ProjectMessagesPage() {
 
   // WBS 4.5.1.2 — 메시지→이슈 생성. 이미 변환된 메시지를 판별하려고 프로젝트
   // 이슈 목록도 함께 받는다(sourceMessageId 대조용, 아래 issueByMessageId).
+  // 채팅 본기능과 분리된 non-blocking 로드다(PR #232 리뷰 반영, 위 주석 참고).
   const [issues, setIssues] = useState<IssueResponse[]>([]);
+  const [issuesLoadFailed, setIssuesLoadFailed] = useState(false);
   const [issueModalMessage, setIssueModalMessage] = useState<MessageResponse | null>(null);
 
   const [draft, setDraft] = useState("");
@@ -97,13 +107,25 @@ export default function ProjectMessagesPage() {
     return members.find((m) => m.user.id === authorUserId)?.user.nickname ?? `사용자 #${authorUserId}`;
   };
 
+  // 채팅 본기능과 분리된 non-blocking 로드 — 실패해도 채팅 자체엔 영향 없고,
+  // "이슈로 만들기"/"→ {issueKey}" 표시만 degrade한다(위 파일 주석 참고).
+  const loadIssues = useCallback(async () => {
+    try {
+      const { data } = await issueService.list(params.projectId);
+      setIssues(data.data.issues);
+      setIssuesLoadFailed(false);
+    } catch {
+      setIssues([]);
+      setIssuesLoadFailed(true);
+    }
+  }, [params.projectId]);
+
   const load = useCallback(async () => {
     try {
-      const [messagesResponse, membersResponse, projectResponse, issuesResponse] = await Promise.all([
+      const [messagesResponse, membersResponse, projectResponse] = await Promise.all([
         messageService.list(params.projectId),
         projectMemberService.list(params.projectId, { status: "ACTIVE" }),
         projectService.detail(params.projectId),
-        issueService.list(params.projectId),
       ]);
       setPageError(null);
       // 서버는 최신순(DESC)이라 화면 표시 순서(오래된 → 최신)로 뒤집는다.
@@ -112,7 +134,6 @@ export default function ProjectMessagesPage() {
       setNextCursor(messagesResponse.data.data.nextCursor);
       setMembers(membersResponse.data.data.projectMembers);
       setViewer(projectResponse.data.data.viewer);
-      setIssues(issuesResponse.data.data.issues);
       setPageState("ready");
 
       // 최신 메시지까지 읽음 처리 — 실패해도 채팅 자체는 계속 보여준다.
@@ -139,6 +160,12 @@ export default function ProjectMessagesPage() {
       await load();
     })();
   }, [load]);
+
+  useEffect(() => {
+    (async () => {
+      await loadIssues();
+    })();
+  }, [loadIssues]);
 
   // 최초 로드/전송 후 맨 아래로 스크롤.
   useEffect(() => {
@@ -281,24 +308,25 @@ export default function ProjectMessagesPage() {
                         canMutate={msg.authorUserId === user?.id || viewer?.companyRole === "COMPANY_ADMIN" || viewer?.projectRole === "PROJECT_ADMIN"}
                         compact
                       />
-                      {issueByMessageId.has(msg.id) ? (
-                        <Link
-                          href={`/${params.companyId}/${params.projectId}/board`}
-                          className="text-xs font-medium text-primary hover:underline"
-                        >
-                          → {issueByMessageId.get(msg.id)!.issueKey}
-                        </Link>
-                      ) : (
-                        viewer?.canManageProject && (
-                          <button
-                            type="button"
-                            onClick={() => setIssueModalMessage(msg)}
-                            className="text-xs font-medium text-muted transition-colors duration-fast hover:text-primary"
+                      {!issuesLoadFailed &&
+                        (issueByMessageId.has(msg.id) ? (
+                          <Link
+                            href={`/${params.companyId}/${params.projectId}/board`}
+                            className="text-xs font-medium text-primary hover:underline"
                           >
-                            이슈로 만들기
-                          </button>
-                        )
-                      )}
+                            → {issueByMessageId.get(msg.id)!.issueKey}
+                          </Link>
+                        ) : (
+                          viewer?.canManageProject && (
+                            <button
+                              type="button"
+                              onClick={() => setIssueModalMessage(msg)}
+                              className="text-xs font-medium text-muted transition-colors duration-fast hover:text-primary"
+                            >
+                              이슈로 만들기
+                            </button>
+                          )
+                        ))}
                     </div>
                   </div>
                 </div>

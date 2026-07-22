@@ -43,6 +43,8 @@ async function mockApi(
   options: {
     viewer: { companyRole: "COMPANY_ADMIN" | "MEMBER" | null; projectRole: "PROJECT_ADMIN" | "MEMBER" | null };
     issues?: ReturnType<typeof issue>[];
+    /** PR #232 리뷰(dhy257) 재현용 — GET .../issues만 500으로 실패시킨다. */
+    issuesFail?: boolean;
   }
 ) {
   const createdIssues: unknown[] = [];
@@ -94,6 +96,14 @@ async function mockApi(
       return json({ projectId: 10, lastReadMessageId: 31, unreadCount: 0 });
     }
     if (request.method() === "GET" && url.pathname === "/api/v1/projects/10/issues") {
+      if (options.issuesFail) {
+        return route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          headers,
+          body: JSON.stringify({ error: { code: "INTERNAL_ERROR", message: "issues 조회 실패" }, meta: { requestId: "message-to-issue-smoke" } }),
+        });
+      }
       return json({ issues: options.issues ?? [] });
     }
     if (request.method() === "GET" && url.pathname === "/api/v1/attachments") {
@@ -146,4 +156,16 @@ test("이미 이슈로 변환된 메시지는 버튼 대신 이슈 키 링크만
 
   await expect(page.getByRole("link", { name: "→ THR-50" })).toBeVisible();
   await expect(page.getByRole("button", { name: "이슈로 만들기" })).toHaveCount(0);
+});
+
+test("이슈 목록 조회가 실패해도 채팅 본기능(메시지 읽기)은 그대로 유지된다", async ({ page }) => {
+  // PR #232 리뷰(dhy257) 재현: GET .../issues만 500으로 막고 S09를 로드하면
+  // 채팅 전체가 error 화면으로 빠지면 안 된다 — "이슈로 만들기" 액션만 숨긴다.
+  await mockApi(page, { viewer: { companyRole: "COMPANY_ADMIN", projectRole: "MEMBER" }, issuesFail: true });
+  await page.goto("/1/10/messages");
+
+  await expect(page.getByText("채팅을 불러오지 못했습니다.")).toHaveCount(0);
+  await expect(page.getByText("로그인 버튼이 모바일에서 안 눌립니다")).toBeVisible();
+  await expect(page.getByRole("button", { name: "이슈로 만들기" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /^→ / })).toHaveCount(0);
 });
