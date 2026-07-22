@@ -151,7 +151,11 @@ export function CreateCompanyForm() {
         {errors.description && <p className="text-xs text-destructive">{errors.description.message}</p>}
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
 
       <Button type="submit" loading={isSubmitting} className="w-full">
         회사 생성

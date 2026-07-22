@@ -212,7 +212,13 @@ export default function ThreadPage() {
   if (pageState === "error" || !thread) {
     return (
       <div className="mx-auto max-w-2xl px-6 py-10">
-        <div className="rounded-lg border border-destructive/30 bg-destructive-subtle px-4 py-6 text-center text-sm text-destructive">
+        <Link
+          href={`/${companyId}/${projectId}/messages`}
+          className="text-sm text-muted transition-colors duration-fast hover:text-primary"
+        >
+          ← 프로젝트 채팅
+        </Link>
+        <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive-subtle px-4 py-6 text-center text-sm text-destructive">
           {pageError}
         </div>
       </div>
