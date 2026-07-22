@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀  
 > **작성일**: 2026-07-16  
-> **최종 수정**: 2026-07-21<br>
-> **버전**: v1.3<br>
+> **최종 수정**: 2026-07-22<br>
+> **버전**: v1.4<br>
 > **상태**: 검토 중  
 > **태그**: docker, compose, ecr, deployment, rollback, nextjs
 
@@ -104,9 +104,11 @@ candidate가 실패하면 script는 current release manifest의 frontend/backend
 - Docker daemon access는 root-equivalent privilege다. release manifest와 runtime env의 read/write 권한을 최소화한다.
 - backend DB migration과 public edge configuration은 이 release helper의 범위 밖이다.
 - attachment bucket/IAM/CORS/one-time additive SQL과 browser presigned transfer smoke는 [Public Compose Attachment Storage Runbook](../00-project/attachment-storage-public-compose-runbook.md)의 별도 approval gate를 따른다.
+- 2026-07-22 public dual-image in-place presentation release의 실행 증빙과 열려 있는 attachment transfer smoke gate는 [Public dual-image release 검증기록](../00-project/public-dual-image-release-검증기록.md)에서 확인한다.
 
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-07-22 | public dual-image in-place presentation release의 검증기록 링크를 추가했다. attachment transfer smoke gate의 미완료 상태는 별도 검증기록에서 관리한다. |
 | 2026-07-21 | dedicated private attachment bucket의 public Compose runtime contract와 별도 operator runbook 경계를 추가했다. |
