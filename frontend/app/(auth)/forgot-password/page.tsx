@@ -96,7 +96,11 @@ export default function ForgotPasswordPage() {
           {...register("email")}
         />
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
 
         <Button type="submit" loading={isSubmitting}>재설정 링크 받기</Button>
       </form>

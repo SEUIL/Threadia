@@ -216,7 +216,13 @@ export default function ProjectGraphPage() {
   if (pageState === "error") {
     return (
       <div className="px-6 py-8">
-        <div className="rounded-lg border border-destructive/30 bg-destructive-subtle px-4 py-6 text-center text-sm text-destructive">
+        <Link
+          href={`/${companyId}/projects`}
+          className="text-sm text-muted transition-colors duration-fast hover:text-primary"
+        >
+          ← 프로젝트 목록
+        </Link>
+        <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive-subtle px-4 py-6 text-center text-sm text-destructive">
           {pageError}
         </div>
       </div>
