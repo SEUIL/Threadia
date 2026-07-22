@@ -77,6 +77,7 @@ jobs:
       - name: Validate additive Platform foundation migration
         run: |
           python3 ../infra/cloudformation/test-platform-foundation-additive-migration.py
+          python3 ../infra/cloudformation/test-attachment-storage-additive-migration.py
 
       - name: Validate packaged backend against additive Phase 1 schema
         run: ./gradlew test --tests com.threadia.backend.JpaSchemaValidationTests
