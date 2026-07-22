@@ -303,3 +303,81 @@ test("새 DM 생성 응답을 기다리는 동안 다른 room으로 이미 이�
   // 늦게 도착한 get-or-create 응답이 방금 이동한 302를 999로 덮어쓰면 안 된다.
   await expect(page).toHaveURL(/\/1\/dm\/302$/);
 });
+
+/*
+ * 이슈 #217 코멘트(dhy257, 2026-07-22): 위 테스트는 DmLayout이 살아있는 상태의
+ * room 간 이동(pathnameRef가 잡는 케이스)만 검증한다. dhy257이 지적한 대로,
+ * "/dm 자체를 벗어나 DmLayout이 언마운트되는 경우"는 pathnameRef만으로는
+ * 못 잡는다 — 언마운트 후에는 pathname effect가 안 돌아서 ref가 마지막 값에
+ * 멈춰 있기 때문이다. dm/layout.tsx에 추가한 별도 mountedRef 가드를 검증한다.
+ * 이 시나리오는 DmLayout의 mount/unmount 타이밍에 의존해서 dev 서버(Strict
+ * Mode)에서는 신뢰할 수 없다 — production 빌드에서만 돈다.
+ */
+test("새 DM 생성 응답을 기다리는 동안 /dm 밖으로 나가 DmLayout이 언마운트됐다면 응답이 그 화면을 덮지 않는다", async ({
+  page,
+}) => {
+  const candidates = [{ id: 4, nickname: "박서연" }];
+  const hold = createHold();
+
+  await page.route("**/api/v1/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const headers = corsHeaders(request.headers().origin ?? "http://127.0.0.1:3002");
+    const json = (body: unknown, status = 200) =>
+      route.fulfill({ status, contentType: "application/json", headers, body: JSON.stringify(body) });
+
+    if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers });
+    if (request.method() === "POST" && url.pathname === "/api/v1/auth/refresh") {
+      return json(apiResponse({ accessToken: "test-token", user: { id: 1, email: "a@test.dev", nickname: "나", avatarUrl: null } }));
+    }
+    if (url.pathname === "/api/v1/users/me/company-memberships") {
+      return json(apiResponse({ companyMemberships: [{ companyId: 1, companyName: "Threadia", role: "COMPANY_ADMIN" }] }));
+    }
+    if (request.method() === "GET" && url.pathname === "/api/v1/companies/1/direct-messages/candidates") {
+      return json(apiResponse({ candidates: candidates.map((c) => ({ id: c.id, nickname: c.nickname, avatarUrl: null })) }));
+    }
+    if (request.method() === "POST" && url.pathname === "/api/v1/companies/1/direct-messages/rooms") {
+      await hold.gate;
+      return json(apiResponse({ room: room({ id: 999, otherUserId: 4, nickname: "박서연", unreadCount: 0 }) }));
+    }
+    if (request.method() === "GET" && url.pathname === "/api/v1/companies/1/direct-messages/rooms") {
+      return json(apiResponse({ rooms: [room({ id: 301, otherUserId: 2, nickname: "김민정", unreadCount: 0 })] }));
+    }
+    if (request.method() === "GET" && url.pathname === "/api/v1/direct-messages/rooms/301/messages") {
+      return json(apiResponse({ messages: [] }));
+    }
+    // /1/settings(목적지 화면)이 마운트 시 부르는 API.
+    if (request.method() === "GET" && url.pathname === "/api/v1/companies/1") {
+      return json(apiResponse({ company: { id: 1, name: "Threadia", description: null, logoUrl: null } }));
+    }
+    if (request.method() === "GET" && url.pathname === "/api/v1/companies/1/stats") {
+      return json(apiResponse({ companyId: 1, memberCount: 1, departmentCount: 0, projectCount: 0, projectStatusCounts: {} }));
+    }
+    if (request.method() === "GET" && url.pathname === "/api/v1/companies/1/departments") {
+      return json(apiResponse({ departments: [] }));
+    }
+    await route.continue();
+  });
+
+  try {
+    await page.goto("/1/dm/301");
+    await page.getByTitle("새 대화 시작").click();
+    await page.getByRole("button", { name: "박서연" }).click(); // get-or-create 요청 시작(held)
+
+    // 응답을 기다리는 동안 /dm 밖으로 나간다 — DmLayout 자체가 언마운트된다.
+    await page.getByTitle("회사 관리").click();
+    await expect(page).toHaveURL("/1/settings");
+
+    const createResponse = page.waitForResponse(
+      (res) => res.request().method() === "POST" && res.url().includes("/direct-messages/rooms") && res.status() === 200
+    );
+    hold.release();
+    await createResponse;
+  } finally {
+    hold.release();
+  }
+
+  // 늦게 도착한 get-or-create 응답이 언마운트된 DmLayout을 대신해
+  // /1/dm/999로 강제 이동시키면 안 된다.
+  await expect(page).toHaveURL("/1/settings");
+});

@@ -36,7 +36,7 @@
  * 메시지만 그대로 보여주면 된다. 실수 클릭 방지로 인라인 2단계 확인을 둔다(이
  * 코드베이스에 window.confirm 사용례가 없어 pendingInvitee와 같은 패턴을 따른다).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -183,14 +183,28 @@ export default function MembersPage() {
    * mutation 인스턴스의 isPending을 보고 disabled되므로, 겹쳐 누르는 것
    * 자체가 안 된다(예전의 dmRequestSequenceRef/mountedRef는 그래서 필요 없다).
    */
+  // 이슈 #217 코멘트(dhy257)의 late navigation 지적 반영 — React Query가
+  // mutation/cache는 관리해도 router.push() 같은 side effect는 취소해주지
+  // 않는다. 응답을 기다리는 동안 사용자가 이 화면을 벗어나면(언마운트) 늦게
+  // 온 응답이 뒤늦게 DM 방으로 강제 이동시키면 안 된다.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const startDmMutation = useStartDmMutation(companyId);
   const startDm = async (otherUserId: number) => {
     if (startDmMutation.isPending) return;
     setDmError(null);
     try {
       const response = await startDmMutation.mutateAsync(otherUserId);
+      if (!mountedRef.current) return;
       router.push(`/${companyId}/dm/${response.data.data.room.id}`);
     } catch (error) {
+      if (!mountedRef.current) return;
       setDmError(invitationErrorMessage(error, "대화를 시작하지 못했습니다."));
     }
   };

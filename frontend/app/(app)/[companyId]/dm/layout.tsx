@@ -70,6 +70,20 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
     pathnameRef.current = pathname;
   }, [pathname]);
 
+  // 이슈 #217 코멘트(dhy257): pathnameRef만으로는 "/dm 안에서 다른 room으로
+  // 이동"만 잡고, "/dm 밖으로 나가 DmLayout 자체가 언마운트되는 경우"는 못
+  // 잡는다 — 언마운트 후에는 pathname effect가 더 안 돌아서 pathnameRef가
+  // 마지막 값에 멈춰 있고, 그 값이 우연히 startPathname과 같아 보일 수 있다.
+  // 별도로 mountedRef를 둬서 "이 DmLayout 인스턴스가 아직 화면에 있는지"를
+  // pathname 일치 여부와 독립적으로 확인한다.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const openPicker = () => {
     setPickerError(null);
     setPickerOpen((open) => !open);
@@ -81,10 +95,12 @@ export default function DmLayout({ children }: { children: React.ReactNode }) {
     const startPathname = pathname;
     try {
       const response = await startDmMutation.mutateAsync(otherUserId);
+      if (!mountedRef.current) return;
       setPickerOpen(false);
       if (pathnameRef.current !== startPathname) return;
       router.push(`/${companyId}/dm/${response.data.data.room.id}`);
     } catch {
+      if (!mountedRef.current) return;
       setPickerError("대화를 시작하지 못했습니다.");
     }
   };

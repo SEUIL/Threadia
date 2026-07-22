@@ -10,15 +10,19 @@
  * "사용자 #id"로만 표시한다 — platform 운영 로그 화면과 같은 표기 방식.
  * offset(page) pagination이라 cursor가 아니라 page를 증가시키며 "더 보기"를
  * 구현한다.
+ *
+ * React Query 마이그레이션(이슈 #217): PR #205 리뷰(xaphxe) 반영으로 있던
+ * `loadSeqRef` 손짠 stale-response 가드를 없앴다. queryKey에 projectId를
+ * 넣으면 project 이동 시 React Query가 완전히 다른 캐시로 구독을 옮겨서,
+ * 이전 project의 지연 응답이 새 project 화면에 섞일 여지가 애초에 없다
+ * (search/page.tsx와 같은 원리 — 자세한 설명은 그쪽 주석 참고).
  */
-import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { activityService } from "@/services/activity.service";
 import { invitationErrorMessage } from "@/lib/invitation";
 import type { ActivityEventResponse, ActivityEventType } from "@/types/activity.types";
-
-type LoadState = "loading" | "ready" | "error";
 
 const PAGE_SIZE = 20;
 
@@ -58,78 +62,36 @@ const EVENT_ICON: Record<ActivityEventType, string> = {
 export default function ProjectActivityPage() {
   const { companyId, projectId } = useParams<{ companyId: string; projectId: string }>();
 
-  const [events, setEvents] = useState<ActivityEventResponse[]>([]);
-  const [page, setPage] = useState(0);
-  const [total, setTotal] = useState(0);
-  const [state, setState] = useState<LoadState>("loading");
-  const [error, setError] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  const activityQuery = useInfiniteQuery({
+    queryKey: ["project-activity", projectId],
+    queryFn: async ({ pageParam }) => {
+      const { data } = await activityService.list(projectId, { page: pageParam, size: PAGE_SIZE });
+      return data.data;
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((sum, p) => sum + p.events.length, 0);
+      return loaded < lastPage.total ? allPages.length : undefined;
+    },
+  });
 
-  /*
-   * 리뷰 반영(PR #205, xaphxe): stale response 방어가 없어서 project 전환이나
-   * 빠른 재요청 상황에서 이전 응답이 현재 feed를 덮거나 append할 수 있었다.
-   * load()는 매 호출마다 이 값을 증가시켜 "이 요청이 최신인지"를 응답 시점에
-   * 확인한다. loadMore()는 새 generation을 만들지 않고 호출 시점의 값을 캡처해서
-   * 응답 시점에도 같은 generation인지(=그 사이 load()로 project가 바뀌지 않았는지)
-   * 확인한다.
-   */
-  const loadSeqRef = useRef(0);
+  const events: ActivityEventResponse[] = activityQuery.data?.pages.flatMap((p) => p.events) ?? [];
+  const total = activityQuery.data?.pages.at(-1)?.total ?? 0;
 
-  const load = useCallback(async () => {
-    const seq = ++loadSeqRef.current;
-    setState("loading");
-    setError(null);
-    setLoadMoreError(null);
-    try {
-      const { data } = await activityService.list(projectId, { page: 0, size: PAGE_SIZE });
-      if (loadSeqRef.current !== seq) return;
-      setEvents(data.data.events);
-      setPage(0);
-      setTotal(data.data.total);
-      setState("ready");
-    } catch (err) {
-      if (loadSeqRef.current !== seq) return;
-      setError(invitationErrorMessage(err, "활동 내역을 불러오지 못했습니다."));
-      setState("error");
-    }
-  }, [projectId]);
-
-  useEffect(() => {
-    (async () => {
-      await load();
-    })();
-  }, [load]);
-
-  const loadMore = async () => {
-    if (loadingMore) return;
-    const seq = loadSeqRef.current;
-    const requestPage = page + 1;
-    setLoadingMore(true);
-    setLoadMoreError(null);
-    try {
-      const { data } = await activityService.list(projectId, { page: requestPage, size: PAGE_SIZE });
-      if (loadSeqRef.current !== seq) return;
-      setEvents((prev) => [...prev, ...data.data.events]);
-      setPage(requestPage);
-      setTotal(data.data.total);
-    } catch (err) {
-      if (loadSeqRef.current !== seq) return;
-      setLoadMoreError(invitationErrorMessage(err, "다음 활동 내역을 불러오지 못했습니다."));
-    } finally {
-      if (loadSeqRef.current === seq) setLoadingMore(false);
-    }
+  const loadMore = () => {
+    if (!activityQuery.hasNextPage || activityQuery.isFetchingNextPage) return;
+    void activityQuery.fetchNextPage();
   };
 
-  if (state === "loading") {
+  if (activityQuery.isLoading) {
     return <div className="px-6 py-8 text-sm text-muted">활동 내역을 불러오는 중...</div>;
   }
 
-  if (state === "error") {
+  if (activityQuery.isError && !activityQuery.data) {
     return (
       <div className="mx-auto max-w-3xl px-6 py-10">
         <div className="rounded-lg border border-destructive/30 bg-destructive-subtle px-4 py-6 text-center text-sm text-destructive">
-          {error}
+          {invitationErrorMessage(activityQuery.error, "활동 내역을 불러오지 못했습니다.")}
         </div>
       </div>
     );
@@ -166,14 +128,18 @@ export default function ProjectActivityPage() {
 
       {hasMore && (
         <button
-          onClick={() => void loadMore()}
-          disabled={loadingMore}
+          onClick={loadMore}
+          disabled={activityQuery.isFetchingNextPage}
           className="mt-3 w-full rounded-md border border-border py-2 text-sm font-medium text-muted transition-colors duration-fast hover:bg-surface disabled:opacity-50"
         >
-          {loadingMore ? "불러오는 중..." : "더 보기"}
+          {activityQuery.isFetchingNextPage ? "불러오는 중..." : "더 보기"}
         </button>
       )}
-      {loadMoreError && <p className="mt-2 text-xs text-destructive">{loadMoreError}</p>}
+      {activityQuery.isFetchNextPageError && (
+        <p className="mt-2 text-xs text-destructive">
+          {invitationErrorMessage(activityQuery.error, "다음 활동 내역을 불러오지 못했습니다.")}
+        </p>
+      )}
     </div>
   );
 }

@@ -16,16 +16,24 @@
  *
  * type filter, source별 상세 field는 현재 API 범위 밖(§10.2 비범위)이라
  * 구현하지 않는다.
+ *
+ * React Query 마이그레이션(이슈 #217): PR #191 리뷰(xaphxe) 반영으로 있던
+ * `searchGenerationRef` 손짠 stale-response 가드를 없앴다. debounce된 검색어를
+ * `useInfiniteQuery`의 queryKey에 그대로 넣으면, 검색어가 바뀌는 순간 React
+ * Query가 완전히 다른 캐시 엔트리로 구독을 옮긴다 — 이전 검색어의 loadMore
+ * 응답이 늦게 도착해도 그건 옛 queryKey의 캐시만 갱신할 뿐, 화면이 구독 중인
+ * 새 queryKey의 데이터와는 애초에 섞일 수가 없다(생성이 아니라 key 자체가
+ * 격리 경계가 된다). project 이동(projectId 변경)도 같은 원리로 자동 처리된다
+ * (queryKey에 projectId가 들어있다).
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { invitationErrorMessage } from "@/lib/invitation";
 import { searchService } from "@/services/search.service";
 import { INPUT_BASE } from "@/components/ui/inputBase";
 import type { SearchResult, SearchResultType } from "@/types/search.types";
-
-type LoadState = "idle" | "loading" | "ready" | "error";
 
 const TYPE_LABEL: Record<SearchResultType, string> = {
   ISSUE: "이슈",
@@ -51,76 +59,32 @@ export default function ProjectSearchPage() {
   const { companyId, projectId } = useParams<{ companyId: string; projectId: string }>();
 
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [loadState, setLoadState] = useState<LoadState>("idle");
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
-
-  /*
-   * stale response 방어: query 변경뿐 아니라 project 이동(projectId가 바뀌면
-   * runSearch 참조도 바뀐다)까지 같은 세대(generation) 번호로 묶어서 막는다.
-   * runSearch(첫 검색)와 loadMore(더보기) 둘 다 호출 시점의 generation을
-   * 캡처해두고, 응답이 왔을 때 이미 최신 generation이 아니면 결과를 버린다
-   * (리뷰 반영, PR #191).
-   */
-  const searchGenerationRef = useRef(0);
-
-  const runSearch = useCallback(
-    async (q: string, generation: number) => {
-      const trimmed = q.trim();
-      if (trimmed === "") {
-        setResults([]);
-        setNextCursor(null);
-        setLoadState("idle");
-        return;
-      }
-      setLoadState("loading");
-      setLoadError(null);
-      try {
-        const { data } = await searchService.search(projectId, { q: trimmed });
-        if (searchGenerationRef.current !== generation) return;
-        setResults(data.data.results);
-        setNextCursor(data.data.nextCursor);
-        setLoadState("ready");
-      } catch (error) {
-        if (searchGenerationRef.current !== generation) return;
-        setLoadError(invitationErrorMessage(error, "검색 결과를 불러오지 못했습니다."));
-        setLoadState("error");
-      }
-    },
-    [projectId]
-  );
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
   // query 입력마다 요청하면 서버 부하가 크므로 300ms debounce.
-  // runSearch가 projectId 변경으로 재생성될 때도 이 effect가 다시 돌아
-  // generation이 새로 발급된다 — project 이동 시에도 이전 응답이 막힌다.
   useEffect(() => {
-    const generation = ++searchGenerationRef.current;
-    const timer = setTimeout(() => {
-      void runSearch(query, generation);
-    }, 300);
+    const timer = setTimeout(() => setDebouncedQuery(query), 300);
     return () => clearTimeout(timer);
-  }, [query, runSearch]);
+  }, [query]);
 
-  const loadMore = async () => {
-    const trimmed = query.trim();
-    if (trimmed === "" || nextCursor === null || loadingMore) return;
-    const generation = searchGenerationRef.current;
-    setLoadingMore(true);
-    setLoadMoreError(null);
-    try {
-      const { data } = await searchService.search(projectId, { q: trimmed, cursor: nextCursor });
-      if (searchGenerationRef.current !== generation) return;
-      setResults((prev) => [...prev, ...data.data.results]);
-      setNextCursor(data.data.nextCursor);
-    } catch (error) {
-      if (searchGenerationRef.current !== generation) return;
-      setLoadMoreError(invitationErrorMessage(error, "다음 결과를 불러오지 못했습니다."));
-    } finally {
-      setLoadingMore(false);
-    }
+  const trimmed = debouncedQuery.trim();
+
+  const searchQuery = useInfiniteQuery({
+    queryKey: ["project-search", projectId, trimmed],
+    queryFn: async ({ pageParam }) => {
+      const { data } = await searchService.search(projectId, { q: trimmed, cursor: pageParam });
+      return data.data;
+    },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    enabled: trimmed !== "",
+  });
+
+  const results: SearchResult[] = searchQuery.data?.pages.flatMap((page) => page.results) ?? [];
+
+  const loadMore = () => {
+    if (!searchQuery.hasNextPage || searchQuery.isFetchingNextPage) return;
+    void searchQuery.fetchNextPage();
   };
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -143,21 +107,21 @@ export default function ProjectSearchPage() {
         className={INPUT_BASE + " mt-4"}
       />
 
-      {loadState === "loading" && (
-        <p className="mt-6 text-center text-sm text-muted">검색 중...</p>
-      )}
-
-      {loadState === "error" && (
-        <div className="mt-6 rounded-lg border border-destructive/30 bg-destructive-subtle px-4 py-6 text-center text-sm text-destructive">
-          {loadError}
-        </div>
-      )}
-
-      {loadState === "idle" && query.trim() === "" && (
+      {trimmed === "" && (
         <p className="mt-10 text-center text-sm text-placeholder">검색어를 입력해주세요.</p>
       )}
 
-      {loadState === "ready" && (
+      {trimmed !== "" && searchQuery.isLoading && (
+        <p className="mt-6 text-center text-sm text-muted">검색 중...</p>
+      )}
+
+      {trimmed !== "" && searchQuery.isError && !searchQuery.data && (
+        <div className="mt-6 rounded-lg border border-destructive/30 bg-destructive-subtle px-4 py-6 text-center text-sm text-destructive">
+          {invitationErrorMessage(searchQuery.error, "검색 결과를 불러오지 못했습니다.")}
+        </div>
+      )}
+
+      {searchQuery.isSuccess && (
         <ul className="mt-4 flex flex-col gap-2">
           {results.map((result) => (
             <li key={`${result.type}-${result.id}`}>
@@ -185,15 +149,19 @@ export default function ProjectSearchPage() {
         </ul>
       )}
 
-      {loadMoreError && <p className="mt-4 text-sm text-destructive">{loadMoreError}</p>}
+      {searchQuery.isFetchNextPageError && (
+        <p className="mt-4 text-sm text-destructive">
+          {invitationErrorMessage(searchQuery.error, "다음 결과를 불러오지 못했습니다.")}
+        </p>
+      )}
 
-      {loadState === "ready" && nextCursor !== null && (
+      {searchQuery.isSuccess && searchQuery.hasNextPage && (
         <button
-          onClick={() => void loadMore()}
-          disabled={loadingMore}
+          onClick={loadMore}
+          disabled={searchQuery.isFetchingNextPage}
           className="mt-4 w-full rounded-lg border border-border py-2 text-sm font-medium text-muted transition-colors duration-fast hover:text-foreground disabled:opacity-50"
         >
-          {loadingMore ? "불러오는 중..." : "더 보기"}
+          {searchQuery.isFetchingNextPage ? "불러오는 중..." : "더 보기"}
         </button>
       )}
     </div>

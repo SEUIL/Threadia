@@ -523,8 +523,16 @@ test("후보 목록을 연 뒤 지연 도착한 room 목록에 이미 그 상대
  * 경쟁 요청을 만들 수 있었다. 이제 하나라도 진행 중이면 모든 DM 버튼을
  * 비활성화해 애초에 경쟁 요청 자체가 안 생기게 막는다. 화면을 벗어난 뒤
  * 늦게 도착한 응답은 mountedRef 가드로 무시된다.
+ *
+ * 이슈 #217 코멘트(dhy257, 2026-07-22): 예전엔 이 테스트가 `about:blank`로
+ * 이동해서 "언마운트 후 무시"를 검증했는데, `about:blank` 이동은 페이지 JS
+ * 컨텍스트 자체를 통째로 날려버려서 mountedRef 가드를 완전히 지워도 테스트가
+ * 그대로 통과한다(실측 확인) — 실제로는 아무것도 검증하지 못하고 있었다.
+ * `/1/members`는 DmLayout과 달리 route 전환 시 그냥 언마운트되는 일반
+ * 페이지라 dev 서버(Strict Mode)에서도 결정적이다 — `/1/settings`로 실제
+ * 앱 내부 navigation을 시켜서 진짜 회귀를 잡는다.
  */
-test("S14: DM 요청이 진행 중이면 다른 구성원의 DM 버튼도 비활성화되고, 화면을 벗어난 뒤 도착한 응답은 무시된다", async ({
+test("S14: DM 요청이 진행 중이면 다른 구성원의 DM 버튼도 비활성화되고, 앱 내부의 다른 화면으로 이동한 뒤 도착한 응답은 무시된다", async ({
   page,
 }) => {
   let releaseCreate: () => void = () => {};
@@ -565,6 +573,15 @@ test("S14: DM 요청이 진행 중이면 다른 구성원의 DM 버튼도 비활
     }
     const messagesMatch = url.pathname.match(/^\/api\/v1\/direct-messages\/rooms\/(\d+)\/messages$/);
     if (messagesMatch && request.method() === "GET") return json(apiResponse({ messages: [] }));
+    // 목적지 화면(/1/settings)이 마운트 시 부르는 API — DM 요청과 무관하지만
+    // 화면이 정상 렌더되는지까지 같이 확인한다(에러 화면이면 URL만 맞고
+    // "정상적으로 다른 화면에 머문다"는 걸 약하게 검증하게 된다).
+    if (request.method() === "GET" && url.pathname === "/api/v1/companies/1") {
+      return json(apiResponse({ company: { id: 1, name: "Threadia", description: null, logoUrl: null } }));
+    }
+    if (request.method() === "GET" && url.pathname === "/api/v1/companies/1/stats") {
+      return json(apiResponse({ companyId: 1, memberCount: 2, departmentCount: 0, projectCount: 0, projectStatusCounts: {} }));
+    }
     await route.continue();
   });
 
@@ -578,18 +595,27 @@ test("S14: DM 요청이 진행 중이면 다른 구성원의 DM 버튼도 비활
     // 요청이 끝나기 전엔 최지훈의 DM 버튼도 눌러서는 안 된다.
     await expect(dmButtons.nth(1)).toBeDisabled();
 
-    // 응답을 기다리는 동안 화면(컴포넌트)을 완전히 벗어난다 — 다른 앱 화면으로
-    // 이동하면 그 화면 자체의 mock을 또 갖춰야 해서, unmount만 확실히 시키는
-    // about:blank로 이동한다(이 테스트의 목적은 "언마운트된 컴포넌트가 늦은
-    // 응답에 반응하지 않는다"이지 다른 화면의 렌더링이 아니다).
-    await page.goto("about:blank");
+    // 응답을 기다리는 동안 앱 내부의 다른 화면(/1/settings)으로 실제로
+    // 이동한다 — members/page.tsx가 언마운트된다.
+    await page.getByRole("link", { name: "← 회사 관리" }).click();
+    await expect(page).toHaveURL("/1/settings");
+
+    // release 직후 곧바로 검증하면 held 응답이 아직 처리되기 전이라 통과해버릴
+    // 수 있다 — get-or-create 응답 자체가 도착할 때까지 기다린 뒤에 최종
+    // 검증한다(dm-mount-race.spec.ts와 같은 패턴).
+    const createResponse = page.waitForResponse(
+      (res) => res.request().method() === "POST" && res.url().includes("/direct-messages/rooms") && res.status() === 200
+    );
+    releaseCreate();
+    await createResponse;
   } finally {
     releaseCreate();
   }
 
-  // 늦게 도착한 응답이 이미 벗어난 화면을 /1/dm/777로 강제 이동시키면 안 된다
-  // (router.push가 언마운트된 컴포넌트에서 호출되면 안 됨 — mountedRef 가드).
-  await expect(page).toHaveURL("about:blank");
+  // 늦게 도착한 get-or-create 응답이 이미 벗어난 화면을 /1/dm/777로 강제
+  // 이동시키면 안 된다(router.push가 언마운트된 컴포넌트에서 호출되면 안 됨
+  // — mountedRef 가드).
+  await expect(page).toHaveURL("/1/settings");
 });
 
 /*
