@@ -36,13 +36,14 @@
  * 메시지만 그대로 보여주면 된다. 실수 클릭 방지로 인라인 2단계 확인을 둔다(이
  * 코드베이스에 window.confirm 사용례가 없어 pendingInvitee와 같은 패턴을 따른다).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { invitationService } from "@/services/invitation.service";
 import { companyMemberService } from "@/services/company-member.service";
 import { departmentService } from "@/services/department.service";
+import { directMessageService } from "@/services/direct-message.service";
 import {
   INVITATION_STATUS_CLASS,
   INVITATION_STATUS_LABEL,
@@ -55,6 +56,7 @@ type LoadState = "loading" | "ready" | "error";
 
 export default function MembersPage() {
   const params = useParams<{ companyId: string }>();
+  const router = useRouter();
   const companyId = params.companyId;
   const { companyMemberships } = useAuth();
   const canManageMembers =
@@ -67,6 +69,8 @@ export default function MembersPage() {
   const [updateBusyId, setUpdateBusyId] = useState<number | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [dmBusyId, setDmBusyId] = useState<number | null>(null);
+  const [dmError, setDmError] = useState<string | null>(null);
   const [removeConfirmId, setRemoveConfirmId] = useState<number | null>(null);
   const [removeBusyId, setRemoveBusyId] = useState<number | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
@@ -165,6 +169,46 @@ export default function MembersPage() {
       setUpdateError(invitationErrorMessage(error, "구성원 정보 변경에 실패했습니다."));
     } finally {
       setUpdateBusyId(null);
+    }
+  };
+
+  // 언마운트 후(다른 화면으로 이동) 뒤늦게 도착한 get-or-create 응답으로
+  // setState/router.push가 실행되지 않게 막는다(4차 재리뷰 반영, pktewon:
+  // blocker 4).
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+  // 같은 화면에 있는 동안 여러 DM 버튼을 연달아 눌러 요청이 여러 개 겹치면,
+  // 나중에 도착한 응답이 먼저 도착한 응답의 navigate를 덮어써 엉뚱한 상대의
+  // 방으로 이동할 수 있다 — dmRequestSequenceRef로 "가장 최근 요청"만 navigate
+  // 하게 하고, 렌더 쪽(disabled={dmBusyId !== null})에서 애초에 겹쳐 누르는 것
+  // 자체를 막는다(4차 재리뷰 반영, pktewon: blocker 4 "요청 중 다른 DM 버튼도
+  // 비활성화").
+  const dmRequestSequenceRef = useRef(0);
+
+  /*
+   * 재리뷰 반영(PR #173, pktewon): 이전에는 `/${companyId}/dm/${member.user.id}`
+   * 로 바로 링크해서, DM room id와 상대 user id를 같은 것으로 취급하는 잘못이
+   * 있었다(우연히 같은 숫자대일 때만 동작). DM room id는 별도 개념이라
+   * get-or-create API로 실제 room을 만들거나 찾은 뒤 그 room.id로 이동해야 한다.
+   */
+  const startDm = async (otherUserId: number) => {
+    if (dmBusyId !== null) return;
+    setDmError(null);
+    setDmBusyId(otherUserId);
+    const mySequence = ++dmRequestSequenceRef.current;
+    try {
+      const { data } = await directMessageService.getOrCreateRoom(companyId, { otherUserId });
+      if (!mountedRef.current || dmRequestSequenceRef.current !== mySequence) return;
+      router.push(`/${companyId}/dm/${data.data.room.id}`);
+    } catch (error) {
+      if (mountedRef.current) setDmError(invitationErrorMessage(error, "대화를 시작하지 못했습니다."));
+    } finally {
+      if (mountedRef.current) setDmBusyId(null);
     }
   };
 
@@ -366,6 +410,7 @@ export default function MembersPage() {
         {membersState === "loading" && <p className="mt-4 text-xs text-muted">불러오는 중...</p>}
         {membersState === "error" && <p className="mt-4 text-xs text-destructive">{membersError}</p>}
         {updateError && <p className="mt-4 text-xs text-destructive">{updateError}</p>}
+        {dmError && <p className="mt-4 text-xs text-destructive">{dmError}</p>}
         {removeError && <p className="mt-4 text-xs text-destructive">{removeError}</p>}
 
         {membersState === "ready" && (
@@ -416,12 +461,14 @@ export default function MembersPage() {
                     <option value="MEMBER">MEMBER</option>
                   </select>
 
-                  <Link
-                    href={`/${companyId}/dm/${member.user.id}`}
-                    className="rounded-md px-2.5 py-1.5 text-xs font-medium text-primary transition-colors duration-fast hover:bg-primary-subtle"
+                  <button
+                    type="button"
+                    onClick={() => void startDm(member.user.id)}
+                    disabled={dmBusyId !== null}
+                    className="rounded-md px-2.5 py-1.5 text-xs font-medium text-primary transition-colors duration-fast hover:bg-primary-subtle disabled:opacity-50"
                   >
                     DM
-                  </Link>
+                  </button>
 
                   {canManageMembers &&
                     (removeConfirmId === member.id ? (
