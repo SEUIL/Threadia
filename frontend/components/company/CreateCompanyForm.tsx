@@ -18,13 +18,20 @@
  * 생성 성공 후에는 AuthContext.companyMemberships가 그대로면 화면이 여전히
  * "소속 회사 없음"으로 보이므로, refreshCompanyMemberships()로 다시 채운 뒤
  * 새 회사의 프로젝트 목록으로 이동한다.
+ *
+ * ⚠️ 이 폼은 hub/page.tsx의 `bg-chrome`(항상 어두운 표면) 카드 안에서만 쓰인다.
+ * `TextField`(components/ui/TextField.tsx)는 label에 `text-foreground`를 쓰는데,
+ * 이 토큰은 일반 라이트 표면(bg-surface) 카드용이라 dark chrome 배경에서 거의
+ * 안 보일 정도로 대비가 낮았다(이슈 리포트, 2026-07-22 스크린샷). login/signup/
+ * settings 등 다른 5곳은 전부 라이트 표면이라 TextField 자체는 그대로 두고, 이
+ * 폼에서만 label/hint 색을 chrome 전용 토큰(text-chrome-foreground/chrome-muted)
+ * 으로 직접 준다 — 아래 설명 필드가 이미 쓰던 패턴과 통일한 것이다.
  */
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { TextField } from "@/components/ui/TextField";
 import { Button } from "@/components/ui/Button";
 import { INPUT_BASE } from "@/components/ui/inputBase";
 import { invitationErrorMessage } from "@/lib/invitation";
@@ -42,6 +49,27 @@ const companySchema = z.object({
 });
 
 type CompanyFormValues = z.infer<typeof companySchema>;
+
+// dark chrome 배경용 label+input — TextField와 마크업은 같지만 색만 chrome 토큰을 쓴다.
+function ChromeField({
+  id,
+  label,
+  hint,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & { id: string; label: string; hint?: string }) {
+  return (
+    <div className="group flex flex-col gap-1.5">
+      <label
+        htmlFor={id}
+        className="text-sm font-medium text-chrome-foreground transition-colors duration-fast group-focus-within:text-primary"
+      >
+        {label}
+      </label>
+      <input id={id} className={INPUT_BASE} {...props} />
+      {hint && <p className="text-xs text-chrome-muted">{hint}</p>}
+    </div>
+  );
+}
 
 export function CreateCompanyForm() {
   const router = useRouter();
@@ -88,20 +116,20 @@ export function CreateCompanyForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="mt-5 flex flex-col gap-4 text-left" noValidate>
-      <TextField
+      <ChromeField
         id="create-company-name"
         label="회사명"
         placeholder="Threadia"
         hint={errors.name?.message}
         {...register("name")}
       />
-      <TextField
+      <ChromeField
         id="create-company-representative"
         label="대표자명 (선택)"
         hint={errors.representativeName?.message}
         {...register("representativeName")}
       />
-      <TextField
+      <ChromeField
         id="create-company-industry"
         label="업종 (선택)"
         hint={errors.industryCategory?.message}
