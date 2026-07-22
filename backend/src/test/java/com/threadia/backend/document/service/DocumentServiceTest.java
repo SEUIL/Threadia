@@ -41,6 +41,7 @@ import com.threadia.backend.document.repository.DocumentRepository;
 import com.threadia.backend.issue.domain.Issue;
 import com.threadia.backend.issue.domain.IssueStatus;
 import com.threadia.backend.issue.repository.IssueRepository;
+import com.threadia.backend.notification.service.DocumentNotificationProducerService;
 import com.threadia.backend.project.domain.Project;
 import com.threadia.backend.project.domain.ProjectMember;
 import com.threadia.backend.project.domain.ProjectMemberRole;
@@ -58,13 +59,14 @@ class DocumentServiceTest {
 	@Mock private DocumentRepository documents;
 	@Mock private IssueRepository issues;
 	@Mock private DocumentIssueLinkRepository links;
+	@Mock private DocumentNotificationProducerService notifications;
 	private DocumentService service;
 	private User user;
 	private Project project;
 	private Document document;
 	private AuthContext context;
 	@BeforeEach void setUp() {
-		service = new DocumentService(auth, memberships, projects, projectMembers, documents, issues, links, Clock.fixed(Instant.parse("2026-07-15T00:00:00Z"), ZoneOffset.UTC));
+		service = new DocumentService(auth, memberships, projects, projectMembers, documents, issues, links, notifications, Clock.fixed(Instant.parse("2026-07-15T00:00:00Z"), ZoneOffset.UTC));
 		LocalDateTime now = LocalDateTime.parse("2026-07-14T00:00:00"); user = new User("user@threadia.com", "hash", "사용자", null, UserStatus.ACTIVE, now, now); id(user, 1L);
 		Company company = new Company("Threadia", "대표", null, null, null, com.threadia.backend.company.domain.CompanyStatus.ACTIVE, user, now, now); id(company, 10L);
 		project = new Project(company, "프로젝트", "THD", null, ProjectStatus.ACTIVE, null, null, user, null, null, null, now, now); id(project, 20L);
@@ -97,12 +99,14 @@ class DocumentServiceTest {
 		when(documents.findByIdForUpdate(30L)).thenReturn(Optional.of(document));
 		when(projectMembers.findByProject_IdAndUser_Id(20L, 1L)).thenReturn(Optional.of(projectMember(ProjectMemberRole.MEMBER, ProjectMemberStatus.REMOVED)));
 		assertThatThrownBy(() -> service.update("token", 30L, new DocumentUpdateRequest("수정", DocumentType.DOC, "내용"))).isInstanceOf(ForbiddenException.class);
+		verify(notifications, never()).documentUpdated(any(), any(), any());
 	}
 	@Test void updateAllowsActiveDocumentAuthorMember() {
 		when(memberships.hasActiveRole(10L, context, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false);
 		when(documents.findByIdForUpdate(30L)).thenReturn(Optional.of(document));
 		when(projectMembers.findByProject_IdAndUser_Id(20L, 1L)).thenReturn(Optional.of(projectMember(ProjectMemberRole.MEMBER, ProjectMemberStatus.ACTIVE)));
 		assertThat(service.update("token", 30L, new DocumentUpdateRequest("수정", DocumentType.DOC, "내용")).document().title()).isEqualTo("수정");
+		verify(notifications).documentUpdated(document, user, LocalDateTime.parse("2026-07-15T00:00:00"));
 	}
 	@Test void trashRejectsInactiveCompanyDocumentAuthorBeforeAuthorShortcut() {
 		when(memberships.hasActiveRole(10L, context, CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false);

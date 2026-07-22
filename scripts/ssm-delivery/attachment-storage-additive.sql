@@ -33,12 +33,21 @@ CREATE TABLE IF NOT EXISTS attachments (
     CONSTRAINT chk_attachments_length CHECK (content_length > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_attachment_id BIGINT NULL;
-ALTER TABLE companies ADD COLUMN IF NOT EXISTS logo_attachment_id BIGINT NULL;
-
--- MySQL 8 does not support ADD CONSTRAINT IF NOT EXISTS. Information-schema guards keep this one-time
--- operator artifact retry-safe without turning deployment automation into a migration runner.
+-- MySQL 8 does not support ADD COLUMN IF NOT EXISTS or ADD CONSTRAINT IF NOT EXISTS. Information-schema
+-- guards keep this one-time operator artifact retry-safe without turning deployment automation into a migration runner.
 SET @threadia_schema = DATABASE();
+SET @has_users_avatar_column = (SELECT COUNT(*) FROM information_schema.columns
+    WHERE table_schema = @threadia_schema AND table_name = 'users' AND column_name = 'avatar_attachment_id');
+SET @sql = IF(@has_users_avatar_column = 0,
+    'ALTER TABLE users ADD COLUMN avatar_attachment_id BIGINT NULL', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_companies_logo_column = (SELECT COUNT(*) FROM information_schema.columns
+    WHERE table_schema = @threadia_schema AND table_name = 'companies' AND column_name = 'logo_attachment_id');
+SET @sql = IF(@has_companies_logo_column = 0,
+    'ALTER TABLE companies ADD COLUMN logo_attachment_id BIGINT NULL', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 SET @has_users_avatar_index = (SELECT COUNT(*) FROM information_schema.statistics
     WHERE table_schema = @threadia_schema AND table_name = 'users' AND index_name = 'idx_users_avatar_attachment');
 SET @sql = IF(@has_users_avatar_index = 0,

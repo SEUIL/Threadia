@@ -13,7 +13,6 @@ import com.threadia.backend.project.domain.ProjectMember;
 import com.threadia.backend.project.domain.ProjectMemberRole;
 import com.threadia.backend.project.domain.ProjectMemberStatus;
 import com.threadia.backend.project.dto.ProjectMemberLockPreview;
-
 import jakarta.persistence.LockModeType;
 
 public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Long> {

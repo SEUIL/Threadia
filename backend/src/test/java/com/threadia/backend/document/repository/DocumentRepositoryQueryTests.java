@@ -15,6 +15,7 @@ class DocumentRepositoryQueryTests {
 		assertThat(query(DocumentIssueLinkRepository.class, "findByProjectIdWithEndpoints")).contains("join fetch link.project", "join fetch link.document", "join fetch document.project", "join fetch document.author", "join fetch link.issue", "join fetch link.createdBy");
 		assertThat(query(DocumentIssueLinkRepository.class, "findVisibleByIssueId")).contains("join fetch document.project", "join fetch document.author", "document.trashedAt is null", "issue.trashedAt is null");
 		assertThat(query(DocumentIssueLinkRepository.class, "findVisibleByDocumentId")).contains("join fetch document.project", "join fetch document.author", "document.trashedAt is null", "issue.trashedAt is null");
+		assertThat(query(DocumentIssueLinkRepository.class, "findActiveNotificationRecipientsByDocumentIdExcludingUserId")).contains("link.document.id = :documentId", "recipient = link.issue.reporter", "recipient = link.issue.assignee", "companyMember.status", "projectMember.status");
 	}
 	private static String query(Class<?> type, String methodName) throws Exception { for (Method method : type.getMethods()) { if (method.getName().equals(methodName)) return method.getAnnotation(Query.class).value(); } throw new AssertionError("query not found"); }
 }
