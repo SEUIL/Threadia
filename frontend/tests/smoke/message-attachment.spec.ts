@@ -45,6 +45,10 @@ async function mockApi(page: Page, viewer: { companyRole: "COMPANY_ADMIN" | "MEM
       await json({ projectId: 10, lastReadMessageId: 31, unreadCount: 0 });
       return;
     }
+    if (request.method() === "GET" && url.pathname === "/api/v1/projects/10/issues") {
+      await json({ issues: [] });
+      return;
+    }
     if (request.method() === "GET" && url.pathname === "/api/v1/attachments") {
       await json(url.searchParams.get("targetType") === "USER_AVATAR" && url.searchParams.get("targetId") === "2" ? [{ id: 91, targetType: "USER_AVATAR", targetId: 2, filename: "shared-avatar.png", contentType: "image/png", contentLength: 70, status: "READY", completedAt: "2026-07-20T10:00:00", createdAt: "2026-07-20T10:00:00" }] : []);
       return;
