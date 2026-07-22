@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import com.threadia.backend.auth.domain.User;
 import com.threadia.backend.project.domain.Project;
+import com.threadia.backend.projectchat.domain.Message;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -28,6 +29,9 @@ class IssueEntityMappingTests {
 		assertRequiredLazyRelation(Issue.class, "reporter", User.class, "reporter_user_id", "fk_issues_reporter");
 		assertRequiredColumn(Issue.class, "issueKey", "issue_key", 40);
 		assertRequiredColumn(Issue.class, "title", "", 200);
+		assertStringEnum(Issue.class, "sourceType");
+		assertRequiredColumn(Issue.class, "sourceType", "source_type", 20);
+		assertOptionalLazyRelation(Issue.class, "sourceMessage", Message.class, "source_message_id", "fk_issues_source_message");
 		assertStringEnum(Issue.class, "status");
 		assertRequiredColumn(Issue.class, "status", "", 20);
 		assertDateTimeColumn(Issue.class, "trashedAt", "trashed_at", true);
@@ -61,6 +65,7 @@ class IssueEntityMappingTests {
 				IssueStatus.IN_REVIEW,
 				IssueStatus.DONE);
 		assertThat(newInstance(Issue.class).getStatus()).isEqualTo(IssueStatus.BACKLOG);
+		assertThat(newInstance(Issue.class).getSourceType()).isEqualTo(IssueSourceType.MANUAL);
 	}
 
 	private static void assertTable(Class<?> type, String name) {
@@ -82,6 +87,23 @@ class IssueEntityMappingTests {
 		assertThat(relation.optional()).isFalse();
 		assertThat(join.name()).isEqualTo(columnName);
 		assertThat(join.nullable()).isFalse();
+		assertThat(join.foreignKey().name()).isEqualTo(foreignKeyName);
+	}
+
+	private static void assertOptionalLazyRelation(
+			Class<?> type,
+			String fieldName,
+			Class<?> targetType,
+			String columnName,
+			String foreignKeyName) {
+		Field field = field(type, fieldName);
+		ManyToOne relation = field.getAnnotation(ManyToOne.class);
+		JoinColumn join = field.getAnnotation(JoinColumn.class);
+		assertThat(field.getType()).isEqualTo(targetType);
+		assertThat(relation.fetch()).isEqualTo(FetchType.LAZY);
+		assertThat(relation.optional()).isTrue();
+		assertThat(join.name()).isEqualTo(columnName);
+		assertThat(join.nullable()).isTrue();
 		assertThat(join.foreignKey().name()).isEqualTo(foreignKeyName);
 	}
 

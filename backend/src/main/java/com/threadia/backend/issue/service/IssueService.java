@@ -20,6 +20,9 @@ import com.threadia.backend.project.domain.*;
 import com.threadia.backend.project.exception.ProjectNotFoundException;
 import com.threadia.backend.project.exception.ProjectValidationException;
 import com.threadia.backend.project.repository.*;
+import com.threadia.backend.projectchat.domain.Message;
+import com.threadia.backend.projectchat.exception.MessageNotFoundException;
+import com.threadia.backend.projectchat.repository.MessageRepository;
 import com.threadia.backend.sprint.domain.*;
 import com.threadia.backend.sprint.repository.SprintRepository;
 
@@ -28,23 +31,26 @@ public class IssueService {
 	private final AuthContextService auth; private final CompanyMembershipService companyMembership;
 	private final ProjectRepository projects; private final ProjectMemberRepository members; private final IssueRepository issues;
 	private final IssueStatusHistoryRepository history; private final UserRepository users; private final SprintRepository sprints; private final Clock clock;
-	private final ActivityEventService activityEvents;
+	private final MessageRepository messages; private final ActivityEventService activityEvents;
 
 	public IssueService(AuthContextService auth, CompanyMembershipService companyMembership, ProjectRepository projects, ProjectMemberRepository members, IssueRepository issues, IssueStatusHistoryRepository history, UserRepository users, SprintRepository sprints) {
-		this(auth, companyMembership, projects, members, issues, history, users, sprints, null, Clock.systemUTC());
+		this(auth, companyMembership, projects, members, issues, history, users, sprints, null, null, Clock.systemUTC());
 	}
 	@Autowired
-	public IssueService(AuthContextService auth, CompanyMembershipService companyMembership, ProjectRepository projects, ProjectMemberRepository members, IssueRepository issues, IssueStatusHistoryRepository history, UserRepository users, SprintRepository sprints, ActivityEventService activityEvents) {
-		this(auth, companyMembership, projects, members, issues, history, users, sprints, activityEvents, Clock.systemUTC());
+	public IssueService(AuthContextService auth, CompanyMembershipService companyMembership, ProjectRepository projects, ProjectMemberRepository members, IssueRepository issues, IssueStatusHistoryRepository history, UserRepository users, SprintRepository sprints, MessageRepository messages, ActivityEventService activityEvents) {
+		this(auth, companyMembership, projects, members, issues, history, users, sprints, messages, activityEvents, Clock.systemUTC());
 	}
 	IssueService(AuthContextService auth, CompanyMembershipService companyMembership, ProjectRepository projects, ProjectMemberRepository members, IssueRepository issues, IssueStatusHistoryRepository history, Clock clock) {
-		this(auth, companyMembership, projects, members, issues, history, null, null, null, clock);
+		this(auth, companyMembership, projects, members, issues, history, null, null, null, null, clock);
 	}
 	IssueService(AuthContextService auth, CompanyMembershipService companyMembership, ProjectRepository projects, ProjectMemberRepository members, IssueRepository issues, IssueStatusHistoryRepository history, UserRepository users, SprintRepository sprints, Clock clock) {
-		this(auth, companyMembership, projects, members, issues, history, users, sprints, null, clock);
+		this(auth, companyMembership, projects, members, issues, history, users, sprints, null, null, clock);
 	}
 	IssueService(AuthContextService auth, CompanyMembershipService companyMembership, ProjectRepository projects, ProjectMemberRepository members, IssueRepository issues, IssueStatusHistoryRepository history, UserRepository users, SprintRepository sprints, ActivityEventService activityEvents, Clock clock) {
-		this.auth=auth; this.companyMembership=companyMembership; this.projects=projects; this.members=members; this.issues=issues; this.history=history; this.users=users; this.sprints=sprints; this.activityEvents=activityEvents; this.clock=clock;
+		this(auth, companyMembership, projects, members, issues, history, users, sprints, null, activityEvents, clock);
+	}
+	IssueService(AuthContextService auth, CompanyMembershipService companyMembership, ProjectRepository projects, ProjectMemberRepository members, IssueRepository issues, IssueStatusHistoryRepository history, UserRepository users, SprintRepository sprints, MessageRepository messages, ActivityEventService activityEvents, Clock clock) {
+		this.auth=auth; this.companyMembership=companyMembership; this.projects=projects; this.members=members; this.issues=issues; this.history=history; this.users=users; this.sprints=sprints; this.messages=messages; this.activityEvents=activityEvents; this.clock=clock;
 	}
 
 	@Transactional(readOnly=true)
@@ -70,6 +76,19 @@ public class IssueService {
 		long sequence=nextSequence(project.getProjectKey(),issues.findByProjectIdForSequenceUpdate(projectId)); LocalDateTime now=now();
 		Issue issue=new Issue(project,project.getProjectKey()+"-"+sequence,actor,request.title().trim(),IssueStatus.BACKLOG,now,now);
 		issue.setDescription(request.description());
+		if (canManage(role)) { applyCreateManagementExtras(issue, project, request, sprint); }
+		issues.save(issue); history.save(new IssueStatusHistory(issue,actor,null,IssueStatus.BACKLOG,now)); recordCreated(issue, actor); return new IssueData(IssueResponse.from(issue));
+	}
+	@Transactional
+	public IssueData createFromMessage(String token, Long projectId, IssueFromMessageRequest request) {
+		if (messages==null) throw new IllegalStateException("Message repository is unavailable");
+		AuthContext context=auth.fromAccessToken(token); User actor=auth.requireActiveUser(context); Project project=projectForUpdate(projectId); ProjectMemberRole role=requireAccess(project,context);
+		if (!canManage(role)) throw new ForbiddenException("이슈 생성 권한이 없습니다.");
+		Message message=messages.findByIdAndProject_Id(request.messageId(), projectId).orElseThrow(() -> new MessageNotFoundException(request.messageId()));
+		Sprint sprint = canManage(role) && request.sprintId()!=null ? activeSprintForUpdate(project,request.sprintId()) : null;
+		long sequence=nextSequence(project.getProjectKey(),issues.findByProjectIdForSequenceUpdate(projectId)); LocalDateTime now=now();
+		Issue issue=new Issue(project,project.getProjectKey()+"-"+sequence,actor,request.title().trim(),IssueStatus.BACKLOG,now,now);
+		issue.setDescription(request.description()); issue.setSourceMessage(message);
 		if (canManage(role)) { applyCreateManagementExtras(issue, project, request, sprint); }
 		issues.save(issue); history.save(new IssueStatusHistory(issue,actor,null,IssueStatus.BACKLOG,now)); recordCreated(issue, actor); return new IssueData(IssueResponse.from(issue));
 	}
@@ -101,6 +120,8 @@ public class IssueService {
 	private void recordRestored(Issue issue, User actor) { if (activityEvents != null) activityEvents.recordIssueRestored(issue, actor); }
 	private void applyCreateManagementExtras(Issue issue, Project project, IssueCreateRequest request, Sprint sprint) { if(request.priority()!=null) issue.setPriority(request.priority()); if(request.assigneeUserId()!=null) issue.setAssignee(activeProjectUser(project,request.assigneeUserId())); if(request.dueDate()!=null) issue.setDueDate(request.dueDate()); if(sprint!=null) issue.setSprint(sprint); }
 	private boolean hasManagerOnlyFields(IssueCreateRequest request) { return request.priority()!=null || request.assigneeUserId()!=null || request.dueDate()!=null || request.sprintId()!=null; }
+	private void applyCreateManagementExtras(Issue issue, Project project, IssueFromMessageRequest request, Sprint sprint) { if(request.priority()!=null) issue.setPriority(request.priority()); if(request.assigneeUserId()!=null) issue.setAssignee(activeProjectUser(project,request.assigneeUserId())); if(request.dueDate()!=null) issue.setDueDate(request.dueDate()); if(sprint!=null) issue.setSprint(sprint); }
+	private boolean hasManagerOnlyFields(IssueFromMessageRequest request) { return request.priority()!=null || request.assigneeUserId()!=null || request.dueDate()!=null || request.sprintId()!=null; }
 	private Sprint activeSprintForUpdate(Project project, Long sprintId) { if(sprints==null) throw new IllegalStateException("Sprint repository is unavailable"); Sprint sprint=sprints.findByIdForUpdate(sprintId).orElseThrow(() -> new ProjectValidationException("Sprint를 찾을 수 없습니다.")); if(!sprint.getProject().getId().equals(project.getId())||sprint.getStatus()==SprintStatus.COMPLETED) throw new ProjectValidationException("같은 프로젝트의 완료되지 않은 Sprint만 지정할 수 있습니다."); return sprint; }
 	private User activeProjectUser(Project project, Long userId) { if(!members.existsByProject_IdAndUser_IdAndStatus(project.getId(),userId,ProjectMemberStatus.ACTIVE)) throw new ProjectValidationException("담당자는 활성 프로젝트 구성원이어야 합니다."); if(users==null) throw new IllegalStateException("User repository is unavailable"); return users.findById(userId).orElseThrow(() -> new ProjectValidationException("사용자를 찾을 수 없습니다.")); }
 	private void rejectTrashed(Issue issue) { if(issue.getTrashedAt()!=null) throw IssueConflictException.trashed(); }

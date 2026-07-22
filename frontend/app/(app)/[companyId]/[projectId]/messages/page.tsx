@@ -14,9 +14,8 @@
  * 채널 목록은 "# 프로젝트 채팅" 단일 항목만 있는 고정 목록이다.
  *
  * 이번 slice에 반영하지 않은 것:
- *   - "메시지 → 이슈 생성"(design memo 액션) — `POST .../issues/from-message`가
- *     backend에 아직 없다(화면정의서 §9 미확정 사항, thread 자동 생성 여부도
- *     미결정). 엔드포인트가 생기면 다시 추가한다.
+ *   - "메시지 → 이슈 생성"(design memo 액션) — Backend endpoint는 WBS 4.5.1.1에서
+ *     추가됐고, Frontend 액션은 WBS 4.5.1.2에서 별도 연동한다.
  *   - "쓰레드 보기" — Thread Frontend(WBS 4.7.1.2)가 별도 PR이라 이번 slice는
  *     메시지 작성 시 threadId를 항상 null로 보낸다.
  *   - 멤버 온라인/오프라인 — 실 presence API가 없어 ACTIVE 멤버를 하나의

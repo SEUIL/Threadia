@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 
 import com.threadia.backend.auth.domain.User;
 import com.threadia.backend.project.domain.Project;
+import com.threadia.backend.projectchat.domain.Message;
 import com.threadia.backend.sprint.domain.Sprint;
 
 import jakarta.persistence.Column;
@@ -52,6 +53,14 @@ public class Issue {
 
 	@Column(columnDefinition = "TEXT")
 	private String description;
+
+	@Enumerated(EnumType.STRING)
+	@Column(name = "source_type", nullable = false, length = 20)
+	private IssueSourceType sourceType = IssueSourceType.MANUAL;
+
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "source_message_id", foreignKey = @ForeignKey(name = "fk_issues_source_message"))
+	private Message sourceMessage;
 
 	@Column(nullable = false, length = 200)
 	private String title;
@@ -109,6 +118,7 @@ public class Issue {
 	public void setSprint(Sprint sprint) { this.sprint = sprint; }
 	public void setDueDate(LocalDate dueDate) { this.dueDate = dueDate; }
 	public void setTitle(String title) { this.title = title; }
+	public void setSourceMessage(Message sourceMessage) { this.sourceType = IssueSourceType.MESSAGE; this.sourceMessage = sourceMessage; }
 	public void trash(User actor, LocalDateTime now) { this.trashedAt = now; this.trashedBy = actor; this.updatedAt = now; }
 	public void restore(LocalDateTime now) { this.trashedAt = null; this.trashedBy = null; this.restoredAt = now; this.updatedAt = now; }
 
@@ -137,6 +147,8 @@ public class Issue {
 	}
 
 	public String getDescription() { return description; }
+	public IssueSourceType getSourceType() { return sourceType; }
+	public Message getSourceMessage() { return sourceMessage; }
 	public IssuePriority getPriority() { return priority; }
 	public User getAssignee() { return assignee; }
 	public Sprint getSprint() { return sprint; }

@@ -21,6 +21,7 @@ import com.threadia.backend.common.response.ApiResponse;
 import com.threadia.backend.config.jwt.JwtAuthenticationException;
 import com.threadia.backend.issue.dto.IssueCreateRequest;
 import com.threadia.backend.issue.dto.IssueData;
+import com.threadia.backend.issue.dto.IssueFromMessageRequest;
 import com.threadia.backend.issue.dto.IssueStatusUpdateRequest;
 import com.threadia.backend.issue.dto.IssueUpdateRequest;
 import com.threadia.backend.issue.dto.IssuesData;
@@ -92,6 +93,15 @@ public class IssueController {
 			@PathVariable Long projectId,
 			@Valid @RequestBody IssueCreateRequest request) {
 		IssueData data = issueService.create(extractAccessToken(authorizationHeader), projectId, request);
+		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.of(data));
+	}
+
+	@PostMapping("/projects/{projectId}/issues/from-message")
+	public ResponseEntity<ApiResponse<IssueData>> createFromMessage(
+			@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+			@PathVariable Long projectId,
+			@Valid @RequestBody IssueFromMessageRequest request) {
+		IssueData data = issueService.createFromMessage(extractAccessToken(authorizationHeader), projectId, request);
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.of(data));
 	}
 
