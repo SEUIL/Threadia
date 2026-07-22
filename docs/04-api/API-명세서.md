@@ -3,7 +3,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
 > **최종 수정**: 2026-07-21
-> **버전**: v3.15 Issue #208 DM 후보 조회 follow-up 및 WBS 4.11 private attachment lifecycle 계약 반영
+> **버전**: v3.16 WBS 4.5.1.1 Message-to-Issue 및 WBS 4.11 private attachment lifecycle 계약 병합 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -13,7 +13,7 @@
 
 > **Phase A 정합도 메모**: 이 파일은 공식 결정 반영 조정본이다. Sprint 1 구현 기준은 Auth only, Spring Boot/MySQL/Frontend skeleton, CI/PR baseline, Auth flows이며, DB는 ERD 기반 `db/schema.sql`과 문서 변경이력으로 관리한다. 회사, 프로젝트, 이슈, 문서, 채팅, DM, 쓰레드, 알림, 프로필 수정, invitation 구현은 Sprint 1 범위에서 제외하고, 전체 MVP API/ERD는 후속 구현 sprint의 reference contract로 유지한다.
 
-> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15 `4.10.1` support case, `4.10.3` typed system settings, `4.10.4` Backend lifecycle/audit-read, `4.8.1` notification inbox/read-state, `4.9.1.1` Activity Feed Backend, `4.9.3.1` Dashboard Core Backend, `4.9.4.1` Search Backend와 `4.11` private attachment lifecycle 계약을 확정한다. `4.9.1.2`, `4.9.3.2`, `4.9.4.2` Frontend는 계획/0% 상태다. notification producer matrix, preferences, push/WebSocket, S15 Frontend, enforcement, dashboard cache/summary table, attachment retention/cleanup activation은 후속 범위다.
+> **Sprint 3 기준선 메모**: 현재 API 기준은 Gate 3/4 완료 상태에 맞춰 Sprint 3 후보, decision-needed, 유지 보류 항목을 분리한다. Sprint 1 Auth only, Sprint 1.5 company invitation, Sprint 2/Foundation reference 기록은 유지한다. S15 `4.10.1` support case, `4.10.3` typed system settings, `4.10.4` Backend lifecycle/audit-read, `4.8.1` notification inbox/read-state, `4.5.1.1` Message-to-Issue Backend, `4.9.1.1` Activity Feed Backend, `4.9.3.1` Dashboard Core Backend, `4.9.4.1` Search Backend와 `4.11` private attachment lifecycle 계약을 확정한다. `4.5.1.2`, `4.9.1.2`, `4.9.3.2`, `4.9.4.2` Frontend는 계획/0% 상태다. notification producer matrix, preferences, push/WebSocket, S15 Frontend, enforcement, dashboard cache/summary table, attachment retention/cleanup activation은 후속 범위다.
 
 
 ## 1. 공통 규칙
@@ -109,8 +109,6 @@ issueStatus:           BACKLOG | TODO | IN_PROGRESS | IN_REVIEW | DONE
 issuePriority:         LOW | MEDIUM | HIGH | URGENT
 issueSourceType:       MANUAL | MESSAGE
 documentType:          DOC | MEETING_NOTE
-attachmentTargetType:  DOCUMENT | ISSUE | MESSAGE | THREAD_COMMENT | DIRECT_MESSAGE | USER_AVATAR | COMPANY_LOGO | BINARY_DOCUMENT
-attachmentStatus:      UPLOADING | READY | DELETED
 notificationScopeType: GLOBAL
 invitationStatus:      PENDING | ACCEPTED | DECLINED | CANCELED | EXPIRED
 invitationScopeType:   COMPANY | PROJECT
@@ -332,13 +330,14 @@ Sprint 1.5 invitation 검증은 local/dev/demo seed 회사 1개와 `COMPANY_ADMI
 
 > **Phase A Sprint 1 구현 범위**: 이 섹션은 후속 MVP reference다. Sprint 1 구현 target은 Auth API와 인증 DB에 한정한다.
 
-> **WBS 4.4.1 Backend 계약**: 이슈는 고정 상태 `BACKLOG`, `TODO`, `IN_PROGRESS`, `IN_REVIEW`, `DONE`를 사용한다. 커스텀 Kanban column/order, 메시지 기반 생성, 영구 삭제, notification, Frontend는 이 계약에 포함하지 않는다.
+> **WBS 4.4.1 Backend 계약**: 이슈는 고정 상태 `BACKLOG`, `TODO`, `IN_PROGRESS`, `IN_REVIEW`, `DONE`를 사용한다. 커스텀 Kanban column/order, 영구 삭제, notification, Frontend는 이 계약에 포함하지 않는다. 메시지 기반 생성은 WBS `4.5.1.1` Backend 계약으로 별도 추가됐다.
 
 
 | Method | Endpoint | 권한 | 설명 |
 |---|---|---|---|
 | GET | `/api/v1/projects/{projectId}/issues` | A/P/C | `status`, `sprintId`, `assigneeId`, `unassignedOnly`, `includeTrashed` filter를 지원하는 이슈 목록. pagination 없음 |
 | POST | `/api/v1/projects/{projectId}/issues` | A/P/C | 이슈 생성. A는 title/description만, P/C는 priority/assignee/dueDate/sprint 지정 가능 |
+| POST | `/api/v1/projects/{projectId}/issues/from-message` | P/C | WBS 4.5.1.1 프로젝트 채팅 메시지 기반 이슈 생성. source는 `MESSAGE`, 중복 생성 허용 |
 | GET | `/api/v1/issues/{issueId}` | A/P/C | 이슈 상세 조회 |
 | PATCH | `/api/v1/issues/{issueId}` | A/P/C | PATCH omitted=유지, 명시 null은 description/assignee/dueDate/sprintId만 clear. `sprintId`는 해제 전용으로 null만 허용하고 non-null은 400 |
 | PATCH | `/api/v1/issues/{issueId}/status` | A 제한/P/C | A는 DONE 외 상태, P/C는 DONE 재오픈을 포함한 모든 상태 변경 |
@@ -357,7 +356,7 @@ Sprint 1.5 invitation 검증은 local/dev/demo seed 회사 1개와 `COMPANY_ADMI
 | GET | `/api/v1/issues/{issueId}/documents` | A/P/C | 이슈 기준 연결 문서 |
 | GET | `/api/v1/documents/{documentId}/issues` | A/P/C | 문서 기준 연결 이슈 |
 
-이슈 상태 변경은 같은 상태에 대해 200 no-op이며 history를 남기지 않는다. trashed 이슈의 상태/내용 변경은 `409 CONFLICT`다. trash/restore는 등록자 또는 P/C가 실행하며 idempotent 200이고 trash reason은 받지 않는다. `includeTrashed=true`은 active와 trashed를 함께 반환한다. 이슈의 `projectId`, `issueKey`, reporter, source 필드는 immutable이고 source는 `MANUAL`만 생성한다. 담당자와 Sprint는 같은 프로젝트의 ACTIVE project member 및 non-COMPLETED Sprint로 검증한다. COMPANY_ADMIN은 관리 action은 가능하지만 ACTIVE project member가 아니면 담당자가 될 수 없다.
+이슈 상태 변경은 같은 상태에 대해 200 no-op이며 history를 남기지 않는다. trashed 이슈의 상태/내용 변경은 `409 CONFLICT`다. trash/restore는 등록자 또는 P/C가 실행하며 idempotent 200이고 trash reason은 받지 않는다. `includeTrashed=true`은 active와 trashed를 함께 반환한다. 이슈의 `projectId`, `issueKey`, reporter, source 필드는 immutable이다. 기본 생성은 `sourceType = MANUAL`, 메시지 기반 생성은 `sourceType = MESSAGE`와 `sourceMessageId`를 반환한다. 담당자와 Sprint는 같은 프로젝트의 ACTIVE project member 및 non-COMPLETED Sprint로 검증한다. COMPANY_ADMIN은 관리 action은 가능하지만 ACTIVE project member가 아니면 담당자가 될 수 없다.
 
 Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PLANNED다. P/C만 생성·수정·시작·완료·일괄 배정할 수 있고 수정은 PLANNED에만 허용한다. 프로젝트별 ACTIVE Sprint는 하나이며 서버 UTC로 `startedAt`/`completedAt`을 기록한다. `GET /api/v1/sprints/{sprintId}`는 Sprint metadata만 반환하며 배정 이슈를 포함하지 않는다. 배정 이슈는 `GET /api/v1/projects/{projectId}/issues?sprintId={sprintId}`로 별도 조회한다. `unassignedOnly=true`는 Sprint가 없는 이슈만 반환하며 `sprintId`와 함께 전달하면 `400 VALIDATION_ERROR`다. 배정은 같은 프로젝트의 non-trashed issue만 대상으로 하고 status를 바꾸지 않는다. 배정 해제는 `PATCH /api/v1/issues/{issueId}`에 `sprintId: null`을 보내며(Issue #113), 그 endpoint는 해제만 허용하고 non-null `sprintId`는 `400`으로 거절해 배정 경로를 위 POST 하나로 유지한다. 완료 시 DONE을 제외한 모든 배정 issue는 원자적으로 `BACKLOG`로 이동하고 Sprint를 clear한다. notification/event 발행은 하지 않는다.
 
@@ -406,42 +405,34 @@ Sprint는 `PLANNED → ACTIVE → COMPLETED` 단방향이며 생성은 항상 PL
 - mark-read body는 `lastReadDirectMessageId`만 받는다. client `readAt`은 허용하지 않으며 server UTC로만 저장한다. 포인터는 같은 room 메시지여야 하고 뒤로 이동하지 않는다.
 - unread는 현재 사용자가 보낸 메시지를 제외하고 개인별 `dm_room_user_states.last_read_direct_message_id`로 계산한다. 상대방 read receipt는 제공하지 않는다.
 
+1:1 DM core는 WBS 4.7.3.1 Backend 구현 범위다. 다자간 DM, DM room + participants 일반화, DM 상대 read receipt는 이번 개발 기간 보류다. 영구 제외하지 않으며 향후 재검토 전 endpoint, request/response contract, schema, frontend 구현을 추가하지 않는다. DM 메시지 삭제와 DM 메시지 이슈 전환도 full endpoint contract를 만들지 않는다.
+
 ### 8.2 Issue #208 WBS 4.7.3.1 DM 후보 조회 Backend follow-up
 
 ```http
 GET /api/v1/companies/{companyId}/direct-messages/candidates
 ```
 
-응답은 표준 envelope의 `data.candidates`를 사용한다. candidate item은 `id`, `nickname`, `avatarUrl`만 포함하며 email, status, role은 노출하지 않는다. `candidates[].id`는 `company_members.id`가 아니라 `users.id`이며, room get-or-create 요청의 `otherUserId`로 그대로 전달한다.
+- ACTIVE caller와 path 회사의 ACTIVE company membership이 필요하다.
+- 같은 회사의 ACTIVE membership + ACTIVE user 중 자기 자신을 제외해 `data.candidates`로 반환한다.
+- 기존 room 상대도 포함하며, 기존 room 상대 제외는 Frontend client-side 책임으로 유지한다.
+- 응답 field는 `id`, `nickname`, `avatarUrl`만 제공한다. email, role, membership ID, department는 노출하지 않는다.
+- 정렬은 `nickname ASC, userId ASC`이고 pagination은 제공하지 않는다. 후보가 없으면 200과 빈 배열을 반환한다.
+- JWT 없음, malformed auth, SUSPENDED/DELETED caller는 401이다. path 회사가 없거나 inactive거나 caller membership이 없거나 inactive면 403이다.
+- 이 follow-up은 CHAT-02 전체 완료를 의미하지 않으며, 기존 room/list/message/unread 계약을 변경하지 않는다.
+
+Response 200:
 
 ```json
 {
   "data": {
     "candidates": [
-      {
-        "id": 2,
-        "nickname": "김민정",
-        "avatarUrl": null
-      }
+      { "id": 2, "nickname": "김민정", "avatarUrl": null }
     ]
   },
   "meta": { "requestId": "req_..." }
 }
 ```
-
-- caller는 `users.status = ACTIVE`이며 path의 회사가 ACTIVE이고 그 회사의 ACTIVE member여야 한다.
-- candidate는 같은 회사의 ACTIVE company membership과 `users.status = ACTIVE`를 모두 만족해야 하며 caller 자신은 제외한다.
-- 기존 DM room 상대도 후보에 포함한다. 기존 room 상대 제외는 Frontend가 client-side에서 계속 처리하며 Backend는 room 존재 여부를 조회하거나 제외 조건으로 사용하지 않는다.
-- 정렬은 `nickname ASC, userId ASC`로 고정한다. pagination은 제공하지 않는다.
-- 후보가 없으면 `200 OK`와 `data.candidates: []`를 반환한다.
-
-| 상황 | HTTP | `error.code` |
-|---|---:|---|
-| 인증 header가 없거나 malformed이거나 caller가 SUSPENDED 등 ACTIVE 사용자가 아님 | 401 | `UNAUTHORIZED` |
-| 회사가 없거나 INACTIVE임 | 403 | `FORBIDDEN` |
-| caller의 회사 membership이 없거나 ACTIVE가 아님 | 403 | `FORBIDDEN` |
-
-1:1 DM core는 WBS 4.7.3.1 Backend 구현 범위다. 다자간 DM, DM room + participants 일반화, DM 상대 read receipt는 이번 개발 기간 보류다. 영구 제외하지 않으며 향후 재검토 전 endpoint, request/response contract, schema, frontend 구현을 추가하지 않는다. DM 메시지 삭제와 DM 메시지 이슈 전환도 full endpoint contract를 만들지 않는다.
 
 ---
 
@@ -657,9 +648,11 @@ MySQL FULLTEXT, 외부 검색 엔진, Redis, DB schema/index 변경, Frontend, �
 
 ### 10.4 WBS 4.11 private attachment lifecycle
 
-모든 attachment endpoint는 JWT Bearer token과 ACTIVE 사용자를 요구한다. object는 private storage에만 두며 initiate, complete, download, delete lifecycle을 사용한다.
+#### Target catalog
 
-#### Initiate
+`targetType`은 `DOCUMENT`, `ISSUE`, `MESSAGE`, `THREAD_COMMENT`, `DIRECT_MESSAGE`, `USER_AVATAR`, `COMPANY_LOGO`, `BINARY_DOCUMENT`만 허용한다. `DOCUMENT`는 문서 Markdown 본문을 파일로 저장한다는 뜻이 아니라 document resource에 붙는 일반 첨부다. `BINARY_DOCUMENT`도 같은 document resource ID를 `targetId`로 사용한다.
+
+#### POST `/api/v1/attachments/uploads`
 
 ```http
 POST /api/v1/attachments/uploads
@@ -668,11 +661,11 @@ POST /api/v1/attachments/uploads
 ```json
 {
   "targetType": "DOCUMENT",
-  "targetId": 201,
-  "filename": "requirements.pdf",
+  "targetId": 200,
+  "filename": "회의록.pdf",
   "contentType": "application/pdf",
   "contentLength": 1048576,
-  "checksumSha256": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="
+  "checksumSha256": "base64-sha256"
 }
 ```
 
@@ -680,18 +673,16 @@ request는 `targetType`, `targetId`, `filename`, `contentType`, `contentLength`,
 
 성공 시 `201`이며 `data.attachment`와 `data.uploadUrl`을 반환한다. `attachment`은 `id`, `targetType`, `targetId`, `filename`, `contentType`, `contentLength`, `status`, `completedAt`, `createdAt`만 포함하고 initiate 직후 status는 `UPLOADING`이다.
 
-#### Complete, list, download, delete
+#### Lifecycle
 
 - `POST /attachments/{attachmentId}/complete`는 저장소 object의 content length, content type, checksum이 initiate request와 일치할 때 `READY`로 전환한다. `READY` 재호출은 현재 metadata를 반환한다.
 - `GET /attachments`는 `targetType`과 `targetId` query를 필수로 받고 해당 대상의 `READY` attachment만 생성 시각 오름차순으로 반환한다.
 - `GET /attachments/{attachmentId}/download`는 `data.downloadUrl`을 반환하며 `READY` attachment만 허용한다.
 - `DELETE /attachments/{attachmentId}`는 `204`를 반환하고 attachment를 `DELETED`로 logical delete한다. avatar/logo의 현재 managed reference를 삭제하면 해당 reference도 clear한다.
 
-#### 대상 및 인가
+#### Authorization and storage boundary
 
-`DOCUMENT`, `BINARY_DOCUMENT`, `ISSUE`, `MESSAGE`, `THREAD_COMMENT`는 해당 resource의 작성자 또는 project/company admin이 mutation할 수 있다. `DIRECT_MESSAGE`는 sender 또는 company admin만 mutation할 수 있다. `USER_AVATAR`는 owner만 mutation할 수 있고, `COMPANY_LOGO`는 company admin만 mutation할 수 있다. read는 target의 기존 project/company/DM visibility를 따른다.
-
-#### 저장소와 비범위
+target별 read/mutation 권한은 대상 resource 가시성과 작성자 또는 project/company admin 정책을 따른다. avatar는 본인만 mutation하고, company logo는 company admin만 mutation한다. DM attachment는 해당 room 참여자만 읽을 수 있으며 DM 메시지는 이슈 전환 원본이 될 수 없다.
 
 local development는 private MinIO presigned storage를 사용한다. production bucket, IAM, CORS, network, SSM, CI/CD wiring은 이 계약 또는 WBS `4.11` 구현 완료에 포함하지 않는다. retention/cleanup activation policy도 후속 결정으로 둔다.
 
@@ -935,7 +926,7 @@ audit record의 3년 보존 정책은 유지한다. cleanup/purge/archive job, l
 - JWT Bearer access token과 refresh token을 함께 사용한다. Access token lifetime은 30분, refresh token lifetime은 14일이며, refresh token은 서버에 hash로 저장하고 성공한 refresh 시 rotation, logout 시 invalidation한다. Browser는 access token memory 저장, refresh token `HttpOnly`, `SameSite=Lax` cookie 저장을 권장하며 HTTPS 환경에서는 `Secure`를 사용한다.
 - 이슈 목록 페이지네이션 방식.
 - 이슈 상태 변경 시 알림 자동 발송 로직.
-- `from-message` 엔드포인트에서 thread 자동 생성 여부.
+- `from-message` 엔드포인트는 thread를 자동 생성하지 않는다. Thread 생성은 `POST /api/v1/projects/{projectId}/threads`만 수행한다.
 - 메시지 목록 실시간 업데이트 방식.
 - DM 방 unread count 처리 방식.
 - `activity_events`와 `notification_events`는 분리 운영한다. activity 이벤트가 notification 이벤트를 생성하는 조건은 구현 단계에서 이벤트별로 제한한다.
@@ -950,7 +941,7 @@ audit record의 3년 보존 정책은 유지한다. cleanup/purge/archive job, l
 - `v1.4`의 예시는 형식 참고용으로만 사용한다.
 - 실제 계약 기준은 이 문서의 endpoint 표와 v2.6 정책이다.
 - `PATCH` 요청은 변경할 필드만 전달한다.
-- Redis/NoSQL 알림 저장 API와 프로젝트별 알림 설정은 현재 full contract로 제공하지 않는다. attachment는 private presigned lifecycle만 제공하며 production storage wiring은 후속 범위다.
+- WBS `4.11` private attachment lifecycle은 full contract로 제공한다. production storage wiring과 retention/cleanup activation, Redis/NoSQL 알림 저장 API, 프로젝트별 알림 설정은 후속 범위다.
 
 ### 13.1 공통 Error Response
 
@@ -1823,7 +1814,7 @@ Response 200:
 
 #### GET `/api/v1/projects/{projectId}/issues`
 
-목록의 각 이슈 객체는 full Issue contract를 따른다. `id`, `issueKey`, `title`, `status`, `description`, `priority`, `assigneeUserId`, `reporterUserId`, `sprintId`, `dueDate`, `sourceType`, `trashedAt`, `restoredAt`을 반환하며 시간 필드는 UTC `Z` 형식이다.
+목록의 각 이슈 객체는 full Issue contract를 따른다. `id`, `projectId`, `issueKey`, `title`, `status`, `description`, `priority`, `assigneeUserId`, `reporterUserId`, `sprintId`, `dueDate`, `sourceType`, `sourceMessageId`, `trashedAt`, `restoredAt`을 반환하며 시간 필드는 UTC `Z` 형식이다. 수동 생성 이슈의 `sourceMessageId`는 `null`이다.
 
 `reporterUserId`는 표시용이 아니라 **권한 판정용**이다 — trash/restore가 P/C 또는 등록자에게 허용되므로, 클라이언트가 이 값과 현재 사용자를 비교해야 "내가 등록한 이슈" 경로를 판정할 수 있다.
 
@@ -1838,6 +1829,7 @@ Response 200:
     "issues": [
       {
         "id": 1000,
+        "projectId": 20,
         "issueKey": "THD-1",
         "title": "로그인 API 구현",
         "status": "BACKLOG",
@@ -1848,6 +1840,7 @@ Response 200:
         "sprintId": 300,
         "dueDate": "2026-06-22",
         "sourceType": "MANUAL",
+        "sourceMessageId": null,
         "trashedAt": null,
         "restoredAt": null
       }
@@ -1881,6 +1874,7 @@ Response 201:
   "data": {
     "issue": {
       "id": 1000,
+      "projectId": 20,
       "issueKey": "THD-1",
       "title": "로그인 API 구현",
       "status": "BACKLOG",
@@ -1891,6 +1885,56 @@ Response 201:
       "sprintId": 300,
       "dueDate": "2026-06-22",
       "sourceType": "MANUAL",
+      "sourceMessageId": null,
+      "trashedAt": null,
+      "restoredAt": null
+    }
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+#### POST `/api/v1/projects/{projectId}/issues/from-message`
+
+WBS `4.5.1.1` Backend 계약이다. 프로젝트 채팅 메시지 하나를 출처로 하는 이슈를 생성한다. 호출자는 해당 프로젝트의 ACTIVE `PROJECT_ADMIN` 또는 해당 프로젝트 회사의 ACTIVE `COMPANY_ADMIN`이어야 한다. 일반 프로젝트 멤버(A)는 호출할 수 없다.
+
+`messageId`는 요청 `projectId`에 속한 프로젝트 채팅 메시지여야 한다. 서버는 메시지를 `messageId + projectId`로 조회하며, 메시지가 없거나 다른 프로젝트 메시지이면 모두 `404 NOT_FOUND`로 응답한다. 같은 메시지에서 여러 이슈를 생성하는 것은 허용한다. 중복 방지 unique key나 `409`를 추가하지 않는다.
+
+요청의 나머지 필드는 일반 이슈 생성의 P/C 관리 필드 검증과 동일하다. 생성 상태는 항상 `BACKLOG`이며 응답은 full Issue contract를 따른다. 이슈 생성은 Thread를 자동 생성하지 않는다.
+
+Request Body:
+
+```json
+{
+  "messageId": 9000,
+  "title": "회의 결정 사항을 작업으로 전환",
+  "description": "프로젝트 채팅에서 합의된 작업을 이슈로 등록한다.",
+  "priority": "HIGH",
+  "assigneeUserId": 2,
+  "sprintId": 300,
+  "dueDate": "2026-06-22"
+}
+```
+
+Response 201:
+
+```json
+{
+  "data": {
+    "issue": {
+      "id": 1001,
+      "projectId": 20,
+      "issueKey": "THD-2",
+      "title": "회의 결정 사항을 작업으로 전환",
+      "status": "BACKLOG",
+      "description": "프로젝트 채팅에서 합의된 작업을 이슈로 등록한다.",
+      "priority": "HIGH",
+      "assigneeUserId": 2,
+      "reporterUserId": 1,
+      "sprintId": 300,
+      "dueDate": "2026-06-22",
+      "sourceType": "MESSAGE",
+      "sourceMessageId": 9000,
       "trashedAt": null,
       "restoredAt": null
     }
@@ -1940,6 +1984,7 @@ Response 200:
   "data": {
     "issue": {
       "id": 1000,
+      "projectId": 20,
       "issueKey": "THD-1",
       "title": "로그인 API 구현",
       "status": "IN_PROGRESS",
@@ -1950,6 +1995,7 @@ Response 200:
       "sprintId": 300,
       "dueDate": "2026-06-22",
       "sourceType": "MANUAL",
+      "sourceMessageId": null,
       "trashedAt": null,
       "restoredAt": null
     }
@@ -1971,6 +2017,7 @@ Response 200:
   "data": {
     "issue": {
       "id": 1000,
+      "projectId": 20,
       "issueKey": "THD-1",
       "title": "로그인 API 구현",
       "status": "BACKLOG",
@@ -1981,6 +2028,7 @@ Response 200:
       "sprintId": 300,
       "dueDate": "2026-06-22",
       "sourceType": "MANUAL",
+      "sourceMessageId": null,
       "trashedAt": null,
       "restoredAt": "2026-07-14T00:00:00Z"
     }

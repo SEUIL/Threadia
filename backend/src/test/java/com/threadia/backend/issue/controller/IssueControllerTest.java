@@ -94,6 +94,44 @@ class IssueControllerTest {
 	}
 
 	@Test
+	void createFromMessageReturnsCreatedIssue() throws Exception {
+		when(issueService.createFromMessage(eq("valid-token"), eq(20L), any()))
+				.thenReturn(new IssueData(new IssueResponse(100L, 20L, "THD-1", "메시지 이슈", "BACKLOG", null, "MEDIUM", null, 1L, null, null, "MESSAGE", 300L, null, null)));
+
+		mockMvc.perform(post("/api/v1/projects/20/issues/from-message")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("""
+							{
+							  "messageId": 300,
+							  "title": "메시지 이슈"
+							}
+							"""))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.data.issue.id").value(100))
+				.andExpect(jsonPath("$.data.issue.sourceType").value("MESSAGE"))
+				.andExpect(jsonPath("$.data.issue.sourceMessageId").value(300));
+
+		verify(issueService).createFromMessage(eq("valid-token"), eq(20L), any());
+	}
+
+	@Test
+	void createFromMessageReturnsValidationErrorWhenMessageIdIsMissing() throws Exception {
+		mockMvc.perform(post("/api/v1/projects/20/issues/from-message")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("""
+							{
+							  "title": "메시지 이슈"
+							}
+							"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+
+		verify(issueService, never()).createFromMessage(any(), any(), any());
+	}
+
+	@Test
 	void createWithCallerSuppliedDoneStillReturnsBacklog() throws Exception {
 		when(issueService.create(eq("valid-token"), eq(20L), any()))
 				.thenReturn(new IssueData(new IssueResponse(100L, "THD-1", "새 이슈", "BACKLOG")));

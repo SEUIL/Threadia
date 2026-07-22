@@ -9,8 +9,7 @@ export type IssueStatus = "BACKLOG" | "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DO
 
 export type IssuePriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
-/** 지금은 MANUAL만 생성된다(메시지 기반 생성은 계약 밖). */
-export type IssueSourceType = "MANUAL";
+export type IssueSourceType = "MANUAL" | "MESSAGE";
 
 export interface IssueResponse {
   id: number;
@@ -31,6 +30,7 @@ export interface IssueResponse {
   sprintId: number | null;
   dueDate: string | null; // yyyy-MM-dd
   sourceType: IssueSourceType;
+  sourceMessageId: number | null;
   trashedAt: string | null; // ISO-8601 UTC
   restoredAt: string | null; // ISO-8601 UTC
 }

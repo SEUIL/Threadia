@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀 / Sisyphus 지원
 > **작성일**: 2026-07-01
-> **최종 수정**: 2026-07-07
-> **버전**: v0.4 Sprint 3 기준선 정합화
+> **최종 수정**: 2026-07-21
+> **버전**: v0.5 WBS 4.5.1.1 Thread 미자동생성 정책 반영
 > **상태**: 검토 중
 > **태그**: erd, db, schema, traceability
 
@@ -90,7 +90,7 @@
 |---|---|---|
 | 전체 DDL 포함 범위 | Sprint 운영 문서는 전체 MVP DDL을 둘 수 있다고 하되 Sprint 1 검증은 Auth 4개 table 중심이라고 한다. | 전체 MVP 27개 table 스켈레톤은 둘 수 있다. 단 `activity_events`, `project_dashboard_summaries`의 실제 활성화는 조건부 확장으로 분리한다. |
 | `issues` 정렬 | ERD의 6일차 이월 검토 사항에 position 관리 방식이 남아 있다. | Kanban column 내 정렬용 `position` column 포함 여부 |
-| `threads` 생성 정책 | 자동 생성 vs 수동 생성 정책이 이월 사항이다. | `UNIQUE(target_type, target_id)`와 get-or-create 기준 확정 |
+| `threads` 생성 정책 | WBS 4.5.1.1에서 from-message는 Thread를 자동 생성하지 않는 것으로 확정했다. | `UNIQUE(target_type, target_id)`는 유지하고 Thread 생성은 명시적 get-or-create API로만 수행 |
 | `activity_events` → `notification_events` 연계 | 두 원장은 분리하되 필요 시 연계만 허용한다. | 선택적 `activity_event_id`는 수용 가능. 어떤 event가 notification을 생성하는지 enum/metadata 수준은 구현 전 결정 |
 | attachments | S3 사용은 확정이나 범용 attachments table은 Sprint 1 이후 확정이다. | 이번 ERD/schema에 attachments를 포함하지 않을지 확인 |
 | soft delete 공통화 | project archive, issue/document trash는 확정되어 있다. | `archived_at`, `trashed_at`, `restored_at` 등 column 명명 통일 |

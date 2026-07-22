@@ -76,6 +76,16 @@ test("일반 멤버는 다른 작성자의 message attachment mutation control�
   await expect(page.getByRole("button", { name: "파일 추가" })).toHaveCount(0);
 });
 
+test("읽기 전용 사용자가 보는 첨부 없는 메시지에는 '첨부 파일' 헤더가 아예 안 뜬다", async ({ page }) => {
+  // 이 메시지(id 31)는 MESSAGE 첨부가 없고(mock이 빈 배열 반환), 일반 멤버는
+  // 추가 권한도 없다 — 이럴 때 "첨부 파일" 섹션을 통째로 숨겨 목록을 깔끔하게
+  // 유지한다(첨부가 없는 모든 메시지마다 헤더가 깔리던 클러터 제거).
+  await mockApi(page, { companyRole: "MEMBER", projectRole: "MEMBER" });
+  await page.goto("/1/10/messages");
+  await expect(page.getByText("다른 사용자의 메시지")).toBeVisible();
+  await expect(page.getByText("첨부 파일")).toHaveCount(0);
+});
+
 test("shared project member의 attachment avatar가 message author와 member list initials보다 우선한다", async ({ page }) => {
   await mockApi(page, { companyRole: "MEMBER", projectRole: "MEMBER" });
   await page.goto("/1/10/messages");

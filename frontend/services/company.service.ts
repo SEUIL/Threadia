@@ -43,7 +43,7 @@ export const companyService = {
   stats: (companyId: string | number) =>
     apiClient.get<ApiResponse<CompanyStatsData>>(`/api/v1/companies/${companyId}/stats`),
 
-  /** 전용 로고 URL 저장(API-명세서 §5) — update()의 full-replace PATCH와 별개 endpoint다. */
-  updateLogo: (companyId: string | number, body: { logoUrl: string }) =>
-    apiClient.post<ApiResponse<CompanyData>>(`/api/v1/companies/${companyId}/logo`, body),
+  // 로고 URL 저장(POST /{companyId}/logo)은 WBS 4.11(PR #215) S3 파일 업로드로
+  // 대체돼 프론트에서 더 이상 쓰지 않는다 — updateLogo 바인딩을 제거했다.
+  // (백엔드 endpoint 자체는 남아있으니 필요하면 다시 붙일 수 있다.)
 };
