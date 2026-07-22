@@ -1,7 +1,7 @@
 > **작성자**: Threadia 팀
 > **작성일**: 2026-07-21
-> **최종 수정**: 2026-07-21
-> **버전**: v1.2
+> **최종 수정**: 2026-07-22
+> **버전**: v1.3
 > **상태**: 검토 중
 > **태그**: aws, s3, attachment, ecr, compose, runbook, approval
 
@@ -119,8 +119,11 @@ Before any production Change Set execution or host release, a real staging brows
 
 Change Set ID와 action summary, reviewer/executor/DB operator, release ID, bucket policy/IAM/CORS name-only review 결과, runtime key 존재 여부, schema postflight, smoke PASS/FAIL, Go/No-Go와 rollback 판단을 기록한다. account ID, actual bucket value, object key, presigned URL, credential, checksum, user content는 기록하지 않는다.
 
+2026-07-22 public dual-image in-place presentation release의 실행 증빙과 열려 있는 attachment transfer smoke gate는 [Public dual-image release 검증기록](./public-dual-image-release-검증기록.md)에서 확인한다.
+
 ## 변경 이력
 
 | 날짜 | 내용 |
 |---|---|
+| 2026-07-22 | public dual-image in-place presentation release의 검증기록 링크를 추가했다. authenticated upload/presign smoke는 test credential 부재로 미수행되어 attachment transfer smoke gate가 열려 있음을 해당 기록에서 명시했다. |
 | 2026-07-21 | public Compose topology가 restricted-network와 분리됨을 명시하고, restricted endpoint/policy 변경을 attachment rollout 범위에서 제외했다. versioned object의 noncurrent version 만료와 expired delete-marker cleanup, 기존 `PT10M` default·local `PT2M`에 근거한 `PT1M`~`PT10M` presign TTL gate를 적용했다. |

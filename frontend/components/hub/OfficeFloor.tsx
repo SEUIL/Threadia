@@ -20,6 +20,7 @@ import { useMemo } from "react";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { OfficeDesk } from "@/components/hub/OfficeDesk";
+import { HUB_SEAT_POSITIONS } from "@/components/hub/hubSeats";
 
 const MODEL_BASE = "/models/kenney-furniture-kit";
 
@@ -276,16 +277,12 @@ function DeskGrid() {
   const desks = [];
   for (let row = 0; row < GRID_ROWS; row++) {
     for (let col = 0; col < GRID_COLS; col++) {
-      desks.push(
-        <OfficeDesk
-          key={`${row}-${col}`}
-          position={[
-            col * COL_SPACING + DESK_BLOCK_X_SHIFT,
-            0,
-            -row * ROW_SPACING + DESK_BLOCK_Z_SHIFT,
-          ]}
-        />
-      );
+      const deskPosition: Vec3 = [
+        col * COL_SPACING + DESK_BLOCK_X_SHIFT,
+        0,
+        -row * ROW_SPACING + DESK_BLOCK_Z_SHIFT,
+      ];
+      desks.push(<OfficeDesk key={`${row}-${col}`} position={deskPosition} />);
     }
   }
   return (
@@ -295,6 +292,38 @@ function DeskGrid() {
     >
       {desks}
     </group>
+  );
+}
+
+// 허브 실시간 채팅 + 3D 아바타 작업용 디버그 자리 마커. hubSeats.ts의 실측
+// world 좌표를 그대로 쓴다(더 이상 손계산/벡터 덧셈 안 함 — 이미 실측 완료).
+// HubAvatar가 각 좌석에 배치된 지금은 꺼둔다. 좌표를 다시 조정해야 할 때만
+// 잠깐 켠다(DebugDirections와 같은 on/off 패턴).
+const SHOW_SEAT_MARKERS = false;
+
+function SeatMarker({ seatIndex, position }: { seatIndex: number; position: Vec3 }) {
+  return (
+    <group name={`seat-marker-${seatIndex}`} position={position}>
+      <mesh position={[0, 0.6, 0]}>
+        <sphereGeometry args={[0.14, 16, 16]} />
+        <meshStandardMaterial color="#ff2d78" emissive="#ff2d78" emissiveIntensity={0.6} />
+      </mesh>
+      <mesh position={[0, 0.3, 0]}>
+        <cylinderGeometry args={[0.02, 0.02, 0.6, 8]} />
+        <meshStandardMaterial color="#ff2d78" />
+      </mesh>
+    </group>
+  );
+}
+
+function SeatMarkers() {
+  if (!SHOW_SEAT_MARKERS) return null;
+  return (
+    <>
+      {HUB_SEAT_POSITIONS.map((position, seatIndex) => (
+        <SeatMarker key={seatIndex} seatIndex={seatIndex} position={position} />
+      ))}
+    </>
   );
 }
 
@@ -415,6 +444,7 @@ export function OfficeFloor({
       <Floor />
       <RoomWalls />
       <DeskGrid />
+      <SeatMarkers />
       <LoungeArea />
       <BreakRoomArea />
     </group>

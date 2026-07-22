@@ -7,6 +7,7 @@ import type { ApiResponse } from "@/types/auth.types";
 import type {
   IssueCreateRequest,
   IssueData,
+  IssueFromMessageRequest,
   IssueListFilters,
   IssuesData,
   IssueStatus,
@@ -23,6 +24,14 @@ export const issueService = {
   /** 이슈 생성. 상태는 항상 BACKLOG. 관리 전용 필드(priority/assignee/dueDate/sprintId)는 P/C만. */
   create: (projectId: string | number, body: IssueCreateRequest) =>
     apiClient.post<ApiResponse<IssueData>>(`/api/v1/projects/${projectId}/issues`, body),
+
+  /**
+   * 프로젝트 메시지에서 이슈 생성(WBS 4.5.1.1/4.5.1.2). endpoint 자체가 P/C
+   * 전용이라 일반 멤버(A)가 호출하면 403이다 — 프론트에서도 viewer.canManageProject
+   * 인 경우에만 액션을 노출해야 한다.
+   */
+  createFromMessage: (projectId: string | number, body: IssueFromMessageRequest) =>
+    apiClient.post<ApiResponse<IssueData>>(`/api/v1/projects/${projectId}/issues/from-message`, body),
 
   /** 바꿀 필드만 담아 보낸다 — 보낸 key만 반영되고 허용되지 않은 필드는 400이다. */
   update: (issueId: string | number, body: IssueUpdateRequest) =>
