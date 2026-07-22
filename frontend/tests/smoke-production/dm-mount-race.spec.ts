@@ -103,6 +103,65 @@ test("초기 room 목록 조회가 느려도(hold), 풀린 뒤 mark-read가 정�
   await expect(railBadge).toHaveText("1");
 });
 
+test("mark-read가 실패하면 낙관적으로 0으로 바꿨던 배지가 원래 unreadCount로 되돌아간다", async ({
+  page,
+}) => {
+  // 이슈 #217 코멘트(dhy257)의 optimistic update/rollback 지적 반영 —
+  // onMutate에서 배지를 먼저 0으로 반영하고, 서버가 실패를 돌려주면
+  // onError가 onMutate 시점 스냅샷(unreadCount=5)으로 되돌려야 한다.
+  const rooms = [room({ id: 301, otherUserId: 2, nickname: "김민정", unreadCount: 5 })];
+  const messages = [
+    { id: 1, roomId: 301, sender: { id: 2, email: "b@test.dev", nickname: "김민정", avatarUrl: null }, content: "안녕하세요", createdAt: "2026-07-19T00:00:00Z" },
+  ];
+  const hold = createHold();
+
+  await page.route("**/api/v1/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const headers = corsHeaders(request.headers().origin ?? "http://127.0.0.1:3002");
+    const json = (body: unknown, status = 200) =>
+      route.fulfill({ status, contentType: "application/json", headers, body: JSON.stringify(body) });
+
+    if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers });
+    if (request.method() === "POST" && url.pathname === "/api/v1/auth/refresh") {
+      return json(apiResponse({ accessToken: "test-token", user: { id: 1, email: "a@test.dev", nickname: "나", avatarUrl: null } }));
+    }
+    if (url.pathname === "/api/v1/users/me/company-memberships") {
+      return json(apiResponse({ companyMemberships: [{ companyId: 1, companyName: "Threadia", role: "MEMBER" }] }));
+    }
+    if (request.method() === "GET" && url.pathname === "/api/v1/companies/1/direct-messages/rooms") {
+      return json(apiResponse({ rooms }));
+    }
+    if (request.method() === "GET" && url.pathname === "/api/v1/direct-messages/rooms/301/messages") {
+      return json(apiResponse({ messages }));
+    }
+    if (request.method() === "POST" && url.pathname === "/api/v1/direct-messages/rooms/301/mark-read") {
+      // 서버 응답을 잡아둬서 "낙관적으로 0이 된 직후, 아직 실패가 안 온" 순간을 관측한다.
+      await hold.gate;
+      return route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        headers,
+        body: JSON.stringify({ error: { code: "INTERNAL_ERROR", message: "mark-read failed" } }),
+      });
+    }
+    await route.continue();
+  });
+
+  const railBadge = page.locator('a[title="김민정"] span.bg-destructive');
+
+  await page.goto("/1/dm/301");
+  await expect(page.getByRole("heading", { name: "김민정" })).toBeVisible();
+  // mark-read가 아직 (hold로) 응답을 못 받은 상태 — onMutate의 낙관적 patch로
+  // 배지가 이미 사라져 있어야 한다(서버 왕복을 기다리지 않는 게 이번 보강의 목적).
+  await expect(railBadge).toHaveCount(0);
+
+  hold.release();
+
+  // 실패 응답이 도착하면 onError가 되돌린 스냅샷값(5)이 다시 떠야 한다.
+  await expect(railBadge).toHaveText("5");
+});
+
 test("새 room 생성 후 목록 재조회(invalidate)가 느려도(hold), 풀린 뒤 새 room이 rail에 반영된다", async ({
   page,
 }) => {

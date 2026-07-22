@@ -52,21 +52,36 @@ export function useDmRoomsQuery(companyId: string | number | undefined) {
 }
 
 /*
- * mark-read — 성공하면 dm-rooms 캐시의 해당 room만 직접 patch한다
- * (setQueryData). readGenerationsRef가 하던 "이 room은 이 시점 이후 이
+ * mark-read — readGenerationsRef가 하던 "이 room은 이 시점 이후 이
  * unreadCount로 고정" 역할을, onMutate에서 진행 중이던 dm-rooms 재조회를
  * 취소(cancelQueries)하는 방식으로 대체한다 — mutation이 시작되는 순간
  * "지금 진행 중인 목록 재조회는 곧 낡은 값이 될 것"이므로 미리 취소해서,
  * mark-read 이후 도착해 unreadCount를 되돌리는 옛 응답 자체가 존재하지
  * 않게 만든다(4차 재리뷰 blocker 2와 동일 시나리오를 라이브러리 기능으로 해결).
+ *
+ * 이슈 #217 코멘트(dhy257)에서 지적한 대로, TanStack Query의 공식 optimistic
+ * update 패턴(cancelQueries → snapshot → optimistic setQueryData → 실패 시
+ * rollback → 성공 시 authoritative 값으로 재확정)을 그대로 따른다. rooms를
+ * 눌러 들어가는 즉시 배지가 사라져야 자연스러운 UX라 서버 응답을 기다리지
+ * 않고 0으로 먼저 반영하고, 실패하면 onMutate 시점 스냅샷으로 되돌린다.
  */
 export function useMarkDmRoomReadMutation(companyId: string | number) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ roomId, lastReadDirectMessageId }: { roomId: number; lastReadDirectMessageId: number }) =>
       directMessageService.markRead(roomId, { lastReadDirectMessageId }),
-    onMutate: async () => {
+    onMutate: async ({ roomId }) => {
       await queryClient.cancelQueries({ queryKey: dmRoomsQueryKey(companyId) });
+      const previousRooms = queryClient.getQueryData<DirectMessageRoomResponse[]>(dmRoomsQueryKey(companyId));
+      queryClient.setQueryData<DirectMessageRoomResponse[]>(dmRoomsQueryKey(companyId), (rooms) =>
+        rooms?.map((room) => (room.id === roomId ? { ...room, unreadCount: 0 } : room))
+      );
+      return { previousRooms };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousRooms) {
+        queryClient.setQueryData(dmRoomsQueryKey(companyId), context.previousRooms);
+      }
     },
     onSuccess: (response, variables) => {
       queryClient.setQueryData<DirectMessageRoomResponse[]>(dmRoomsQueryKey(companyId), (rooms) =>
