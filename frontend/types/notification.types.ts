@@ -39,7 +39,12 @@ export interface NotificationItem {
   notificationEventId: number;
   type: NotificationType;
   title: string;
-  body: string;
+  /**
+   * WBS 4.5.2.1(PR #229) 확인 — `DOCUMENT_UPDATED`는 body를 항상 null로 보낸다
+   * (backend NotificationResponse의 body 필드 자체가 nullable). 다른 타입도
+   * body 없이 title만으로 충분한 이벤트가 있을 수 있어 전체를 nullable로 둔다.
+   */
+  body: string | null;
   readAt: string | null;
   target: NotificationTarget;
   createdAt: string;
