@@ -252,9 +252,5 @@ function HubPageContent() {
 }
 
 export default function HubPage() {
-  return (
-    <Suspense fallback={null}>
-      <HubPageContent />
-    </Suspense>
-  );
+  return <HubPageContent />;
 }

@@ -36,7 +36,7 @@ import { useIsPlatformAdmin } from "@/hooks/useIsPlatformAdmin";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 import { ProfileEditModal } from "@/components/profile/ProfileEditModal";
 import { CompanySwitcher } from "@/components/company/CompanySwitcher";
-import { writeHubCompanyId } from "@/lib/hubCompanySession";
+import { HubLink } from "@/components/company/HubLink";
 import { PageTransition } from "./PageTransition";
 
 function BellIcon() {
@@ -197,14 +197,13 @@ function Rail({ companyId }: { companyId: string }) {
       onMouseLeave={() => setOpen(false)}
       className="relative z-sticky hidden h-full w-16 shrink-0 flex-col items-center gap-3 bg-chrome py-4 md:flex"
     >
-      <Link
-        href="/hub"
-        onClick={() => writeHubCompanyId(Number(companyId))}
+      <HubLink
+        companyId={companyId}
         title="허브"
         className="grid h-9 w-9 place-items-center rounded-lg text-sm font-extrabold bg-gradient-to-br from-primary to-accent text-primary-foreground"
       >
         T
-      </Link>
+      </HubLink>
 
       <span className="h-px w-8 bg-chrome-foreground/10" aria-hidden="true" />
 
