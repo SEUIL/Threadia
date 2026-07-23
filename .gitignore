@@ -43,7 +43,6 @@ opencode*.log
 # Local browser/QA scratch state
 .wbs-chrome-profile/
 .qa-chrome-profile/
-witch dev
 
 # Node / frontend
 node_modules/
