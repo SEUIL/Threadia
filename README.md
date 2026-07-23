@@ -309,7 +309,7 @@ Threadia/
 cp .env.example .env
 ```
 
-`.env`의 `REPLACE_ME_*` 값을 로컬 값으로 채워주세요. `SPRING_PROFILES_ACTIVE=local`을 유지하면 배포용 설정 검증을 건너뜁니다.
+`.env`의 `REPLACE_ME_*` 값을 로컬 값으로 채워주세요. `SPRING_PROFILES_ACTIVE=local`은 로컬 개발에서 `S3StorageConfig`의 production 검증만 우회하는 선택 키입니다.
 
 ### 2. 로컬 인프라(MySQL, MinIO) 기동
 
@@ -338,17 +338,19 @@ npm run dev
 
 ## 테스트
 
+### Backend
+
 ```bash
-# Backend
 cd backend
 ./gradlew test
+```
 
-# Frontend 타입/린트
+### Frontend
+
+```bash
 cd frontend
 npx tsc --noEmit
 npm run lint
 
-# Frontend smoke test(Playwright)
-cd frontend
 npm run test:smoke
 ```
