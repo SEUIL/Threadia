@@ -53,6 +53,10 @@ function viewerRole(viewer: { companyRole: string | null; projectRole: string | 
   return viewer.projectRole === "PROJECT_ADMIN" ? "P" : "A";
 }
 
+function commentAuthorLabel(comment: ThreadCommentResponse): string {
+  return comment.author?.nickname?.trim() || `사용자 #${comment.authorUserId}`;
+}
+
 export default function ThreadPage() {
   const params = useParams<{ companyId: string; projectId: string; threadId: string }>();
   const { companyId, projectId, threadId } = params;
@@ -279,7 +283,7 @@ export default function ThreadPage() {
         {comments.map((comment) => (
           <li key={comment.id} className="rounded-xl border border-border bg-surface p-4">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-foreground">사용자 #{comment.authorUserId}</span>
+              <span className="text-xs font-semibold text-foreground">{commentAuthorLabel(comment)}</span>
               <span className="text-[10px] text-muted">
                 {new Date(comment.createdAt).toLocaleString("ko-KR")}
               </span>
