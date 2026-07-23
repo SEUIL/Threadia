@@ -40,6 +40,10 @@ claude-code*.log
 codex*.log
 opencode*.log
 
+# Local browser/QA scratch state
+.wbs-chrome-profile/
+.qa-chrome-profile/
+
 # Node / frontend
 node_modules/
 .npm/
