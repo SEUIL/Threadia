@@ -11,6 +11,7 @@ const MEMBERSHIPS = [
   { companyMemberId: 101, companyId: 1, companyName: "Alpha Corp", role: "MEMBER", status: "ACTIVE" },
   { companyMemberId: 202, companyId: 2, companyName: "Beta Corp", role: "COMPANY_ADMIN", status: "ACTIVE" },
 ];
+const SINGLE_MEMBERSHIP = [MEMBERSHIPS[0]];
 
 const COMPANY_INVITATION = {
   id: 77,
@@ -44,7 +45,7 @@ function corsHeaders(origin: string) {
   };
 }
 
-async function mockApi(page: Page, options: { invitations?: unknown[] } = {}): Promise<ApiRecorder> {
+async function mockApi(page: Page, options: { invitations?: unknown[]; memberships?: unknown[] } = {}): Promise<ApiRecorder> {
   const recorder: ApiRecorder = { heartbeats: [], candidates: [], projectLists: [] };
 
   await page.route("**/api/v1/**", async (route) => {
@@ -61,7 +62,7 @@ async function mockApi(page: Page, options: { invitations?: unknown[] } = {}): P
     }
 
     if (request.method() === "GET" && url.pathname === "/api/v1/users/me/company-memberships") {
-      return json(apiResponse({ companyMemberships: MEMBERSHIPS }));
+      return json(apiResponse({ companyMemberships: options.memberships ?? MEMBERSHIPS }));
     }
 
     if (request.method() === "GET" && url.pathname === "/api/v1/users/me/invitations") {
@@ -205,6 +206,17 @@ test("RailShell 회사 switcher는 현재 tab hub company를 저장하고 projec
   await expect(page).toHaveURL(/\/hub$/);
   expect(new URL(page.url()).search).toBe("");
   await waitForHubCompany(recorder, 2);
+});
+
+test("단일 회사 소속이면 회사명만 보이고 교체 버튼은 숨긴다", async ({ page }) => {
+  const recorder = await mockApi(page, { memberships: SINGLE_MEMBERSHIP });
+
+  await page.goto("/1/projects");
+  await expect.poll(() => recorder.projectLists.includes(1)).toBe(true);
+  await page.locator('a[title="허브"]').hover();
+
+  await expect(page.getByText("Alpha Corp")).toBeVisible();
+  await expect(page.getByRole("button", { name: "회사 교체" })).toHaveCount(0);
 });
 
 test("company-scoped 본문 허브 링크도 현재 회사 hub company를 저장한다", async ({ page }) => {
