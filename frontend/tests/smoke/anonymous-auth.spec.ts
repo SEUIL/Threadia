@@ -66,6 +66,7 @@ test("shows invalid login feedback without refreshing or attempting token refres
 
   await page.goto("/login");
   await expect(page.getByRole("heading", { name: "로그인" })).toBeVisible();
+  await expect.poll(() => refreshRequests).toBe(1);
   const refreshRequestsBeforeLogin = refreshRequests;
 
   await page.getByLabel("이메일").fill("wrong@example.com");
@@ -175,6 +176,7 @@ test("shows an invalid reset token error inline without redirecting or attemptin
   await page.goto("/reset-password?token=bad");
   await expect(page).toHaveTitle("비밀번호 재설정 | Threadia");
   await expect(page.getByRole("heading", { name: "새 비밀번호 설정" })).toBeVisible();
+  await expect.poll(() => refreshRequests).toBe(1);
   const refreshRequestsBeforeSubmit = refreshRequests;
 
   await page.getByRole("textbox", { name: "새 비밀번호", exact: true }).fill("password123");

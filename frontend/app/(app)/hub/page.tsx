@@ -208,9 +208,9 @@ function HubPageContent() {
             <hemisphereLight args={["#ffffff", "#c7c4bd", 1.1]} />
             <directionalLight position={[5, 8, 3]} intensity={1.4} />
             <directionalLight position={[-5, 6, -4]} intensity={0.6} />
+            <HubAvatars selectedMembership={selectedMembership} />
             <Suspense fallback={null}>
               <OfficeFloor />
-              <HubAvatars selectedMembership={selectedMembership} />
               <CityBlocks />
               <HubBuildings plots={NORTH_ZONE_PLOTS} seed={1} />
               <HubBuildings plots={EAST_ZONE_PLOTS} seed={2} />
