@@ -49,6 +49,12 @@ import { HubSceneErrorBoundary } from "@/components/hub/HubSceneErrorBoundary";
 import { isWebGLAvailable } from "@/components/hub/webglSupport";
 import { CreateCompanyForm } from "@/components/company/CreateCompanyForm";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  readHubCompanyId,
+  selectValidHubMembership,
+  subscribeHubCompanyChange,
+  writeHubCompanyId,
+} from "@/lib/hubCompanySession";
 
 // 건물 바깥 허공(Canvas scene background) — 은은한 뉴트럴 하늘톤. 아래 fog와 반드시
 // 같은 값을 써야 격자 도심(CityBlocks) 먼 쪽이 이 색으로 이음매 없이 스며든다.
@@ -122,9 +128,32 @@ function WebGLUnavailableNotice() {
   );
 }
 
-export default function HubPage() {
+function HubPageContent() {
   const { companyMemberships } = useAuth();
+  const [storedCompanyId, setStoredCompanyId] = useState<number | null>(null);
+  const [hubCompanyReady, setHubCompanyReady] = useState(false);
+  const selectedMembership = hubCompanyReady
+    ? selectValidHubMembership(companyMemberships, storedCompanyId)
+    : null;
   const [webglSupported, setWebglSupported] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    (() => {
+      setStoredCompanyId(readHubCompanyId());
+      setHubCompanyReady(true);
+    })();
+    return subscribeHubCompanyChange((companyId) => {
+      setStoredCompanyId(companyId);
+      setHubCompanyReady(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!hubCompanyReady || !selectedMembership) return;
+    if (storedCompanyId !== selectedMembership.companyId) {
+      writeHubCompanyId(selectedMembership.companyId);
+    }
+  }, [hubCompanyReady, selectedMembership, storedCompanyId]);
 
   // 마운트 시 1회 체크. invitations/page.tsx와 동일하게 인라인 IIFE로 감싼다
   // (직접 호출하면 react-hooks/set-state-in-effect에 걸린다).
@@ -138,7 +167,7 @@ export default function HubPage() {
     return (
       <div className="relative h-screen w-full">
         <NoCompanyNotice />
-        <HubOverlay />
+        <HubOverlay selectedMembership={selectedMembership} />
       </div>
     );
   }
@@ -147,7 +176,8 @@ export default function HubPage() {
     return (
       <div className="relative h-screen w-full">
         <WebGLUnavailableNotice />
-        <HubOverlay />
+        <HubAvatars selectedMembership={selectedMembership} renderScene={false} />
+        <HubOverlay selectedMembership={selectedMembership} />
       </div>
     );
   }
@@ -180,7 +210,7 @@ export default function HubPage() {
             <directionalLight position={[-5, 6, -4]} intensity={0.6} />
             <Suspense fallback={null}>
               <OfficeFloor />
-              <HubAvatars />
+              <HubAvatars selectedMembership={selectedMembership} />
               <CityBlocks />
               <HubBuildings plots={NORTH_ZONE_PLOTS} seed={1} />
               <HubBuildings plots={EAST_ZONE_PLOTS} seed={2} />
@@ -216,7 +246,15 @@ export default function HubPage() {
           </Canvas>
         </HubSceneErrorBoundary>
       )}
-      <HubOverlay />
+      <HubOverlay selectedMembership={selectedMembership} />
     </div>
+  );
+}
+
+export default function HubPage() {
+  return (
+    <Suspense fallback={null}>
+      <HubPageContent />
+    </Suspense>
   );
 }
