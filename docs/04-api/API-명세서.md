@@ -278,6 +278,14 @@ Response 200:
 }
 ```
 
+Failure cases:
+
+| 상황 | HTTP | `error.code` |
+|---|---:|---|
+| `Authorization` Bearer token이 없거나 형식이 올바르지 않음 | 401 | `UNAUTHORIZED` |
+| access token이 유효하지 않거나 만료됨, 또는 요청 사용자가 `ACTIVE`가 아님 | 401 | `UNAUTHORIZED` |
+| 대상 회사가 inactive이거나 요청자가 해당 회사의 ACTIVE 구성원이 아님 | 403 | `FORBIDDEN` |
+
 ---
 
 ## 6. 프로젝트/스프린트
