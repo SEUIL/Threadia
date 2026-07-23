@@ -18,11 +18,9 @@
  * 추후 별도로 다시 다듬을 예정이라 지금은 RailShell과 동일한 값을 그대로
  * 가져다 썼다.
  *
- * 회사 컨텍스트: useAuth().companyMemberships(WBS 3.2.1, GET /users/me/
- *    company-memberships)로 실제 값을 쓴다. 다중 회사 소속 시 어떤 회사로
- *    진입할지는 화면정의서에 명시가 없어, 우선 companyMemberships[0]
- *    (서버가 companyId asc로 정렬해서 줌)을 쓴다 — 회사 전환 UI는 범위 밖
- *    (설계문서 §8.3, §9 미결 1번).
+ * 회사 컨텍스트: hub/page.tsx가 현재 탭 sessionStorage의 hub companyId를
+ *    companyMemberships 안에서만 해석한 selectedMembership을 넘긴다. 유효하지 않은 값은 첫 소속 회사로만
+ *    fallback하므로, 이 오버레이는 prop으로 받은 회사만 기준으로 nav를 그린다.
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -34,6 +32,8 @@ import { useDmUnreadCount } from "@/hooks/useDmUnreadCount";
 import { useIsPlatformAdmin } from "@/hooks/useIsPlatformAdmin";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 import { ProfileEditModal } from "@/components/profile/ProfileEditModal";
+import { CompanySwitcher } from "@/components/company/CompanySwitcher";
+import type { CompanyMembership } from "@/types/company.types";
 
 function BellIcon() {
   return (
@@ -151,16 +151,14 @@ function Badge({ count }: { count: number }) {
 
 type NavItem = { href: string; label: string; icon: React.ReactNode; badge?: number };
 
-function HubRail() {
-  const { user, companyMemberships, logout } = useAuth();
+function HubRail({ selectedMembership }: { selectedMembership: CompanyMembership | null }) {
+  const { user, logout } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const nickname = user?.nickname ?? "";
   const pendingInvitationCount = usePendingInvitationCount();
-  // 다중 회사 소속 시 회사 전환 UI는 범위 밖 — 첫 번째 회사로 진입한다.
-  const primaryMembership = companyMemberships[0] ?? null;
-  const unreadNotificationCount = useUnreadNotificationCount(primaryMembership?.companyId);
+  const unreadNotificationCount = useUnreadNotificationCount(selectedMembership?.companyId);
   const dmUnreadCount = useDmUnreadCount();
   const isPlatformAdmin = useIsPlatformAdmin();
 
@@ -175,8 +173,8 @@ function HubRail() {
     { href: "/invitations", label: "받은 초대", icon: <MailIcon />, badge: pendingInvitationCount },
     { href: "/support", label: "문의하기", icon: <HelpIcon /> },
   ];
-  if (primaryMembership) {
-    const { companyId, role } = primaryMembership;
+  if (selectedMembership) {
+    const { companyId, role } = selectedMembership;
     items.unshift(
       { href: `/${companyId}/projects`, label: "프로젝트", icon: <FolderIcon /> },
       { href: `/${companyId}/dm`, label: "채팅·DM", icon: <ChatIcon />, badge: dmUnreadCount }
@@ -188,7 +186,7 @@ function HubRail() {
     }
   }
   // platform admin(회사 membership과 무관한 별도 authority)만 S15 콘솔 진입점이 보인다.
-  // company-agnostic이라 primaryMembership 유무와 무관하게 노출한다(RailShell과 동일 원칙).
+  // company-agnostic이라 selectedMembership 유무와 무관하게 노출한다(RailShell과 동일 원칙).
   if (isPlatformAdmin) {
     items.push({ href: "/platform", label: "플랫폼 관리자", icon: <ShieldIcon /> });
   }
@@ -255,9 +253,7 @@ function HubRail() {
       >
         <div className="px-4 pb-3">
           <p className="text-sm font-bold text-chrome-foreground">Threadia</p>
-          <p className="mt-0.5 text-xs text-chrome-muted">
-            {primaryMembership?.companyName ?? "소속 회사 없음"}
-          </p>
+          <CompanySwitcher currentMembership={selectedMembership} target="hub" />
         </div>
         {items.map((item) => (
           <Link
@@ -305,10 +301,10 @@ function HubRail() {
   );
 }
 
-export function HubOverlay() {
+export function HubOverlay({ selectedMembership }: { selectedMembership: CompanyMembership | null }) {
   return (
     <div className="pointer-events-none absolute inset-0 z-sticky flex">
-      <HubRail />
+      <HubRail selectedMembership={selectedMembership} />
     </div>
   );
 }

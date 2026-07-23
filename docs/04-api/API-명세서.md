@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-07-21
-> **버전**: v3.16 WBS 4.5.1.1 Message-to-Issue 및 WBS 4.11 private attachment lifecycle 계약 병합 반영
+> **최종 수정**: 2026-07-23
+> **버전**: v3.18 Thread/ThreadComment author와 Hub presence heartbeat 구현 계약 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -251,10 +251,40 @@ POST /api/v1/auth/refresh
 | POST | `/api/v1/companies/{companyId}/invitations` | C | Sprint 1.5 회사 초대 생성. 수락 전 membership 미생성 |
 | PATCH | `/api/v1/companies/{companyId}/company-members/{companyMemberId}` | C | 역할/부서/상태 변경. `status: "LEFT"`로의 전환은 거절하고 DELETE 사용을 강제 |
 | DELETE | `/api/v1/companies/{companyId}/company-members/{companyMemberId}` | C | 구성원 제거(soft — `status = LEFT`, `departmentId = null`). 해당 회사 내 active project membership도 함께 `REMOVED` 처리 |
+| POST | `/api/v1/companies/{companyId}/hub-presence/heartbeat` | A/P/C | 허브 접속 heartbeat 기록 및 현재 온라인 사용자 ID 목록 조회 |
 
 Sprint 1.5부터 구성원 추가는 등록 사용자 exact email lookup 후 `invitations`를 생성한다. 가입되지 않은 이메일 대상 invitation, 외부 email 발송, token link 초대는 Sprint 1.5 범위가 아니며 user-facing membership create API로 즉시 소속을 만들지 않는다.
 
 Sprint 1.5 invitation 검증은 local/dev/demo seed 회사 1개와 `COMPANY_ADMIN` 1명으로 진행했다. **(2026-07-18 갱신, `기획문서-변경이력.md` 2026-07-18 항목)** `POST /api/v1/companies`의 seed-only 제한은 해제됐다 — 로그인 사용자는 프론트에서 직접 회사를 생성할 수 있고 생성자는 자동 `COMPANY_ADMIN`이 된다. seed 기반 dev/demo 데이터 구성 자체는 계속 유효하다.
+
+### 5.1 Hub presence heartbeat
+
+```http
+POST /api/v1/companies/{companyId}/hub-presence/heartbeat
+```
+
+- request body는 없다. ACTIVE 사용자이며 해당 회사의 ACTIVE 구성원만 호출할 수 있다.
+- 호출자의 마지막 접속 시각을 server UTC 기준으로 갱신하고, 같은 회사에서 최근 20초 이내 heartbeat를 보낸 사용자 ID를 반환한다.
+- presence는 단일 Backend instance의 memory에 보관하는 휘발성 상태다. 서버 재시작 또는 다중 instance 사이에는 공유되지 않는다.
+
+Response 200:
+
+```json
+{
+  "data": {
+    "onlineUserIds": [1, 2]
+  },
+  "meta": { "requestId": "req_..." }
+}
+```
+
+Failure cases:
+
+| 상황 | HTTP | `error.code` |
+|---|---:|---|
+| `Authorization` Bearer token이 없거나 형식이 올바르지 않음 | 401 | `UNAUTHORIZED` |
+| access token이 유효하지 않거나 만료됨, 또는 요청 사용자가 `ACTIVE`가 아님 | 401 | `UNAUTHORIZED` |
+| 대상 회사가 inactive이거나 요청자가 해당 회사의 ACTIVE 구성원이 아님 | 403 | `FORBIDDEN` |
 
 ---
 
@@ -2206,7 +2236,7 @@ Request Body:
 
 대상별 대표 Thread를 명시적으로 get-or-create한다. 처음 생성하면 `201`, 기존 대표 Thread를 반환하면 `200`이다. Issue/Document/Message의 생성은 Thread를 자동 생성하지 않는다.
 
-Response `data.thread`은 `id`, `projectId`, `targetType`, `targetId`, `topic`, `createdByUserId`, `createdAt`, `updatedAt`을 반환한다.
+Response `data.thread`은 기존 `createdByUserId`를 유지하고, `id`, `projectId`, `targetType`, `targetId`, `topic`, `createdAt`, `updatedAt`과 표시용 `author`를 반환한다. `author`는 `{ "id", "nickname", "avatarUrl" }` 객체이며 email과 그 밖의 계정·프로필 필드는 포함하지 않는다.
 
 #### GET `/api/v1/projects/{projectId}/threads?targetType={ISSUE|DOCUMENT|MESSAGE}&targetId={targetId}`
 
@@ -2228,7 +2258,7 @@ Request Body:
 
 #### GET `/api/v1/threads/{threadId}/comments`
 
-생성 순서(`id ASC`)의 append-only 댓글을 `data.comments`로 반환한다.
+생성 순서(`id ASC`)의 append-only 댓글을 `data.comments`로 반환한다. 각 댓글은 기존 `authorUserId`를 유지하고, 표시용 `author`를 함께 반환한다. `author`는 `{ "id", "nickname", "avatarUrl" }` 객체이며 email과 그 밖의 계정·프로필 필드는 포함하지 않는다.
 
 #### POST `/api/v1/threads/{threadId}/comments`
 
@@ -2240,7 +2270,7 @@ Request Body:
 }
 ```
 
-Response 201의 `data.comment`은 `id`, `threadId`, `authorUserId`, `content`, `createdAt`을 반환한다.
+Response 201의 `data.comment`은 기존 `authorUserId`를 유지하고, `id`, `threadId`, `content`, `createdAt`과 표시용 `author`를 반환한다. `author`는 `{ "id", "nickname", "avatarUrl" }` 객체이며 email과 그 밖의 계정·프로필 필드는 포함하지 않는다.
 
 #### POST `/api/v1/projects/{projectId}/messages`
 

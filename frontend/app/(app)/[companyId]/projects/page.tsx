@@ -26,6 +26,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { HubLink } from "@/components/company/HubLink";
 import { useCurrentCompanyRole } from "@/hooks/useCurrentCompanyRole";
 import { projectService } from "@/services/project.service";
 import { invitationErrorMessage } from "@/lib/invitation";
@@ -108,9 +109,9 @@ export default function ProjectsPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
-      <Link href="/hub" className="text-sm text-muted transition-colors duration-fast hover:text-primary">
+      <HubLink companyId={companyId} className="text-sm text-muted transition-colors duration-fast hover:text-primary">
         ← 허브로
-      </Link>
+      </HubLink>
       <div className="mt-3 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">프로젝트</h1>

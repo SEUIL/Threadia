@@ -26,8 +26,8 @@
  * 없어서 이동 불가였다.
  */
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { HubLink } from "@/components/company/HubLink";
 import { invitationErrorMessage } from "@/lib/invitation";
 import { documentService } from "@/services/document.service";
 import { issueService } from "@/services/issue.service";
@@ -194,9 +194,9 @@ export default function NotificationsPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-10">
-      <Link href="/hub" className="text-sm text-muted transition-colors duration-fast hover:text-primary">
+      <HubLink companyId={params.companyId} className="text-sm text-muted transition-colors duration-fast hover:text-primary">
         ← 허브로
-      </Link>
+      </HubLink>
       <div className="mt-3 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">알림</h1>

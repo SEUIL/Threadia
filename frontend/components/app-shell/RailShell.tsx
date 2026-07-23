@@ -35,6 +35,8 @@ import { useDmUnreadCount } from "@/hooks/useDmUnreadCount";
 import { useIsPlatformAdmin } from "@/hooks/useIsPlatformAdmin";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 import { ProfileEditModal } from "@/components/profile/ProfileEditModal";
+import { CompanySwitcher } from "@/components/company/CompanySwitcher";
+import { HubLink } from "@/components/company/HubLink";
 import { PageTransition } from "./PageTransition";
 
 function BellIcon() {
@@ -165,7 +167,6 @@ function Rail({ companyId }: { companyId: string }) {
   const dmUnreadCount = useDmUnreadCount();
   const isPlatformAdmin = useIsPlatformAdmin();
   const membership = companyMemberships.find((m) => m.companyId === Number(companyId)) ?? null;
-  const companyName = membership?.companyName ?? "소속 회사 없음";
 
   const handleLogout = async () => {
     await logout();
@@ -196,13 +197,13 @@ function Rail({ companyId }: { companyId: string }) {
       onMouseLeave={() => setOpen(false)}
       className="relative z-sticky hidden h-full w-16 shrink-0 flex-col items-center gap-3 bg-chrome py-4 md:flex"
     >
-      <Link
-        href="/hub"
+      <HubLink
+        companyId={companyId}
         title="허브"
         className="grid h-9 w-9 place-items-center rounded-lg text-sm font-extrabold bg-gradient-to-br from-primary to-accent text-primary-foreground"
       >
         T
-      </Link>
+      </HubLink>
 
       <span className="h-px w-8 bg-chrome-foreground/10" aria-hidden="true" />
 
@@ -261,7 +262,7 @@ function Rail({ companyId }: { companyId: string }) {
       >
         <div className="px-4 pb-3">
           <p className="text-sm font-bold text-chrome-foreground">Threadia</p>
-          <p className="mt-0.5 text-xs text-chrome-muted">{companyName}</p>
+          <CompanySwitcher currentMembership={membership} target="projects" />
         </div>
         {items.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + "/");

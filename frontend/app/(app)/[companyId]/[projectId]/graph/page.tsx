@@ -22,11 +22,10 @@ import {
   CARD_ANCHOR_Y,
   CARD_WIDTH,
   GRAPH_CANVAS_HEIGHT,
-  GRAPH_CANVAS_WIDTH,
   KIND_CHIP_CLASS,
   KIND_LABEL,
   KIND_RING_CLASS,
-  layoutColumn,
+  layoutGraphColumns,
   type GraphNode,
   type NodeKind,
 } from "./graphLayout";
@@ -49,6 +48,9 @@ export default function ProjectGraphPage() {
   const [pageError, setPageError] = useState<string | null>(null);
   const [allNodes, setAllNodes] = useState<GraphNode[]>([]);
   const [allEdges, setAllEdges] = useState<{ from: string; to: string }[]>([]);
+  // 문서 개수에 따라 이슈 열의 시작 x와 캔버스 폭이 달라지므로(graphLayout.ts
+  // layoutGraphColumns 참고) load() 이후에 계산해서 채운다.
+  const [canvasWidth, setCanvasWidth] = useState(() => layoutGraphColumns(0, 0).canvasWidth);
 
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [activeKinds, setActiveKinds] = useState<NodeKind[]>(ALL_KINDS);
@@ -63,7 +65,7 @@ export default function ProjectGraphPage() {
   const dragStart = useRef<{ x: number; y: number } | null>(null);
   const canvasSurfaceRef = useRef<HTMLDivElement | null>(null);
 
-  // 노드별 위치 — layoutColumn() 계산값으로 초기화한 뒤, 드래그로 옮기면
+  // 노드별 위치 — layoutGraphColumns() 계산값으로 초기화한 뒤, 드래그로 옮기면
   // 여기 override된 값을 우선 사용한다.
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
   const draggingNode = useRef<{
@@ -82,8 +84,11 @@ export default function ProjectGraphPage() {
 
       const docNodesRaw = data.data.nodes.filter((n) => n.type === "DOCUMENT");
       const issueNodesRaw = data.data.nodes.filter((n) => n.type === "ISSUE");
-      const docPositions = layoutColumn("doc", docNodesRaw.length);
-      const issuePositions = layoutColumn("issue", issueNodesRaw.length);
+      const { docPositions, issuePositions, canvasWidth: nextCanvasWidth } = layoutGraphColumns(
+        docNodesRaw.length,
+        issueNodesRaw.length
+      );
+      setCanvasWidth(nextCanvasWidth);
 
       const docNodes: GraphNode[] = docNodesRaw.map((n, i) => ({
         id: `doc:${n.id}`,
@@ -195,13 +200,13 @@ export default function ProjectGraphPage() {
 
   const findNode = (id: string) => allNodes.find((n) => n.id === id);
 
-  // 드래그로 옮긴 적 없는 노드는 layoutColumn() 계산 위치를 그대로 쓴다.
+  // 드래그로 옮긴 적 없는 노드는 layoutGraphColumns() 계산 위치를 그대로 쓴다.
   const getPos = (node: GraphNode) => positions[node.id] ?? { x: node.x, y: node.y };
 
   const toggleKind = (kind: NodeKind) =>
     setActiveKinds((prev) => (prev.includes(kind) ? prev.filter((k) => k !== kind) : [...prev, kind]));
 
-  // 드래그로 옮긴 위치를 전부 지워서 layoutColumn() 계산 위치로 되돌리고,
+  // 드래그로 옮긴 위치를 전부 지워서 layoutGraphColumns() 계산 위치로 되돌리고,
   // pan/zoom도 기본값으로 리셋한다.
   const resetLayout = () => {
     setPositions({});
@@ -293,7 +298,7 @@ export default function ProjectGraphPage() {
             ref={canvasSurfaceRef}
             className="absolute"
             style={{
-              width: GRAPH_CANVAS_WIDTH,
+              width: canvasWidth,
               height: GRAPH_CANVAS_HEIGHT,
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
               transformOrigin: "0 0",
@@ -301,7 +306,7 @@ export default function ProjectGraphPage() {
           >
             <svg
               className="pointer-events-none absolute inset-0"
-              width={GRAPH_CANVAS_WIDTH}
+              width={canvasWidth}
               height={GRAPH_CANVAS_HEIGHT}
             >
               {edges.map((edge, i) => {

@@ -29,6 +29,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { HubLink } from "@/components/company/HubLink";
 import { TextField } from "@/components/ui/TextField";
 import { AttachmentControls, AttachmentImage } from "@/components/attachments/AttachmentControls";
 import { companyService } from "@/services/company.service";
@@ -178,9 +179,9 @@ export default function CompanySettingsPage() {
   if (pageState === "error" || !company || !stats) {
     return (
       <div className="mx-auto max-w-3xl px-6 py-10">
-        <Link href="/hub" className="text-sm text-muted transition-colors duration-fast hover:text-primary">
+        <HubLink companyId={companyId} className="text-sm text-muted transition-colors duration-fast hover:text-primary">
           ← 허브로
-        </Link>
+        </HubLink>
         <div className="mt-6 rounded-xl border border-destructive-subtle bg-surface p-6 text-sm text-destructive">
           {pageError}
         </div>
@@ -192,9 +193,9 @@ export default function CompanySettingsPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
-      <Link href="/hub" className="text-sm text-muted transition-colors duration-fast hover:text-primary">
+      <HubLink companyId={companyId} className="text-sm text-muted transition-colors duration-fast hover:text-primary">
         ← 허브로
-      </Link>
+      </HubLink>
       <h1 className="mt-3 text-xl font-bold text-foreground">회사 관리</h1>
       <p className="mt-1 text-sm text-muted">{company.name} · 회사 정보, 부서, 프로젝트 현황을 관리합니다.</p>
 

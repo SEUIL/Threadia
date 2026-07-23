@@ -18,6 +18,9 @@ export function useHubPresence(companyId: number | string | undefined) {
   const [onlineUserIds, setOnlineUserIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
+    (() => {
+      setOnlineUserIds(new Set());
+    })();
     if (companyId === undefined) return;
     let cancelled = false;
 

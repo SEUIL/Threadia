@@ -30,6 +30,7 @@ import { HubAvatar, type HubAvatarRole } from "@/components/hub/HubAvatar";
 import { HUB_SEAT_POSITIONS } from "@/components/hub/hubSeats";
 import { useHubPresence } from "@/hooks/useHubPresence";
 import { directMessageService } from "@/services/direct-message.service";
+import type { CompanyMembership } from "@/types/company.types";
 
 // hubSeats.ts의 좌표는 chairDesk.glb 배치용 원점(모델 pivot)이지 의자 방석의
 // 실제 중심이 아니다 — 실측(2026-07-21) 결과 방석 중심은 이 좌표에서
@@ -44,21 +45,29 @@ interface RosterEntry {
   seatIndex: number;
 }
 
-export function HubAvatars() {
-  const { user, companyMemberships } = useAuth();
-  const primaryMembership = companyMemberships[0] ?? null;
-  const onlineUserIds = useHubPresence(primaryMembership?.companyId);
+export function HubAvatars({
+  selectedMembership,
+  renderScene = true,
+}: {
+  selectedMembership: CompanyMembership | null;
+  renderScene?: boolean;
+}) {
+  const { user } = useAuth();
+  const onlineUserIds = useHubPresence(selectedMembership?.companyId);
 
   const [roster, setRoster] = useState<RosterEntry[]>([]);
 
   useEffect(() => {
-    if (!primaryMembership || !user) return;
+    (() => {
+      setRoster([]);
+    })();
+    if (!selectedMembership || !user) return;
     let cancelled = false;
 
     (async () => {
-      const self = { userId: user.id, nickname: user.nickname, role: primaryMembership.role as HubAvatarRole };
+      const self = { userId: user.id, nickname: user.nickname, role: selectedMembership.role as HubAvatarRole };
       try {
-        const { data } = await directMessageService.listCandidates(primaryMembership.companyId);
+        const { data } = await directMessageService.listCandidates(selectedMembership.companyId);
         if (cancelled) return;
         const others = data.data.candidates.map((c) => ({
           userId: c.id,
@@ -81,9 +90,9 @@ export function HubAvatars() {
     return () => {
       cancelled = true;
     };
-  }, [primaryMembership, user]);
+  }, [selectedMembership, user]);
 
-  if (!primaryMembership || !user) return null;
+  if (!selectedMembership || !user || !renderScene) return null;
 
   return (
     <>
