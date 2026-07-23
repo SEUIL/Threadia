@@ -102,6 +102,77 @@ test("제거 버튼은 2단계 확인 후에만 실제로 구성원을 제거한
   expect(removeCalls).toEqual([11]);
 });
 
+test("구성원 목록은 ACTIVE만 조회하고, 제거된(LEFT) 구성원은 다시 표시되지 않는다", async ({ page }) => {
+  // 이슈 #250 — 목록 조회에 status filter가 없으면 백엔드가 LEFT까지 함께
+  // 돌려줘서, 화면을 나갔다 다시 들어오면 제거된 구성원이 되살아나 보였다.
+  let lastStatusParam: string | null = "unset";
+  const allMembers = [
+    {
+      id: 11,
+      companyId: 1,
+      departmentId: null,
+      role: "MEMBER",
+      status: "ACTIVE",
+      joinedAt: "2026-07-01T00:00:00Z",
+      createdAt: "2026-07-01T00:00:00Z",
+      updatedAt: "2026-07-01T00:00:00Z",
+      user: { id: 2, email: "b@test.dev", nickname: "김민정", avatarUrl: null },
+    },
+    {
+      id: 12,
+      companyId: 1,
+      departmentId: null,
+      role: "MEMBER",
+      status: "LEFT",
+      joinedAt: "2026-07-01T00:00:00Z",
+      createdAt: "2026-07-01T00:00:00Z",
+      updatedAt: "2026-07-02T00:00:00Z",
+      user: { id: 3, email: "c@test.dev", nickname: "황스일", avatarUrl: null },
+    },
+  ];
+
+  await page.route("**/api/v1/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const requestOrigin = request.headers().origin ?? "http://127.0.0.1:3001";
+    const corsHeaders = {
+      "access-control-allow-origin": requestOrigin,
+      "access-control-allow-methods": "GET,POST,PATCH,DELETE,OPTIONS",
+      "access-control-allow-headers": "authorization,content-type",
+      "access-control-allow-credentials": "true",
+    };
+    const json = (body: unknown, status = 200) =>
+      route.fulfill({ status, contentType: "application/json", headers: corsHeaders, body: JSON.stringify(body) });
+
+    if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: corsHeaders });
+    if (request.method() === "POST" && url.pathname === "/api/v1/auth/refresh") {
+      return json(apiResponse({ accessToken: "test-token", user: { id: 1, email: "a@test.dev", nickname: "나", avatarUrl: null } }));
+    }
+    if (url.pathname === "/api/v1/users/me/company-memberships") {
+      return json(apiResponse({ companyMemberships: [{ companyId: 1, companyName: "Threadia", role: "COMPANY_ADMIN" }] }));
+    }
+    if (request.method() === "GET" && url.pathname === "/api/v1/companies/1/company-members") {
+      lastStatusParam = url.searchParams.get("status");
+      // 실제 백엔드처럼 status filter가 없으면 전체(ACTIVE+LEFT)를, 있으면 그 status만 돌려준다.
+      const filtered = lastStatusParam ? allMembers.filter((m) => m.status === lastStatusParam) : allMembers;
+      return json(apiResponse({ companyMembers: filtered }));
+    }
+    if (request.method() === "GET" && url.pathname === "/api/v1/companies/1/departments") {
+      return json(apiResponse({ departments: [] }));
+    }
+    if (request.method() === "GET" && url.pathname === "/api/v1/companies/1/invitations") {
+      return json(apiResponse({ invitations: [] }));
+    }
+    return route.abort();
+  });
+
+  await page.goto("/1/members");
+
+  await expect(page.getByText("김민정")).toBeVisible();
+  await expect(page.getByText("황스일")).toHaveCount(0);
+  expect(lastStatusParam).toBe("ACTIVE");
+});
+
 test("제거 실패하면 에러가 보이고 목록에 그대로 남는다", async ({ page }) => {
   await mockApi(page);
   await page.route("**/api/v1/companies/1/company-members/11", async (route) => {
