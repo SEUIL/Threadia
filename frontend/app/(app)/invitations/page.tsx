@@ -27,6 +27,7 @@ import {
 } from "@/lib/invitation";
 import { InvitationEnvelope } from "@/components/invitations/InvitationEnvelope";
 import { InvitationLetter } from "@/components/invitations/InvitationLetter";
+import { HubLink } from "@/components/company/HubLink";
 import { useAuth } from "@/contexts/AuthContext";
 import type { InvitationResponse } from "@/types/invitation.types";
 
@@ -42,6 +43,7 @@ export default function InvitationsPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   // accept 성공 후 안내 배너. AuthContext.companies가 즉시 안 바뀌므로(주석 참고) 필요하다.
   const [acceptNotice, setAcceptNotice] = useState<string | null>(null);
+  const [acceptedCompanyId, setAcceptedCompanyId] = useState<number | null>(null);
   // 이번 방문에서 사용자가 봉투를 연 초대 id. 백엔드에 열람 여부를 저장하지 않으므로
   // 페이지를 다시 들어오면 초기화된다 — 아직 PENDING인 초대는 다시 봉투로 떨어진다.
   const [openedIds, setOpenedIds] = useState<Set<number>>(new Set());
@@ -79,6 +81,7 @@ export default function InvitationsPage() {
         prev.map((i) => (i.id === invitation.id ? { ...i, status: data.data.status } : i))
       );
       if (action === "accept") {
+        setAcceptedCompanyId(invitation.scopeType === "COMPANY" ? invitation.companyId : null);
         // 회사 초대만 소속이 새로 생기므로 세션 companyMemberships를 다시 채운다.
         // 프로젝트 초대 수락자는 이미 그 회사 소속이라 재조회가 필요 없다.
         if (invitation.scopeType === "COMPANY") {
@@ -134,9 +137,14 @@ export default function InvitationsPage() {
       {actionError && <p className="mt-4 text-sm text-destructive">{actionError}</p>}
 
       {acceptNotice && (
-        <p className="mt-4 rounded-lg border border-primary/40 bg-primary-subtle px-4 py-3 text-sm text-foreground">
-          {acceptNotice}
-        </p>
+        <div className="mt-4 rounded-lg border border-primary/40 bg-primary-subtle px-4 py-3 text-sm text-foreground">
+          <p>{acceptNotice}</p>
+          {acceptedCompanyId !== null && (
+            <HubLink companyId={acceptedCompanyId} className="mt-2 inline-block font-semibold text-primary hover:underline">
+              새 회사 허브로 이동
+            </HubLink>
+          )}
+        </div>
       )}
 
       {loadState === "loading" && (
