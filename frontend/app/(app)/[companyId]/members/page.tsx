@@ -35,6 +35,11 @@
  * PROJECT_ADMIN 제거를 409로 막아준다(API-명세서 §3.1.4) — 프론트는 그 에러
  * 메시지만 그대로 보여주면 된다. 실수 클릭 방지로 인라인 2단계 확인을 둔다(이
  * 코드베이스에 window.confirm 사용례가 없어 pendingInvitee와 같은 패턴을 따른다).
+ *
+ * ⚠️ 목록 조회는 반드시 status: "ACTIVE"로 필터링한다(이슈 #250). 필터 없이
+ * 부르면 백엔드가 ACTIVE/SUSPENDED/LEFT를 전부 반환해서, 제거(soft remove)한
+ * 구성원이 화면을 나갔다 다시 들어오면 목록에 다시 나타나 회사 관리 메인의
+ * ACTIVE count와 이 화면의 목록 수가 어긋나 보였다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -96,7 +101,7 @@ export default function MembersPage() {
     setMembersError(null);
     try {
       const [membersRes, departmentsRes] = await Promise.all([
-        companyMemberService.list(companyId),
+        companyMemberService.list(companyId, { status: "ACTIVE" }),
         departmentService.list(companyId),
       ]);
       setMembers(membersRes.data.data.companyMembers);
