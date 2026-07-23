@@ -6,8 +6,12 @@ import java.time.format.DateTimeFormatter;
 
 import com.threadia.backend.thread.domain.ThreadComment;
 
-public record ThreadCommentResponse(Long id, Long threadId, Long authorUserId, String content, String createdAt) {
+public record ThreadCommentResponse(Long id, Long threadId, Long authorUserId, String content, String createdAt, ThreadAuthorResponse author) {
+	public ThreadCommentResponse(Long id, Long threadId, Long authorUserId, String content, String createdAt) {
+		this(id, threadId, authorUserId, content, createdAt, null);
+	}
+
 	public static ThreadCommentResponse from(ThreadComment comment) {
-		return new ThreadCommentResponse(comment.getId(), comment.getThread().getId(), comment.getAuthor().getId(), comment.getContent(), comment.getCreatedAt().atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+		return new ThreadCommentResponse(comment.getId(), comment.getThread().getId(), comment.getAuthor().getId(), comment.getContent(), comment.getCreatedAt().atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME), ThreadAuthorResponse.from(comment.getAuthor()));
 	}
 }

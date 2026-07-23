@@ -48,7 +48,10 @@ import com.threadia.backend.thread.domain.Thread;
 import com.threadia.backend.thread.domain.ThreadComment;
 import com.threadia.backend.thread.domain.ThreadTargetType;
 import com.threadia.backend.thread.dto.ThreadCommentCreateRequest;
+import com.threadia.backend.thread.dto.ThreadCommentResponse;
+import com.threadia.backend.thread.dto.ThreadAuthorResponse;
 import com.threadia.backend.thread.dto.ThreadGetOrCreateRequest;
+import com.threadia.backend.thread.dto.ThreadResponse;
 import com.threadia.backend.thread.dto.ThreadTopicUpdateRequest;
 import com.threadia.backend.thread.exception.ThreadValidationException;
 import com.threadia.backend.thread.repository.ThreadCommentRepository;
@@ -101,10 +104,24 @@ class ThreadServiceTest {
 		when(comments.findByThreadIdOrderByIdAsc(10L)).thenReturn(List.of()); assertThat(service.listComments("token", 10L).comments()).isEmpty();
 	}
 
+	@Test
+	void mapsThreadAndCommentAuthorDisplayData() {
+		Fixture fixture = fixture(); Thread thread = thread(fixture, 10L, fixture.user()); ThreadComment comment = new ThreadComment(thread, fixture.user(), "댓글", LocalDateTime.now(CLOCK)); setId(comment, 3L);
+		ThreadResponse threadResponse = ThreadResponse.from(thread); ThreadCommentResponse commentResponse = ThreadCommentResponse.from(comment);
+		assertThat(threadResponse.createdByUserId()).isEqualTo(1L); assertThat(threadResponse.author().id()).isEqualTo(1L); assertThat(threadResponse.author().nickname()).isEqualTo("member"); assertThat(threadResponse.author().avatarUrl()).isEqualTo("https://example.com/member.png");
+		assertThat(commentResponse.authorUserId()).isEqualTo(1L); assertThat(commentResponse.author().id()).isEqualTo(1L); assertThat(commentResponse.author().nickname()).isEqualTo("member"); assertThat(commentResponse.author().avatarUrl()).isEqualTo("https://example.com/member.png");
+	}
+
+	@Test
+	void allowsMissingAuthorAndNullableAuthorDisplayFields() {
+		Fixture fixture = fixture(); fixture.user().setNickname(null); fixture.user().setAvatarUrl(null);
+		assertThat(ThreadAuthorResponse.from(null)).isNull(); assertThat(ThreadAuthorResponse.from(fixture.user()).nickname()).isNull(); assertThat(ThreadAuthorResponse.from(fixture.user()).avatarUrl()).isNull();
+	}
+
 	private void stubCompanyAdmin(Fixture fixture) { when(auth.fromAccessToken("token")).thenReturn(fixture.context()); when(auth.requireActiveUser(fixture.context())).thenReturn(fixture.user()); when(projects.findById(20L)).thenReturn(Optional.of(fixture.project())); when(memberships.hasActiveRole(10L, fixture.context(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true); }
 	private void stubCompanyAdminWithoutProject(Fixture fixture) { when(auth.fromAccessToken("token")).thenReturn(fixture.context()); when(auth.requireActiveUser(fixture.context())).thenReturn(fixture.user()); when(memberships.hasActiveRole(10L, fixture.context(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(true); }
 	private void stubActiveMember(Fixture fixture) { when(auth.fromAccessToken("token")).thenReturn(fixture.context()); when(auth.requireActiveUser(fixture.context())).thenReturn(fixture.user()); when(memberships.hasActiveRole(10L, fixture.context(), CompanyMemberRole.COMPANY_ADMIN)).thenReturn(false); when(members.findByProject_IdAndUser_Id(20L, 1L)).thenReturn(Optional.of(new ProjectMember(fixture.project(), fixture.user(), ProjectMemberRole.MEMBER, ProjectMemberStatus.ACTIVE, LocalDateTime.now(CLOCK), LocalDateTime.now(CLOCK), LocalDateTime.now(CLOCK)))); }
-	private static Fixture fixture() { LocalDateTime now = LocalDateTime.now(CLOCK); User user = new User("member@example.com", "hash", "member", null, UserStatus.ACTIVE, now, now); setId(user, 1L); Company company = new Company("Threadia", "member", "workspace", "IT", null, CompanyStatus.ACTIVE, user, now, now); setId(company, 10L); Project project = new Project(company, "MVP", "THD", null, ProjectStatus.ACTIVE, LocalDate.now(), LocalDate.now(), user, null, null, null, now, now); setId(project, 20L); return new Fixture(new AuthContext(1L, "member@example.com"), user, project); }
+	private static Fixture fixture() { LocalDateTime now = LocalDateTime.now(CLOCK); User user = new User("member@example.com", "hash", "member", "https://example.com/member.png", UserStatus.ACTIVE, now, now); setId(user, 1L); Company company = new Company("Threadia", "member", "workspace", "IT", null, CompanyStatus.ACTIVE, user, now, now); setId(company, 10L); Project project = new Project(company, "MVP", "THD", null, ProjectStatus.ACTIVE, LocalDate.now(), LocalDate.now(), user, null, null, null, now, now); setId(project, 20L); return new Fixture(new AuthContext(1L, "member@example.com"), user, project); }
 	private static Issue issue(Fixture fixture, Long id) { Issue issue = new Issue(fixture.project(), "THD-1", fixture.user(), "이슈", IssueStatus.BACKLOG, LocalDateTime.now(CLOCK), LocalDateTime.now(CLOCK)); setId(issue, id); return issue; }
 	private static Project otherProject(Fixture fixture) { Project project = new Project(fixture.project().getCompany(), "Other", "OTH", null, ProjectStatus.ACTIVE, LocalDate.now(), LocalDate.now(), fixture.user(), null, null, null, LocalDateTime.now(CLOCK), LocalDateTime.now(CLOCK)); setId(project, 21L); return project; }
 	private static Thread thread(Fixture fixture, Long id, User author) { Thread thread = new Thread(fixture.project(), ThreadTargetType.ISSUE, 100L, "논의", author, LocalDateTime.now(CLOCK)); setId(thread, id); return thread; }

@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-15
-> **최종 수정**: 2026-07-21
-> **버전**: v3.16 WBS 4.5.1.1 Message-to-Issue 및 WBS 4.11 private attachment lifecycle 계약 병합 반영
+> **최종 수정**: 2026-07-23
+> **버전**: v3.17 Thread/ThreadComment 작성자 표시용 author 응답 객체 추가 반영
 > **상태**: 확정
 > **태그**: api, auth, invitation, contract
 > **수정 근거**: Threadia-기획문서-검수리포트.md
@@ -2206,7 +2206,7 @@ Request Body:
 
 대상별 대표 Thread를 명시적으로 get-or-create한다. 처음 생성하면 `201`, 기존 대표 Thread를 반환하면 `200`이다. Issue/Document/Message의 생성은 Thread를 자동 생성하지 않는다.
 
-Response `data.thread`은 `id`, `projectId`, `targetType`, `targetId`, `topic`, `createdByUserId`, `createdAt`, `updatedAt`을 반환한다.
+Response `data.thread`은 기존 `createdByUserId`를 유지하고, `id`, `projectId`, `targetType`, `targetId`, `topic`, `createdAt`, `updatedAt`과 표시용 `author`를 반환한다. `author`는 `{ "id", "nickname", "avatarUrl" }` 객체이며 email과 그 밖의 계정·프로필 필드는 포함하지 않는다.
 
 #### GET `/api/v1/projects/{projectId}/threads?targetType={ISSUE|DOCUMENT|MESSAGE}&targetId={targetId}`
 
@@ -2228,7 +2228,7 @@ Request Body:
 
 #### GET `/api/v1/threads/{threadId}/comments`
 
-생성 순서(`id ASC`)의 append-only 댓글을 `data.comments`로 반환한다.
+생성 순서(`id ASC`)의 append-only 댓글을 `data.comments`로 반환한다. 각 댓글은 기존 `authorUserId`를 유지하고, 표시용 `author`를 함께 반환한다. `author`는 `{ "id", "nickname", "avatarUrl" }` 객체이며 email과 그 밖의 계정·프로필 필드는 포함하지 않는다.
 
 #### POST `/api/v1/threads/{threadId}/comments`
 
@@ -2240,7 +2240,7 @@ Request Body:
 }
 ```
 
-Response 201의 `data.comment`은 `id`, `threadId`, `authorUserId`, `content`, `createdAt`을 반환한다.
+Response 201의 `data.comment`은 기존 `authorUserId`를 유지하고, `id`, `threadId`, `content`, `createdAt`과 표시용 `author`를 반환한다. `author`는 `{ "id", "nickname", "avatarUrl" }` 객체이며 email과 그 밖의 계정·프로필 필드는 포함하지 않는다.
 
 #### POST `/api/v1/projects/{projectId}/messages`
 

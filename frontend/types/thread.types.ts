@@ -1,5 +1,11 @@
 export type ThreadTargetType = "ISSUE" | "DOCUMENT" | "MESSAGE";
 
+export interface ThreadAuthorResponse {
+  id: number;
+  nickname: string | null;
+  avatarUrl: string | null;
+}
+
 /** GET/POST/PATCH /threads 공통 응답 shape (API-명세서 §13.7, WBS 4.7.1.1). */
 export interface ThreadResponse {
   id: number;
@@ -8,6 +14,7 @@ export interface ThreadResponse {
   targetId: number;
   topic: string | null;
   createdByUserId: number;
+  author?: ThreadAuthorResponse | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -21,6 +28,7 @@ export interface ThreadCommentResponse {
   id: number;
   threadId: number;
   authorUserId: number;
+  author?: ThreadAuthorResponse | null;
   content: string;
   createdAt: string;
 }
