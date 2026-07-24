@@ -90,8 +90,13 @@ export default function SupportCasesPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
-      <h1 className="text-xl font-bold text-foreground">문의하기</h1>
-      <p className="mt-1 text-sm text-muted">궁금한 점이나 문제를 남기면 운영팀이 확인 후 답변합니다.</p>
+      <Link href="/hub" className="text-sm text-muted transition-colors duration-fast hover:text-primary">
+        ← 허브로
+      </Link>
+      <div className="mt-3">
+        <h1 className="text-xl font-bold text-foreground">문의하기</h1>
+        <p className="mt-1 text-sm text-muted">궁금한 점이나 문제를 남기면 운영팀이 확인 후 답변합니다.</p>
+      </div>
 
       <section className="mt-6 rounded-xl border border-border bg-surface p-6">
         <h2 className="text-sm font-semibold text-foreground">새 문의</h2>
