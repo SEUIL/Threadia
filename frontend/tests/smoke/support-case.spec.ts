@@ -97,6 +97,7 @@ test("문의를 등록하면 목록에 즉시 반영되고 상세로 들어가 �
   await mockApi(page);
   await page.goto("/support");
 
+  await expect(page.getByRole("link", { name: "← 허브로" })).toHaveAttribute("href", "/hub");
   await expect(page.getByText("등록한 문의가 없습니다.")).toBeVisible();
 
   await page.getByLabel("문의 제목").fill("배지 관련 문의");
@@ -109,6 +110,7 @@ test("문의를 등록하면 목록에 즉시 반영되고 상세로 들어가 �
   await expect(page.getByText("접수")).toBeVisible();
 
   await page.getByText("배지 관련 문의").click();
+  await expect(page.getByRole("link", { name: "← 허브로" })).toHaveAttribute("href", "/hub");
   await expect(page.getByRole("heading", { name: "배지 관련 문의" })).toBeVisible();
   await expect(page.getByText("배지가 안 사라져요.")).toBeVisible();
   await expect(page.getByText("아직 답변이 등록되지 않았습니다.")).toBeVisible();
