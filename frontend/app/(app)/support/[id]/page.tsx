@@ -55,9 +55,14 @@ export default function SupportCaseDetailPage() {
   if (state === "error" || !supportCase) {
     return (
       <div className="mx-auto max-w-3xl px-6 py-10">
-        <Link href="/support" className="text-sm text-muted transition-colors duration-fast hover:text-primary">
-          ← 목록으로
-        </Link>
+        <div className="flex gap-4">
+          <Link href="/hub" className="text-sm text-muted transition-colors duration-fast hover:text-primary">
+            ← 허브로
+          </Link>
+          <Link href="/support" className="text-sm text-muted transition-colors duration-fast hover:text-primary">
+            ← 목록으로
+          </Link>
+        </div>
         <p className="mt-3 text-sm text-destructive">{loadError}</p>
       </div>
     );
@@ -65,9 +70,14 @@ export default function SupportCaseDetailPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
-      <Link href="/support" className="text-sm text-muted transition-colors duration-fast hover:text-primary">
-        ← 목록으로
-      </Link>
+      <div className="flex gap-4">
+        <Link href="/hub" className="text-sm text-muted transition-colors duration-fast hover:text-primary">
+          ← 허브로
+        </Link>
+        <Link href="/support" className="text-sm text-muted transition-colors duration-fast hover:text-primary">
+          ← 목록으로
+        </Link>
+      </div>
 
       <div className="mt-3 flex items-start justify-between gap-4">
         <div>
