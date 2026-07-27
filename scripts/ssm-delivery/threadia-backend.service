@@ -9,6 +9,7 @@ User=threadia
 Group=threadia
 WorkingDirectory=/opt/threadia/current
 EnvironmentFile=/etc/threadia/runtime.env
+Environment=MANAGEMENT_HEALTH_MAIL_ENABLED=false
 ExecStart=/opt/threadia/current/runtime/bin/java -jar /opt/threadia/current/app.jar
 SuccessExitStatus=143
 Restart=on-failure

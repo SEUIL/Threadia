@@ -1,0 +1,306 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Reviewed delivery add-on for the restricted Threadia foundation: GitHub OIDC,
+  private versioned artifacts, CodeDeploy, and CodeDeploy agent host preparation.
+
+Parameters:
+  GitHubRepository:
+    Type: String
+    Description: Approved GitHub repository in OWNER/REPOSITORY form; no wildcard is allowed.
+    AllowedPattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+    ConstraintDescription: Use one exact GitHub repository in OWNER/REPOSITORY form.
+  ExistingEc2InstanceId:
+    Type: String
+    Description: Instance ID of the approved restricted foundation delivery host.
+    AllowedPattern: '^i-[a-z0-9]+$'
+    ConstraintDescription: Use one EC2 instance ID beginning with i-.
+  ExistingEc2RoleName:
+    Type: String
+    Description: Existing restricted foundation EC2 runtime role name.
+    AllowedPattern: '^[A-Za-z0-9+=,.@_-]{1,64}$'
+    ConstraintDescription: Use one existing IAM role name without a path.
+  ArtifactNoncurrentVersionRetentionDays:
+    Type: Number
+    Description: Approved retention period for noncurrent artifact versions.
+    Default: 30
+    MinValue: 7
+    MaxValue: 365
+
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      ClientIdList:
+        - sts.amazonaws.com
+      Url: https://token.actions.githubusercontent.com
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireNoncurrentArtifactVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays:
+                Ref: ArtifactNoncurrentVersionRetentionDays
+          - Id: AbortIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  GitHubDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: GitHub Environment OIDC role limited to artifact publishing and CodeDeploy creation.
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated:
+                Ref: GitHubOidcProvider
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub:
+                  Fn::Sub: repo:${GitHubRepository}:environment:restricted-nonprod
+      MaxSessionDuration: 3600
+      Policies:
+        - PolicyName: PublishImmutableArtifactsAndCreateDeployment
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource:
+                  Fn::GetAtt:
+                    - ArtifactBucket
+                    - Arn
+                Condition:
+                  StringLike:
+                    s3:prefix: releases/*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource:
+                  Fn::Sub: ${ArtifactBucket.Arn}/releases/*
+              - Effect: Allow
+                Action:
+                  - codedeploy:CreateDeployment
+                Resource:
+                  Fn::Sub: arn:${AWS::Partition}:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentgroup:${CodeDeployApplication}/${CodeDeployDeploymentGroup}
+              - Effect: Allow
+                Action:
+                  - codedeploy:GetDeployment
+                Resource:
+                  Fn::Sub: arn:${AWS::Partition}:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentgroup:${CodeDeployApplication}/${CodeDeployDeploymentGroup}
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  CodeDeployServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: CodeDeploy-only service role for the Threadia restricted non-production deployment group.
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codedeploy.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  ExistingEc2ArtifactReadPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName:
+        Fn::Sub: ${AWS::StackName}-artifact-read
+      Roles:
+        - Ref: ExistingEc2RoleName
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:GetObjectVersion
+            Resource:
+              Fn::Sub: ${ArtifactBucket.Arn}/releases/*
+
+  ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: ArtifactBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - Fn::GetAtt:
+                  - ArtifactBucket
+                  - Arn
+              - Fn::Sub: ${ArtifactBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+          - Sid: AllowGitHubDeployRoleWriteReleasePrefix
+            Effect: Allow
+            Principal:
+              AWS:
+                Fn::GetAtt:
+                  - GitHubDeployRole
+                  - Arn
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+            Resource:
+              Fn::Sub: ${ArtifactBucket.Arn}/releases/*
+          - Sid: AllowExistingEc2RoleReadReleasePrefix
+            Effect: Allow
+            Principal:
+              AWS:
+                Fn::Sub: arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ExistingEc2RoleName}
+            Action:
+              - s3:GetObject
+              - s3:GetObjectVersion
+            Resource:
+              Fn::Sub: ${ArtifactBucket.Arn}/releases/*
+
+  CodeDeployAgentAssociation:
+    Type: AWS::SSM::Association
+    Properties:
+      Name: AWS-ConfigureAWSPackage
+      Parameters:
+        action:
+          - Install
+        installationType:
+          - Uninstall and reinstall
+        name:
+          - AWSCodeDeployAgent
+      Targets:
+        - Key: InstanceIds
+          Values:
+            - Ref: ExistingEc2InstanceId
+
+  CodeDeployApplication:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ComputePlatform: Server
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  CodeDeployDeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    DependsOn:
+      - CodeDeployAgentAssociation
+    Properties:
+      ApplicationName:
+        Ref: CodeDeployApplication
+      DeploymentConfigName: CodeDeployDefault.OneAtATime
+      DeploymentStyle:
+        DeploymentOption: WITHOUT_TRAFFIC_CONTROL
+        DeploymentType: IN_PLACE
+      AutoRollbackConfiguration:
+        Enabled: true
+        Events:
+          - DEPLOYMENT_FAILURE
+          - DEPLOYMENT_STOP_ON_REQUEST
+      Ec2TagSet:
+        Ec2TagSetList:
+          - Ec2TagGroup:
+              - Key: Project
+                Type: KEY_AND_VALUE
+                Value: Threadia
+              - Key: Environment
+                Type: KEY_AND_VALUE
+                Value: restricted-nonprod
+              - Key: DeliveryHost
+                Type: KEY_AND_VALUE
+                Value: 'true'
+      ServiceRoleArn:
+        Fn::GetAtt:
+          - CodeDeployServiceRole
+          - Arn
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: ManagedBy
+          Value: CloudFormation
+
+Outputs:
+  ArtifactBucketName:
+    Description: Private versioned artifact bucket name; record outside the repository if needed for reviewed workflow configuration.
+    Value:
+      Ref: ArtifactBucket
+  GitHubDeployRoleArn:
+    Description: GitHub OIDC deploy role ARN; configure only in the approved restricted-nonprod Environment.
+    Value:
+      Fn::GetAtt:
+        - GitHubDeployRole
+        - Arn
+  CodeDeployApplicationName:
+    Description: CodeDeploy application name for immutable S3 revisions.
+    Value:
+      Ref: CodeDeployApplication
+  CodeDeployDeploymentGroupName:
+    Description: CodeDeploy deployment group selected by the dedicated delivery-host tag.
+    Value:
+      Ref: CodeDeployDeploymentGroup

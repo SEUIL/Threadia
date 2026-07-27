@@ -5,6 +5,9 @@ readonly RELEASE_ROOT=/opt/threadia/releases
 readonly ACTIVE_LINK=/opt/threadia/current
 readonly RUNTIME_ENV=/etc/threadia/runtime.env
 readonly SERVICE_NAME=threadia-backend.service
+readonly READINESS_TIMEOUT_SECONDS=120
+readonly READINESS_INTERVAL_SECONDS=2
+readonly HOST_LOCK=/run/threadia-release-maintenance.lock
 
 fail() {
   printf '%s\n' "release failed: $*" >&2
@@ -13,6 +16,8 @@ fail() {
 
 [[ "$(id -u)" -eq 0 ]] || fail "must run as root"
 [[ "$#" -eq 5 ]] || fail "expected bucket, artifact key, version ID, SHA-256, and release ID"
+[[ -n "${AWS_REGION:-}" ]] || fail "AWS_REGION is required"
+[[ "$AWS_REGION" =~ ^[a-z]{2}(-[a-z0-9]+)+-[0-9]+$ ]] || fail "invalid AWS_REGION"
 
 bucket="$1"
 artifact_key="$2"
@@ -26,10 +31,13 @@ release_id="$5"
 [[ "$expected_sha" =~ ^[a-f0-9]{64}$ ]] || fail "invalid SHA-256"
 [[ "$release_id" =~ ^[0-9a-f]{40}-[0-9]+-[0-9]+$ ]] || fail "invalid release ID"
 
-for command in aws python3 sha256sum tar systemctl curl install uname; do
+for command in aws python3 sha256sum tar systemctl curl install uname flock; do
   command -v "$command" >/dev/null 2>&1 || fail "AMI prerequisite missing: $command"
 done
 [[ "$(uname -m)" == "x86_64" ]] || fail "bundled runtime supports Linux x86_64 only"
+
+exec 9>"$HOST_LOCK"
+flock -n 9 || fail "another release or helper maintenance operation is active"
 
 umask 027
 stage="$(mktemp -d /opt/threadia/.release-stage.XXXXXX)"
@@ -37,7 +45,7 @@ cleanup() { rm -rf "$stage"; }
 trap cleanup EXIT
 
 archive="$stage/release.tar.gz"
-aws s3api get-object --bucket "$bucket" --key "$artifact_key" --version-id "$version_id" "$archive" >/dev/null
+aws s3api get-object --region "$AWS_REGION" --bucket "$bucket" --key "$artifact_key" --version-id "$version_id" "$archive" >/dev/null
 [[ "$(sha256sum "$archive" | cut -d ' ' -f1)" == "$expected_sha" ]] || fail "artifact archive checksum mismatch"
 tar -xzf "$archive" -C "$stage"
 [[ -f "$stage/app.jar" && -f "$stage/manifest.json" && -f "$stage/app.jar.sha256" && -x "$stage/runtime/bin/java" ]] || fail "release layout is incomplete"
@@ -59,7 +67,7 @@ jar_sha="$(sha256sum "$stage/app.jar" | cut -d ' ' -f1)"
 
 new_env="$stage/runtime.env"
 parameters_json="$stage/runtime-parameters.json"
-aws ssm get-parameters --with-decryption --names \
+aws ssm get-parameters --region "$AWS_REGION" --with-decryption --names \
   /threadia/restricted-nonprod/runtime/THREADIA_DB_URL \
   /threadia/restricted-nonprod/runtime/THREADIA_DB_USERNAME \
   /threadia/restricted-nonprod/runtime/THREADIA_DB_PASSWORD \
@@ -102,32 +110,69 @@ install -o root -g root -m 0644 "$stage/app.jar.sha256" "$release_dir/app.jar.sh
 cp -a "$stage/runtime" "$release_dir/runtime"
 chown -R root:threadia "$release_dir/runtime"
 install -d -o root -g root -m 0750 /etc/threadia
-install -o root -g threadia -m 0640 "$new_env" "$RUNTIME_ENV"
 
 previous_target=""
 if [[ -L "$ACTIVE_LINK" ]]; then
   previous_target="$(readlink -f "$ACTIVE_LINK")"
 fi
-ln -sfn "$release_dir" "$ACTIVE_LINK.new"
-mv -Tf "$ACTIVE_LINK.new" "$ACTIVE_LINK"
+
+previous_env="$stage/runtime.env.previous"
+had_previous_env=false
+if [[ -f "$RUNTIME_ENV" ]]; then
+  cp -a "$RUNTIME_ENV" "$previous_env"
+  had_previous_env=true
+fi
 
 rollback() {
-  if [[ -n "$previous_target" && -d "$previous_target" ]]; then
-    ln -sfn "$previous_target" "$ACTIVE_LINK.rollback"
-    mv -Tf "$ACTIVE_LINK.rollback" "$ACTIVE_LINK"
-    systemctl restart "$SERVICE_NAME" || true
+  local rollback_failed=0
+
+  rm -f "$RUNTIME_ENV.new" "$ACTIVE_LINK.new" "$ACTIVE_LINK.rollback" || rollback_failed=1
+  if [[ "$had_previous_env" == true ]]; then
+    install -o root -g threadia -m 0640 "$previous_env" "$RUNTIME_ENV" || rollback_failed=1
   else
-    systemctl stop "$SERVICE_NAME" || true
+    rm -f "$RUNTIME_ENV" || rollback_failed=1
   fi
+
+  if [[ -n "$previous_target" && -d "$previous_target" ]]; then
+    ln -sfn "$previous_target" "$ACTIVE_LINK.rollback" || rollback_failed=1
+    mv -Tf "$ACTIVE_LINK.rollback" "$ACTIVE_LINK" || rollback_failed=1
+    systemctl restart "$SERVICE_NAME" || rollback_failed=1
+  else
+    rm -f "$ACTIVE_LINK" || rollback_failed=1
+    systemctl stop "$SERVICE_NAME" || rollback_failed=1
+  fi
+
+  return "$rollback_failed"
 }
 
-if ! systemctl restart "$SERVICE_NAME"; then
-  rollback
-  fail "systemd restart failed"
-fi
-if ! curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8080/actuator/health >/dev/null; then
-  rollback
-  fail "local health check failed; prior release restored when available"
+if ! install -o root -g threadia -m 0640 "$new_env" "$RUNTIME_ENV.new" ||
+  ! mv -Tf "$RUNTIME_ENV.new" "$RUNTIME_ENV" ||
+  ! ln -sfn "$release_dir" "$ACTIVE_LINK.new" ||
+  ! mv -Tf "$ACTIVE_LINK.new" "$ACTIVE_LINK"; then
+  rollback || fail "release activation and rollback failed"
+  fail "release activation failed; prior runtime state restored"
 fi
 
-printf '%s\n' "release activated: $release_id"
+if ! systemctl restart "$SERVICE_NAME"; then
+  rollback || fail "systemd restart and rollback failed"
+  fail "systemd restart failed"
+fi
+
+readiness_failure="local health check did not pass within ${READINESS_TIMEOUT_SECONDS} seconds"
+readiness_deadline=$((SECONDS + READINESS_TIMEOUT_SECONDS))
+while (( SECONDS < readiness_deadline )); do
+  if ! systemctl is-active --quiet "$SERVICE_NAME"; then
+    readiness_failure="systemd service became inactive during readiness polling"
+    break
+  fi
+  if curl --fail --silent --show-error --connect-timeout 1 --max-time 2 http://127.0.0.1:8080/actuator/health >/dev/null; then
+    printf '%s\n' "release activated: $release_id"
+    exit 0
+  fi
+  sleep "$READINESS_INTERVAL_SECONDS"
+done
+
+if ! rollback; then
+  fail "$readiness_failure; rollback also failed"
+fi
+fail "$readiness_failure; prior runtime state restored"

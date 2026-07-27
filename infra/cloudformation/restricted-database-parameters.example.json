@@ -1,0 +1,9 @@
+[
+  {"ParameterKey":"NetworkStackName","ParameterValue":"threadia-restricted-network"},
+  {"ParameterKey":"Owner","ParameterValue":"threadia-team"},
+  {"ParameterKey":"DbEngineVersion","ParameterValue":"REPLACE_WITH_APPROVED_MYSQL_VERSION"},
+  {"ParameterKey":"DbMasterUsername","ParameterValue":"threadiaadmin"},
+  {"ParameterKey":"DbInstanceClass","ParameterValue":"db.t3.micro"},
+  {"ParameterKey":"DbAllocatedStorage","ParameterValue":"20"},
+  {"ParameterKey":"DbDeletionProtection","ParameterValue":"false"}
+]

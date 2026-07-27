@@ -1,0 +1,140 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Private EC2 and SSM runtime layer for the additive restricted Threadia foundation.
+
+Parameters:
+  NetworkStackName:
+    Type: String
+    AllowedPattern: '^[A-Za-z][A-Za-z0-9-]{0,127}$'
+  DatabaseStackName:
+    Type: String
+    AllowedPattern: '^[A-Za-z][A-Za-z0-9-]{0,127}$'
+  Owner:
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    AllowedPattern: '^[A-Za-z0-9][A-Za-z0-9._+@/-]{1,63}$'
+  ApprovedAmiId:
+    Type: AWS::EC2::Image::Id
+    Description: Source-fixed approved AMI ID; dynamic SSM AMI resolution is prohibited.
+  Ec2InstanceType:
+    Type: String
+    Default: t3.micro
+    AllowedValues: [t3.micro, t3.small]
+
+Resources:
+  Ec2HttpsToSsmEndpoints:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !ImportValue
+        Fn::Sub: ${NetworkStackName}-Ec2SecurityGroupId
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      DestinationSecurityGroupId: !ImportValue
+        Fn::Sub: ${NetworkStackName}-SsmEndpointSecurityGroupId
+      Description: HTTPS to private SSM interface endpoints only.
+  Ec2DnsUdpEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !ImportValue
+        Fn::Sub: ${NetworkStackName}-Ec2SecurityGroupId
+      IpProtocol: udp
+      FromPort: 53
+      ToPort: 53
+      CidrIp: !ImportValue
+        Fn::Sub: ${NetworkStackName}-VpcCidr
+      Description: VPC resolver DNS over UDP.
+  Ec2DnsTcpEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !ImportValue
+        Fn::Sub: ${NetworkStackName}-Ec2SecurityGroupId
+      IpProtocol: tcp
+      FromPort: 53
+      ToPort: 53
+      CidrIp: !ImportValue
+        Fn::Sub: ${NetworkStackName}-VpcCidr
+      Description: VPC resolver DNS over TCP.
+  Ec2MysqlEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !ImportValue
+        Fn::Sub: ${NetworkStackName}-Ec2SecurityGroupId
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+      DestinationSecurityGroupId: !ImportValue
+        Fn::Sub: ${DatabaseStackName}-RdsSecurityGroupId
+      Description: MySQL to the private RDS security group only.
+  Ec2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Tags: &Tags
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+  Ec2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref Ec2Role]
+  Ec2Instance:
+    Type: AWS::EC2::Instance
+    DependsOn: [Ec2HttpsToSsmEndpoints, Ec2DnsUdpEgress, Ec2DnsTcpEgress, Ec2MysqlEgress]
+    Properties:
+      IamInstanceProfile: !Ref Ec2InstanceProfile
+      ImageId: !Ref ApprovedAmiId
+      InstanceType: !Ref Ec2InstanceType
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            DeleteOnTermination: true
+            Encrypted: true
+            VolumeSize: 20
+            VolumeType: gp3
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpPutResponseHopLimit: 1
+        HttpTokens: required
+        InstanceMetadataTags: disabled
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: false
+          DeleteOnTermination: true
+          DeviceIndex: '0'
+          GroupSet:
+            - !ImportValue
+              Fn::Sub: ${NetworkStackName}-Ec2SecurityGroupId
+          SubnetId: !ImportValue
+            Fn::Sub: ${NetworkStackName}-ComputeSubnetId
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+        - Key: DeliveryHost
+          Value: 'true'
+
+Outputs:
+  Ec2InstanceId:
+    Description: Restricted Compute instance ID for a separately approved delivery stage.
+    Value: !Ref Ec2Instance
+  Ec2RoleName:
+    Description: Restricted Compute runtime role name for a separately approved delivery stage.
+    Value: !Ref Ec2Role

@@ -1,0 +1,18 @@
+[
+  {
+    "ParameterKey": "GitHubRepository",
+    "ParameterValue": "REPLACE_WITH_APPROVED_OWNER_AND_REPOSITORY"
+  },
+  {
+    "ParameterKey": "ExistingEc2InstanceId",
+    "ParameterValue": "REPLACE_WITH_APPROVED_RESTRICTED_FOUNDATION_INSTANCE_ID"
+  },
+  {
+    "ParameterKey": "ExistingEc2RoleName",
+    "ParameterValue": "REPLACE_WITH_APPROVED_RESTRICTED_FOUNDATION_EC2_ROLE_NAME"
+  },
+  {
+    "ParameterKey": "ArtifactNoncurrentVersionRetentionDays",
+    "ParameterValue": "30"
+  }
+]

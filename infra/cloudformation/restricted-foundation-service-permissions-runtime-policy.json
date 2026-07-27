@@ -1,0 +1,269 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "ec2:CreateSubnet",
+      "Resource": "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:vpc/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:ResourceTag/Project": "Threadia",
+          "ec2:ResourceTag/Environment": "restricted-nonprod",
+          "ec2:ResourceTag/ManagedBy": "CloudFormation"
+        },
+        "Null": {
+          "ec2:ResourceTag/Owner": "false"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ec2:CreateSubnet",
+      "Resource": "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:subnet/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestTag/Project": "Threadia",
+          "aws:RequestTag/Environment": "restricted-nonprod",
+          "aws:RequestTag/ManagedBy": "CloudFormation"
+        },
+        "Null": {
+          "aws:RequestTag/Owner": "false"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ec2:CreateRouteTable",
+      "Resource": "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:vpc/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:ResourceTag/Project": "Threadia",
+          "ec2:ResourceTag/Environment": "restricted-nonprod",
+          "ec2:ResourceTag/ManagedBy": "CloudFormation"
+        },
+        "Null": {
+          "ec2:ResourceTag/Owner": "false"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ec2:CreateRouteTable",
+      "Resource": "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:route-table/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestTag/Project": "Threadia",
+          "aws:RequestTag/Environment": "restricted-nonprod",
+          "aws:RequestTag/ManagedBy": "CloudFormation"
+        },
+        "Null": {
+          "aws:RequestTag/Owner": "false"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ec2:CreateSecurityGroup",
+      "Resource": "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:vpc/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:ResourceTag/Project": "Threadia",
+          "ec2:ResourceTag/Environment": "restricted-nonprod",
+          "ec2:ResourceTag/ManagedBy": "CloudFormation"
+        },
+        "Null": {
+          "ec2:ResourceTag/Owner": "false"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ec2:CreateSecurityGroup",
+      "Resource": "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:security-group/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:AuthorizeSecurityGroupEgress",
+        "ec2:RevokeSecurityGroupIngress",
+        "ec2:RevokeSecurityGroupEgress"
+      ],
+      "Resource": "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:security-group/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:ResourceTag/Project": "Threadia",
+          "ec2:ResourceTag/Environment": "restricted-nonprod",
+          "ec2:ResourceTag/ManagedBy": "CloudFormation"
+        },
+        "Null": {
+          "ec2:ResourceTag/Owner": "false"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "rds:CreateDBInstance",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestTag/Project": "Threadia",
+          "aws:RequestTag/Environment": "restricted-nonprod",
+          "aws:RequestTag/ManagedBy": "CloudFormation",
+          "rds:DatabaseEngine": "mysql",
+          "rds:DatabaseClass": [
+            "db.t3.micro",
+            "db.t4g.micro"
+          ]
+        },
+        "Bool": {
+          "rds:MultiAz": "false",
+          "rds:PubliclyAccessible": "false",
+          "rds:StorageEncrypted": "true",
+          "rds:ManageMasterUserPassword": "true"
+        },
+        "NumericGreaterThanEquals": {
+          "rds:StorageSize": "20"
+        },
+        "NumericLessThanEquals": {
+          "rds:StorageSize": "100"
+        },
+        "Null": {
+          "aws:RequestTag/Owner": "false"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "rds:ModifyDBSubnetGroup",
+        "rds:ModifyDBInstance"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceTag/Project": "Threadia",
+          "aws:ResourceTag/Environment": "restricted-nonprod",
+          "aws:ResourceTag/ManagedBy": "CloudFormation"
+        },
+        "StringEqualsIfExists": {
+          "rds:DatabaseClass": [
+            "db.t3.micro",
+            "db.t4g.micro"
+          ]
+        },
+        "BoolIfExists": {
+          "rds:MultiAz": "false",
+          "rds:PubliclyAccessible": "false",
+          "rds:StorageEncrypted": "true",
+          "rds:ManageMasterUserPassword": "true"
+        },
+        "Null": {
+          "aws:ResourceTag/Owner": "false"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "rds:DeleteDBSubnetGroup",
+      "Resource": "arn:aws:rds:ap-northeast-2:<AWS_ACCOUNT_ID>:subgrp:threadia-restricted-foundation-dbsubnetgroup-*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "rds:DeleteDBInstance",
+      "Resource": "arn:aws:rds:ap-northeast-2:<AWS_ACCOUNT_ID>:db:threadia-restricted-foundation-database-*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "rds:CreateDBSnapshot",
+      "Resource": [
+        "arn:aws:rds:ap-northeast-2:<AWS_ACCOUNT_ID>:db:threadia-restricted-foundation-database-*",
+        "arn:aws:rds:ap-northeast-2:<AWS_ACCOUNT_ID>:snapshot:threadia-restricted-foundation-snapshot-database-*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "rds:DescribeDBSubnetGroups",
+        "rds:DescribeDBInstances",
+        "rds:DescribeDBSnapshots",
+        "rds:ListTagsForResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:CreateSecret",
+        "secretsmanager:TagResource"
+      ],
+      "Resource": "arn:aws:secretsmanager:ap-northeast-2:<AWS_ACCOUNT_ID>:secret:rds!db-*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "kms:DescribeKey",
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "iam:CreateRole",
+      "Resource": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/threadia-restricted-foundation-Ec2Role-*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestTag/Project": "Threadia",
+          "aws:RequestTag/Environment": "restricted-nonprod",
+          "aws:RequestTag/ManagedBy": "CloudFormation"
+        },
+        "Null": {
+          "aws:RequestTag/Owner": "false"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetRole",
+        "iam:DeleteRole",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListRolePolicies",
+        "iam:ListInstanceProfilesForRole",
+        "iam:TagRole"
+      ],
+      "Resource": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/threadia-restricted-foundation-Ec2Role-*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy"
+      ],
+      "Resource": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/threadia-restricted-foundation-Ec2Role-*",
+      "Condition": {
+        "ArnEquals": {
+          "iam:PolicyARN": "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateInstanceProfile",
+        "iam:GetInstanceProfile",
+        "iam:AddRoleToInstanceProfile",
+        "iam:RemoveRoleFromInstanceProfile",
+        "iam:DeleteInstanceProfile"
+      ],
+      "Resource": "arn:aws:iam::<AWS_ACCOUNT_ID>:instance-profile/threadia-restricted-foundation-Ec2InstanceProfile-*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/threadia-restricted-foundation-Ec2Role-*",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "ec2.amazonaws.com"
+        }
+      }
+    }
+  ]
+}

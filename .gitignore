@@ -64,6 +64,12 @@ target/
 junit*.xml
 coverage-*.json
 
+# AWS CloudFormation and SAM generated artifacts
+.aws-sam/
+infra/cloudformation/restricted-foundation.packaged.yaml
+infra/cloudformation/restricted-foundation.packaged.yml
+infra/cloudformation/restricted-foundation.change-set.json
+
 # Local database and runtime artifacts
 *.db
 *.sqlite

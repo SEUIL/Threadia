@@ -1,0 +1,46 @@
+[
+  {
+    "ParameterKey": "Owner",
+    "ParameterValue": "threadia-team"
+  },
+  {
+    "ParameterKey": "VpcCidr",
+    "ParameterValue": "10.20.0.0/16"
+  },
+  {
+    "ParameterKey": "PublicSubnetCidr",
+    "ParameterValue": "10.20.0.0/24"
+  },
+  {
+    "ParameterKey": "PrivateDbSubnetACidr",
+    "ParameterValue": "10.20.10.0/24"
+  },
+  {
+    "ParameterKey": "PrivateDbSubnetBCidr",
+    "ParameterValue": "10.20.11.0/24"
+  },
+  {
+    "ParameterKey": "Ec2AmiSsmParameter",
+    "ParameterValue": "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
+  },
+  {
+    "ParameterKey": "Ec2InstanceType",
+    "ParameterValue": "t3.micro"
+  },
+  {
+    "ParameterKey": "DbEngineVersion",
+    "ParameterValue": "REPLACE_WITH_APPROVED_MYSQL_VERSION"
+  },
+  {
+    "ParameterKey": "DbInstanceClass",
+    "ParameterValue": "db.t3.micro"
+  },
+  {
+    "ParameterKey": "DbAllocatedStorage",
+    "ParameterValue": "20"
+  },
+  {
+    "ParameterKey": "DbMasterUsername",
+    "ParameterValue": "threadiaadmin"
+  }
+]

@@ -1,0 +1,120 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Private encrypted RDS MySQL layer for the additive restricted Threadia foundation.
+
+Parameters:
+  NetworkStackName:
+    Type: String
+    AllowedPattern: '^[A-Za-z][A-Za-z0-9-]{0,127}$'
+  Owner:
+    Type: String
+    MinLength: 2
+    MaxLength: 64
+    AllowedPattern: '^[A-Za-z0-9][A-Za-z0-9._+@/-]{1,63}$'
+  DbEngineVersion:
+    Type: String
+    AllowedPattern: '^[0-9]+\.[0-9]+(\.[0-9]+)?$'
+  DbMasterUsername:
+    Type: String
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: '^[A-Za-z][A-Za-z0-9]{0,15}$'
+  DbInstanceClass:
+    Type: String
+    Default: db.t3.micro
+    AllowedValues: [db.t3.micro, db.t4g.micro]
+  DbAllocatedStorage:
+    Type: Number
+    Default: 20
+    MinValue: 20
+    MaxValue: 100
+  DbDeletionProtection:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+
+Resources:
+  RdsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Private MySQL from the restricted EC2 security group only.
+      SecurityGroupEgress:
+        - CidrIp: 127.0.0.1/32
+          IpProtocol: '-1'
+          Description: Suppress default egress.
+      VpcId: !ImportValue
+        Fn::Sub: ${NetworkStackName}-VpcId
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+  RdsMysqlIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt RdsSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+      SourceSecurityGroupId: !ImportValue
+        Fn::Sub: ${NetworkStackName}-Ec2SecurityGroupId
+      Description: MySQL from the restricted EC2 security group only.
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Two-AZ private subnet group for restricted Threadia RDS.
+      SubnetIds:
+        - !ImportValue
+          Fn::Sub: ${NetworkStackName}-PrivateDbSubnetAId
+        - !ImportValue
+          Fn::Sub: ${NetworkStackName}-PrivateDbSubnetBId
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      AllocatedStorage: !Ref DbAllocatedStorage
+      AllowMajorVersionUpgrade: false
+      AutoMinorVersionUpgrade: false
+      BackupRetentionPeriod: 1
+      CopyTagsToSnapshot: true
+      DBInstanceClass: !Ref DbInstanceClass
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      DeletionProtection: !Ref DbDeletionProtection
+      Engine: mysql
+      EngineVersion: !Ref DbEngineVersion
+      ManageMasterUserPassword: true
+      MasterUsername: !Ref DbMasterUsername
+      MultiAZ: false
+      Port: 3306
+      PubliclyAccessible: false
+      StorageEncrypted: true
+      StorageType: gp3
+      VPCSecurityGroups: [!GetAtt RdsSecurityGroup.GroupId]
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+
+Outputs:
+  RdsSecurityGroupId:
+    Value: !GetAtt RdsSecurityGroup.GroupId
+    Export:
+      Name: !Sub ${AWS::StackName}-RdsSecurityGroupId

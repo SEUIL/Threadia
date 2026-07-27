@@ -1,0 +1,301 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:GetParameters"
+      ],
+      "Resource": "arn:aws:ssm:ap-northeast-2::parameter/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeAvailabilityZones",
+        "ec2:DescribeImages",
+        "ec2:DescribeInstances",
+        "ec2:DescribeVpcs",
+        "ec2:DescribeVpcAttribute",
+        "ec2:DescribeInternetGateways",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeRouteTables",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeSecurityGroupRules",
+        "ec2:DescribeNetworkInterfaces",
+        "ec2:DescribeVolumes"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateVpc",
+        "ec2:CreateInternetGateway",
+        "rds:CreateDBSubnetGroup"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestTag/Project": "Threadia",
+          "aws:RequestTag/Environment": "restricted-nonprod",
+          "aws:RequestTag/ManagedBy": "CloudFormation"
+        },
+        "Null": {
+          "aws:RequestTag/Owner": "false"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateRoute",
+        "ec2:DeleteRoute",
+        "ec2:AssociateRouteTable",
+        "ec2:DisassociateRouteTable",
+        "ec2:ReplaceRouteTableAssociation"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:route-table/*",
+        "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:subnet/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "ec2:ResourceTag/Project": "Threadia",
+          "ec2:ResourceTag/Environment": "restricted-nonprod",
+          "ec2:ResourceTag/ManagedBy": "CloudFormation"
+        },
+        "Null": {
+          "ec2:ResourceTag/Owner": "false"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ec2:CreateTags",
+      "Resource": "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:vpc/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:CreateAction": "CreateVpc"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ec2:CreateTags",
+      "Resource": "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:internet-gateway/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:CreateAction": "CreateInternetGateway"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ec2:CreateTags",
+      "Resource": [
+        "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:subnet/*",
+        "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:route-table/*",
+        "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:security-group/*",
+        "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:instance/*",
+        "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:volume/*",
+        "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:network-interface/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestTag/Project": "Threadia",
+          "aws:RequestTag/Environment": "restricted-nonprod",
+          "aws:RequestTag/ManagedBy": "CloudFormation",
+          "ec2:CreateAction": [
+            "CreateSubnet",
+            "CreateRouteTable",
+            "CreateSecurityGroup",
+            "RunInstances"
+          ]
+        },
+        "Null": {
+          "aws:RequestTag/Owner": "false"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ec2:RunInstances",
+      "Resource": "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:instance/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestTag/Project": "Threadia",
+          "aws:RequestTag/Environment": "restricted-nonprod",
+          "aws:RequestTag/ManagedBy": "CloudFormation",
+          "ec2:InstanceType": [
+            "t3.micro",
+            "t3.small"
+          ],
+          "ec2:MetadataHttpTokens": "required"
+        },
+        "BoolIfExists": {
+          "ec2:AssociatePublicIpAddress": "false"
+        },
+        "Null": {
+          "aws:RequestTag/Owner": "false",
+          "ec2:KeyPairName": "true"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ec2:RunInstances",
+      "Resource": [
+        "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:volume/*",
+        "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:network-interface/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "ec2:InstanceType": [
+            "t3.micro",
+            "t3.small"
+          ],
+          "ec2:MetadataHttpTokens": "required"
+        },
+        "BoolIfExists": {
+          "ec2:AssociatePublicIpAddress": "false"
+        },
+        "Null": {
+          "ec2:KeyPairName": "true"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "rds:AddTagsToResource",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestTag/Project": "Threadia",
+          "aws:RequestTag/Environment": "restricted-nonprod",
+          "aws:RequestTag/ManagedBy": "CloudFormation"
+        },
+        "Null": {
+          "aws:RequestTag/Owner": "false"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:ModifyVpcAttribute",
+        "ec2:DeleteVpc"
+      ],
+      "Resource": "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:vpc/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:ResourceTag/Project": "Threadia",
+          "ec2:ResourceTag/Environment": "restricted-nonprod",
+          "ec2:ResourceTag/ManagedBy": "CloudFormation"
+        },
+        "Null": {
+          "ec2:ResourceTag/Owner": "false"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ec2:DeleteInternetGateway",
+      "Resource": "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:internet-gateway/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:ResourceTag/Project": "Threadia",
+          "ec2:ResourceTag/Environment": "restricted-nonprod",
+          "ec2:ResourceTag/ManagedBy": "CloudFormation"
+        },
+        "Null": {
+          "ec2:ResourceTag/Owner": "false"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:ModifySubnetAttribute",
+        "ec2:DeleteSubnet"
+      ],
+      "Resource": "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:subnet/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:ResourceTag/Project": "Threadia",
+          "ec2:ResourceTag/Environment": "restricted-nonprod",
+          "ec2:ResourceTag/ManagedBy": "CloudFormation"
+        },
+        "Null": {
+          "ec2:ResourceTag/Owner": "false"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ec2:DeleteRouteTable",
+      "Resource": "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:route-table/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:ResourceTag/Project": "Threadia",
+          "ec2:ResourceTag/Environment": "restricted-nonprod",
+          "ec2:ResourceTag/ManagedBy": "CloudFormation"
+        },
+        "Null": {
+          "ec2:ResourceTag/Owner": "false"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ec2:DeleteSecurityGroup",
+      "Resource": "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:security-group/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:ResourceTag/Project": "Threadia",
+          "ec2:ResourceTag/Environment": "restricted-nonprod",
+          "ec2:ResourceTag/ManagedBy": "CloudFormation"
+        },
+        "Null": {
+          "ec2:ResourceTag/Owner": "false"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ec2:TerminateInstances",
+      "Resource": "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:instance/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:ResourceTag/Project": "Threadia",
+          "ec2:ResourceTag/Environment": "restricted-nonprod",
+          "ec2:ResourceTag/ManagedBy": "CloudFormation"
+        },
+        "Null": {
+          "ec2:ResourceTag/Owner": "false"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:AttachInternetGateway",
+        "ec2:DetachInternetGateway"
+      ],
+      "Resource": [
+        "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:internet-gateway/*",
+        "arn:aws:ec2:ap-northeast-2:<AWS_ACCOUNT_ID>:vpc/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "ec2:ResourceTag/Project": "Threadia",
+          "ec2:ResourceTag/Environment": "restricted-nonprod",
+          "ec2:ResourceTag/ManagedBy": "CloudFormation"
+        },
+        "Null": {
+          "ec2:ResourceTag/Owner": "false"
+        }
+      }
+    }
+  ]
+}

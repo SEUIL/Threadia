@@ -1,0 +1,557 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Non-production restricted Threadia foundation in ap-northeast-2: one public
+  EC2 instance managed through SSM and one private encrypted Single-AZ RDS
+  MySQL instance. This template does not create application integrations.
+
+Parameters:
+  Owner:
+    Type: String
+    Description: Non-secret team or role identifier used for the Owner tag.
+    MinLength: 2
+    MaxLength: 64
+    AllowedPattern: '^[A-Za-z0-9][A-Za-z0-9._+@/-]{1,63}$'
+    ConstraintDescription: Use 2-64 non-secret identifier characters.
+  VpcCidr:
+    Type: String
+    Description: Private IPv4 CIDR for the restricted VPC.
+    Default: 10.20.0.0/16
+    AllowedPattern: '^(10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3})/(1[6-9]|2[0-4])$'
+    ConstraintDescription: Use an RFC 1918 IPv4 CIDR with a /16 through /24 prefix.
+  PublicSubnetCidr:
+    Type: String
+    Description: IPv4 CIDR for the public EC2 subnet.
+    Default: 10.20.0.0/24
+    AllowedPattern: '^(10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3})/(2[4-8])$'
+    ConstraintDescription: Use an RFC 1918 IPv4 CIDR with a /24 through /28 prefix.
+  PrivateDbSubnetACidr:
+    Type: String
+    Description: IPv4 CIDR for the first private DB subnet.
+    Default: 10.20.10.0/24
+    AllowedPattern: '^(10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3})/(2[4-8])$'
+    ConstraintDescription: Use an RFC 1918 IPv4 CIDR with a /24 through /28 prefix.
+  PrivateDbSubnetBCidr:
+    Type: String
+    Description: IPv4 CIDR for the second private DB subnet.
+    Default: 10.20.11.0/24
+    AllowedPattern: '^(10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3})/(2[4-8])$'
+    ConstraintDescription: Use an RFC 1918 IPv4 CIDR with a /24 through /28 prefix.
+  Ec2AmiSsmParameter:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Description: Public SSM parameter resolving to the approved EC2 AMI.
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+  Ec2InstanceType:
+    Type: String
+    Description: EC2 instance type for the restricted non-production host.
+    Default: t3.micro
+    AllowedValues:
+      - t3.micro
+      - t3.small
+  DbEngineVersion:
+    Type: String
+    Description: MySQL engine version verified as available in ap-northeast-2.
+    AllowedPattern: '^[0-9]+\.[0-9]+(\.[0-9]+)?$'
+    ConstraintDescription: Supply an approved numeric MySQL version such as major.minor.patch.
+  DbInstanceClass:
+    Type: String
+    Description: RDS instance class for the restricted non-production database.
+    Default: db.t3.micro
+    AllowedValues:
+      - db.t3.micro
+      - db.t4g.micro
+  DbAllocatedStorage:
+    Type: Number
+    Description: RDS allocated storage in GiB.
+    Default: 20
+    MinValue: 20
+    MaxValue: 100
+  DbMasterUsername:
+    Type: String
+    Description: Non-secret RDS master username; RDS manages the password in Secrets Manager.
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: '^[A-Za-z][A-Za-z0-9]{0,15}$'
+    ConstraintDescription: Start with a letter and use no more than 16 alphanumeric characters.
+
+Rules:
+  SubnetCidrsMustBeDistinct:
+    Assertions:
+      - Assert:
+          Fn::Not:
+            - Fn::Equals:
+                - Ref: PublicSubnetCidr
+                - Ref: PrivateDbSubnetACidr
+        AssertDescription: PublicSubnetCidr and PrivateDbSubnetACidr must differ.
+      - Assert:
+          Fn::Not:
+            - Fn::Equals:
+                - Ref: PublicSubnetCidr
+                - Ref: PrivateDbSubnetBCidr
+        AssertDescription: PublicSubnetCidr and PrivateDbSubnetBCidr must differ.
+      - Assert:
+          Fn::Not:
+            - Fn::Equals:
+                - Ref: PrivateDbSubnetACidr
+                - Ref: PrivateDbSubnetBCidr
+        AssertDescription: The two private DB subnet CIDRs must differ.
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock:
+        Ref: VpcCidr
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: ${AWS::StackName}-vpc
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value:
+            Ref: Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: ${AWS::StackName}-igw
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value:
+            Ref: Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  VpcGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId:
+        Ref: InternetGateway
+      VpcId:
+        Ref: Vpc
+
+  PublicEc2Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+          - 0
+          - Fn::GetAZs: ''
+      CidrBlock:
+        Ref: PublicSubnetCidr
+      MapPublicIpOnLaunch: false
+      VpcId:
+        Ref: Vpc
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: ${AWS::StackName}-public-ec2-a
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value:
+            Ref: Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  PrivateDbSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+          - 0
+          - Fn::GetAZs: ''
+      CidrBlock:
+        Ref: PrivateDbSubnetACidr
+      MapPublicIpOnLaunch: false
+      VpcId:
+        Ref: Vpc
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: ${AWS::StackName}-private-db-a
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value:
+            Ref: Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  PrivateDbSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+          - 1
+          - Fn::GetAZs: ''
+      CidrBlock:
+        Ref: PrivateDbSubnetBCidr
+      MapPublicIpOnLaunch: false
+      VpcId:
+        Ref: Vpc
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: ${AWS::StackName}-private-db-b
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value:
+            Ref: Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: Vpc
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: ${AWS::StackName}-public-rt
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value:
+            Ref: Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VpcGatewayAttachment
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: InternetGateway
+      RouteTableId:
+        Ref: PublicRouteTable
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: PublicRouteTable
+      SubnetId:
+        Ref: PublicEc2Subnet
+
+  PrivateDbRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: Vpc
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: ${AWS::StackName}-private-db-rt
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value:
+            Ref: Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  PrivateDbSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: PrivateDbRouteTable
+      SubnetId:
+        Ref: PrivateDbSubnetA
+
+  PrivateDbSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: PrivateDbRouteTable
+      SubnetId:
+        Ref: PrivateDbSubnetB
+
+  Ec2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Restricted EC2 with no ingress and explicit egress only
+      SecurityGroupEgress:
+        - Description: Suppress the default all-egress rule with a non-routable destination
+          CidrIp: 127.0.0.1/32
+          IpProtocol: '-1'
+      VpcId:
+        Ref: Vpc
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: ${AWS::StackName}-ec2-sg
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value:
+            Ref: Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  RdsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Private RDS accepting MySQL from the restricted EC2 group only
+      SecurityGroupEgress:
+        - Description: Suppress the default all-egress rule with a non-routable destination
+          CidrIp: 127.0.0.1/32
+          IpProtocol: '-1'
+      VpcId:
+        Ref: Vpc
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: ${AWS::StackName}-rds-sg
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value:
+            Ref: Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  Ec2HttpsEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      CidrIp: 0.0.0.0/0
+      Description: HTTPS for SSM service connectivity from the public subnet
+      FromPort: 443
+      GroupId:
+        Fn::GetAtt:
+          - Ec2SecurityGroup
+          - GroupId
+      IpProtocol: tcp
+      ToPort: 443
+
+  Ec2DnsUdpEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      CidrIp:
+        Ref: VpcCidr
+      Description: DNS over UDP to the VPC resolver
+      FromPort: 53
+      GroupId:
+        Fn::GetAtt:
+          - Ec2SecurityGroup
+          - GroupId
+      IpProtocol: udp
+      ToPort: 53
+
+  Ec2DnsTcpEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      CidrIp:
+        Ref: VpcCidr
+      Description: DNS over TCP to the VPC resolver
+      FromPort: 53
+      GroupId:
+        Fn::GetAtt:
+          - Ec2SecurityGroup
+          - GroupId
+      IpProtocol: tcp
+      ToPort: 53
+
+  Ec2ToRdsMysqlEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      Description: MySQL to the private RDS security group only
+      DestinationSecurityGroupId:
+        Fn::GetAtt:
+          - RdsSecurityGroup
+          - GroupId
+      FromPort: 3306
+      GroupId:
+        Fn::GetAtt:
+          - Ec2SecurityGroup
+          - GroupId
+      IpProtocol: tcp
+      ToPort: 3306
+
+  RdsMysqlIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: MySQL from the restricted EC2 security group only
+      FromPort: 3306
+      GroupId:
+        Fn::GetAtt:
+          - RdsSecurityGroup
+          - GroupId
+      IpProtocol: tcp
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+          - Ec2SecurityGroup
+          - GroupId
+      ToPort: 3306
+
+  Ec2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Path: /
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value:
+            Ref: Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  Ec2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - Ref: Ec2Role
+
+  Ec2Instance:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - Ec2DnsTcpEgress
+      - Ec2DnsUdpEgress
+      - Ec2HttpsEgress
+      - Ec2ToRdsMysqlEgress
+    Properties:
+      IamInstanceProfile:
+        Ref: Ec2InstanceProfile
+      ImageId:
+        Ref: Ec2AmiSsmParameter
+      InstanceType:
+        Ref: Ec2InstanceType
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpPutResponseHopLimit: 1
+        HttpTokens: required
+        InstanceMetadataTags: disabled
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: false
+          DeleteOnTermination: true
+          DeviceIndex: '0'
+          GroupSet:
+            - Fn::GetAtt:
+                - Ec2SecurityGroup
+                - GroupId
+          SubnetId:
+            Ref: PublicEc2Subnet
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: ${AWS::StackName}-ec2
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: DeliveryHost
+          Value: 'true'
+        - Key: Owner
+          Value:
+            Ref: Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Two-AZ private subnet group for restricted Threadia RDS
+      SubnetIds:
+        - Ref: PrivateDbSubnetA
+        - Ref: PrivateDbSubnetB
+      Tags:
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value:
+            Ref: Owner
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    DependsOn:
+      - Ec2ToRdsMysqlEgress
+      - RdsMysqlIngress
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      AllocatedStorage:
+        Ref: DbAllocatedStorage
+      AllowMajorVersionUpgrade: false
+      AutoMinorVersionUpgrade: false
+      BackupRetentionPeriod: 1
+      CopyTagsToSnapshot: true
+      DBInstanceClass:
+        Ref: DbInstanceClass
+      DBSubnetGroupName:
+        Ref: DbSubnetGroup
+      DeletionProtection: false
+      Engine: mysql
+      EngineVersion:
+        Ref: DbEngineVersion
+      ManageMasterUserPassword: true
+      MasterUsername:
+        Ref: DbMasterUsername
+      MultiAZ: false
+      Port: 3306
+      PubliclyAccessible: false
+      StorageEncrypted: true
+      StorageType: gp3
+      VPCSecurityGroups:
+        - Fn::GetAtt:
+            - RdsSecurityGroup
+            - GroupId
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Sub: ${AWS::StackName}-mysql
+        - Key: Project
+          Value: Threadia
+        - Key: Environment
+          Value: restricted-nonprod
+        - Key: Owner
+          Value:
+            Ref: Owner
+        - Key: ManagedBy
+          Value: CloudFormation

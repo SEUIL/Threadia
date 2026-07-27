@@ -1,0 +1,113 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Deny",
+      "Action": [
+        "ec2:*",
+        "rds:*",
+        "ssm:*",
+        "secretsmanager:*",
+        "kms:*"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:RequestedRegion": "ap-northeast-2"
+        }
+      }
+    },
+    {
+      "Effect": "Deny",
+      "Action": [
+        "route53:*",
+        "route53domains:*",
+        "acm:*",
+        "acm-pca:*",
+        "amplify:*",
+        "codebuild:*",
+        "codepipeline:*",
+        "codedeploy:*",
+        "codeconnections:*",
+        "codestar-connections:*",
+        "ecs:*",
+        "ecr:*",
+        "lambda:*",
+        "apigateway:*",
+        "elasticloadbalancing:*",
+        "iam:*OpenIDConnectProvider*",
+        "ssm:SendCommand",
+        "ssm:StartSession",
+        "ssm:ResumeSession",
+        "ec2-instance-connect:SendSSHPublicKey",
+        "ec2-instance-connect:OpenTunnel",
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:BatchGetSecretValue"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Deny",
+      "Action": [
+        "iam:CreatePolicy",
+        "iam:CreatePolicyVersion",
+        "iam:SetDefaultPolicyVersion",
+        "iam:DeletePolicy",
+        "iam:DeletePolicyVersion",
+        "iam:PutRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:UpdateAssumeRolePolicy",
+        "iam:PutUserPolicy",
+        "iam:PutGroupPolicy",
+        "iam:AttachUserPolicy",
+        "iam:AttachGroupPolicy",
+        "iam:CreateAccessKey",
+        "iam:UpdateAccessKey",
+        "iam:CreateUser",
+        "iam:CreateGroup",
+        "iam:AddUserToGroup",
+        "iam:CreateLoginProfile",
+        "iam:UpdateLoginProfile",
+        "iam:CreateServiceLinkedRole",
+        "iam:*SAMLProvider*",
+        "iam:PutRolePermissionsBoundary",
+        "iam:DeleteRolePermissionsBoundary",
+        "iam:PutUserPermissionsBoundary",
+        "iam:DeleteUserPermissionsBoundary",
+        "iam:UpdateRole",
+        "iam:UpdateRoleDescription"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Deny",
+      "Action": "iam:AttachRolePolicy",
+      "Resource": "*",
+      "Condition": {
+        "ArnNotEquals": {
+          "iam:PolicyARN": "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+        }
+      }
+    },
+    {
+      "Effect": "Deny",
+      "Action": "iam:AttachRolePolicy",
+      "NotResource": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/threadia-restricted-foundation-Ec2Role-*"
+    },
+    {
+      "Effect": "Deny",
+      "Action": "iam:PassRole",
+      "NotResource": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/threadia-restricted-foundation-Ec2Role-*"
+    },
+    {
+      "Effect": "Deny",
+      "Action": "iam:PassRole",
+      "Resource": "*",
+      "Condition": {
+        "StringNotEquals": {
+          "iam:PassedToService": "ec2.amazonaws.com"
+        }
+      }
+    }
+  ]
+}

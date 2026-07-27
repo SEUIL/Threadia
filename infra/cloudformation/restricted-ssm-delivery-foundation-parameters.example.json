@@ -2,5 +2,8 @@
   {"ParameterKey":"NetworkStackName","ParameterValue":"REPLACE_WITH_APPROVED_RESTRICTED_NETWORK_STACK_NAME"},
   {"ParameterKey":"ExistingEc2InstanceId","ParameterValue":"REPLACE_WITH_APPROVED_DELIVERY_HOST_INSTANCE_ID"},
   {"ParameterKey":"ExistingEc2RoleName","ParameterValue":"REPLACE_WITH_APPROVED_RESTRICTED_COMPUTE_EC2_ROLE_NAME"},
-  {"ParameterKey":"ArtifactNoncurrentVersionRetentionDays","ParameterValue":"30"}
+  {"ParameterKey":"ArtifactNoncurrentVersionRetentionDays","ParameterValue":"30"},
+  {"ParameterKey":"HelperArtifactKey","ParameterValue":"releases/REPLACE_WITH_APPROVED_COMMIT_SHA/REPLACE_WITH_APPROVED_RUN_ID-REPLACE_WITH_APPROVED_RUN_ATTEMPT/apply-release"},
+  {"ParameterKey":"HelperArtifactVersionId","ParameterValue":"REPLACE_WITH_APPROVED_S3_VERSION_ID"},
+  {"ParameterKey":"HelperArtifactSha256","ParameterValue":"REPLACE_WITH_APPROVED_HELPER_SHA256"}
 ]

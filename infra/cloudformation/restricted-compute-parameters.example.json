@@ -1,0 +1,7 @@
+[
+  {"ParameterKey":"NetworkStackName","ParameterValue":"threadia-restricted-network"},
+  {"ParameterKey":"DatabaseStackName","ParameterValue":"threadia-restricted-database"},
+  {"ParameterKey":"Owner","ParameterValue":"threadia-team"},
+  {"ParameterKey":"ApprovedAmiId","ParameterValue":"REPLACE_WITH_APPROVED_AMI_ID"},
+  {"ParameterKey":"Ec2InstanceType","ParameterValue":"t3.micro"}
+]

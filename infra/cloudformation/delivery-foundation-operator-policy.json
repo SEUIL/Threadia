@@ -1,0 +1,136 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DenyCloudFormationOutsideSeoul",
+      "Effect": "Deny",
+      "Action": "cloudformation:*",
+      "Resource": "*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:RequestedRegion": "ap-northeast-2"
+        }
+      }
+    },
+    {
+      "Sid": "DenyDirectDeliveryMutationAndSecretRead",
+      "Effect": "Deny",
+      "Action": [
+        "ec2:*",
+        "s3:*",
+        "ssm:*",
+        "codedeploy:*",
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:BatchGetSecretValue",
+        "route53:*",
+        "route53domains:*",
+        "acm:*",
+        "acm-pca:*",
+        "amplify:*",
+        "codebuild:*",
+        "codepipeline:*",
+        "codeconnections:*",
+        "codestar-connections:*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "DenyIamCredentialAndTrustEscalation",
+      "Effect": "Deny",
+      "Action": [
+        "iam:CreateAccessKey",
+        "iam:UpdateAccessKey",
+        "iam:CreateUser",
+        "iam:CreatePolicy",
+        "iam:CreatePolicyVersion",
+        "iam:SetDefaultPolicyVersion",
+        "iam:DeletePolicy",
+        "iam:DeletePolicyVersion",
+        "iam:PutRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:UpdateAssumeRolePolicy",
+        "iam:CreateRole",
+        "iam:CreateServiceLinkedRole",
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:PutRolePermissionsBoundary",
+        "iam:DeleteRolePermissionsBoundary"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "DenyPassRoleExceptDeliveryServiceRole",
+      "Effect": "Deny",
+      "Action": "iam:PassRole",
+      "NotResource": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/ThreadiaDeliveryFoundationCloudFormationServiceRole"
+    },
+    {
+      "Sid": "DenyPassRoleToNonCloudFormationService",
+      "Effect": "Deny",
+      "Action": "iam:PassRole",
+      "Resource": "*",
+      "Condition": {
+        "StringNotEquals": {
+          "iam:PassedToService": "cloudformation.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "AllowDeliveryChangeSetCreationOnly",
+      "Effect": "Allow",
+      "Action": "cloudformation:CreateChangeSet",
+      "Resource": [
+        "arn:aws:cloudformation:ap-northeast-2:<AWS_ACCOUNT_ID>:stack/threadia-delivery-foundation/*",
+        "arn:aws:cloudformation:ap-northeast-2:<AWS_ACCOUNT_ID>:changeSet/delivery-foundation-*/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "cloudformation:RoleARN": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/ThreadiaDeliveryFoundationCloudFormationServiceRole",
+          "aws:RequestTag/Project": "Threadia",
+          "aws:RequestTag/Environment": "restricted-nonprod",
+          "aws:RequestTag/ManagedBy": "CloudFormation"
+        },
+        "StringLike": {
+          "cloudformation:ChangeSetName": "delivery-foundation-*"
+        }
+      }
+    },
+    {
+      "Sid": "AllowDeliveryChangeSetDescriptionOnly",
+      "Effect": "Allow",
+      "Action": "cloudformation:DescribeChangeSet",
+      "Resource": [
+        "arn:aws:cloudformation:ap-northeast-2:<AWS_ACCOUNT_ID>:stack/threadia-delivery-foundation/*",
+        "arn:aws:cloudformation:ap-northeast-2:<AWS_ACCOUNT_ID>:changeSet/delivery-foundation-*/*"
+      ]
+    },
+    {
+      "Sid": "AllowDeliveryChangeSetDeletionOnly",
+      "Effect": "Allow",
+      "Action": "cloudformation:DeleteChangeSet",
+      "Resource": "arn:aws:cloudformation:ap-northeast-2:<AWS_ACCOUNT_ID>:changeSet/delivery-foundation-*/*"
+    },
+    {
+      "Sid": "AllowDeliveryStackReviewOnly",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:DescribeStacks",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:DescribeStackResources",
+        "cloudformation:GetTemplate"
+      ],
+      "Resource": "arn:aws:cloudformation:ap-northeast-2:<AWS_ACCOUNT_ID>:stack/threadia-delivery-foundation/*"
+    },
+    {
+      "Sid": "AllowPassExactDeliveryServiceRoleToCloudFormation",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/ThreadiaDeliveryFoundationCloudFormationServiceRole",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "cloudformation.amazonaws.com"
+        }
+      }
+    }
+  ]
+}
