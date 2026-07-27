@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 
 import java.util.Optional;
 
@@ -56,6 +57,17 @@ class CompanyMembershipServiceTest {
 				.thenReturn(true);
 
 		assertThat(companyMembershipService.isActiveMember(10L, new AuthContext(1L, "user@example.com"))).isTrue();
+	}
+
+	@Test
+	void sharesActiveCompanyUsesSingleIntersectionQueryWithActiveMembershipAndCompanyStatus() {
+		when(companyMemberRepository.existsSharedCompanyWithMembershipAndCompanyStatus(
+				1L, 2L, CompanyMemberStatus.ACTIVE, CompanyStatus.ACTIVE)).thenReturn(true);
+
+		assertThat(companyMembershipService.sharesActiveCompany(1L, 2L)).isTrue();
+
+		verify(companyMemberRepository).existsSharedCompanyWithMembershipAndCompanyStatus(
+				1L, 2L, CompanyMemberStatus.ACTIVE, CompanyStatus.ACTIVE);
 	}
 
 	@Test
