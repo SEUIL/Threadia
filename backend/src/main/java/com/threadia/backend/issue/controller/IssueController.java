@@ -34,7 +34,7 @@ import jakarta.validation.Valid;
 public class IssueController {
 
 	private static final String BEARER_PREFIX = "Bearer ";
-	private static final Set<String> UPDATE_FIELDS = Set.of("title", "description", "priority", "assigneeUserId", "dueDate");
+	private static final Set<String> UPDATE_FIELDS = Set.of("title", "description", "priority", "assigneeUserId", "dueDate", "sprintId");
 
 	private final IssueService issueService;
 	private final ObjectMapper objectMapper;

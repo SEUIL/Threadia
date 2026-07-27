@@ -185,6 +185,37 @@ class IssueControllerTest {
 	}
 
 	@Test
+	void updatePassesExplicitNullSprintIdAndItsFieldPresence() throws Exception {
+		when(issueService.update(eq("valid-token"), eq(100L), any(), any()))
+				.thenReturn(new IssueData(new IssueResponse(100L, "THD-1", "첫 이슈", "TODO")));
+
+		mockMvc.perform(patch("/api/v1/issues/100")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("{\"sprintId\":null}"))
+				.andExpect(status().isOk());
+
+		org.mockito.ArgumentCaptor<IssueUpdateRequest> requestCaptor = org.mockito.ArgumentCaptor.forClass(IssueUpdateRequest.class);
+		org.mockito.ArgumentCaptor<java.util.Set<String>> fieldsCaptor = org.mockito.ArgumentCaptor.captor();
+		verify(issueService).update(eq("valid-token"), eq(100L), requestCaptor.capture(), fieldsCaptor.capture());
+		org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().sprintId()).isNull();
+		org.assertj.core.api.Assertions.assertThat(fieldsCaptor.getValue()).containsExactly("sprintId");
+	}
+
+	@Test
+	void updateRejectsNonNullSprintIdWithValidationError() throws Exception {
+		when(issueService.update(eq("valid-token"), eq(100L), any(), any()))
+				.thenThrow(new ProjectValidationException("sprintId는 null만 지정할 수 있습니다."));
+
+		mockMvc.perform(patch("/api/v1/issues/100")
+					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("{\"sprintId\":30}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+	}
+
+	@Test
 	void updateReturnsValidationErrorForMalformedField() throws Exception {
 		mockMvc.perform(patch("/api/v1/issues/100")
 					.header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")

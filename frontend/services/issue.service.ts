@@ -11,4 +11,7 @@ export const issueService = {
 
   updateStatus: (issueId: string | number, body: { status: IssueStatus }) =>
     apiClient.patch<ApiResponse<IssueData>>(`/api/v1/issues/${issueId}/status`, body),
+
+  unassignFromSprint: (issueId: string | number) =>
+    apiClient.patch<ApiResponse<IssueData>>(`/api/v1/issues/${issueId}`, { sprintId: null }),
 };

@@ -29,6 +29,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { invitationErrorMessage } from "@/lib/invitation";
+import { issueService } from "@/services/issue.service";
 import { projectService } from "@/services/project.service";
 import type { ProjectViewerData } from "@/types/project.types";
 
@@ -107,12 +109,29 @@ export default function BacklogPage() {
   const [creatingSprint, setCreatingSprint] = useState(false);
   const [newSprintName, setNewSprintName] = useState("");
   const [newSprintGoal, setNewSprintGoal] = useState("");
+  const [sprintAssignmentError, setSprintAssignmentError] = useState<string | null>(null);
+  const [sprintAssignmentBusyId, setSprintAssignmentBusyId] = useState<string | null>(null);
 
   const backlogIssues = issues.filter((i) => i.sprintId === null);
 
   const assignToSprint = (issueId: string, sprintId: string) => {
     // TODO: POST /api/v1/sprints/{sprintId}/issues
     setIssues((prev) => prev.map((i) => (i.id === issueId ? { ...i, sprintId: sprintId || null } : i)));
+  };
+
+  const moveToBacklog = async (issueId: string) => {
+    if (sprintAssignmentBusyId !== null) return;
+
+    setSprintAssignmentError(null);
+    setSprintAssignmentBusyId(issueId);
+    try {
+      await issueService.unassignFromSprint(issueId);
+      setIssues((prev) => prev.map((issue) => (issue.id === issueId ? { ...issue, sprintId: null } : issue)));
+    } catch (error) {
+      setSprintAssignmentError(invitationErrorMessage(error, "이슈를 백로그로 이동하지 못했습니다."));
+    } finally {
+      setSprintAssignmentBusyId(null);
+    }
   };
 
   const createSprint = () => {
@@ -202,6 +221,7 @@ export default function BacklogPage() {
 
         {/* 스프린트별 이슈 */}
         <div className="mt-6 flex flex-col gap-4">
+          {sprintAssignmentError && <p className="text-sm text-destructive">{sprintAssignmentError}</p>}
           {sprints.map((sprint) => {
             const sprintIssues = issues.filter((i) => i.sprintId === sprint.id);
             return (
@@ -245,10 +265,11 @@ export default function BacklogPage() {
                       {issue.title}
                     </span>
                           {canManageSprint && (
-                              <button
-                                  onClick={() => assignToSprint(issue.id, "")}
-                                  className="text-xs font-medium text-muted transition-colors duration-fast hover:text-primary"
-                              >
+                               <button
+                                   onClick={() => void moveToBacklog(issue.id)}
+                                   disabled={sprintAssignmentBusyId === issue.id}
+                                   className="text-xs font-medium text-muted transition-colors duration-fast hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                               >
                                 백로그로
                               </button>
                           )}
