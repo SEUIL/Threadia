@@ -1,0 +1,173 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly COMPOSE_ROOT=/opt/threadia-compose
+readonly COMPOSE_PROJECT=threadia-compose-dual
+readonly COMPOSE_FILE="$COMPOSE_ROOT/compose.dual-image.production.yml"
+readonly RUNTIME_ENV=/etc/threadia-compose/runtime.env
+readonly STATE_ROOT=/var/lib/threadia-compose-dual
+readonly CURRENT_RELEASE_FILE="$STATE_ROOT/current-release.env"
+readonly LEGACY_STATE_FILE=/var/lib/threadia-compose/current-image
+readonly LOCK_FILE=/run/lock/threadia-compose-dual-deploy.lock
+readonly HEALTH_TIMEOUT_SECONDS=180
+readonly HEALTH_INTERVAL_SECONDS=3
+
+fail() {
+  printf '%s\n' "dual Compose deployment failed: $*" >&2
+  exit 1
+}
+
+valid_image_ref() {
+  [[ "$1" =~ ^[0-9]{12}\.dkr\.ecr\.([a-z]{2}(-[a-z0-9]+)+-[0-9]+)\.amazonaws\.com/[a-z0-9]+([._/-][a-z0-9]+)*@sha256:[a-f0-9]{64}$ ]]
+}
+
+require_root_owned_non_writable() {
+  local path="$1" owner group mode
+  owner="$(stat -c '%U' "$path")"
+  group="$(stat -c '%G' "$path")"
+  mode="$(stat -c '%a' "$path")"
+  [[ "$owner" == root && "$group" == root ]] || fail "$path must be owned by root:root"
+  (( (8#$mode & 0022) == 0 )) || fail "$path must not be writable by group or others"
+}
+
+compose_for_release() {
+  local frontend_image="$1" backend_image="$2"
+  shift 2
+  THREADIA_FRONTEND_IMAGE="$frontend_image" THREADIA_BACKEND_IMAGE="$backend_image" THREADIA_RUNTIME_ENV_FILE="$RUNTIME_ENV" docker compose \
+    --project-name "$COMPOSE_PROJECT" \
+    --project-directory "$COMPOSE_ROOT" \
+    --env-file "$RUNTIME_ENV" \
+    --file "$COMPOSE_FILE" \
+    "$@"
+}
+
+write_release_state() {
+  local destination="$1" temporary_file
+  temporary_file="$(mktemp "$STATE_ROOT/.release.XXXXXX")"
+  {
+    printf 'THREADIA_RELEASE_ID=%s\n' "$release_id"
+    printf 'THREADIA_FRONTEND_IMAGE=%s\n' "$frontend_image"
+    printf 'THREADIA_BACKEND_IMAGE=%s\n' "$backend_image"
+  } > "$temporary_file"
+  chmod 0600 "$temporary_file"
+  mv -f "$temporary_file" "$destination"
+}
+
+read_release_state() {
+  local state_file="$1" line key value
+  release_id=""
+  frontend_image=""
+  backend_image=""
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    [[ "$line" == *=* ]] || fail "invalid release state line"
+    key="${line%%=*}"
+    value="${line#*=}"
+    case "$key" in
+      THREADIA_RELEASE_ID) [[ -z "$release_id" ]] || fail "duplicate THREADIA_RELEASE_ID"; release_id="$value" ;;
+      THREADIA_FRONTEND_IMAGE) [[ -z "$frontend_image" ]] || fail "duplicate THREADIA_FRONTEND_IMAGE"; frontend_image="$value" ;;
+      THREADIA_BACKEND_IMAGE) [[ -z "$backend_image" ]] || fail "duplicate THREADIA_BACKEND_IMAGE"; backend_image="$value" ;;
+      *) fail "unsupported release state key: $key" ;;
+    esac
+  done < "$state_file"
+  [[ "$release_id" =~ ^[0-9a-f]{40}-[1-9][0-9]*-[1-9][0-9]*$ ]] || fail "invalid release identifier"
+  valid_image_ref "$frontend_image" || fail "invalid frontend image reference"
+  valid_image_ref "$backend_image" || fail "invalid backend image reference"
+}
+
+wait_for_health() {
+  local deadline=$((SECONDS + HEALTH_TIMEOUT_SECONDS))
+  while (( SECONDS < deadline )); do
+    if curl --fail --silent --show-error --connect-timeout 1 --max-time 2 http://127.0.0.1:3000/ >/dev/null && \
+      curl --fail --silent --show-error --connect-timeout 1 --max-time 2 http://127.0.0.1:8080/actuator/health >/dev/null; then
+      return 0
+    fi
+    sleep "$HEALTH_INTERVAL_SECONDS"
+  done
+  return 1
+}
+
+verify_running_release() {
+  local running_services frontend_container backend_container
+  running_services="$(compose_for_release "$frontend_image" "$backend_image" ps --status running --services | sort)"
+  [[ "$running_services" == $'backend\nfrontend' ]] || return 1
+  frontend_container="$(compose_for_release "$frontend_image" "$backend_image" ps --quiet frontend)"
+  backend_container="$(compose_for_release "$frontend_image" "$backend_image" ps --quiet backend)"
+  [[ "$(docker inspect --format '{{.Config.Image}}' "$frontend_container")" == "$frontend_image" ]] && \
+    [[ "$(docker inspect --format '{{.Config.Image}}' "$backend_container")" == "$backend_image" ]]
+}
+
+start_release() {
+  compose_for_release "$frontend_image" "$backend_image" pull frontend backend
+  compose_for_release "$frontend_image" "$backend_image" up --detach --no-deps --force-recreate frontend backend
+}
+
+[[ "$(id -u)" -eq 0 ]] || fail "must run as root"
+[[ "$#" -eq 3 ]] || fail "expected ReleaseId, FrontendImageRef, and BackendImageRef"
+release_id="$1"
+frontend_image="$2"
+backend_image="$3"
+[[ "$release_id" =~ ^[0-9a-f]{40}-[1-9][0-9]*-[1-9][0-9]*$ ]] || fail "invalid ReleaseId"
+valid_image_ref "$frontend_image" || fail "invalid FrontendImageRef"
+valid_image_ref "$backend_image" || fail "invalid BackendImageRef"
+
+for command in aws curl docker flock install mktemp mv chmod rm stat sort uname; do
+  command -v "$command" >/dev/null 2>&1 || fail "missing host prerequisite: $command"
+done
+for path in "$0" "$COMPOSE_FILE" "$RUNTIME_ENV"; do
+  [[ -f "$path" ]] || fail "required file is missing: $path"
+  require_root_owned_non_writable "$path"
+done
+[[ "$(stat -c '%a' "$RUNTIME_ENV")" == "600" ]] || fail "runtime environment file must have mode 0600"
+[[ "$(uname -m)" == "x86_64" ]] || fail "public Compose runtime requires an x86_64 host"
+
+install -d -o root -g root -m 0700 "$STATE_ROOT"
+install -d -o root -g root -m 0755 /run/lock
+exec 9>"$LOCK_FILE"
+flock -n 9 || fail "another dual Compose deployment is already active"
+
+legacy_app="$(docker ps --filter 'label=com.docker.compose.project=threadia-compose' --filter 'label=com.docker.compose.service=app' --quiet)"
+[[ -z "$legacy_app" ]] || fail "legacy backend-only Compose app is still running; migrate it manually before dual deployment"
+[[ ! -f "$LEGACY_STATE_FILE" ]] || fail "legacy backend-only current-image state exists; archive it only after approved manual migration"
+
+previous_state=""
+if [[ -f "$CURRENT_RELEASE_FILE" ]]; then
+  require_root_owned_non_writable "$CURRENT_RELEASE_FILE"
+  read_release_state "$CURRENT_RELEASE_FILE"
+  verify_running_release || fail "dual Compose services do not match current release state; reconcile manually"
+  previous_state="$CURRENT_RELEASE_FILE"
+fi
+
+candidate_release_id="$1"
+candidate_frontend_image="$2"
+candidate_backend_image="$3"
+release_id="$candidate_release_id"
+frontend_image="$candidate_frontend_image"
+backend_image="$candidate_backend_image"
+
+DOCKER_CONFIG="$(mktemp -d /run/threadia-compose-dual-docker.XXXXXX)"
+export DOCKER_CONFIG
+trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+logged_in_registries=()
+for image_ref in "$frontend_image" "$backend_image"; do
+  registry="${image_ref%%/*}"
+  aws_region="${registry#*.dkr.ecr.}"
+  aws_region="${aws_region%.amazonaws.com}"
+  if [[ " ${logged_in_registries[*]} " != *" $registry "* ]]; then
+    aws ecr get-login-password --region "$aws_region" | docker login --username AWS --password-stdin "$registry" >/dev/null
+    logged_in_registries+=("$registry")
+  fi
+done
+
+if ! start_release || ! wait_for_health || ! verify_running_release; then
+  compose_for_release "$candidate_frontend_image" "$candidate_backend_image" rm --force --stop frontend backend >/dev/null 2>&1 || true
+  if [[ -n "$previous_state" ]]; then
+    read_release_state "$previous_state"
+    start_release && wait_for_health && verify_running_release || fail "candidate failed and prior dual release rollback failed"
+    fail "candidate failed; prior dual release restored"
+  fi
+  fail "candidate failed and no prior dual release exists"
+fi
+
+write_release_state "$CURRENT_RELEASE_FILE"
+printf '%s\n' "public dual Compose release activated: $release_id"

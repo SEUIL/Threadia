@@ -1,0 +1,158 @@
+name: ecr-compose-dual-image-ssm-deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      rollback_frontend_digest:
+        description: Frontend sha256 digest for paired rollback
+        required: false
+        type: string
+      rollback_backend_digest:
+        description: Backend sha256 digest for paired rollback
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ecr-compose-dual-image-ssm-deploy
+  cancel-in-progress: false
+
+jobs:
+  build_publish:
+    if: github.ref == 'refs/heads/main' && inputs.rollback_frontend_digest == '' && inputs.rollback_backend_digest == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: ecr-compose-nonprod
+    outputs:
+      release_id: ${{ steps.release.outputs.release_id }}
+      frontend_image_ref: ${{ steps.images.outputs.frontend_image_ref }}
+      backend_image_ref: ${{ steps.images.outputs.backend_image_ref }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+      THREADIA_ECR_REGISTRY: ${{ vars.THREADIA_ECR_REGISTRY }}
+      THREADIA_ECR_FRONTEND_REPOSITORY: ${{ vars.THREADIA_ECR_FRONTEND_REPOSITORY }}
+      THREADIA_ECR_BACKEND_REPOSITORY: ${{ vars.THREADIA_ECR_BACKEND_REPOSITORY }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Test backend
+        working-directory: backend
+        env:
+          THREADIA_DB_URL: jdbc:mysql://localhost:3307/threadia_test
+          THREADIA_DB_USERNAME: threadia
+          THREADIA_DB_PASSWORD: ""
+          THREADIA_JWT_SECRET: public-ci-test-jwt-secret-not-for-production-please-replace
+          THREADIA_COOKIE_SECURE: "false"
+          THREADIA_CORS_ALLOWED_ORIGIN: http://localhost:3000
+        run: ./gradlew test
+      - name: Configure AWS credentials through OIDC
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Build and push immutable image pair
+        id: images
+        run: |
+          set -euo pipefail
+          export DOCKER_CONFIG="$(mktemp -d)"
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          tag="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          frontend_repository="$THREADIA_ECR_REGISTRY/$THREADIA_ECR_FRONTEND_REPOSITORY"
+          backend_repository="$THREADIA_ECR_REGISTRY/$THREADIA_ECR_BACKEND_REPOSITORY"
+          aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$THREADIA_ECR_REGISTRY" >/dev/null
+          docker build --platform linux/amd64 --build-arg NEXT_PUBLIC_API_URL=https://api.threadia.click --tag "$frontend_repository:$tag" frontend
+          docker build --platform linux/amd64 --tag "$backend_repository:$tag" backend
+          docker push "$frontend_repository:$tag" >/dev/null
+          docker push "$backend_repository:$tag" >/dev/null
+          frontend_digest="$(aws ecr describe-images --region "$AWS_REGION" --repository-name "$THREADIA_ECR_FRONTEND_REPOSITORY" --image-ids imageTag="$tag" --query 'imageDetails[0].imageDigest' --output text)"
+          backend_digest="$(aws ecr describe-images --region "$AWS_REGION" --repository-name "$THREADIA_ECR_BACKEND_REPOSITORY" --image-ids imageTag="$tag" --query 'imageDetails[0].imageDigest' --output text)"
+          [[ "$frontend_digest" =~ ^sha256:[a-f0-9]{64}$ && "$backend_digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          printf 'frontend_image_ref=%s@%s\nbackend_image_ref=%s@%s\n' "$frontend_repository" "$frontend_digest" "$backend_repository" "$backend_digest" >> "$GITHUB_OUTPUT"
+      - id: release
+        run: printf 'release_id=%s\n' "${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+  validate_rollback:
+    if: github.ref == 'refs/heads/main' && (inputs.rollback_frontend_digest != '' || inputs.rollback_backend_digest != '')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ecr-compose-nonprod
+    outputs:
+      release_id: ${{ steps.release.outputs.release_id }}
+      frontend_image_ref: ${{ steps.images.outputs.frontend_image_ref }}
+      backend_image_ref: ${{ steps.images.outputs.backend_image_ref }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+      THREADIA_ECR_REGISTRY: ${{ vars.THREADIA_ECR_REGISTRY }}
+      THREADIA_ECR_FRONTEND_REPOSITORY: ${{ vars.THREADIA_ECR_FRONTEND_REPOSITORY }}
+      THREADIA_ECR_BACKEND_REPOSITORY: ${{ vars.THREADIA_ECR_BACKEND_REPOSITORY }}
+      FRONTEND_DIGEST: ${{ inputs.rollback_frontend_digest }}
+      BACKEND_DIGEST: ${{ inputs.rollback_backend_digest }}
+    steps:
+      - name: Validate paired rollback input
+        run: |
+          set -euo pipefail
+          [[ "$FRONTEND_DIGEST" =~ ^sha256:[a-f0-9]{64}$ && "$BACKEND_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+      - name: Configure AWS credentials through OIDC
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+      - id: images
+        name: Confirm paired rollback images exist
+        run: |
+          set -euo pipefail
+          aws ecr describe-images --region "$AWS_REGION" --repository-name "$THREADIA_ECR_FRONTEND_REPOSITORY" --image-ids imageDigest="$FRONTEND_DIGEST" >/dev/null
+          aws ecr describe-images --region "$AWS_REGION" --repository-name "$THREADIA_ECR_BACKEND_REPOSITORY" --image-ids imageDigest="$BACKEND_DIGEST" >/dev/null
+          printf 'frontend_image_ref=%s/%s@%s\nbackend_image_ref=%s/%s@%s\n' "$THREADIA_ECR_REGISTRY" "$THREADIA_ECR_FRONTEND_REPOSITORY" "$FRONTEND_DIGEST" "$THREADIA_ECR_REGISTRY" "$THREADIA_ECR_BACKEND_REPOSITORY" "$BACKEND_DIGEST" >> "$GITHUB_OUTPUT"
+      - id: release
+        run: printf 'release_id=%s\n' "${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: [build_publish, validate_rollback]
+    if: always() && github.ref == 'refs/heads/main' && (needs.build_publish.result == 'success' || needs.validate_rollback.result == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ecr-compose-nonprod
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+      THREADIA_ECR_COMPOSE_INSTANCE_ID: ${{ vars.THREADIA_ECR_COMPOSE_INSTANCE_ID }}
+      THREADIA_ECR_COMPOSE_DUAL_IMAGE_SSM_DOCUMENT_NAME: ${{ vars.THREADIA_ECR_COMPOSE_DUAL_IMAGE_SSM_DOCUMENT_NAME }}
+      THREADIA_ECR_COMPOSE_DUAL_IMAGE_SSM_DOCUMENT_VERSION: ${{ vars.THREADIA_ECR_COMPOSE_DUAL_IMAGE_SSM_DOCUMENT_VERSION }}
+      RELEASE_ID: ${{ needs.build_publish.outputs.release_id || needs.validate_rollback.outputs.release_id }}
+      FRONTEND_IMAGE_REF: ${{ needs.build_publish.outputs.frontend_image_ref || needs.validate_rollback.outputs.frontend_image_ref }}
+      BACKEND_IMAGE_REF: ${{ needs.build_publish.outputs.backend_image_ref || needs.validate_rollback.outputs.backend_image_ref }}
+    steps:
+      - name: Configure AWS credentials through OIDC
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+      - id: command
+        name: Invoke fixed public dual-image deploy document
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_ID" =~ ^[0-9a-f]{40}-[1-9][0-9]*-[1-9][0-9]*$ ]]
+          [[ "$FRONTEND_IMAGE_REF" =~ @sha256:[a-f0-9]{64}$ && "$BACKEND_IMAGE_REF" =~ @sha256:[a-f0-9]{64}$ ]]
+          [[ "$THREADIA_ECR_COMPOSE_DUAL_IMAGE_SSM_DOCUMENT_VERSION" =~ ^[1-9][0-9]*$ ]]
+          command_id="$(aws ssm send-command --region "$AWS_REGION" --document-name "$THREADIA_ECR_COMPOSE_DUAL_IMAGE_SSM_DOCUMENT_NAME" --document-version "$THREADIA_ECR_COMPOSE_DUAL_IMAGE_SSM_DOCUMENT_VERSION" --instance-ids "$THREADIA_ECR_COMPOSE_INSTANCE_ID" --parameters ReleaseId="$RELEASE_ID",FrontendImageRef="$FRONTEND_IMAGE_REF",BackendImageRef="$BACKEND_IMAGE_REF" --query Command.CommandId --output text)"
+          [[ "$command_id" != None && "$command_id" != null ]]
+          printf 'command_id=%s\n' "$command_id" >> "$GITHUB_OUTPUT"
+      - name: Verify SSM command completion
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            status="$(aws ssm get-command-invocation --region "$AWS_REGION" --cli-connect-timeout 5 --cli-read-timeout 10 --command-id "${{ steps.command.outputs.command_id }}" --instance-id "$THREADIA_ECR_COMPOSE_INSTANCE_ID" --query Status --output text 2>/dev/null || true)"
+            case "$status" in Success) exit 0 ;; Failed|Cancelled|TimedOut|Cancelling) exit 1 ;; esac
+            sleep 10
+          done
+          exit 1

@@ -1,0 +1,22 @@
+schemaVersion: '2.2'
+description: Invoke the fixed public dual-image Compose release helper.
+parameters:
+  ReleaseId:
+    type: String
+    interpolationType: ENV_VAR
+    allowedPattern: '^[0-9a-f]{40}-[1-9][0-9]*-[1-9][0-9]*$'
+  FrontendImageRef:
+    type: String
+    interpolationType: ENV_VAR
+    allowedPattern: '^[0-9]{12}\.dkr\.ecr\.[a-z]{2}(-[a-z0-9]+)+-[0-9]+\.amazonaws\.com/[a-z0-9]+([._/-][a-z0-9]+)*@sha256:[a-f0-9]{64}$'
+  BackendImageRef:
+    type: String
+    interpolationType: ENV_VAR
+    allowedPattern: '^[0-9]{12}\.dkr\.ecr\.[a-z]{2}(-[a-z0-9]+)+-[0-9]+\.amazonaws\.com/[a-z0-9]+([._/-][a-z0-9]+)*@sha256:[a-f0-9]{64}$'
+mainSteps:
+  - action: aws:runShellScript
+    name: deployDualRelease
+    inputs:
+      timeoutSeconds: '540'
+      runCommand:
+        - 'exec /usr/local/lib/threadia-compose/deploy-dual-release "$SSM_ReleaseId" "$SSM_FrontendImageRef" "$SSM_BackendImageRef"'
