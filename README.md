@@ -220,6 +220,46 @@ flowchart LR
 
 ---
 
+## 과거 배포 Architecture
+
+Threadia는 프로젝트 진행 중 AWS 기반 배포를 구성했다. 아래는 당시의 runtime과 delivery architecture 기록이며, application resource는 현재 종료된 상태다. 세부 운영 기록은 [배포 종료 기록](docs/00-project/프로젝트-배포-종료-기록.md)과 [배포 Architecture 문서](docs/05-architecture/AWS-배포-아키텍처-v1.md)에서 확인할 수 있다.
+
+<details>
+<summary>🏗️ <strong>▶ 펼쳐서 보기 — 과거 런타임 구성 · 배포 파이프라인 다이어그램</strong></summary>
+
+### 런타임 구성
+
+```mermaid
+graph LR
+    U["사용자<br/>HTTPS"] --> R53["Route 53<br/>threadia.click / api.threadia.click"]
+    R53 --> NGINX["EIP + Nginx<br/>TLS 종단(Certbot) · :443 → 내부 proxy"]
+    subgraph EC2["EC2 · Docker Compose(dual image)"]
+        FE["frontend 컨테이너<br/>Next.js SSR · 127.0.0.1:3000"]
+        BE["backend 컨테이너<br/>Spring Boot · 127.0.0.1:8080"]
+    end
+    NGINX --> FE
+    NGINX --> BE
+    BE --> RDS[("RDS MySQL<br/>private subnet · EC2 SG만 inbound")]
+```
+
+프론트엔드와 백엔드를 같은 EC2 위에서 서로 다른 ECR 이미지로 독립 실행하고, Docker Compose는 public port를 열지 않고 Nginx만 외부에 노출했다.
+
+### 배포 파이프라인
+
+```mermaid
+flowchart LR
+    GH["GitHub Actions<br/>OIDC · 장기 key 없음"] --> ECR["ECR push<br/>digest 고정 이미지"]
+    ECR --> S3M["S3 manifest<br/>versioned release"]
+    S3M --> SSM["SSM Command<br/>SSH 없이 전달"]
+    SSM --> EC2D["EC2 배포 스크립트<br/>양쪽 health check 후 원자적 전환"]
+```
+
+health check가 실패하면 기존 버전을 유지하도록 구성했고, secret은 저장소가 아닌 runtime environment로만 주입했다.
+
+</details>
+
+---
+
 ## 핵심 도메인 모델
 
 회사(workspace) 아래 프로젝트가 있고, 프로젝트 아래에서 이슈·문서·채팅·쓰레드가 서로 연결되는 구조입니다. 전체 ERD는 [docs/03-design/ERD.md](docs/03-design/ERD.md)에서 확인할 수 있습니다.
