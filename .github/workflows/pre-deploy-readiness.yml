@@ -14,19 +14,38 @@ jobs:
       run:
         working-directory: backend
     env:
-      THREADIA_DB_URL: jdbc:mysql://localhost:3307/threadia_test
-      THREADIA_DB_USERNAME: threadia
-      THREADIA_DB_PASSWORD: ""
-      THREADIA_JWT_SECRET: public-ci-test-jwt-secret-not-for-production-please-replace
-      THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET: public-ci-test-project-chat-cursor-hmac-secret-not-for-production
-      THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET: public-ci-test-notification-cursor-hmac-secret-not-for-production
-      THREADIA_AUDIT_CURSOR_HMAC_SECRET: public-ci-test-audit-cursor-hmac-secret-not-for-production
+      THREADIA_DB_URL: jdbc:mysql://127.0.0.1:3306/threadia_readiness
+      THREADIA_DB_USERNAME: threadia_readiness
+      THREADIA_DB_PASSWORD: threadia_readiness_password
+      THREADIA_DB_SCHEMA_VALIDATION: "true"
+      THREADIA_JWT_SECRET: ci-only-jwt-secret-not-for-production-please-replace
+      THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET: ci-only-project-chat-cursor-secret-not-for-production
+      THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET: ci-only-notification-cursor-secret-not-for-production
+      THREADIA_AUDIT_CURSOR_HMAC_SECRET: ci-only-audit-cursor-secret-not-for-production
       THREADIA_COOKIE_SECURE: "false"
       THREADIA_CORS_ALLOWED_ORIGIN: http://localhost:3000
-
+      THREADIA_STORAGE_S3_BUCKET: threadia-ci-only-storage
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: threadia_readiness
+          MYSQL_USER: threadia_readiness
+          MYSQL_PASSWORD: threadia_readiness_password
+          MYSQL_ROOT_PASSWORD: threadia_readiness_root_password
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uthreadia_readiness -pthreadia_readiness_password"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+        ports:
+          - 3306:3306
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Initialize MySQL schema
+        run: MYSQL_PWD="$THREADIA_DB_PASSWORD" mysql --host=127.0.0.1 --port=3306 --user="$THREADIA_DB_USERNAME" threadia_readiness < ../db/schema.sql
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -46,7 +65,6 @@ jobs:
         working-directory: frontend
     env:
       NEXT_PUBLIC_API_URL: http://localhost:8080
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -67,112 +85,12 @@ jobs:
       - name: Run build
         run: npm run build
 
-  frontend-smoke:
-    name: Frontend smoke
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-    env:
-      NEXT_PUBLIC_API_URL: http://127.0.0.1:8080
-      THREADIA_DB_URL: jdbc:mysql://127.0.0.1:3306/threadia_smoke
-      THREADIA_DB_USERNAME: threadia_smoke
-      THREADIA_DB_PASSWORD: threadia_smoke_password
-      THREADIA_JWT_SECRET: ci-only-smoke-jwt-secret-not-for-production
-      THREADIA_PROJECT_CHAT_CURSOR_HMAC_SECRET: ci-only-project-chat-cursor-hmac-secret-not-for-production
-      THREADIA_NOTIFICATION_CURSOR_HMAC_SECRET: ci-only-notification-cursor-hmac-secret-not-for-production
-      THREADIA_AUDIT_CURSOR_HMAC_SECRET: ci-only-audit-cursor-hmac-secret-not-for-production
-      THREADIA_COOKIE_SECURE: "false"
-      THREADIA_CORS_ALLOWED_ORIGIN: http://127.0.0.1:3001
-      THREADIA_STORAGE_S3_REGION: ap-northeast-2
-      THREADIA_STORAGE_S3_BUCKET: threadia-attachments-940507692158-ap-northeast-2
-      THREADIA_STORAGE_S3_PATH_STYLE: "false"
-      THREADIA_STORAGE_S3_PRESIGN_TTL: PT10M
-      THREADIA_STORAGE_ORPHAN_CLEANUP_ENABLED: "true"
-      THREADIA_STORAGE_ORPHAN_CLEANUP_DELAY: PT1H
-      THREADIA_STORAGE_UPLOAD_CLEANUP_DELAY: PT24H
-      THREADIA_E2E_REQUIRE_OAUTH: "false"
-      MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
-
-    services:
-      mysql:
-        image: mysql:8.4
-        env:
-          MYSQL_DATABASE: threadia_smoke
-          MYSQL_USER: threadia_smoke
-          MYSQL_PASSWORD: threadia_smoke_password
-          MYSQL_ROOT_PASSWORD: threadia_smoke_root_password
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -uthreadia_smoke -pthreadia_smoke_password"
-          --health-interval=5s
-          --health-timeout=3s
-          --health-retries=20
-        ports:
-          - 3306:3306
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-          cache: gradle
-
-      - name: Set up Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Initialize MySQL schema
-        run: MYSQL_PWD="$THREADIA_DB_PASSWORD" mysql --host=127.0.0.1 --port=3306 --user="$THREADIA_DB_USERNAME" threadia_smoke < ../db/schema.sql
-
-      - name: Start backend
-        working-directory: backend
-        run: nohup ./gradlew bootRun > backend-smoke.log 2>&1 &
-
-      - name: Wait for backend health
-        run: |
-          for attempt in {1..60}; do
-            if curl --fail --silent --show-error http://127.0.0.1:8080/actuator/health > /dev/null; then
-              exit 0
-            fi
-            sleep 2
-          done
-          exit 1
-
-      - name: Install frontend dependencies
-        run: npm ci
-
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Run frontend smoke after Playwright web-server readiness
-        run: npm run test:smoke -- --workers=1
-
-      - name: Upload smoke failure diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-smoke-failure-artifacts
-          path: |
-            backend/backend-smoke.log
-            frontend/test-results
-            frontend/playwright-report
-          if-no-files-found: warn
-          retention-days: 7
-
   docs-site-lint-and-build:
     name: Docs-site lint and build
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: docs-site
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -192,3 +110,31 @@ jobs:
 
       - name: Run build
         run: npm run build
+
+  frontend-smoke:
+    name: Frontend smoke
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run smoke tests
+        run: npm run test:smoke -- --workers=1

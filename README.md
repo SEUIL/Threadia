@@ -214,16 +214,18 @@ flowchart LR
 |---|---|
 | Backend | Java 17, Spring Boot 3.5, Spring Data JPA, Spring Security(JWT + OAuth2), MySQL 8.4 |
 | Frontend | Next.js 16(App Router), React 19, TypeScript, TanStack Query, Tailwind CSS 4, React Three Fiber(3D 허브) |
-| 파일 저장 | AWS S3 호환 스토리지(로컬 개발은 MinIO) |
+| 파일 저장 | S3 호환 object storage interface(로컬 개발은 MinIO) |
 | 테스트 | JUnit 5 + Testcontainers(Backend), Playwright(Frontend smoke test) |
-| 인프라 | AWS(EC2, RDS, S3, ECR, SSM 배포), Docker Compose(로컬 개발) |
+| 로컬 인프라 | Docker Compose(MySQL, MinIO) |
 
 ---
 
-## 아키텍처
+## 과거 배포 Architecture
+
+Threadia는 프로젝트 진행 중 AWS 기반 배포를 구성했다. 아래는 당시의 runtime과 delivery architecture 기록이며, application resource는 현재 종료된 상태다. 세부 운영 기록은 [배포 종료 기록](docs/00-project/프로젝트-배포-종료-기록.md)과 [배포 Architecture 문서](docs/05-architecture/AWS-배포-아키텍처-v1.md)에서 확인할 수 있다.
 
 <details>
-<summary>🏗️ <strong>▶ 펼쳐서 보기 — 런타임 구성 · 배포 파이프라인 다이어그램</strong></summary>
+<summary>🏗️ <strong>▶ 펼쳐서 보기 — 과거 런타임 구성 · 배포 파이프라인 다이어그램</strong></summary>
 
 ### 런타임 구성
 
@@ -240,7 +242,7 @@ graph LR
     BE --> RDS[("RDS MySQL<br/>private subnet · EC2 SG만 inbound")]
 ```
 
-프론트엔드와 백엔드를 같은 EC2 위에서 서로 다른 ECR 이미지로 독립 실행하고, Docker Compose는 public port를 열지 않고 Nginx만 외부에 노출합니다.
+프론트엔드와 백엔드를 같은 EC2 위에서 서로 다른 ECR 이미지로 독립 실행하고, Docker Compose는 public port를 열지 않고 Nginx만 외부에 노출했다.
 
 ### 배포 파이프라인
 
@@ -252,7 +254,7 @@ flowchart LR
     SSM --> EC2D["EC2 배포 스크립트<br/>양쪽 health check 후 원자적 전환"]
 ```
 
-health check가 실패하면 기존 버전을 그대로 유지합니다(rollback 안전). secret은 저장소에 두지 않고 root-only runtime env로만 주입합니다.
+health check가 실패하면 기존 버전을 유지하도록 구성했고, secret은 저장소가 아닌 runtime environment로만 주입했다.
 
 </details>
 
