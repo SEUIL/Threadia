@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-27
-> **최종 수정**: 2026-07-28
-> **버전**: v1.2
+> **최종 수정**: 2026-07-18
+> **버전**: v1.1
 > **상태**: 확정
 > **태그**: decision, db, schema, policy
 
@@ -15,7 +15,7 @@ Threadia Sprint 1 개발 단계에서는 Flyway, Liquibase 같은 DB migration t
 
 DB schema는 `docs/03-design/ERD.md`를 설계 기준으로 삼고, 전체 MVP 기준 SQL DDL 파일인 `db/schema.sql`을 DB 생성 기준으로 관리한다. schema 변경 이력은 `docs/07-decisions/DB-schema-변경이력.md`에 기록한다.
 
-retired deployment의 persistent schema drift 보정 artifact와 runbook은 제거했다. local DB는 `db/schema.sql`을 기준으로 관리하며, 종료된 deployment 경로의 처리 범위는 [프로젝트 배포 종료 기록](../00-project/프로젝트-배포-종료-기록.md)을 따른다.
+확인된 persistent SSM host Platform foundation schema drift에 한해, `scripts/ssm-delivery/platform-foundation-additive.sql`을 별도 승인된 DB operator가 한 번 실행할 수 있다. 이 artifact는 `db/schema.sql`을 대체하지 않고, persistent host에서 `db/schema.sql`을 실행하는 것은 금지한다.
 
 ---
 
@@ -38,7 +38,7 @@ Threadia는 교육용 MVP 프로젝트이며, 초기 개발 단계에서는 운�
 | 권장 JPA DDL 설정 | `spring.jpa.hibernate.ddl-auto=validate` |
 | 비권장 방식 | `spring.jpa.hibernate.ddl-auto=update`로 DB 구조 자동 변경 |
 | Sprint 1 migration tool | 사용하지 않음 |
-| Retired deployment 처리 | persistent deployment migration은 현재 범위 밖이며 [프로젝트 배포 종료 기록](../00-project/프로젝트-배포-종료-기록.md)으로 추적 |
+| Persistent SSM 예외 | one-time additive operator artifact만 허용; `docs/00-project/restricted-ssm-platform-foundation-db-migration-runbook.md`의 preflight/postflight와 별도 승인 필요 |
 
 ---
 
@@ -50,6 +50,7 @@ Threadia는 교육용 MVP 프로젝트이며, 초기 개발 단계에서는 운�
 4. local DB는 필요 시 drop 후 `db/schema.sql`로 재생성한다.
 5. 변경 이유, 변경 대상, 영향 범위를 `docs/07-decisions/DB-schema-변경이력.md`에 기록한다.
 6. PR에서는 ERD, API, Entity, `db/schema.sql` 정합성을 확인한다.
+7. persistent SSM exception은 repository/PR review와 live DB backup·SQL execution·release retry를 분리하고, runbook의 checksum·compatibility·write freeze·postflight gate를 모두 통과한 경우에만 진행한다.
 
 ---
 
@@ -58,7 +59,8 @@ Threadia는 교육용 MVP 프로젝트이며, 초기 개발 단계에서는 운�
 - Sprint 1에서는 Flyway/Liquibase versioned migration을 구성하지 않는다.
 - Sprint 1에서는 migration directory 또는 migration history table을 운영 기준으로 두지 않는다.
 - Hibernate `ddl-auto=update`에 의존해 DB 구조를 자동 변경하지 않는다.
-- retired deployment workflow, release helper, CloudFormation을 DB migration 경로로 사용하지 않는다.
+- SSM workflow, release helper, CloudFormation이 DB migration을 자동 실행하지 않는다.
+- one-time persistent SSM exception을 일반 migration directory, migration history table 또는 반복 배포 절차로 확장하지 않는다.
 - 운영 데이터가 생긴 뒤의 무중단 migration 전략은 이 문서의 범위가 아니다.
 
 ---
@@ -67,7 +69,6 @@ Threadia는 교육용 MVP 프로젝트이며, 초기 개발 단계에서는 운�
 
 | 날짜 | 내용 |
 |---|---|
-| 2026-07-28 | retired persistent SSM migration 예외와 runbook 참조를 제거하고, deployment 종료 기록으로 대체했다. |
 | 2026-07-18 | confirmed Platform foundation schema drift에만 적용되는 one-time persistent SSM additive operator exception을 기록했다. |
 
 ---

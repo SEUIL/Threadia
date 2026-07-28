@@ -571,7 +571,7 @@ summary table은 원본이 아니라 read model이다. 원본은 `issues`, `docu
 - `DOCUMENT`는 Markdown 본문이 아니라 document resource 자체를 의미하고, `BINARY_DOCUMENT`는 같은 document resource에 연결된 별도 binary attachment target이다.
 - polymorphic `target_type`/`target_id`의 존재와 tenant/project/DM visibility, 작성자 또는 project/company admin mutation, avatar owner-only, company-logo company-admin 인가는 service policy로 검증한다.
 - `USER_AVATAR`, `COMPANY_LOGO`는 `image/*` content type만 허용한다.
-- fresh local DB는 `db/schema.sql` clean drop/recreate로 `attachments`, avatar/logo reference column과 FK를 함께 적용한다. persistent deployment migration과 AWS storage wiring은 종료되어 현재 schema 관리 범위에 포함하지 않는다.
+- fresh local DB는 `db/schema.sql` clean drop/recreate로 `attachments`, avatar/logo reference column과 FK를 함께 적용한다. 기존 persistent DB에는 자동 migration을 추가하지 않는다. `scripts/ssm-delivery/attachment-storage-additive.sql`은 승인된 operator가 실행하는 one-time additive artifact이며 deployment automation이 호출하지 않는다. production bucket/IAM/CORS/network/SSM/CI/CD wiring은 이 schema 경로에 포함하지 않는다.
 
 ### 5.10 document_issue_links
 
