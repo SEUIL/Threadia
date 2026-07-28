@@ -2,8 +2,8 @@
 
 > **작성자**: Threadia 팀
 > **작성일**: 2026-06-27
-> **최종 수정**: 2026-07-21
-> **버전**: v1.8
+> **최종 수정**: 2026-07-28
+> **버전**: v1.9
 > **상태**: 확정
 > **태그**: decision, db, schema, changelog
 
@@ -41,7 +41,7 @@ DB schema가 바뀌면 아래 항목을 기록한다.
 | 변경 대상 | `attachments`, `users.avatar_attachment_id`, `companies.logo_attachment_id`와 관련 FK/index |
 | 변경 내용 | private object metadata, `DOCUMENT`/`BINARY_DOCUMENT`/ISSUE/MESSAGE/THREAD_COMMENT/DIRECT_MESSAGE/USER_AVATAR/COMPANY_LOGO target enum, Base64 SHA-256 checksum, `UPLOADING→READY→DELETED` lifecycle, target/status 조회 index를 추가했다. avatar/logo current reference는 attachment FK로 유지한다. |
 | 변경 이유 | WBS `4.11` private presigned initiate/complete/download/delete lifecycle과 target별 인가를 영속화하기 위해서다. `DOCUMENT`는 Markdown 본문이 아닌 문서 resource를 가리킨다. |
-| 영향 범위 | fresh local DB는 `db/schema.sql` clean drop/recreate로 적용한다. persistent DB는 자동 migration하지 않고 승인된 operator가 `scripts/ssm-delivery/attachment-storage-additive.sql`을 one-time additive로 실행하는 경로만 둔다. production bucket/IAM/CORS/network/SSM/CI/CD wiring과 retention/cleanup activation은 포함하지 않는다. |
+| 영향 범위 | fresh local DB는 `db/schema.sql` clean drop/recreate로 적용한다. retired deployment의 persistent DB migration과 AWS storage wiring은 현재 범위에 포함하지 않는다. |
 | 관련 문서 | `docs/03-design/ERD.md`, `docs/04-api/API-명세서.md`, `docs/02-requirements/기능-시나리오-API-ERD-추적표.md`, `docs/07-decisions/기획문서-변경이력.md` |
 
 ### 2026-07-18 WBS 4.10.4 audit read keyset index 추가
@@ -88,11 +88,11 @@ DB schema가 바뀌면 아래 항목을 기록한다.
 
 | 항목 | 내용 |
 |---|---|
-| 변경 대상 | `scripts/ssm-delivery/platform-foundation-additive.sql`, `companies.status`, Platform foundation 7개 table, bootstrap lock, 8개 system setting seed |
-| 변경 내용 | persistent SSM host의 확인된 schema drift 보정을 위해 MySQL 8 additive/idempotent operator artifact를 추가했다. existing `companies.status`는 변경하지 않고, missing table/seed만 추가한다. |
-| 변경 이유 | restricted SSM release의 Hibernate schema validation이 `admin_action_audits` 누락으로 실패했으며, persistent DB에는 destructive Fresh DB initializer를 사용할 수 없기 때문이다. |
-| 영향 범위 | 별도 승인된 DB operator의 one-time 실행에만 적용된다. SSM workflow/helper/CloudFormation은 DB migration을 자동 실행하지 않으며, `db/schema.sql`은 ECR Compose Fresh DB path에만 유지한다. |
-| 관련 문서 | `scripts/ssm-delivery/platform-foundation-additive.sql`, `docs/00-project/restricted-ssm-platform-foundation-db-migration-runbook.md`, `docs/00-project/restricted-ssm-release-runbook.md`, `docs/07-decisions/DB-schema-관리-정책.md` |
+| 변경 대상 | `companies.status`, Platform foundation 7개 table, bootstrap lock, 8개 system setting seed |
+| 변경 내용 | 당시 persistent deployment schema drift 보정을 위해 MySQL 8 additive/idempotent operator artifact를 추가했다. existing `companies.status`는 변경하지 않고, missing table/seed만 추가했다. 해당 artifact는 deployment 종료와 함께 제거됐다. |
+| 변경 이유 | 당시 restricted SSM release의 Hibernate schema validation이 `admin_action_audits` 누락으로 실패했으며, persistent DB에는 destructive Fresh DB initializer를 사용할 수 없었기 때문이다. |
+| 영향 범위 | historical record만 유지한다. retired SSM workflow/helper/CloudFormation과 migration artifact는 현재 사용하지 않는다. |
+| 관련 문서 | [프로젝트 배포 종료 기록](../00-project/프로젝트-배포-종료-기록.md), `docs/07-decisions/DB-schema-관리-정책.md` |
 
 ### 2026-07-02 ERD/schema drift 보정
 

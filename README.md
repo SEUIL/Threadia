@@ -214,47 +214,9 @@ flowchart LR
 |---|---|
 | Backend | Java 17, Spring Boot 3.5, Spring Data JPA, Spring Security(JWT + OAuth2), MySQL 8.4 |
 | Frontend | Next.js 16(App Router), React 19, TypeScript, TanStack Query, Tailwind CSS 4, React Three Fiber(3D 허브) |
-| 파일 저장 | AWS S3 호환 스토리지(로컬 개발은 MinIO) |
+| 파일 저장 | S3 호환 object storage interface(로컬 개발은 MinIO) |
 | 테스트 | JUnit 5 + Testcontainers(Backend), Playwright(Frontend smoke test) |
-| 인프라 | AWS(EC2, RDS, S3, ECR, SSM 배포), Docker Compose(로컬 개발) |
-
----
-
-## 아키텍처
-
-<details>
-<summary>🏗️ <strong>▶ 펼쳐서 보기 — 런타임 구성 · 배포 파이프라인 다이어그램</strong></summary>
-
-### 런타임 구성
-
-```mermaid
-graph LR
-    U["사용자<br/>HTTPS"] --> R53["Route 53<br/>threadia.click / api.threadia.click"]
-    R53 --> NGINX["EIP + Nginx<br/>TLS 종단(Certbot) · :443 → 내부 proxy"]
-    subgraph EC2["EC2 · Docker Compose(dual image)"]
-        FE["frontend 컨테이너<br/>Next.js SSR · 127.0.0.1:3000"]
-        BE["backend 컨테이너<br/>Spring Boot · 127.0.0.1:8080"]
-    end
-    NGINX --> FE
-    NGINX --> BE
-    BE --> RDS[("RDS MySQL<br/>private subnet · EC2 SG만 inbound")]
-```
-
-프론트엔드와 백엔드를 같은 EC2 위에서 서로 다른 ECR 이미지로 독립 실행하고, Docker Compose는 public port를 열지 않고 Nginx만 외부에 노출합니다.
-
-### 배포 파이프라인
-
-```mermaid
-flowchart LR
-    GH["GitHub Actions<br/>OIDC · 장기 key 없음"] --> ECR["ECR push<br/>digest 고정 이미지"]
-    ECR --> S3M["S3 manifest<br/>versioned release"]
-    S3M --> SSM["SSM Command<br/>SSH 없이 전달"]
-    SSM --> EC2D["EC2 배포 스크립트<br/>양쪽 health check 후 원자적 전환"]
-```
-
-health check가 실패하면 기존 버전을 그대로 유지합니다(rollback 안전). secret은 저장소에 두지 않고 root-only runtime env로만 주입합니다.
-
-</details>
+| 로컬 인프라 | Docker Compose(MySQL, MinIO) |
 
 ---
 
