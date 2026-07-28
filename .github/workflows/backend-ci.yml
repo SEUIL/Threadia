@@ -59,6 +59,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Initialize MySQL schema
+        run: MYSQL_PWD="$THREADIA_DB_PASSWORD" mysql --host=127.0.0.1 --port=3306 --user="$THREADIA_DB_USERNAME" threadia_ci < ../db/schema.sql
+
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
