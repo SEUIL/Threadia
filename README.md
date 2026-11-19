@@ -20,6 +20,28 @@ flowchart LR
 
 ---
 
+## 실제 실행 화면
+
+로컬 프론트엔드·백엔드와 임시 MySQL을 연결해 캡처했습니다. 화면의 계정·프로젝트·공고는 포트폴리오 시연을 위한 합성 데이터입니다.
+
+### 칸반 보드
+
+![칸반 보드](docs/assets/screenshots/board.jpg)
+
+이슈 상태별 작업 흐름
+
+### 문서 작성·미리보기
+
+![문서 작성·미리보기](docs/assets/screenshots/document.jpg)
+
+문서 작성과 관련 이슈 연결
+
+### 문서·이슈 그래프
+
+![문서·이슈 그래프](docs/assets/screenshots/graph.jpg)
+
+문서와 이슈 관계 확인
+
 ## 팀 구성
 
 | 구성원 | 역할 | 담당 업무 |
